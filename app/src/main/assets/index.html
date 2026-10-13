@@ -535,7 +535,7 @@ function setupMobileUI(){
    const exact=dictionary.get(value.trim());
    if(exact!==undefined)return value.replace(value.trim(),exact);
    let out=value;
-   for(const [a,b] of dictionary){if(a.length>5)out=out.replace(new RegExp(a.replace(/[.*+?^$\{\}()|[\]\\]/g,'\\</body>'),'g'),b);}
+   for(const [a,b] of dictionary){if(a.length>5)out=out.split(a).join(b);}
    return out;
  }
  function translate(root,to){
