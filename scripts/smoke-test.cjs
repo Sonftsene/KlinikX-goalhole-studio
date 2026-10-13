@@ -3,7 +3,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 const {chromium}=require('playwright-core');
 const htmlPath=path.resolve('app/src/main/assets/index.html');
 const html=fs.readFileSync(htmlPath,'utf8');
-const scripts=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)];
+const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 for(let i=0;i<scripts.length;i++)new vm.Script(scripts[i][1],{filename:'inline-'+i+'.js'});
 console.log('Inline JavaScript syntax OK:',scripts.length);
 function wav(seconds=4){
