@@ -1,0 +1,21 @@
+name: Verify GoalHole Studio UI
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test runner
+        run: npm install --no-save playwright-core@1.56.1
+      - name: Locate Chrome
+        run: |
+          which google-chrome
+          google-chrome --version
+      - name: Run bilingual, trim and physics tests
+        run: node scripts/smoke-test.cjs
