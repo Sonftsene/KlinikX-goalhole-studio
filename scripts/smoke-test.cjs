@@ -59,7 +59,7 @@ function wav(seconds=4){
   await page.locator('#uiLanguage').selectOption('tr');
   await page.waitForTimeout(250);
   text=await page.locator('body').innerText();
-  assert(text.includes('Takımlar & Skor'),'Turkish switch back failed');
+  assert(text.toLocaleLowerCase('tr-TR').includes('takımlar & skor'),'Turkish switch back failed');
   console.log('Turkish switch back: OK');
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
