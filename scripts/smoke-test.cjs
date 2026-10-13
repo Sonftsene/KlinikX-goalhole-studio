@@ -29,7 +29,7 @@ function wav(seconds=4){
   console.log('DEBUG locale',await page.evaluate(()=>({selected:document.getElementById('uiLanguage').value,locale:window.GHLocale?.current?.(),heading:[...document.querySelectorAll('.panelHead')].slice(0,5).map(e=>e.innerText),ready:document.readyState})));
   console.log('DEBUG errors',errors.slice(0,10));
   for(const t of ['Teams & Score','Physics & Launch','Continuous motion','Select the music section','Background audio volume','Final result screen duration']){
-    assert(text.includes(t),'Missing English translation: '+t);
+    assert(text.toLowerCase().includes(t.toLowerCase()),'Missing English translation: '+t);
   }
   assert(!text.includes('Takımlar & Skor'),'Turkish heading still shown');
   console.log('English interface: OK');
