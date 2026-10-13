@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>GoalHole Studio Pro v6.1 Android</title>
+<title>GoalHole Studio Pro v6.3 Android</title>
 <style>
 :root{
   --bg:#070a12; --panel:#0d1320; --panel2:#121b2d; --line:#26324a; --text:#f3f6ff; --muted:#8ea0c4;
@@ -46,7 +46,7 @@ input[type=text],input[type=number],select{width:100%;border:1px solid #293752;b
 <button id="focusExit" class="btn focusExit">Düzenleyiciye dön</button>
 <div class="app" id="app">
   <header class="topbar">
-    <div class="brand"><div class="brandLogo">⚽</div><div><strong>GoalHole <span>Studio Pro v4</span></strong><small>AUTO DIRECTOR • SHORTS GAME FACTORY</small></div></div>
+    <div class="brand"><div class="brandLogo">⚽</div><div><strong>GoalHole <span>Studio Pro v6.3</span></strong><small>AUTO DIRECTOR • SHORTS GAME FACTORY</small></div></div>
     <div class="toolbarGroup">
       <button class="btn icon" id="newBtn" title="Yeni proje">＋</button>
       <button class="btn icon" id="saveBtn" title="Projeyi kaydet">💾</button>
@@ -249,8 +249,8 @@ const selected=()=>objects.find(o=>o.id===selectedId)||null;
 const fileToData=f=>new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(f)});
 const loadImage=src=>new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src});
 
-function toast(msg){clearTimeout(toastTimer);$('toast').textContent=msg;$('toast').classList.add('show');toastTimer=setTimeout(()=>$('toast').classList.remove('show'),1800)}
-function status(msg){$('statusText').textContent=msg}
+function toast(msg){clearTimeout(toastTimer);$('toast').textContent=window.GHLocale?.t(msg)||msg;$('toast').classList.add('show');toastTimer=setTimeout(()=>$('toast').classList.remove('show'),1800)}
+function status(msg){$('statusText').textContent=window.GHLocale?.t(msg)||msg}
 function sceneDims(){const q=+$('quality').value,r=$('ratio').value;if(r==='9:16')return q===1080?[1080,1920]:q===1440?[1440,2560]:[2160,3840];return q===1080?[1920,1080]:q===1440?[2560,1440]:[3840,2160]}
 function resizeCanvas(){const [w,h]=sceneDims();canvas.width=w;canvas.height=h;$('canvasLabel').textContent=`${w} × ${h}`;bgDirty=true;fitCanvas();ensureSpawn();render();pushHistoryDebounced()}
 function fitCanvas(){const wrap=$('stageArea'),r=canvas.width/canvas.height;let w=(wrap.clientWidth-42),h=(wrap.clientHeight-42);if(w/h>r)w=h*r;else h=w/r;w*=viewZoom;h*=viewZoom;canvas.style.width=`${w}px`;canvas.style.height=`${h}px`;$('zoomText').textContent=`${Math.round(viewZoom*100)}%`}
@@ -310,9 +310,9 @@ function drawSoccerBall(r){
 function mixColor(a,b,t){const p=x=>{x=String(x).replace('#','');if(x.length===3)x=x.split('').map(q=>q+q).join('');const n=parseInt(x,16);return[(n>>16)&255,(n>>8)&255,n&255]};const A=p(a),B=p(b),v=A.map((x,i)=>Math.round(x+(B[i]-x)*t));return '#'+v.map(x=>x.toString(16).padStart(2,'0')).join('')}
 function poly(c,x,y,r,n,rot=0){c.beginPath();for(let i=0;i<n;i++){const a=rot+i*Math.PI*2/n,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;i?c.lineTo(px,py):c.moveTo(px,py)}c.closePath()}
 function shadeColor(hex,amt){let h=String(hex||'#ffffff').replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');let n=parseInt(h,16),r=clamp((n>>16)+amt,0,255),g=clamp(((n>>8)&255)+amt,0,255),b=clamp((n&255)+amt,0,255);return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1)}
-function drawGoalOverlay(){if(!goalOverlay||!$('showGoalCard')?.checked)return;const now=performance.now(),dur=(goalOverlay.duration||2.2)*1000,age=now-goalOverlay.start;if(age>=dur){goalOverlay=null;return}const ev=goalOverlay.event||{},side=goalOverlay.side||ev.side||'left',t=age/dur,fade=Math.min(1,age/180,(dur-age)/260);const w=canvas.width,h=canvas.height,vertical=w<h,cardW=vertical?w*.72:w*.38,cardH=Math.max(105,w*.105),x=w/2,y=vertical?h*.18:h*.2;ctx.save();ctx.globalAlpha=clamp(fade,0,1);ctx.translate(0,lerp(-cardH*.18,0,Math.min(1,age/220)));ctx.fillStyle='rgba(4,8,15,.88)';drawRoundRect(ctx,x-cardW/2,y-cardH/2,cardW,cardH,cardH*.22);ctx.fill();ctx.strokeStyle=teamColor(side);ctx.lineWidth=Math.max(4,w*.004);ctx.stroke();const hasImg=!!ev.imageImg,imgR=cardH*.34;let tx=x-cardW*.38;if(hasImg){drawImageCoverCircle(ev.imageImg,x-cardW*.38,y,imgR);tx=x-cardW*.25}else tx=x-cardW*.38;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=teamColor(side);ctx.font=`900 ${Math.max(23,w*.026)}px Segoe UI`;ctx.fillText('GOL',tx,y-cardH*.2);const line=[ev.minute?`${String(ev.minute).replace("'",'')}′`:null,ev.scorer||null].filter(Boolean).join('  •  ');ctx.fillStyle='#fff';ctx.font=`900 ${Math.max(28,w*.033)}px Segoe UI`;ctx.fillText(line|| (side==='left'?$('leftName').value:$('rightName').value),tx,y+cardH*.12);ctx.restore()}
+function drawGoalOverlay(){if(!goalOverlay||!$('showGoalCard')?.checked)return;const now=performance.now(),dur=(goalOverlay.duration||2.2)*1000,age=now-goalOverlay.start;if(age>=dur){goalOverlay=null;return}const ev=goalOverlay.event||{},side=goalOverlay.side||ev.side||'left',t=age/dur,fade=Math.min(1,age/180,(dur-age)/260);const w=canvas.width,h=canvas.height,vertical=w<h,cardW=vertical?w*.72:w*.38,cardH=Math.max(105,w*.105),x=w/2,y=vertical?h*.18:h*.2;ctx.save();ctx.globalAlpha=clamp(fade,0,1);ctx.translate(0,lerp(-cardH*.18,0,Math.min(1,age/220)));ctx.fillStyle='rgba(4,8,15,.88)';drawRoundRect(ctx,x-cardW/2,y-cardH/2,cardW,cardH,cardH*.22);ctx.fill();ctx.strokeStyle=teamColor(side);ctx.lineWidth=Math.max(4,w*.004);ctx.stroke();const hasImg=!!ev.imageImg,imgR=cardH*.34;let tx=x-cardW*.38;if(hasImg){drawImageCoverCircle(ev.imageImg,x-cardW*.38,y,imgR);tx=x-cardW*.25}else tx=x-cardW*.38;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=teamColor(side);ctx.font=`900 ${Math.max(23,w*.026)}px Segoe UI`;ctx.fillText(window.GHLocale?.t('GOL')||'GOL',tx,y-cardH*.2);const line=[ev.minute?`${String(ev.minute).replace("'",'')}′`:null,ev.scorer||null].filter(Boolean).join('  •  ');ctx.fillStyle='#fff';ctx.font=`900 ${Math.max(28,w*.033)}px Segoe UI`;ctx.fillText(line|| (side==='left'?$('leftName').value:$('rightName').value),tx,y+cardH*.12);ctx.restore()}
 function drawFittedText(text,x,y,maxW,baseSize,color='#fff',weight=900,align='center'){ctx.save();let fs=baseSize;ctx.font=`${weight} ${fs}px Segoe UI`;while(fs>14&&ctx.measureText(String(text)).width>maxW){fs-=2;ctx.font=`${weight} ${fs}px Segoe UI`}ctx.fillStyle=color;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(String(text),x,y);ctx.restore()}
-function drawFinalResult(){if(!roundResultOverlay||!$('showFinalResult')?.checked)return;const now=performance.now();if(now<roundResultOverlay.start)return;const age=now-roundResultOverlay.start,fade=clamp(age/300,0,1),w=canvas.width,h=canvas.height,vertical=w<h;const left=$('leftName').value||'SOL',right=$('rightName').value||'SAĞ',winner=roundResultOverlay.winner|| (score.left===score.right?'draw':(score.left>score.right?'left':'right')),accent=winner==='draw'?'#f6c453':teamColor(winner),winName=winner==='draw'?'BERABERE':(winner==='left'?left:right);ctx.save();ctx.globalAlpha=fade;ctx.fillStyle='rgba(0,0,0,.62)';ctx.fillRect(0,0,w,h);const cardW=vertical?w*.91:w*.67,cardH=vertical?h*.31:h*.62,x=w/2,y=vertical?h*.49:h*.50;ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=Math.max(24,w*.025);ctx.fillStyle='rgba(5,10,18,.97)';drawRoundRect(ctx,x-cardW/2,y-cardH/2,cardW,cardH,Math.min(cardH*.10,56));ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=Math.max(6,w*.006);ctx.stroke();const title=$('finalResultTitle')?.value||'MAÇ SONU';drawFittedText(title,x,y-cardH*.38,cardW*.8,Math.max(34,w*.042),'#dbe8ff',900);drawFittedText('TOPLAM SKOR',x,y-cardH*.245,cardW*.72,Math.max(20,w*.024),'#93a4bf',800);const badgeR=Math.min(cardH*.115,cardW*.075),leftX=x-cardW*.34,rightX=x+cardW*.34,badgeY=y-cardH*.04;if(leftBadgeImg)drawImageCoverCircle(leftBadgeImg,leftX,badgeY,badgeR);else{ctx.fillStyle=$('leftColor').value;ctx.beginPath();ctx.arc(leftX,badgeY,badgeR,0,Math.PI*2);ctx.fill()}if(rightBadgeImg)drawImageCoverCircle(rightBadgeImg,rightX,badgeY,badgeR);else{ctx.fillStyle=$('rightColor').value;ctx.beginPath();ctx.arc(rightX,badgeY,badgeR,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`950 ${Math.max(76,w*.105)}px Segoe UI`;ctx.fillText(`${roundResultOverlay.left}  -  ${roundResultOverlay.right}`,x,badgeY);drawFittedText(left,leftX,y+cardH*.17,cardW*.29,Math.max(24,w*.03),'#fff',900);drawFittedText(right,rightX,y+cardH*.17,cardW*.29,Math.max(24,w*.03),'#fff',900);const label=winner==='draw'?'BERABERE':`KAZANAN  •  ${winName}`;drawFittedText(label,x,y+cardH*.37,cardW*.86,Math.max(34,w*.043),accent,950);if(winner!=='draw'){ctx.globalAlpha=fade*.22;for(let i=0;i<20;i++){const a=(i*2.399)+(age*.00012),rr=cardW*(.15+(i%6)*.055),px=x+Math.cos(a)*rr,py=y+cardH*.37+Math.sin(a)*cardH*.22;ctx.fillStyle=i%2?accent:'#fff';ctx.fillRect(px,py,Math.max(4,w*.004),Math.max(9,h*.005))}}ctx.restore()}
+function drawFinalResult(){if(!roundResultOverlay||!$('showFinalResult')?.checked)return;const now=performance.now();if(now<roundResultOverlay.start)return;const age=now-roundResultOverlay.start,fade=clamp(age/300,0,1),w=canvas.width,h=canvas.height,vertical=w<h;const left=$('leftName').value||'SOL',right=$('rightName').value||'SAĞ',winner=roundResultOverlay.winner|| (score.left===score.right?'draw':(score.left>score.right?'left':'right')),accent=winner==='draw'?'#f6c453':teamColor(winner),winName=winner==='draw'?(window.GHLocale?.t('BERABERE')||'BERABERE'):(winner==='left'?left:right);ctx.save();ctx.globalAlpha=fade;ctx.fillStyle='rgba(0,0,0,.62)';ctx.fillRect(0,0,w,h);const cardW=vertical?w*.91:w*.67,cardH=vertical?h*.31:h*.62,x=w/2,y=vertical?h*.49:h*.50;ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=Math.max(24,w*.025);ctx.fillStyle='rgba(5,10,18,.97)';drawRoundRect(ctx,x-cardW/2,y-cardH/2,cardW,cardH,Math.min(cardH*.10,56));ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=accent;ctx.lineWidth=Math.max(6,w*.006);ctx.stroke();const title=window.GHLocale?.t($('finalResultTitle')?.value||'MAÇ SONU')||'MAÇ SONU';drawFittedText(title,x,y-cardH*.38,cardW*.8,Math.max(34,w*.042),'#dbe8ff',900);drawFittedText(window.GHLocale?.t('TOPLAM SKOR')||'TOPLAM SKOR',x,y-cardH*.245,cardW*.72,Math.max(20,w*.024),'#93a4bf',800);const badgeR=Math.min(cardH*.115,cardW*.075),leftX=x-cardW*.34,rightX=x+cardW*.34,badgeY=y-cardH*.04;if(leftBadgeImg)drawImageCoverCircle(leftBadgeImg,leftX,badgeY,badgeR);else{ctx.fillStyle=$('leftColor').value;ctx.beginPath();ctx.arc(leftX,badgeY,badgeR,0,Math.PI*2);ctx.fill()}if(rightBadgeImg)drawImageCoverCircle(rightBadgeImg,rightX,badgeY,badgeR);else{ctx.fillStyle=$('rightColor').value;ctx.beginPath();ctx.arc(rightX,badgeY,badgeR,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`950 ${Math.max(76,w*.105)}px Segoe UI`;ctx.fillText(`${roundResultOverlay.left}  -  ${roundResultOverlay.right}`,x,badgeY);drawFittedText(left,leftX,y+cardH*.17,cardW*.29,Math.max(24,w*.03),'#fff',900);drawFittedText(right,rightX,y+cardH*.17,cardW*.29,Math.max(24,w*.03),'#fff',900);const label=winner==='draw'?(window.GHLocale?.t('BERABERE')||'BERABERE'):`${window.GHLocale?.t('KAZANAN')||'KAZANAN'}  •  ${winName}`;drawFittedText(label,x,y+cardH*.37,cardW*.86,Math.max(34,w*.043),accent,950);if(winner!=='draw'){ctx.globalAlpha=fade*.22;for(let i=0;i<20;i++){const a=(i*2.399)+(age*.00012),rr=cardW*(.15+(i%6)*.055),px=x+Math.cos(a)*rr,py=y+cardH*.37+Math.sin(a)*cardH*.22;ctx.fillStyle=i%2?accent:'#fff';ctx.fillRect(px,py,Math.max(4,w*.004),Math.max(9,h*.005))}}ctx.restore()}
 function drawTrail(t){ctx.save();ctx.globalAlpha=t.life;ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.arc(t.x,t.y,t.r*t.life,0,Math.PI*2);ctx.fill();ctx.restore()}
 function drawParticle(p){ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.45);ctx.restore()}
 function drawAim(){const b=balls.find(x=>x.id===drag.ballId);if(!b)return;ctx.save();ctx.setLineDash([18,14]);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(3,canvas.width*.002);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(drag.x,drag.y);ctx.stroke();ctx.setLineDash([]);const dist=Math.hypot(b.x-drag.x,b.y-drag.y);const rr=clamp(dist*.08,12,40);ctx.fillStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.arc(drag.x,drag.y,rr,0,Math.PI*2);ctx.fill();ctx.restore()}
@@ -365,7 +365,7 @@ function collideCircle(b,o,rest){const dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy)
 function collideWall(b,o,rest){const a=-rad(o.rotation||0),ca=Math.cos(a),sa=Math.sin(a),dx=b.x-o.x,dy=b.y-o.y;const lx=dx*ca-dy*sa,ly=dx*sa+dy*ca;const hx=o.w/2,hy=o.h/2;const qx=clamp(lx,-hx,hx),qy=clamp(ly,-hy,hy),vx=lx-qx,vy=ly-qy,d=Math.hypot(vx,vy);if(d<b.r){let nx,ny;if(d>1e-6){nx=vx/d;ny=vy/d}else{const px=hx-Math.abs(lx),py=hy-Math.abs(ly);if(px<py){nx=lx>0?1:-1;ny=0}else{nx=0;ny=ly>0?1:-1}}const push=b.r-(d||0);const wx=nx*Math.cos(-a)-ny*Math.sin(-a),wy=nx*Math.sin(-a)+ny*Math.cos(-a);b.x+=wx*push;b.y+=wy*push;const vn=b.vx*wx+b.vy*wy;if(vn<0){b.vx-=(1+rest)*vn*wx;b.vy-=(1+rest)*vn*wy}}}
 function goal(h,b){let side=h.side,value=h.value||1,ev=null;if($('scriptedResult').checked&&nextPlanEvent()){ev=nextPlanEvent();side=ev.side;value=1;goalPlanIndex++}if(side==='left')score.left+=value;else if(side==='right')score.right+=value;updateScores();emitGoalFX({...h,side});playGoalSound(h.sound);if($('shake').checked)shakeAmount=Math.max(shakeAmount,canvas.width*.02);sinkBall(b);if(ev&&$('showGoalCard').checked)goalOverlay={event:ev,side,start:performance.now(),duration:+$('goalCardDuration').value||2.2};toast(`${side==='left'?$('leftName').value:$('rightName').value} +${value}`);directorBallId=directorHoleId=null;renderGoalPlanUI();ensureDirectorAssignment()}
 function neutralSink(h,b){emitGoalFX({...h,side:'none'});playTone(260,.06,'triangle',.04);sinkBall(b);toast('Top tamamlandı')}
-function finishRound(){roundFinished=true;const planned=$('scriptedResult').checked&&goalPlan.length,winner=score.left===score.right?'draw':(score.left>score.right?'left':'right');roundResultOverlay={start:performance.now()+600,winner,left:score.left,right:score.right};const winnerText=winner==='draw'?'BERABERE':`${winner==='left'?$('leftName').value:$('rightName').value} KAZANDI`;toast(`${score.left}-${score.right} • ${winnerText}`);status(`Tur tamamlandı — ${score.left}:${score.right} • ${winnerText}`);playFinishSound(winner);if(recording&&$('autoStopRecord').checked){const hold=$('showFinalResult')?.checked?(600+(+$('finalResultDuration').value||3.5)*1000):900;setTimeout(()=>{if(recorder&&recorder.state==='recording')recorder.stop()},hold)}}
+function finishRound(){roundFinished=true;const planned=$('scriptedResult').checked&&goalPlan.length,winner=score.left===score.right?'draw':(score.left>score.right?'left':'right');roundResultOverlay={start:performance.now()+600,winner,left:score.left,right:score.right};const winnerText=winner==='draw'?(window.GHLocale?.t('BERABERE')||'BERABERE'):`${winner==='left'?$('leftName').value:$('rightName').value} ${window.GHLocale?.t('KAZANDI')||'KAZANDI'}`;toast(`${score.left}-${score.right} • ${winnerText}`);status(`Tur tamamlandı — ${score.left}:${score.right} • ${winnerText}`);playFinishSound(winner);if(recording&&$('autoStopRecord').checked){const hold=$('showFinalResult')?.checked?(600+(+$('finalResultDuration').value||3.5)*1000):900;setTimeout(()=>{if(recorder&&recorder.state==='recording')recorder.stop()},hold)}}
 function emitGoalFX(h){for(let i=0;i<34;i++){const a=Math.random()*Math.PI*2,s=100+Math.random()*700;particles.push({x:h.x,y:h.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-120,s:5+Math.random()*16,life:.8+Math.random()*.4,rot:Math.random()*6,vr:(Math.random()-.5)*12,color:teamColor(h.side)})}}
 
 function frame(ts){const dt=Math.min(.035,(ts-lastTs)/1000);lastTs=ts;acc+=dt;const fixed=1/120;let steps=0;while(acc>=fixed&&steps<8){physicsStep(fixed);acc-=fixed;steps++}if(springCharging){springValue=clamp((performance.now()-springStart)/1300,0,1);$('chargeFill').style.height=`${springValue*94}%`}render();requestAnimationFrame(frame)}requestAnimationFrame(frame);
@@ -607,60 +607,88 @@ function setupMobileUI(){
 (async function init(){setupMobileUI();resizeCanvas();await setBackground('assets/demo_gs_barca.svg');ensureSpawn();$('preset6').click();const s=ensureSpawn();s.x=canvas.width*.5;s.y=canvas.height*.86;selectedId=null;spawnBalls(true);updateScores();updateUI();syncAudioLevels();pushHistory(true);fitCanvas();renderGoalPlanUI();status('Hazır — v6.1 Android • gerçek futbol topu • pastel toplar • maç sonu ekranı • arka plan sesi')})();
 </script>
 
+
 <script>
-/* GoalHole Studio bilingual interface. Translates interface labels, never user team names or uploaded content. */
+/* Full Turkish / English localization for static controls, generated inspector fields, dialogs and canvas labels. */
 (function(){
- const pairs=[
- ['DÜZENLE','EDIT'],['OYUN','PLAY'],['Yeni proje','New project'],['Projeyi kaydet','Save project'],['Proje aç','Open project'],['Geri al','Undo'],['İleri al','Redo'],['Oyna','Play'],['Tur sıfırla','Reset round'],['Oyun ekranı','Game view'],['Kayıt','Record'],['Durdur','Stop'],['Seri Yeni Maç','New match in series'],['Sahne','Scene'],['Çözünürlük','Resolution'],['Arka plan / oyun görseli seç','Choose background / game image'],['Yerleşim','Layout'],['Doldur (Cover)','Fill (Cover)'],['Tamamını göster','Show all'],['Esnet','Stretch'],['Arka plan yakınlaştır','Background zoom'],['X kaydır','X offset'],['Y kaydır','Y offset'],['Shorts güvenli alan çizgilerini düzenlemede göster','Show Shorts safe area guides while editing'],['Takımlar & Skor','Teams & Score'],['Sol takım','Left team'],['Sağ takım','Right team'],['Sol','Left'],['Sağ','Right'],['Takım','Team'],['Skor','Score'],['Top görünümü','Ball appearance'],['Gerçek klasik futbol topu','Real classic football'],['Pastel renkli toplar','Pastel balls'],['Top boyutu','Ball size'],['Top sayısı','Ball count'],['Top hızı','Ball speed'],['Yer çekimi','Gravity'],['Sürtünme','Friction'],['Sekme','Bounce'],['Hedefler','Targets'],['Delik','Hole'],['Çember kalınlığı','Ring thickness'],['Çap','Diameter'],['Skor tarafı','Scoring side'],['Nötr','Neutral'],['Katmanlar','Layers'],['Ayarlar','Settings'],['Ses','Sound'],['Arka plan müziği','Background music'],['Ses seviyesi','Volume'],['Görünür','Visible'],['Gizle','Hide'],['Kilitle','Lock'],['Sil','Delete'],['Kopyala','Duplicate'],['Ekle','Add'],['Kaydet','Save'],['Yükle','Load'],['Sıfırla','Reset'],['Başlat','Start'],['Durdur','Stop'],['Şablon','Template'],['Otomatik','Automatic'],['Manuel','Manual'],['Kamera sarsıntısı','Camera shake'],['Efektler','Effects'],['Görsel','Image'],['Yazı','Text'],['Boyut','Size'],['Döndür','Rotate'],['Renk','Color'],['Kalınlık','Thickness'],['Hız','Speed'],['Süre','Duration'],['Kare hızı','Frame rate'],['Bit hızı','Bitrate'],['Önizleme','Preview'],['Tam ekran','Fullscreen'],['Yeni maç','New match'],['Maç sonucu','Match result'],['Kazanan','Winner'],['Berabere','Draw'],['Gol','Goal'],['Başlangıç','Start'],['Bitiş','Finish'],['Sol takım kazandı','Left team wins'],['Sağ takım kazandı','Right team wins'],['Kayıt ayarları','Recording settings'],['Video kaydet','Save video'],['Ses dosyası seç','Choose audio file'],['Resim seç','Choose image'],['Proje','Project'],['Düzenleme','Editing'],['Oynat','Play'],['Durduruldu','Stopped'],['Tamam','OK'],['İptal','Cancel'],['Uygula','Apply'],['Klasik','Classic'],['Yeni','New'],['Tümünü','All'],['Yüksek','High'],['Düşük','Low'],['Orta','Medium']
- ];
- const forward=new Map(pairs),backward=new Map(pairs.map(([a,b])=>[b,a]));
- let language='tr',busy=false;
- function translateText(value,to){
-   const dictionary=to==='en'?forward:backward;
-   const exact=dictionary.get(value.trim());
-   if(exact!==undefined)return value.replace(value.trim(),exact);
-   let out=value;
-   for(const [a,b] of dictionary){if(a.length>5)out=out.split(a).join(b);}
-   return out;
+ const EN={"Düzenleyiciye dön":"Back to editor","▶ Oyna":"▶ Play","✎ Düzenle":"✎ Edit","↺ Tur sıfırla":"↺ Reset round","▣ Oyun ekranı":"▣ Game view","● Kayıt":"● Record","■ Durdur":"■ Stop","DÜZENLE":"EDIT","OYUN":"PLAY","⚡ Seri Yeni Maç":"⚡ New series match","Sahne":"Scene","Çözünürlük":"Resolution","🖼 Arka plan / oyun görseli seç":"🖼 Choose background / game image","Yerleşim":"Layout","Doldur (Cover)":"Fill (Cover)","Tamamını göster":"Fit entire image","Esnet":"Stretch","Arka plan yakınlaştır":"Background zoom","X kaydır":"Horizontal offset","Y kaydır":"Vertical offset","Shorts güvenli alan çizgilerini düzenlemede göster":"Show Shorts safe-area guides while editing","Nesne Ekle":"Add Objects","Gol deliği":"Goal hole","Pinball pimi":"Pinball bumper","Duvar":"Wall","Bayrak / PNG":"Flag / PNG","Yazı":"Text","Top başlangıcı":"Ball spawn","6 Delik Düello":"6-Hole Duel","Pinball Şablon":"Pinball Preset","Seçileni çoğalt":"Duplicate selected","Sil":"Delete","Sürükle = taşı · Teker = boyut · Shift+teker = döndür ·":"Drag = move · Wheel = resize · Shift+wheel = rotate ·","çoğalt ·":"duplicate ·","sil.":"delete.","Takımlar & Skor":"Teams & Score","SOL":"LEFT","SAĞ":"RIGHT","Sol takım":"Left team","Sağ takım":"Right team","Sol renk":"Left color","Sağ renk":"Right color","Sol logo":"Left logo","Sağ logo":"Right logo","− Sol":"− Left","+ Sol":"+ Left","− Sağ":"− Right","+ Sağ":"+ Right","Kayıtta skor panelini göster":"Show scoreboard in recording","Son top sonrası maç sonucunu büyük ve net göster":"Show large final score after last ball","Sonuç ekranı kayıt süresi (sn)":"Final result screen duration (sec)","Başlık":"Title","Skor Senaryosu":"Score Script","Sonucu ve gol sırasını önceden belirle":"Predefine final score and goal order","Final sol":"Final left","Final sağ":"Final right","İlk gol":"First goal","Planı oluştur":"Generate plan","Senaryoda top sayısını toplam gole eşitle (kapalıysa fazla toplar skorsuz tamamlanır)":"Match ball count to total goals (extra balls finish without scoring when off)","＋ Sol gol":"＋ Left goal","＋ Sağ gol":"＋ Right goal","Temizle":"Clear","Plan yok":"No plan","Gol sırası oluşturulmadı.":"No goal sequence has been created.","Gol anında bilgi kartı göster":"Show goal information card","Kart süresi (sn)":"Card duration (sec)","Yönlendirme gücü":"Goal guidance strength","Her gol satırında dakika, atan kişi ve görsel isteğe bağlıdır. Boş bırakırsan videoda gösterilmez. ↑↓ ile gol sırasını değiştir.":"Minute, scorer and image are optional for each goal. Empty fields are omitted from the video. Use ↑↓ to reorder goals.","Fizik & Atış":"Physics & Launch","Atış modu":"Launch mode","Otomatik doğal atış":"Automatic launch","Flick / çek-bırak":"Flick / drag and release","Pinball yayı / Space":"Pinball spring / Space","Top sayısı":"Ball count","Top görünümü":"Ball appearance","⚽ Gerçek klasik futbol topu":"⚽ Real classic soccer ball","● Pastel renkli toplar — karışık":"● Mixed pastel balls","● Canlı renkli toplar — karışık":"● Mixed vibrant balls","● Neon toplar — karışık":"● Mixed neon balls","● Takım renkleri — karışık":"● Mixed team-color balls","○ Beyaz arcade top":"○ White arcade ball","Atış aralığı (ms)":"Launch interval (ms)","Top boyutu":"Ball size","Doğal atış saçılımı":"Launch spread","Atış hızı":"Launch speed","Toplar birbirine çarpsın ve yön değiştirsin":"Allow ball-to-ball collisions","Toplar kalmayana kadar doğal hedef yardımı uygula":"Guide balls toward holes until all are finished","Atış gücü":"Launch power","Sürtünme":"Friction","Sekme":"Bounce","Yerçekimi":"Gravity","Yay açısı":"Spring angle","Maks. hız":"Max speed","Top izi efekti":"Ball trails","Golde kamera darbesi":"Camera shake on goal","Sürekli hareket: Toplar gol olana kadar hiç yavaşlamasın":"Continuous motion: Keep balls moving until they score","Sabit top hızı":"Constant ball speed","Rastgele yön değişimi":"Random direction changes","Toplar duvarlara, pinlere ve birbirlerine çarparak her yöne sekmeye devam eder. Hız sabit tutulur; yalnızca deliğe giren toplar durur.":"Balls keep bouncing in every direction off walls, bumpers and one another. Speed stays constant; only scored balls stop.","Kayıt":"Recording","Otomatik (MP4 öncelik)":"Automatic (prefer MP4)","Ses":"Audio","Stadyum gol":"Stadium goal","Düdük":"Whistle","🔊 Özel gol sesi ekle":"🔊 Add custom goal sound","🎵 Arka plan sesi / müzik ekle":"🎵 Add background audio / music","Arka plan sesi seçilmedi.":"No background audio selected.","Arka plan sesini oynat ve videoya kaydet":"Play background audio and include it in the video","Arka plan ses seviyesi":"Background audio volume","Gol / efekt ses seviyesi":"Goal / effect volume","Arka plan sesini kaldır":"Remove background audio","Kayıt başlarken arka plan sesini baştan başlat":"Restart selected music section when recording starts","Kayıt başlarken turu otomatik sıfırla":"Automatically reset round when recording starts","Son top girince kaydı otomatik durdur":"Automatically stop recording after last ball","Canvas doğrudan kaydedilir; oyun + gol sesleri + arka plan müziği videoya birlikte girer. Editör ve dokunuş işaretleri videoya girmez. MP4 desteklenmezse WebM kullanılır.":"Records the game canvas with game sounds, goal effects and background music. Editor controls and touch markers are excluded. Uses WebM if MP4 is unavailable.","✂️ Müzikten kullanılacak bölümü seç":"✂️ Select the music section to use","Başlangıç (saniye)":"Start (seconds)","Bitiş (saniye)":"End (seconds)","Başlangıç noktasını sürükle":"Drag start point","Bitiş noktasını sürükle":"Drag end point","Müzik yükleyin":"Load music to begin","▶ Seçilen bölümü dinle":"▶ Preview selected section","■ Önizlemeyi durdur":"■ Stop preview","Seçilen bölüm müzikte döngüye alınır ve videoya yalnızca bu aralık eklenir. Ses dosyasının aslı değiştirilmez.":"The selected section loops, and only this portion is included in the video. The original audio file is unchanged.","Hazır":"Ready","Sığdır":"Fit","# Izgara":"# Grid","⌁ Snap":"⌁ Snap","Özellikler":"Properties","Düzenlemek için bir nesne seç.":"Select an object to edit.","Katmanlar":"Layers","Seri Üretim":"Batch Production","Şablonu tarayıcıya kaydet":"Save preset in browser","Şablonu yükle":"Load preset","Şablon; delik, pin, duvar, fizik, skor ve kayıt ayarlarını saklar. “Seri Yeni Maç” yalnızca skorları sıfırlar ve yeni arka plan seçtirir.":"The preset saves holes, bumpers, walls, physics, score and recording settings. “New series match” only resets the score and lets you choose a new background.","Kayıt kapalı":"Recording off","Henüz nesne yok.":"No objects yet.","Ad":"Name","Döndür":"Rotation","Çap":"Diameter","Çember kalınlığı":"Ring thickness","Skor tarafı":"Scoring side","Skor yok":"No score","Gol değeri":"Goal points","Yakalama %":"Capture %","Genel ayar":"Default setting","Stadyum":"Stadium","Özel":"Custom","Sessiz":"Mute","Takım renginde parıltı":"Glow in team color","Merkez rengi":"Center color","Kenar rengi":"Edge color","Hız çarpanı":"Speed multiplier","Genişlik":"Width","Kalınlık":"Thickness","Renk":"Color","Opaklık":"Opacity","Yükseklik":"Height","Metin":"Text","Boyut":"Size","Kontur":"Outline","İşaret boyutu":"Marker size","Bu işaret sadece düzenleme ekranında görünür; videoya girmez.":"This marker is visible only in the editor and is excluded from the video.","Görünür":"Visible","Konumu kilitle":"Lock position","Çoğalt":"Duplicate","Göster/Gizle":"Show/Hide","Kilitle":"Lock","Öne":"Bring forward","Arkaya":"Send backward","Gol atan (isteğe bağlı)":"Scorer (optional)","Gol atan görseli":"Scorer image","Başlangıç":"Spawn","Görsel":"Image","Top tamamlandı":"Ball finished","Tur sıfırlandı":"Round reset","Tur tamamlandı":"Round complete","KAZANDI":"WINS","KAZANAN":"WINNER","BERABERE":"DRAW","MAÇ SONU":"FINAL SCORE","TOPLAM SKOR":"TOTAL SCORE","GOL":"GOAL","Yüklendi":"Loaded","Yükleniyor":"Loading","Arka plan sesi":"Background audio","Arka plan sesi yüklenemedi.":"Could not load background audio.","Arka plan sesi okunamadı":"Could not read background audio","Arka plan sesi yüklendi":"Background audio loaded","Arka plan sesi kaldırıldı":"Background audio removed","Önce müzik yükleyin":"Load music first","Özel ses":"Custom sound","Özel gol sesi yüklendi":"Custom goal sound loaded","Arka plan güncellendi":"Background updated","Demo görseli yüklendi":"Demo image loaded","Nesne çoğaltıldı":"Object duplicated","6 delikli düello hazır":"6-hole duel ready","Pinball şablonu hazır":"Pinball preset ready","Oyun başladı":"Game started","Düzenleme modu":"Edit mode","Yeni boş proje açılsın mı?":"Create a new empty project?","Proje açıldı":"Project opened","Proje açılamadı":"Could not open project","Kaydedildi":"Saved","Telefona kaydedildi":"Saved to device","Kayıt telefona yazılamadı":"Could not save recording to device","Kayıt tamamlandı":"Recording complete","Kayıt sırasında codec hatası oluştu":"Recording codec error","Video oluşturuldu fakat kaydetme başarısız":"Video created but could not be saved","Video kaydedildi":"Video saved","kayıt başladı":"recording started","4K mobil stabilite için 30 FPS":"30 FPS for stable mobile 4K","KAYIT":"REC","Kayıt başladı":"Recording started","Kayıt durduruldu":"Recording stopped","Gol planı oluşturuldu":"Goal plan generated","Plan güncellendi":"Plan updated","Seçili nesne yok":"No object selected","Şablon kaydedildi":"Preset saved","Şablon yüklendi":"Preset loaded","Şablon bulunamadı":"Preset not found","Yeni maç hazır":"New match ready","Seri maç hazır":"Series match ready","Dosya seçilmedi":"No file selected","Hata":"Error","Dosya yüklenemedi":"Could not load file","Ayarlar":"Settings","Önizleme":"Preview","Durdur":"Stop","Kaydet":"Save","Yükle":"Load","Başlat":"Start","Bitiş":"Finish","İptal":"Cancel","Tamam":"OK","Uygula":"Apply","Düzenle":"Edit","Silindi":"Deleted","Başarıyla":"Successfully","top":"balls","nesne":"objects"};
+ const sorted=Object.entries(EN).filter(([a])=>a.length>=5).sort((a,b)=>b[0].length-a[0].length);
+ const originals=new WeakMap(),attributes=new WeakMap();
+ let current='tr',observer=null;
+ function translate(value){
+  if(current!=='en')return String(value);
+  const str=String(value),trimmed=str.trim();
+  if(!trimmed)return str;
+  if(Object.prototype.hasOwnProperty.call(EN,trimmed))return str.replace(trimmed,EN[trimmed]);
+  if(/^\\d+ nesne$/.test(trimmed))return trimmed.replace('nesne','objects');
+  if(/^\\d+ top$/.test(trimmed))return trimmed.replace('top','balls');
+  let out=str;
+  for(const [a,b] of sorted)if(out.includes(a))out=out.split(a).join(b);
+  out=out.replace(/(\\d+) top\\b/g,'$1 balls').replace(/(\\d+) nesne\\b/g,'$1 objects');
+  return out;
  }
- function translate(root,to){
-   if(busy)return;busy=true;
-   try{
-    document.documentElement.lang=to;
-    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
-    let n;while(n=walker.nextNode()){
-     const el=n.parentElement;
-     if(!el||el.closest('script,style,textarea,[contenteditable],#stageWrap,.scoreCard,.teamline'))continue;
-     if(el.tagName==='OPTION'&&el.parentElement?.id==='uiLanguage')continue;
-     const original=n.__ghOriginal??n.nodeValue;
-     if(!original.trim())continue;
-     if(n.__ghOriginal===undefined)n.__ghOriginal=original;
-     n.nodeValue=to==='tr'?original:translateText(original,to);
-    }
-    root.querySelectorAll?.('[title],[placeholder]').forEach(el=>{
-     if(el.id==='uiLanguage')return;
-     for(const attr of ['title','placeholder']){
-      if(!el.hasAttribute(attr))continue;
-      const k='ghOriginal'+attr;const orig=el.dataset[k]??el.getAttribute(attr);
-      el.dataset[k]=orig;el.setAttribute(attr,to==='tr'?orig:translateText(orig,to));
-     }
-    });
-   }finally{busy=false;}
+ function excluded(el){
+  return !el||!!el.closest('script,style,textarea,[contenteditable],#uiLanguage,.teamline,.eventSide,#leftCardName,#rightCardName,#leftName,#rightName,#i_name,#i_text');
  }
- function setLanguage(v){language=v==='en'?'en':'tr';localStorage.setItem('goalhole-ui-language',language);translate(document.body,language);}
- window.addEventListener('DOMContentLoaded',()=>{
-  const select=document.getElementById('uiLanguage');if(!select)return;
-  select.value=localStorage.getItem('goalhole-ui-language')==='en'?'en':'tr';
-  select.addEventListener('change',()=>setLanguage(select.value));
-  setLanguage(select.value);
-  const obs=new MutationObserver(records=>{
-   if(busy||language!=='en')return;
-   for(const record of records){
-    for(const node of record.addedNodes){if(node.nodeType===1)translate(node,language);}
+ function translateNode(n){
+  if(!n||n.nodeType!==3||excluded(n.parentElement))return;
+  const old=originals.get(n),raw=n.nodeValue;
+  const orig=old&&old.output===raw?old.original:raw;
+  const output=current==='en'?translate(orig):orig;
+  originals.set(n,{original:orig,output});
+  if(raw!==output)n.nodeValue=output;
+ }
+ function translateAttrs(el){
+  if(!el||el.nodeType!==1||excluded(el)||el.id==='uiLanguage')return;
+  let map=attributes.get(el);if(!map){map={};attributes.set(el,map)}
+  for(const a of ['placeholder','title','aria-label']){
+   if(!el.hasAttribute(a))continue;
+   const value=el.getAttribute(a),old=map[a],orig=old&&old.output===value?old.original:value;
+   const output=current==='en'?translate(orig):orig;
+   map[a]={original:orig,output};
+   if(value!==output)el.setAttribute(a,output);
+  }
+ }
+ function scan(root){
+  if(!root)return;
+  if(root.nodeType===3){translateNode(root);return}
+  if(root.nodeType!==1)return;
+  translateAttrs(root);
+  const walk=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT);
+  let n;while(n=walk.nextNode())n.nodeType===3?translateNode(n):translateAttrs(n);
+ }
+ function changeLanguage(lang){
+  current=lang==='en'?'en':'tr';
+  try{localStorage.setItem('goalhole-ui-language',current)}catch(e){}
+  document.documentElement.lang=current;
+  const finalTitle=document.getElementById('finalResultTitle');
+  if(finalTitle){
+   if(current==='en'&&finalTitle.value==='MAÇ SONU')finalTitle.value='FINAL SCORE';
+   else if(current==='tr'&&finalTitle.value==='FINAL SCORE')finalTitle.value='MAÇ SONU';
+  }
+  scan(document.body);
+  if(typeof window.render==='function')try{window.render()}catch(e){}
+ }
+ window.GHLocale={t:translate,current:()=>current,set:changeLanguage};
+ const originalConfirm=window.confirm.bind(window),originalAlert=window.alert.bind(window);
+ window.confirm=msg=>originalConfirm(translate(msg));
+ window.alert=msg=>originalAlert(translate(msg));
+ const init=()=>{
+  const select=document.getElementById('uiLanguage');
+  if(!select)return;
+  let lang='tr';try{lang=localStorage.getItem('goalhole-ui-language')||'tr'}catch(e){}
+  select.value=lang==='en'?'en':'tr';changeLanguage(select.value);
+  select.addEventListener('change',()=>changeLanguage(select.value));
+  observer=new MutationObserver(records=>{
+   for(const m of records){
+    if(m.type==='characterData')translateNode(m.target);
+    else if(m.type==='attributes')translateAttrs(m.target);
+    else for(const node of m.addedNodes)scan(node);
    }
   });
-  obs.observe(document.body,{childList:true,subtree:true});
- });
+  observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title','aria-label']});
+ };
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body>
