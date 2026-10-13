@@ -65,6 +65,7 @@ input[type=text],input[type=number],select{width:100%;border:1px solid #293752;b
       <button class="btn" id="pngBtn">PNG</button>
     </div>
     <div class="spacer"></div>
+    <select id="uiLanguage" aria-label="Interface language" title="Dil / Language" style="min-width:84px;max-width:95px;background:#18243b;color:#fff;border:1px solid #415176;border-radius:8px;padding:7px;font-weight:700"><option value="tr">🇹🇷 TR</option><option value="en">🇬🇧 EN</option></select>
     <span class="pill"><span class="dot" id="modeDot"></span><span id="modeText">DÜZENLE</span></span>
     <button class="btn primary" id="seriesBtn">⚡ Seri Yeni Maç</button>
   </header>
@@ -263,7 +264,7 @@ function rebuildBgCache(){bgCache=document.createElement('canvas');bgCache.width
 
 function drawRoundRect(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 function drawImageCoverCircle(im,x,y,r){ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.clip();const ir=im.width/im.height;let w=r*2,h=r*2;if(ir>1)w=h*ir;else h=w/ir;ctx.drawImage(im,x-w/2,y-h/2,w,h);ctx.restore()}
-function drawScore(){if(!$('showScore').checked)return;const w=canvas.width,h=canvas.height;const vertical=w<h;const barW=vertical?w*.82:w*.48;const barH=Math.max(70,w*.075);const x=w/2,y=vertical?h*.045:h*.055;ctx.save();ctx.globalAlpha=.97;ctx.fillStyle='rgba(5,9,16,.72)';drawRoundRect(ctx,x-barW/2,y-barH/2,barW,barH,barH*.32);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=Math.max(2,w*.0015);ctx.stroke();const fs=Math.max(26,w*.025);ctx.font=`900 ${fs}px Segoe UI`;ctx.textBaseline='middle';ctx.fillStyle='#fff';const badgeR=barH*.28;const leftX=x-barW*.38,rightX=x+barW*.38;if(leftBadgeImg)drawImageCoverCircle(leftBadgeImg,leftX,y,badgeR);else{ctx.fillStyle=$('leftColor').value;ctx.beginPath();ctx.arc(leftX,y,badgeR,0,Math.PI*2);ctx.fill()}if(rightBadgeImg)drawImageCoverCircle(rightBadgeImg,rightX,y,badgeR);else{ctx.fillStyle=$('rightColor').value;ctx.beginPath();ctx.arc(rightX,y,badgeR,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#fff';ctx.textAlign='right';ctx.fillText(score.left,x-barW*.08,y);ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText(':',x,y);ctx.textAlign='left';ctx.fillStyle='#fff';ctx.fillText(score.right,x+barW*.08,y);ctx.font=`800 ${fs*.52}px Segoe UI`;ctx.textAlign='left';ctx.fillText($('leftName').value,leftX+badgeR+barH*.1,y);ctx.textAlign='right';ctx.fillText($('rightName').value,rightX-badgeR-barH*.1,y);ctx.restore()}
+function drawScore(){if(!$('showScore').checked)return;const w=canvas.width,h=canvas.height;const vertical=w<h;const barW=vertical?w*.82:w*.48;const barH=Math.max(70,w*.075);const x=w/2,y=vertical?h*.045:h*.055;ctx.save();ctx.globalAlpha=.97;ctx.fillStyle='rgba(5,9,16,.72)';drawRoundRect(ctx,x-barW/2,y-barH/2,barW,barH,barH*.32);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=Math.max(2,w*.0015);ctx.stroke();const fs=Math.max(26,w*.025);ctx.font=`900 ${fs}px Segoe UI`;ctx.textBaseline='middle';ctx.fillStyle='#fff';const badgeR=barH*.28;const leftX=x-barW*.38,rightX=x+barW*.38;if(leftBadgeImg)drawImageCoverCircle(leftBadgeImg,leftX,y,badgeR);else{ctx.fillStyle=$('leftColor').value;ctx.beginPath();ctx.arc(leftX,y,badgeR,0,Math.PI*2);ctx.fill()}if(rightBadgeImg)drawImageCoverCircle(rightBadgeImg,rightX,y,badgeR);else{ctx.fillStyle=$('rightColor').value;ctx.beginPath();ctx.arc(rightX,y,badgeR,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#fff';ctx.textAlign='right';ctx.fillText(score.left,x-barW*.08,y);ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText(':',x,y);ctx.textAlign='left';ctx.fillStyle='#fff';ctx.fillText(score.right,x+barW*.08,y);const nameSize=Math.max(23,Math.min(barH*.49,w*.032));ctx.textBaseline='middle';ctx.font=`900 ${nameSize}px Segoe UI,Arial,sans-serif`;ctx.fillStyle='#fff';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=Math.max(3,w*.003);const lx=leftX+badgeR+barH*.09,rx=rightX-badgeR-barH*.09;const leftMax=Math.max(60,(x-barW*.15)-lx),rightMax=Math.max(60,rx-(x+barW*.15));ctx.textAlign='left';ctx.fillText($('leftName').value,lx,y,leftMax);ctx.textAlign='right';ctx.fillText($('rightName').value,rx,y,rightMax);ctx.restore()}
 
 function render(){if(bgDirty||!bgCache)rebuildBgCache();ctx.save();ctx.clearRect(0,0,canvas.width,canvas.height);let sx=0,sy=0;if(shakeAmount>0){sx=(Math.random()-.5)*shakeAmount;sy=(Math.random()-.5)*shakeAmount;shakeAmount*=.86;if(shakeAmount<.5)shakeAmount=0}ctx.translate(sx,sy);ctx.drawImage(bgCache,0,0);for(const o of objects){if(!o.visible)continue;if(o.type==='spawn'&&mode==='play')continue;drawObject(o)}if(gridOn&&mode==='edit')drawGrid();if(mode==='edit'&&$('safeGuides').checked)drawSafeGuides();for(const t of trails)drawTrail(t);for(const b of balls)drawBall(b);for(const p of particles)drawParticle(p);drawScore();drawGoalOverlay();drawFinalResult();if(drag?.aiming&&mode==='play')drawAim();ctx.restore()}
 function drawObject(o){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(rad(o.rotation||0));ctx.globalAlpha=o.opacity==null?1:o.opacity;
@@ -519,6 +520,63 @@ function setupMobileUI(){
 }
 
 (async function init(){setupMobileUI();resizeCanvas();await setBackground('assets/demo_gs_barca.svg');ensureSpawn();$('preset6').click();const s=ensureSpawn();s.x=canvas.width*.5;s.y=canvas.height*.86;selectedId=null;spawnBalls(true);updateScores();updateUI();syncAudioLevels();pushHistory(true);fitCanvas();renderGoalPlanUI();status('Hazır — v6.1 Android • gerçek futbol topu • pastel toplar • maç sonu ekranı • arka plan sesi')})();
+</script>
+
+<script>
+/* GoalHole Studio bilingual interface. Translates interface labels, never user team names or uploaded content. */
+(function(){
+ const pairs=[
+ ['DÜZENLE','EDIT'],['OYUN','PLAY'],['Yeni proje','New project'],['Projeyi kaydet','Save project'],['Proje aç','Open project'],['Geri al','Undo'],['İleri al','Redo'],['Oyna','Play'],['Tur sıfırla','Reset round'],['Oyun ekranı','Game view'],['Kayıt','Record'],['Durdur','Stop'],['Seri Yeni Maç','New match in series'],['Sahne','Scene'],['Çözünürlük','Resolution'],['Arka plan / oyun görseli seç','Choose background / game image'],['Yerleşim','Layout'],['Doldur (Cover)','Fill (Cover)'],['Tamamını göster','Show all'],['Esnet','Stretch'],['Arka plan yakınlaştır','Background zoom'],['X kaydır','X offset'],['Y kaydır','Y offset'],['Shorts güvenli alan çizgilerini düzenlemede göster','Show Shorts safe area guides while editing'],['Takımlar & Skor','Teams & Score'],['Sol takım','Left team'],['Sağ takım','Right team'],['Sol','Left'],['Sağ','Right'],['Takım','Team'],['Skor','Score'],['Top görünümü','Ball appearance'],['Gerçek klasik futbol topu','Real classic football'],['Pastel renkli toplar','Pastel balls'],['Top boyutu','Ball size'],['Top sayısı','Ball count'],['Top hızı','Ball speed'],['Yer çekimi','Gravity'],['Sürtünme','Friction'],['Sekme','Bounce'],['Hedefler','Targets'],['Delik','Hole'],['Çember kalınlığı','Ring thickness'],['Çap','Diameter'],['Skor tarafı','Scoring side'],['Nötr','Neutral'],['Katmanlar','Layers'],['Ayarlar','Settings'],['Ses','Sound'],['Arka plan müziği','Background music'],['Ses seviyesi','Volume'],['Görünür','Visible'],['Gizle','Hide'],['Kilitle','Lock'],['Sil','Delete'],['Kopyala','Duplicate'],['Ekle','Add'],['Kaydet','Save'],['Yükle','Load'],['Sıfırla','Reset'],['Başlat','Start'],['Durdur','Stop'],['Şablon','Template'],['Otomatik','Automatic'],['Manuel','Manual'],['Kamera sarsıntısı','Camera shake'],['Efektler','Effects'],['Görsel','Image'],['Yazı','Text'],['Boyut','Size'],['Döndür','Rotate'],['Renk','Color'],['Kalınlık','Thickness'],['Hız','Speed'],['Süre','Duration'],['Kare hızı','Frame rate'],['Bit hızı','Bitrate'],['Önizleme','Preview'],['Tam ekran','Fullscreen'],['Yeni maç','New match'],['Maç sonucu','Match result'],['Kazanan','Winner'],['Berabere','Draw'],['Gol','Goal'],['Başlangıç','Start'],['Bitiş','Finish'],['Sol takım kazandı','Left team wins'],['Sağ takım kazandı','Right team wins'],['Kayıt ayarları','Recording settings'],['Video kaydet','Save video'],['Ses dosyası seç','Choose audio file'],['Resim seç','Choose image'],['Proje','Project'],['Düzenleme','Editing'],['Oynat','Play'],['Durduruldu','Stopped'],['Tamam','OK'],['İptal','Cancel'],['Uygula','Apply'],['Klasik','Classic'],['Yeni','New'],['Tümünü','All'],['Yüksek','High'],['Düşük','Low'],['Orta','Medium']
+ ];
+ const forward=new Map(pairs),backward=new Map(pairs.map(([a,b])=>[b,a]));
+ let language='tr',busy=false;
+ function translateText(value,to){
+   const dictionary=to==='en'?forward:backward;
+   const exact=dictionary.get(value.trim());
+   if(exact!==undefined)return value.replace(value.trim(),exact);
+   let out=value;
+   for(const [a,b] of dictionary){if(a.length>5)out=out.replace(new RegExp(a.replace(/[.*+?^$\{\}()|[\]\\]/g,'\\</body>'),'g'),b);}
+   return out;
+ }
+ function translate(root,to){
+   if(busy)return;busy=true;
+   try{
+    document.documentElement.lang=to;
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    let n;while(n=walker.nextNode()){
+     const el=n.parentElement;
+     if(!el||el.closest('script,style,textarea,[contenteditable],#stageWrap,.scoreCard,.teamline'))continue;
+     if(el.tagName==='OPTION'&&el.parentElement?.id==='uiLanguage')continue;
+     const original=n.__ghOriginal??n.nodeValue;
+     if(!original.trim())continue;
+     if(n.__ghOriginal===undefined)n.__ghOriginal=original;
+     n.nodeValue=to==='tr'?original:translateText(original,to);
+    }
+    root.querySelectorAll?.('[title],[placeholder]').forEach(el=>{
+     if(el.id==='uiLanguage')return;
+     for(const attr of ['title','placeholder']){
+      if(!el.hasAttribute(attr))continue;
+      const k='ghOriginal'+attr;const orig=el.dataset[k]??el.getAttribute(attr);
+      el.dataset[k]=orig;el.setAttribute(attr,to==='tr'?orig:translateText(orig,to));
+     }
+    });
+   }finally{busy=false;}
+ }
+ function setLanguage(v){language=v==='en'?'en':'tr';localStorage.setItem('goalhole-ui-language',language);translate(document.body,language);}
+ window.addEventListener('DOMContentLoaded',()=>{
+  const select=document.getElementById('uiLanguage');if(!select)return;
+  select.value=localStorage.getItem('goalhole-ui-language')==='en'?'en':'tr';
+  select.addEventListener('change',()=>setLanguage(select.value));
+  setLanguage(select.value);
+  const obs=new MutationObserver(records=>{
+   if(busy||language!=='en')return;
+   for(const record of records){
+    for(const node of record.addedNodes){if(node.nodeType===1)translate(node,language);}
+   }
+  });
+  obs.observe(document.body,{childList:true,subtree:true});
+ });
+})();
 </script>
 </body>
 </html>
