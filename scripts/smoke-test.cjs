@@ -73,7 +73,7 @@ function wav(seconds=4){
     document.getElementById('resetBtn').click();
     if(mode==='edit')document.getElementById('playBtn').click();
   });
-  await page.evaluate(()=>{for(let i=0;i<200&&!roundFinished;i++)physicsStep(1/60)});
+  await page.evaluate(()=>{matchClockStart=performance.now()-3400;physicsStep(1/60)});
   const timed=await page.evaluate(()=>({finished:roundFinished,score:score.left+score.right,elapsed:gameTime,goals:timedGoalIndex}));
   assert(timed.finished,'Timed match did not finish');
   assert(timed.score===3&&timed.goals===3,'Scheduled goals did not score: '+JSON.stringify(timed));
