@@ -18,8 +18,8 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - run: gradle --no-daemon clean assembleDebug
-      - run: cp app/build/outputs/apk/debug/app-debug.apk GoalHole-Studio-Pro-v6.5.apk
+      - run: cp app/build/outputs/apk/debug/app-debug.apk GoalHole-Studio-Pro-v6.6.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: GoalHole-Studio-Pro-v6.5-APK
-          path: GoalHole-Studio-Pro-v6.5.apk
+          name: GoalHole-Studio-Pro-v6.6-APK
+          path: GoalHole-Studio-Pro-v6.6.apk
