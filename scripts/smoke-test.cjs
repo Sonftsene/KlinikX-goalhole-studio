@@ -26,6 +26,8 @@ function wav(seconds=4){
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('file://'+htmlPath,{waitUntil:'domcontentloaded'});
   await page.waitForTimeout(1200);
+  // Legacy pinball regression tests explicitly select their engine; the new default is Highlights.
+  await page.locator('#gameType').selectOption('pinball');
   assert(await page.locator('#uiLanguage').count(),'language selector missing');
   await page.locator('#uiLanguage').selectOption('en');
   await page.waitForTimeout(500);
