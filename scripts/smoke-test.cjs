@@ -55,6 +55,8 @@ function wav(seconds=4){
     document.getElementById('autoFinish').checked=false;
     document.getElementById('continuousMotion').checked=true;
     document.getElementById('motionSpeed').value='1600';
+    mode='edit';
+    document.getElementById('gameType').value='pinball';
     document.getElementById('playBtn').click();
   });
   await page.waitForTimeout(2500);
