@@ -54,19 +54,36 @@ function parseMatchSecond(token){
 }
 function fmtClock(t){t=Math.max(0,Math.floor(t));return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
 function scripted(){return !!$('footballSyncGoals')?.checked}
+// Match minutes in the goal plan are authoritative. A 90-second video
+// with a 90-minute simulated match uses a 1:1 minute-to-video-second timeline.
+function planMinuteSecond(value){
+ const v=String(value??'').trim().replace(/(?:dakika|dak|dk|minute|min)\.?/gi,'').replace(/[′’']/g,'').replace(/\.$/,'').trim();
+ if(!v)return NaN;
+ return parseMatchSecond(v);
+}
+function plannedEvents(){
+ if(!$('scriptedResult')?.checked||!goalPlan.length)return [];
+ const n=goalPlan.length,full=totalMatchSeconds();
+ const items=goalPlan.map((event,i)=>{
+  const minute=planMinuteSecond(event.minute);
+  return {event,order:i,matchAt:Number.isFinite(minute)?minute:(i+1)*full/(n+1)};
+ });
+ items.sort((a,b)=>a.matchAt-b.matchAt||a.order-b.order);
+ return items.map(({event,matchAt})=>({event,videoAt:matchAt/full*duration()}));
+}
+function plannedEventAt(index){return plannedEvents()[index]?.event||null}
 function goalSchedule(){
  if(!scripted())return [];
+ const plan=plannedEvents();
+ // No interval input is needed when the goal plan contains minutes.
+ if(plan.length)return plan.map(p=>p.videoAt).filter(v=>v>.15&&v<duration());
  const raw=$('goalTimes')?.value?.trim()||'';
  const matchUnits=$('footballGoalTimeUnit')?.value==='match',factor=duration()/totalMatchSeconds();
- if(raw){
-  return raw.split(/[,;\s]+/).map(v=>v.includes('+')||matchUnits?parseMatchSecond(v)*factor:Number(v))
-   .filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);
- }
- const first=Math.max(.5,Number($('firstGoalSecond')?.value)||4),step=Math.max(.5,Number($('goalInterval')?.value)||5);
- const count=$('scriptedResult')?.checked&&goalPlan.length?goalPlan.length:Math.max(1,Math.min(20,Math.floor(duration()/Math.max(.2,step*(matchUnits?factor:1)))));
- return Array.from({length:count},(_,i)=>first+i*step)
-  .map(v=>matchUnits?parseMatchSecond(v)*factor:v)
-  .filter(v=>Number.isFinite(v)&&v<duration());
+ if(raw)return raw.split(/[,;\\s]+/).map(v=>v.includes('+')||matchUnits?parseMatchSecond(v)*factor:Number(v))
+  .filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);
+ // In 11v11, a blank goal-time field means natural, unscripted football.
+ // Unlike pinball mode, there is no mandatory first-goal or interval timer.
+ return [];
 }
 function speed(){return clamp((Number($('footballSpeed')?.value)||1.3)*Math.sqrt(totalMatchSeconds()/duration()),.5,5.5)}
 function tactic(side){return $('footballTactic'+(side===0?'Left':'Right'))?.value||'balanced'}
@@ -217,7 +234,7 @@ function handleFlight(dt){
   const t=(lineY-lastY)/((b.y-lastY)||1);
   const atX=lerp(lastX,b.x,clamp(t,0,1));
   const scorer=crossedTop?0:1;
-  if(b.mode==='shot'&&Math.abs(atX-CX)<=GOAL_HALF){
+  if(b.mode==='shot'&&Math.abs(atX-CX)<=GOAL_HALF&&(!goalSchedule().length||b.directed)){
    makeGoal(scorer,atX,lineY);return;
   }
   restart(scorer===0?1:0,'GOAL KICK');return;
@@ -264,7 +281,7 @@ function restart(team,label,x=50,y=80){
 }
 function makeGoal(team,x,y){
  const b=state.ball,dir=state.director,planned=!!dir&&b.directed;
- const event=planned&&$('scriptedResult')?.checked?goalPlan[state.scriptIndex]||null:null;
+ const event=planned?plannedEventAt(state.scriptIndex):null;
  score[team===0?'left':'right']++;updateScores();
  const scorer=event?.scorer||('#'+String(b.lastShooter||9));
  const minute=event?.minute||clockLabel();
@@ -277,7 +294,8 @@ function makeGoal(team,x,y){
  if(planned){state.scriptIndex++;state.director=null}
  const count=Math.min(100,Math.round(10+(Number($('goalFxPower')?.value||70)/100)*55));
  for(let i=0;i<count;i++){const a=rnd(0,Math.PI*2);state.fx.push({x,y,vx:Math.cos(a)*rnd(10,48),vy:Math.sin(a)*rnd(8,42),life:rnd(.5,1.2),team})}
- state.freeze=1.35;state.phase='goal';b.mode='goal';b.owner=null;b.directed=false;
+ const next=goalSchedule()[state.scriptIndex];
+ state.freeze=next===undefined?1.35:clamp((next-state.elapsed)*.22,.08,1.35);state.phase='goal';b.mode='goal';b.owner=null;b.directed=false;
  b.x=x;b.y=y;b.vx=0;b.vy=0;
  updateStats();
 }
@@ -298,7 +316,7 @@ function updateDirector(dt){
  if(due===undefined||roundFinished)return;
  const b=state.ball,remain=due-state.elapsed;
  if(!state.director&&remain<=Math.min(3.8,Math.max(1.1,due*.8))){
-  const ev=$('scriptedResult')?.checked?goalPlan[state.scriptIndex]:null;
+  const ev=plannedEventAt(state.scriptIndex);
   if($('scriptedResult')?.checked&&goalPlan.length&&!ev)return;
   const side=ev?.side==='right'?1:ev?.side==='left'?0:state.scriptIndex%2;
   const striker=state.players.filter(p=>p.team===side&&p.role==='FWD').sort((a,c)=>Math.abs(a.x-50)-Math.abs(c.x-50))[0];
@@ -436,12 +454,14 @@ function field(){
 function drawPlayer(p){
  const q=toCanvas(p.x,p.y),r=clamp(canvas.width*.019,12,43);
  const c=p.role==='GK'?(p.team===0?'#a9f15a':'#59d2ed'):color(p.team);
+ const badge=p.team===0?leftBadgeImg:rightBadgeImg;
  ctx.save();ctx.translate(q.x,q.y);
  ctx.fillStyle='rgba(0,0,0,.29)';ctx.beginPath();ctx.ellipse(r*.18,r*.65,r*1.0,r*.53,0,0,Math.PI*2);ctx.fill();
  const stride=Math.sin(p.anim*3)*r*.20;
  if($('footballPlayerStyle')?.value==='disc'){
   ctx.fillStyle=c;ctx.strokeStyle='#101c2b';ctx.lineWidth=r*.14;
   ctx.beginPath();ctx.arc(0,0,r*.82,0,Math.PI*2);ctx.fill();ctx.stroke();
+  if(badge)drawImageCoverCircle(badge,0,-r*.13,r*.50);
  }else{
   // Top-down human silhouette: animated boots, socks, shorts, sleeves and head.
   const skin=p.team===0?'#e7b98c':'#d99b76';
@@ -463,12 +483,17 @@ function drawPlayer(p){
   ctx.lineTo(r*.53,r*.26);ctx.lineTo(-r*.53,r*.26);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,.32)';ctx.fillRect(-r*.47,-r*.38,r*.13,r*.56);
   ctx.fillRect(r*.34,-r*.38,r*.13,r*.56);
+  // Reuse the exact uploaded team crest on every matching player's shirt.
+  if(badge){
+   ctx.fillStyle='rgba(255,255,255,.88)';ctx.beginPath();ctx.arc(0,-r*.15,r*.31,0,Math.PI*2);ctx.fill();
+   drawImageCoverCircle(badge,0,-r*.15,r*.28);
+  }
   ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(0,-r*.73,r*.36,r*.33,0,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#25221e';ctx.beginPath();ctx.ellipse(0,-r*.91,r*.34,r*.16,0,Math.PI,Math.PI*2);ctx.fill();
  }
  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';
  ctx.shadowColor='#000';ctx.shadowBlur=r*.14;
- ctx.font='900 '+Math.round(r*.66)+'px Segoe UI';ctx.fillText(String(p.n),0,p.role==='GK'?-r*.12:-r*.05);
+ ctx.font='900 '+Math.round(r*(badge?.44:.66))+'px Segoe UI';ctx.fillText(String(p.n),0,badge?r*.29:(p.role==='GK'?-r*.12:-r*.05));
  ctx.shadowBlur=0;
  if(state.ball?.owner===p){
   ctx.strokeStyle='#fbe681';ctx.lineWidth=Math.max(2,r*.10);
@@ -595,7 +620,7 @@ function applyPreset(){
  $('finalResultDuration').value='2';
  $('viralLoop').checked=false;$('autoStopRecord').checked=true;
  $('recordReset').checked=true;
- $('footballDuration').value='20';$('footballClock').value='90';$('footballExtraFirst').value='0';$('footballExtraSecond').value='0';
+ $('footballDuration').value='90';$('footballClock').value='90';$('footballExtraFirst').value='0';$('footballExtraSecond').value='0';
  reset();render();
 }
 function init(){
@@ -614,6 +639,6 @@ function init(){
  }
  if(enabled())reset(true);
 }
-window.Football11={enabled,reset,step,render,applyPreset,state,init,goalSchedule,clockSecond,clockLabel,totalMatchSeconds,halfVideoSecond,parseMatchSecond,createTournamentSquads:()=>state.players};
+window.Football11={enabled,reset,step,render,applyPreset,state,init,goalSchedule,plannedEvents,planMinuteSecond,clockSecond,clockLabel,totalMatchSeconds,halfVideoSecond,parseMatchSecond,createTournamentSquads:()=>state.players};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
