@@ -23,6 +23,34 @@ const state={
  camera:{x:50,y:80,zoom:1},lastShot:null,goalAnimation:null,scriptIndex:0,director:null,fx:[],lastDramaTick:-1,goalCard:null
 };
 function enabled(){return $('gameType')?.value==='football11'}
+let crowdSource=null,crowdGain=null;
+function startCrowd(){
+ if(!enabled()||!$('footballCrowd')?.checked||crowdSource)return;
+ try{
+  ensureAudio();if(!audioCtx)return;
+  const rate=audioCtx.sampleRate,n=rate*2,buffer=audioCtx.createBuffer(1,n,rate);
+  const data=buffer.getChannelData(0);
+  // Gentle filtered crowd roar, generated locally; no copyrighted audio.
+  for(let i=0;i<n;i++)data[i]=(Math.random()*2-1)*.23;
+  crowdSource=audioCtx.createBufferSource();crowdSource.buffer=buffer;crowdSource.loop=true;
+  const filter=audioCtx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=650;
+  crowdGain=audioCtx.createGain();crowdGain.gain.value=.045;
+  crowdSource.connect(filter).connect(crowdGain).connect(sfxGain||audioMaster);
+  crowdSource.start();
+ }catch(e){crowdSource=null;crowdGain=null}
+}
+function stopCrowd(){
+ if(crowdSource){try{crowdSource.stop();crowdSource.disconnect()}catch(e){}}
+ crowdSource=null;crowdGain=null;
+}
+function boostCrowd(){
+ if(!crowdGain||!audioCtx)return;
+ const t=audioCtx.currentTime;
+ crowdGain.gain.cancelScheduledValues(t);
+ crowdGain.gain.setValueAtTime(.045,t);
+ crowdGain.gain.linearRampToValueAtTime(.13,t+.14);
+ crowdGain.gain.exponentialRampToValueAtTime(.045,t+1.35);
+}
 function duration(){return Math.max(5,Number($('footballDuration')?.value)||20)}
 function clockDuration(){return Math.max(10,Number($('footballClock')?.value)||90)}
 function extraFirst(){return clamp(Math.floor(Number($('footballExtraFirst')?.value)||0),0,120)}
@@ -291,7 +319,7 @@ function makeGoal(team,x,y){
  state.goalCard={team,scorer,minute,imageImg:event?.imageImg||null,at:state.elapsed,until:state.elapsed+1.65};
  state.goalAnimation={team,x,y,at:state.elapsed,until:state.elapsed+1.5};state.ballHistory=[];
  say('⚽ GOAL! '+teamName(team).toUpperCase()+' • '+scorer,1.6);
- try{playGoalSound()}catch(e){}
+ try{playGoalSound();boostCrowd()}catch(e){}
  if($('shake')?.checked)shakeAmount=canvas.width*.018;
  if(planned){state.scriptIndex++;state.director=null}
  const count=Math.min(42,Math.round(8+(Number($('goalFxPower')?.value||70)/100)*28));
@@ -751,6 +779,6 @@ function init(){
  }
  if(enabled())reset(true);
 }
-window.Football11={enabled,reset,step,render,applyPreset,state,init,goalSchedule,plannedEvents,planMinuteSecond,clockSecond,clockLabel,totalMatchSeconds,halfVideoSecond,parseMatchSecond,createTournamentSquads:()=>state.players};
+window.Football11={enabled,reset,step,render,applyPreset,startCrowd,stopCrowd,state,init,goalSchedule,plannedEvents,planMinuteSecond,clockSecond,clockLabel,totalMatchSeconds,halfVideoSecond,parseMatchSecond,createTournamentSquads:()=>state.players};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
