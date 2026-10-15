@@ -73,10 +73,20 @@ function wav(seconds=4){
     document.getElementById('resetBtn').click();
     if(mode==='edit')document.getElementById('playBtn').click();
   });
-  await page.evaluate(()=>{matchClockStart=performance.now()-3400;physicsStep(1/60)});
-  const timed=await page.evaluate(()=>({finished:roundFinished,score:score.left+score.right,elapsed:gameTime,goals:timedGoalIndex}));
-  assert(timed.finished,'Timed match did not finish');
-  assert(timed.score===3&&timed.goals===3,'Scheduled goals did not score: '+JSON.stringify(timed));
+  const timed=await page.evaluate(()=>{
+    const hits=[];const oldGoal=goal;
+    goal=(h,b)=>{hits.push({at:matchElapsed(),distance:Math.hypot(h.x-b.x,h.y-b.y),radius:h.r});oldGoal(h,b)};
+    matchClockStart=performance.now();
+    for(let i=0;i<430&&!roundFinished;i++){
+      matchClockStart-=1000/120;
+      physicsStep(1/120);
+    }
+    return {finished:roundFinished,score:score.left+score.right,elapsed:matchElapsed(),goals:timedGoalIndex,hits};
+  });
+  assert(timed.finished,'Timed match did not finish: '+JSON.stringify(timed));
+  assert(timed.score===3&&timed.goals===3,'Scheduled goals did not enter holes: '+JSON.stringify(timed));
+  assert(timed.hits.every(x=>x.distance<=x.radius),'Goal awarded outside hole: '+JSON.stringify(timed.hits));
+  assert(timed.hits.every((x,i)=>Math.abs(x.at-[.5,1.5,2.5][i])<.25),'Goals not timed: '+JSON.stringify(timed.hits));
   console.log('Timed goals and exact match finish: OK',timed);
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
