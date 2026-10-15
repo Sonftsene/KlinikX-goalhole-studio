@@ -144,7 +144,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String getSaveEndpoint() {
             return saveServer == null ? "" : saveServer.endpoint();
         }
-        @JavascriptInterface public String getAppVersion() { return "7.2-android"; }
+        @JavascriptInterface public String getAppVersion() { return "8.0-android"; }
         @JavascriptInterface public void setKeepScreenOn(final boolean keep) {
             runOnUiThread(() -> {
                 if (keep) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
