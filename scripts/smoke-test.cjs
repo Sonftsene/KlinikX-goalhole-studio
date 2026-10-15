@@ -110,6 +110,31 @@ function wav(seconds=4){
   const persisted=await page.evaluate(()=>serialize(false).viral);
   assert(persisted.viralCamera&&persisted.viralLoop&&persisted.viralGlow,'Viral settings not persisted');
   console.log('Viral settings persistence: OK');
+  const tournamentTest=await page.evaluate(()=>{
+    document.getElementById('tournamentSize').value='8';
+    document.getElementById('tournamentTeams').value='Real Madrid, Barcelona, Arsenal, Liverpool, Bayern, Inter, Roma, PSG';
+    document.getElementById('createTournament').click();
+    document.getElementById('tournamentNext').click();
+    const names=[document.getElementById('leftName').value,document.getElementById('rightName').value];
+    score.left=2;score.right=1;
+    document.getElementById('tournamentWinner').click();
+    return {names,winner:tournament.rounds[0][0].winner,advance:tournament.rounds[1][0].a,saved:!!localStorage.getItem('goalhole_tournament_v1')};
+  });
+  assert(tournamentTest.names[0]==='Real Madrid'&&tournamentTest.names[1]==='Barcelona','Tournament fixture incorrect: '+JSON.stringify(tournamentTest));
+  assert(tournamentTest.winner==='Real Madrid'&&tournamentTest.advance==='Real Madrid'&&tournamentTest.saved,'Tournament advancement failed: '+JSON.stringify(tournamentTest));
+  console.log('Tournament bracket and progression: OK');
+  const special=await page.evaluate(()=>{
+    document.getElementById('specialBalls').checked=true;
+    document.getElementById('scriptedResult').checked=false;
+    document.getElementById('goldMultiplier').value='2';
+    document.getElementById('powerupChance').value='0';
+    resetRound();
+    const b=balls[0],h=scoringHoles()[0];b.x=h.x;b.y=h.y;b.released=true;
+    goal(h,b);
+    return {gold:b.specialGold,score:score.left+score.right};
+  });
+  assert(special.gold&&special.score===2,'Golden ball multiplier failed: '+JSON.stringify(special));
+  console.log('Special golden ball: OK');
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
