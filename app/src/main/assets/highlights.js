@@ -363,6 +363,7 @@ function init(){
  for(const id of ['hlDuration','hlStyle','hlHook','hlScript']){
   $(id).addEventListener('change',()=>{reset(true);render();const a=stats();$('hlSummary').textContent=a.events+' pozisyon • '+a.goals+' gol • '+a.duration+' saniye'});
  }
+ sel.value='highlights';section.style.display='block';football.style.display='none';$('pinballOnlyNote').style.display='block';
  sel.addEventListener('change',()=>{
   section.style.display=enabled()?'block':'none';
   if(enabled()){football.style.display='none';$('pinballOnlyNote').style.display='block';reset(true)}
