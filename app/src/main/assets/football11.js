@@ -40,7 +40,7 @@ function clockLabel(t=clockSecond()){
  return String(normal)+'+'+String(t-normal-first);
 }
 function parseMatchSecond(token){
- const v=String(token).trim(),m=v.match(/^(\\d+(?:\\.\\d+)?)\\+(\\d+(?:\\.\\d+)?)$/);
+ const v=String(token).trim(),m=v.match(/^(\d+(?:\.\d+)?)\+(\d+(?:\.\d+)?)$/);
  const half=halfSecond(),normal=clockDuration(),first=extraFirst(),second=extraSecond();
  if(m){
   const base=Number(m[1]),added=Number(m[2]);
@@ -59,7 +59,7 @@ function goalSchedule(){
  const raw=$('goalTimes')?.value?.trim()||'';
  const matchUnits=$('footballGoalTimeUnit')?.value==='match',factor=duration()/totalMatchSeconds();
  if(raw){
-  return raw.split(/[,;\\s]+/).map(v=>v.includes('+')||matchUnits?parseMatchSecond(v)*factor:Number(v))
+  return raw.split(/[,;\s]+/).map(v=>v.includes('+')||matchUnits?parseMatchSecond(v)*factor:Number(v))
    .filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);
  }
  const first=Math.max(.5,Number($('firstGoalSecond')?.value)||4),step=Math.max(.5,Number($('goalInterval')?.value)||5);
