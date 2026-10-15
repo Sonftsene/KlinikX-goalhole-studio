@@ -71,7 +71,7 @@ function wav(seconds=4){
     document.getElementById('scoreX').value='55';
     document.getElementById('scoreY').value='12';
     document.getElementById('resetBtn').click();
-    document.getElementById('playBtn').click();
+    if(mode==='edit')document.getElementById('playBtn').click();
   });
   await page.waitForTimeout(3700);
   const timed=await page.evaluate(()=>({finished:roundFinished,score:score.left+score.right,elapsed:gameTime,goals:timedGoalIndex}));
