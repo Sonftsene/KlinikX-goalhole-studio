@@ -187,6 +187,32 @@ function wav(seconds=4){
   });
   assert(footballFinish.finished&&Math.abs(footballFinish.elapsed-footballFinish.duration)<.05,'Football match did not finish on time: '+JSON.stringify(footballFinish));
   console.log('11v11 exact match duration: OK');
+  const synced=await page.evaluate(()=>{
+    const F=window.Football11;
+    document.getElementById('footballDuration').value='20';
+    document.getElementById('footballClock').value='60';
+    document.getElementById('footballSyncGoals').checked=true;
+    document.getElementById('goalTimes').value='5, 11, 18';
+    document.getElementById('scriptedResult').checked=true;
+    goalPlan=[makePlanEvent('left',{scorer:'Vinicius',minute:'15'}),
+              makePlanEvent('right',{scorer:'Dybala',minute:'33'}),
+              makePlanEvent('left',{scorer:'Bellingham',minute:'54'})];
+    F.reset(true);
+    const events=[];
+    let last=0;
+    for(let i=0;i<2440&&!roundFinished;i++){
+      F.step(1/120);
+      if(F.state.goals.length>last){events.push({...F.state.goals[F.state.goals.length-1]});last=F.state.goals.length}
+    }
+    return {events,finished:roundFinished,elapsed:F.state.elapsed,clock:F.clockSecond(),score:[score.left,score.right],
+      schedule:F.goalSchedule()};
+  });
+  assert(synced.finished&&Math.abs(synced.clock-60)<.1,'3x football match clock failed: '+JSON.stringify(synced));
+  assert(synced.events.length===3&&synced.score[0]===2&&synced.score[1]===1,'Scripted 11v11 goals missing: '+JSON.stringify(synced));
+  assert(synced.events.every((e,i)=>Math.abs(e.second-[5,11,18][i])<.12),'Scripted goals not at exact video seconds: '+JSON.stringify(synced));
+  assert(synced.events[0].scorer==='Vinicius'&&synced.events[1].scorer==='Dybala','Scorer names not synced: '+JSON.stringify(synced));
+  console.log('11v11 20-second video, 60-second match clock, three timed real goals and scorers: OK',synced);
+
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
