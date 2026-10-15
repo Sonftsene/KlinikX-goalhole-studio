@@ -315,46 +315,41 @@ function updateDirector(dt){
  const schedule=goalSchedule(),due=schedule[state.scriptIndex];
  if(due===undefined||roundFinished)return;
  const b=state.ball,remain=due-state.elapsed;
- if(!state.director&&remain<=Math.min(3.8,Math.max(1.1,due*.8))){
+ // Build the attack late enough that the forward cannot camp on the goal line.
+ // Shot preparation happens while players are still moving, not while they wait.
+ const lead=clamp(due*.08,1.2,2.5);
+ if(!state.director&&remain<=lead){
   const ev=plannedEventAt(state.scriptIndex);
   if($('scriptedResult')?.checked&&goalPlan.length&&!ev)return;
   const side=ev?.side==='right'?1:ev?.side==='left'?0:state.scriptIndex%2;
-  const striker=state.players.filter(p=>p.team===side&&p.role==='FWD').sort((a,c)=>Math.abs(a.x-50)-Math.abs(c.x-50))[0];
-  state.director={due,side,striker,shot:false,started:state.elapsed};
-  say('⚡ ATTACK • '+teamName(side),1.1);
+  const striker=state.players.filter(p=>p.team===side&&p.role==='FWD')
+   .sort((a,c)=>Math.abs(a.x-50)-Math.abs(c.x-50))[0];
+  state.director={due,side,striker,shot:false,started:state.elapsed,passed:false};
+  say('⚡ ATTACK • '+teamName(side),.9);
  }
- const dir=state.director;if(!dir)return;
- if(dir.shot)return;
+ const dir=state.director;if(!dir||dir.shot)return;
  const striker=dir.striker,goalY=dir.side===0?0:160;
- // The striker makes a real run, without teleporting.
- const runY=dir.side===0?14:146;
- advance(striker,dt*speed(),50,runY,34);
- if(remain>.78){
-  // Through-ball: the ball physically travels to the attacker.
-  if(!dir.passed){
+ // The striker runs into a shooting lane rather than parking at the goalmouth.
+ const runY=dir.side===0?clamp(striker.y-15,19,53):clamp(striker.y+15,107,141);
+ advance(striker,dt*speed(),clamp(striker.x+(50-striker.x)*.30,28,72),runY,23);
+ if(remain>.52){
+  if(!dir.passed&&b.owner){
    const p=b.owner;
-   if(p&&p.team===dir.side){
-    kick(p,striker.x,striker.y,'pass',striker);
-    dir.passed=true;say('↗ THROUGH BALL • '+teamName(dir.side),.9);
-   }else if(p){
-    // The defending side plays a real long clearance toward the attack.
-    kick(p,striker.x,striker.y,'clear',striker);dir.passed=true;
-   }
+   if(p.team===dir.side){kick(p,striker.x,striker.y,'pass',striker);dir.passed=true}
+   else if(remain<1.15){kick(p,striker.x,striker.y,'clear',striker);dir.passed=true}
   }
-  // Make the attacking striker chase the actual ball, not appear at it.
-  if(!b.owner&&b.mode!=='goal'&&dist(striker,b)<5)setCarrier(striker);
+  // No pre-goal forced possession, waiting, or frozen striker.
   return;
  }
- // The timed shot is a genuine ball flight. Velocity is calculated so that
- // the ball crosses the goal line at the chosen *video* second.
- const flight=Math.max(.12,remain);
- const targetX=50+rnd(-3.5,3.5);
+ // Strike in motion: the shot starts ~0.5s before the goal, and the
+ // ball's real flight reaches the line at the scheduled video timestamp.
+ const flight=Math.max(.08,remain),targetX=50+rnd(-3.5,3.5);
  b.owner=null;b.mode='shot';b.team=dir.side;b.lastTouch=dir.side;
  b.lastShooter=striker.n;b.directed=true;b.flight=0;
  b.vx=(targetX-b.x)/(flight*speed());
  b.vy=(goalY-b.y)/(flight*speed());
  dir.shot=true;state.shots++;state.lastShot={team:dir.side,x:targetX,y:goalY,at:state.elapsed};
- say('🔥 SHOT ON TARGET!',.8);
+ say('🔥 SHOT ON TARGET!',.6);
  try{playTone(410,.09,'triangle',.07)}catch(e){}
 }
 function step(dt){
@@ -452,7 +447,7 @@ function field(){
  // All labels stay in the broadcast HUD outside the pitch and goal nets.
 }
 function drawPlayer(p){
- const q=toCanvas(p.x,p.y),r=clamp(canvas.width*.019,12,43);
+ const q=toCanvas(p.x,p.y),r=clamp(canvas.width*.031,19,68)*(Number($('footballPlayerScale')?.value||100)/100);
  const c=p.role==='GK'?(p.team===0?'#a9f15a':'#59d2ed'):color(p.team);
  const badge=p.team===0?leftBadgeImg:rightBadgeImg;
  ctx.save();ctx.translate(q.x,q.y);
