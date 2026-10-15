@@ -156,7 +156,7 @@ input[type=text],input[type=number],select{width:100%;border:1px solid #293752;b
           <div class="row"><button id="createTournament" class="btn primary">Turnuva oluştur</button><button id="tournamentNext" class="btn">Sıradaki maçı aç</button></div>
           <div class="row"><button id="tournamentWinner" class="btn">Kazananı sonraki tura geçir</button><button id="tournamentReset" class="btn">Turnuvayı sıfırla</button></div>
           <div class="miniStat" id="tournamentStatus">Turnuva oluşturulmadı.</div>
-          <div id="tournamentBracket" class="tinyNote"></div>
+          <div id="tournamentBracket" class="tinyNote" style="white-space:pre-wrap;line-height:1.65"></div>
           <div class="tinyNote">Her maçın skorunu kaydettikten sonra kazananı ilerlet. Eşitlikte önce skoru belirle. Turnuva ilerlemesi tarayıcıda saklanır.</div>
         </div>
       </section>
@@ -735,6 +735,72 @@ $('focusExit').onclick=()=>{document.body.classList.remove('focusMode');if(docum
 
 $('zoomIn').onclick=()=>{viewZoom=clamp(viewZoom+.1,.4,1.8);fitCanvas()};$('zoomOut').onclick=()=>{viewZoom=clamp(viewZoom-.1,.4,1.8);fitCanvas()};$('fitBtn').onclick=()=>{viewZoom=1;fitCanvas()};$('toggleGrid').onclick=()=>{gridOn=!gridOn;$('toggleGrid').classList.toggle('active',gridOn);render()};$('snapBtn').onclick=()=>{snapOn=!snapOn;$('snapBtn').classList.toggle('active',snapOn)};
 
+
+
+// Local, offline tournament bracket: matches progress only after a real score is available.
+let tournament=null;
+function saveTournament(){
+ try{if(tournament)localStorage.setItem('goalhole_tournament_v1',JSON.stringify(tournament));else localStorage.removeItem('goalhole_tournament_v1')}catch(e){}
+}
+function showTournament(){
+ const status=$('tournamentStatus'),bracket=$('tournamentBracket');
+ if(!tournament){status.textContent='Turnuva oluşturulmadı.';bracket.textContent='';return}
+ const total=tournament.rounds[0].length*2;
+ const finished=tournament.rounds.flat().filter(m=>m.winner).length;
+ const champion=tournament.rounds[tournament.rounds.length-1][0].winner;
+ status.textContent=(tournament.title||'Tournament')+' • '+total+' takım • '+finished+'/'+(total-1)+' maç'+(champion?' • ŞAMPİYON: '+champion:'');
+ bracket.textContent=tournament.rounds.map((round,i)=>{
+  return 'TUR '+(i+1)+'\n'+round.map((m,j)=>{
+   const names=(m.a||'?')+' vs '+(m.b||'?');
+   return (j+1)+'. '+names+(m.winner?'  ✓ '+m.winner+(m.result?' ('+m.result+')':''):'');
+  }).join('\n');
+ }).join('\n\n');
+}
+function createTournament(){
+ const n=Number($('tournamentSize').value)||8;
+ const names=$('tournamentTeams').value.split(/[,;\n]+/).map(s=>s.trim()).filter(Boolean);
+ const teams=Array.from({length:n},(_,i)=>names[i]||('Team '+(i+1)));
+ const rounds=[];
+ for(let size=n;size>=2;size/=2)rounds.push(Array.from({length:size/2},()=>({a:null,b:null,winner:null,result:null})));
+ for(let i=0;i<n/2;i++){rounds[0][i].a=teams[i*2];rounds[0][i].b=teams[i*2+1]}
+ tournament={title:$('tournamentTitle').value||'Champions Cup',rounds,current:null};
+ saveTournament();showTournament();toast('Turnuva oluşturuldu');
+}
+function nextTournamentMatch(){
+ if(!tournament){toast('Önce turnuva oluşturun');return}
+ for(let r=0;r<tournament.rounds.length;r++)for(let i=0;i<tournament.rounds[r].length;i++){
+  const m=tournament.rounds[r][i];
+  if(m.a&&m.b&&!m.winner){
+   tournament.current={r,i};
+   $('leftName').value=m.a;$('rightName').value=m.b;
+   // Do not attach the previous teams' logos to a different tournament match.
+   leftBadgeSrc=rightBadgeSrc=null;leftBadgeImg=rightBadgeImg=null;refreshBadgePreviews();
+   resetRound();updateScores();saveTournament();showTournament();
+   toast('Sıradaki maç: '+m.a+' vs '+m.b);return;
+  }
+ }
+ toast('Turnuvada oynanacak maç kalmadı');
+}
+function advanceTournamentWinner(){
+ if(!tournament?.current){toast('Önce sıradaki maçı açın');return}
+ const {r,i}=tournament.current,m=tournament.rounds[r][i];
+ if(m.winner){toast('Bu maç tamamlandı');return}
+ if(score.left===score.right){toast('Beraberlik: Önce kazananı belirleyin');return}
+ m.winner=score.left>score.right?m.a:m.b;
+ m.result=score.left+'-'+score.right;
+ if(r+1<tournament.rounds.length){
+  const next=tournament.rounds[r+1][Math.floor(i/2)];
+  if(i%2===0)next.a=m.winner;else next.b=m.winner;
+ }
+ tournament.current=null;saveTournament();showTournament();
+ toast('Kazanan ilerledi: '+m.winner);
+}
+$('createTournament').onclick=()=>{createTournament();pushHistoryDebounced()};
+$('tournamentNext').onclick=nextTournamentMatch;
+$('tournamentWinner').onclick=advanceTournamentWinner;
+$('tournamentReset').onclick=()=>{tournament=null;saveTournament();showTournament();toast('Turnuva sıfırlandı')};
+try{const raw=localStorage.getItem('goalhole_tournament_v1');if(raw)tournament=JSON.parse(raw)}catch(e){}
+showTournament();
 
 // Viral Shorts preset. This does not overwrite team names, logos or the background.
 $('viralPreset').onclick=()=>{
