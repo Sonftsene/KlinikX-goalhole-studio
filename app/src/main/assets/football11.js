@@ -105,7 +105,7 @@ function reset(quiet=false){
  state.events=[];state.goals=[];state.current=null;state.cooldown=0;state.freeze=0;
  state.lastEvent='';state.eventTime=0;state.passes=0;state.shots=0;state.saves=0;
  state.turnovers=0;state.halftime=false;state.lastShot=null;state.goalAnimation=null;state.scriptIndex=0;state.director=null;state.fx=[];state.lastDramaTick=-1;state.goalCard=null;
- state.camera={x:50,y:80,zoom:1};
+ state.camera={x:50,y:80,zoom:1};state.ballHistory=[];state.ballTrailClock=0;
  for(let team=0;team<2;team++)for(const p of layout){
   const y=team===0?p.y:H-p.y;
   state.players.push({team,n:p.n,role:p.role,x:p.x,y,homeX:p.x,homeY:y,
@@ -289,7 +289,7 @@ function makeGoal(team,x,y){
  const minute=event?.minute||clockLabel();
  state.goals.push({team,second:state.elapsed,matchSecond:clockSecond(),scorer});
  state.goalCard={team,scorer,minute,imageImg:event?.imageImg||null,at:state.elapsed,until:state.elapsed+1.65};
- state.goalAnimation={team,x,y,at:state.elapsed,until:state.elapsed+1.5};
+ state.goalAnimation={team,x,y,at:state.elapsed,until:state.elapsed+1.5};state.ballHistory=[];
  say('⚽ GOAL! '+teamName(team).toUpperCase()+' • '+scorer,1.6);
  try{playGoalSound()}catch(e){}
  if($('shake')?.checked)shakeAmount=canvas.width*.018;
@@ -409,6 +409,7 @@ function step(dt){
   const pace=p.role==='GK'?10:p.role==='FWD'?23:19;
   advance(p,d,target.x,target.y,pace*(tactic(p.team)==='press'?1.16:1));
  }
+ if(state.ball){state.ballTrailClock+=dt;if(state.ballTrailClock>.045){state.ballTrailClock=0;state.ballHistory.push({x:state.ball.x,y:state.ball.y,at:state.elapsed});if(state.ballHistory.length>14)state.ballHistory.shift()}}
  for(const f of state.fx){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=.975;f.vy*=.975;f.life-=dt}state.fx=state.fx.filter(f=>f.life>0);
  if(Math.floor(state.elapsed*4)!==Math.floor((state.elapsed-dt)*4))updateStats();
 }
@@ -423,6 +424,15 @@ function buildField(g){
  const light=g.createRadialGradient(w*.5,h*.48,w*.15,w*.5,h*.48,h*.68);
  light.addColorStop(0,'rgba(38,87,84,.32)');light.addColorStop(1,'rgba(2,5,15,0)');g.fillStyle=light;g.fillRect(0,0,w,h);
  g.fillStyle='#162f34';g.fillRect(p.x-w*.013,p.y-w*.015,p.w+w*.026,p.h+w*.03);
+ // Stadium LED boards, beyond the field.
+ for(let side=0;side<2;side++){
+  const yy=side?p.y+p.h+w*.013:p.y-w*.028;
+  const grd=g.createLinearGradient(0,yy,w,yy);
+  grd.addColorStop(0,'#133654');grd.addColorStop(.5,'#337d9b');grd.addColorStop(1,'#133654');
+  g.fillStyle=grd;g.fillRect(p.x,yy,p.w,w*.013);
+  g.fillStyle='rgba(255,255,255,.50)';
+  for(let i=0;i<9;i++)g.fillRect(p.x+i*p.w/9+w*.012,yy+w*.004,p.w/9-w*.027,w*.002);
+ }
  g.fillStyle=grass;g.fillRect(p.x,p.y,p.w,p.h);
  for(let i=0;i<16;i++){g.fillStyle=i%2?'rgba(255,255,255,.036)':'rgba(0,0,0,.058)';g.fillRect(p.x,p.y+i*p.h/16,p.w,p.h/16)}
  // Fine, deterministic grass grain (no frame-to-frame flicker).
@@ -538,6 +548,48 @@ function drawBall(){
  for(let i=0;i<5;i++){const a=i*Math.PI*2/5;ctx.beginPath();ctx.arc(Math.cos(a)*r*.56,Math.sin(a)*r*.56,r*.19,0,Math.PI*2);ctx.fill()}
  ctx.beginPath();ctx.arc(0,0,r*.3,0,Math.PI*2);ctx.fill();ctx.restore();
 }
+function drawActionTrails(){
+ const b=state.ball;
+ if(!b)return;
+ const history=state.ballHistory||[];
+ if(history.length>2&&(b.mode==='pass'||b.mode==='shot'||b.mode==='clear'||b.mode==='loose')){
+  ctx.save();
+  for(let i=1;i<history.length;i++){
+   const a=toCanvas(history[i-1].x,history[i-1].y),c=toCanvas(history[i].x,history[i].y);
+   ctx.strokeStyle=b.mode==='shot'?'rgba(255,224,115,'+(i/history.length*.64)+')':'rgba(196,238,255,'+(i/history.length*.35)+')';
+   ctx.lineWidth=Math.max(2,canvas.width*.003*(i/history.length));
+   ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(c.x,c.y);ctx.stroke();
+  }
+  ctx.restore();
+ }
+ if(state.goalAnimation&&state.elapsed<state.goalAnimation.until){
+  const ev=state.goalAnimation,age=state.elapsed-ev.at,q=toCanvas(ev.x,ev.y);
+  ctx.save();
+  for(let i=0;i<3;i++){
+   const radius=canvas.width*(.035+Math.max(0,age-i*.11)*.12);
+   ctx.globalAlpha=Math.max(0,.8-age*.9-i*.17);
+   ctx.strokeStyle=i%2?'#fff':color(ev.team);ctx.lineWidth=Math.max(2,canvas.width*.005);
+   ctx.beginPath();ctx.arc(q.x,q.y,radius,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+ }
+}
+function drawBroadcastMoment(){
+ if(!$('footballBroadcast')?.checked)return;
+ const w=canvas.width,h=canvas.height,ev=state.goalAnimation;
+ if(ev&&state.elapsed-ev.at<.65){
+  const age=state.elapsed-ev.at,alpha=clamp(Math.min(age/.09,(.65-age)/.18),0,1);
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.shadowColor=color(ev.team);ctx.shadowBlur=w*.024;
+  ctx.fillStyle='#fff';ctx.font='950 '+Math.round(w*.098)+'px Segoe UI';
+  ctx.fillText('GOOOOL!',w/2,h*.49);
+  ctx.shadowBlur=0;ctx.font='900 '+Math.round(w*.037)+'px Segoe UI';
+  ctx.fillStyle='#ffe6a1';ctx.fillText(teamName(ev.team).toUpperCase(),w/2,h*.53);
+  ctx.restore();
+ }
+}
+
 function drawHUD(){
  const w=canvas.width,h=canvas.height,fs=Math.max(20,w*.028)*(Number($('scoreFont')?.value||100)/100);
  const barW=w*clamp(Number($('scoreWidth')?.value||82),55,98)/100;
@@ -560,6 +612,24 @@ function drawHUD(){
  ctx.fillText(score.left+' : '+score.right,cx,barY+barH*.37);
  ctx.font='900 '+Math.round(fs*.66)+'px Segoe UI';ctx.fillStyle='#f7d477';
  ctx.fillText(clockLabel()+'  /  '+clockLabel(totalMatchSeconds()),cx,barY+barH*.77);
+ if($('footballBroadcast')?.checked){
+  ctx.font='900 '+Math.round(fs*.52)+'px Segoe UI';
+  ctx.fillStyle='#ff5066';ctx.textAlign='center';
+  ctx.fillText('● LIVE',cx,barY+barH*1.22);
+  const b=state.ball;
+  if(b&&state.phase==='live'){
+   const attackSide=b.owner?.team??b.team;
+   const distance=attackSide===0?b.y:160-b.y;
+   if(distance<45){
+    const urgency=clamp((45-distance)/45,0,1);
+    const bw=w*.24,bx=(w-bw)/2,by=h*.125;
+    ctx.fillStyle='rgba(2,13,27,.90)';ctx.fillRect(bx,by,bw,w*.014);
+    ctx.fillStyle=urgency>.6?'#ff566e':'#ffcb5c';ctx.fillRect(bx,by,bw*urgency,w*.014);
+    ctx.textAlign='center';ctx.font='900 '+Math.round(fs*.48)+'px Segoe UI';
+    ctx.fillText(urgency>.6?'DANGER • SHOT?':'ATTACK BUILDUP',w/2,by-w*.010);
+   }
+  }
+ }
  const total=Math.max(.01,state.possessions[0]+state.possessions[1]),home=state.possessions[0]/total;
  const meterY=h*.901,meterH=Math.max(6,w*.008),margin=w*.075,meterW=w-margin*2;
  ctx.fillStyle='rgba(5,12,24,.93)';ctx.fillRect(margin-w*.015,meterY-w*.011,meterW+w*.03,h*.053);
@@ -624,24 +694,29 @@ function render(){
  ctx.save();ctx.clearRect(0,0,canvas.width,canvas.height);
  // The pitch, players and ball share the same camera transform.
  const owner=state.ball.owner;
- const target=owner&&((owner.team===0&&owner.y<42)||(owner.team===1&&owner.y>118))&&$('footballCamera')?.checked?Number($('footballCameraZoom')?.value||1.06):1;
+ const attacking=owner&&((owner.team===0&&owner.y<60)||(owner.team===1&&owner.y>100));
+ const target=state.goalAnimation&&state.elapsed<state.goalAnimation.until?1.10:attacking&&$('footballCamera')?.checked?Number($('footballCameraZoom')?.value||1.06):1;
  state.camera.zoom=lerp(state.camera.zoom,target,.04);
  ctx.save();
+ if(state.goalAnimation&&state.elapsed<state.goalAnimation.until){
+  const age=state.elapsed-state.goalAnimation.at,shake=(1-age/1.5)*canvas.width*.006;
+  ctx.translate(Math.sin(age*85)*shake,Math.cos(age*93)*shake);
+ }
  if(state.camera.zoom>1.001){
   const center=toCanvas(50,owner?owner.y:80);
   ctx.translate(center.x,center.y);ctx.scale(state.camera.zoom,state.camera.zoom);ctx.translate(-center.x,-center.y);
  }
  field();
  for(const p of state.players)drawPlayer(p);
- drawBall();drawFootballFX();
+ drawActionTrails();drawBall();drawFootballFX();
  ctx.restore();
- drawHUD();
+ drawHUD();drawBroadcastMoment();
  if(roundFinished)drawFinalResult();
  ctx.restore();
 }
 function applyPreset(){
  $('ratio').value='9:16';$('quality').value='1080';resizeCanvas();
- $('fps').value='60';$('showFinalResult').checked=true;
+ $('fps').value='30';$('bitrate').value='12000000';$('showFinalResult').checked=true;
  $('finalResultDuration').value='2';
  $('viralLoop').checked=false;$('autoStopRecord').checked=true;
  $('recordReset').checked=true;
