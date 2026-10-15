@@ -465,7 +465,7 @@ function drawHUD(){
  const logoR=barH*.21;
  if(typeof leftBadgeImg!=='undefined'&&leftBadgeImg)drawImageCoverCircle(leftBadgeImg,left+barW*.035+logoR,barY+barH*.48,logoR);
  if(typeof rightBadgeImg!=='undefined'&&rightBadgeImg)drawImageCoverCircle(rightBadgeImg,right-barW*.035-logoR,barY+barH*.48,logoR);
- ctx.textAlign='left';ctx.font='900 '+fitted(l,nameMax)+'px Segoe UI';ctx.fillText(l,left+barW*(leftBadgeImg?.width?.05:.025)+(leftBadgeImg?logoR*2.5:0),barY+barH*.48);
+ ctx.textAlign='left';ctx.font='900 '+fitted(l,nameMax)+'px Segoe UI';ctx.fillText(l,left+barW*.025+(leftBadgeImg?logoR*2.5:0),barY+barH*.48);
  ctx.font='900 '+fs+'px Segoe UI';ctx.textAlign='right';ctx.font='900 '+fitted(r,nameMax)+'px Segoe UI';ctx.fillText(r,right-barW*.025-(rightBadgeImg?logoR*2.5:0),barY+barH*.48);
  ctx.textAlign='center';ctx.font='950 '+Math.round(fs*1.35)+'px Segoe UI';ctx.fillStyle='#fff';
  ctx.fillText(score.left+' : '+score.right,cx,barY+barH*.37);
