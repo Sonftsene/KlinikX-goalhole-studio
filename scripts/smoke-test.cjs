@@ -61,6 +61,23 @@ function wav(seconds=4){
   text=await page.locator('body').innerText();
   assert(text.toLocaleLowerCase('tr-TR').includes('takımlar & skor'),'Turkish switch back failed');
   console.log('Turkish switch back: OK');
+  await page.evaluate(()=>{
+    document.getElementById('timedMatch').checked=true;
+    document.getElementById('matchDuration').value='3';
+    document.getElementById('goalTimes').value='0.5,1.5,2.5';
+    document.getElementById('scriptedResult').checked=false;
+    document.getElementById('scoreWidth').value='90';
+    document.getElementById('scoreFont').value='150';
+    document.getElementById('scoreX').value='55';
+    document.getElementById('scoreY').value='12';
+    document.getElementById('resetBtn').click();
+    document.getElementById('playBtn').click();
+  });
+  await page.waitForTimeout(3700);
+  const timed=await page.evaluate(()=>({finished:roundFinished,score:score.left+score.right,elapsed:gameTime,goals:timedGoalIndex}));
+  assert(timed.finished,'Timed match did not finish');
+  assert(timed.score===3&&timed.goals===3,'Scheduled goals did not score: '+JSON.stringify(timed));
+  console.log('Timed goals and exact match finish: OK',timed);
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
