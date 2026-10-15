@@ -110,6 +110,16 @@ function wav(seconds=4){
   const persisted=await page.evaluate(()=>serialize(false).viral);
   assert(persisted.viralCamera&&persisted.viralLoop&&persisted.viralGlow,'Viral settings not persisted');
   console.log('Viral settings persistence: OK');
+  const viralMatch=await page.evaluate(()=>{
+    document.getElementById('resetBtn').click();
+    if(mode==='edit')document.getElementById('playBtn').click();
+    matchClockStart=performance.now();
+    for(let i=0;i<2700&&!roundFinished;i++){matchClockStart-=1000/120;physicsStep(1/120)}
+    return {finished:roundFinished,left:score.left,right:score.right,goals:timedGoalIndex,elapsed:matchElapsed()};
+  });
+  assert(viralMatch.finished,'Viral preset did not finish: '+JSON.stringify(viralMatch));
+  assert(viralMatch.left===3&&viralMatch.right===4,'Viral preset did not produce 3-4: '+JSON.stringify(viralMatch));
+  console.log('21-second viral 3-4 match: OK',viralMatch);
   const tournamentTest=await page.evaluate(()=>{
     document.getElementById('tournamentSize').value='8';
     document.getElementById('tournamentTeams').value='Real Madrid, Barcelona, Arsenal, Liverpool, Bayern, Inter, Roma, PSG';
