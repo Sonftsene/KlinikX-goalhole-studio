@@ -337,10 +337,10 @@ canvas.addEventListener('pointerup',e=>{if(mode==='play'&&drag?.aiming){const b=
 canvas.addEventListener('wheel',e=>{if(mode!=='edit')return;const o=selected();if(!o||o.locked)return;e.preventDefault();const k=e.deltaY<0?1.055:.948;if(e.shiftKey){o.rotation=(o.rotation||0)+(e.deltaY<0?5:-5)}else if(o.type==='hole'||o.type==='bumper'||o.type==='spawn')o.r=clamp(o.r*k,8,canvas.width*.4);else if(o.type==='wall'||o.type==='image'){o.w=clamp(o.w*k,12,canvas.width*1.5);o.h=clamp(o.h*k,8,canvas.height*1.5)}else if(o.type==='text')o.fontSize=clamp(o.fontSize*k,8,canvas.width*.4);updateInspectorFields(o);render();clearTimeout(canvas._wheelTimer);canvas._wheelTimer=setTimeout(pushHistory,180)},{passive:false});
 
 function ballVisual(i){const style=$('ballStyle').value,vivid=['#ff3b30','#34c759','#007aff','#ffcc00','#af52de','#ff9500','#00c7be','#ff2d55'],pastel=['#F3B7C5','#B9D7F5','#C5E1B6','#FFE2A8','#D4C1ED','#F5C4A8','#B6E2DC','#EBC1DC','#C9D2F2','#F4D7A7'];let color='#ffffff';if(style==='pastel')color=pastel[i%pastel.length];else if(style==='mixed'||style==='neon')color=vivid[i%vivid.length];else if(style==='teams')color=i%2?$('rightColor').value:$('leftColor').value;return{style,color}}
-function spawnBalls(resetAll=true){if(resetAll)balls=[];let count=clamp(parseInt($('ballCount').value)||1,1,100);if($('scriptedResult')?.checked&&goalPlan.length){count=$('syncBallsToPlan')?.checked?goalPlan.length:Math.max(count,goalPlan.length)}$('ballCount').value=count;const s=ensureSpawn(),r=+$('ballSize').value,auto=$('launchMode').value==='auto',stagger=(+$('tossStagger').value||180)/1000;while(balls.length<count){const i=balls.length,v=ballVisual(i);balls.push({id:uid(),x:s.x,y:s.y,r,vx:0,vy:0,active:true,released:!auto,releaseAt:.35+i*stagger,spin:0,cooldown:0,age:0,targetHoleId:null,...v})}if(balls.length>count)balls=balls.slice(0,count);for(let i=0;i<balls.length;i++){const b=balls[i],v=ballVisual(i);Object.assign(b,v);b.r=r;if(resetAll){b.vx=b.vy=0;b.active=true;b.cooldown=0;b.age=0;b.targetHoleId=null;b.releaseAt=.35+i*stagger;b.released=!auto;b.hasLaunched=false;b.turnTimer=.45+Math.random()*1.25;b.motionAngle=Math.random()*Math.PI*2;if(auto){b.x=s.x;b.y=s.y}else{const cols=Math.min(6,count),row=Math.floor(i/cols),col=i%cols;b.x=s.x+(col-(Math.min(cols,count)-1)/2)*r*2.25;b.y=s.y+row*r*2.25}}}timedGoalIndex=0;goalPlanIndex=0;directorBallId=directorHoleId=null;directorStart=0;roundFinished=false;goalOverlay=null;roundResultOverlay=null;gameTime=0;renderGoalPlanUI()}
+function spawnBalls(resetAll=true){if(resetAll)balls=[];let count=clamp(parseInt($('ballCount').value)||1,1,100);if($('scriptedResult')?.checked&&goalPlan.length){count=$('syncBallsToPlan')?.checked?goalPlan.length:Math.max(count,goalPlan.length)}$('ballCount').value=count;const s=ensureSpawn(),r=+$('ballSize').value,auto=$('launchMode').value==='auto',stagger=(+$('tossStagger').value||180)/1000;while(balls.length<count){const i=balls.length,v=ballVisual(i);balls.push({id:uid(),x:s.x,y:s.y,r,vx:0,vy:0,active:true,released:!auto,releaseAt:.35+i*stagger,spin:0,cooldown:0,age:0,targetHoleId:null,...v})}if(balls.length>count)balls=balls.slice(0,count);for(let i=0;i<balls.length;i++){const b=balls[i],v=ballVisual(i);Object.assign(b,v);b.r=r;if(resetAll){b.vx=b.vy=0;b.active=true;b.cooldown=0;b.age=0;b.targetHoleId=null;b.releaseAt=.35+i*stagger;b.released=!auto;b.hasLaunched=false;b.turnTimer=.45+Math.random()*1.25;b.motionAngle=Math.random()*Math.PI*2;if(auto){b.x=s.x;b.y=s.y}else{const cols=Math.min(6,count),row=Math.floor(i/cols),col=i%cols;b.x=s.x+(col-(Math.min(cols,count)-1)/2)*r*2.25;b.y=s.y+row*r*2.25}}}matchClockStart=performance.now();timedGoalIndex=0;goalPlanIndex=0;directorBallId=directorHoleId=null;directorStart=0;roundFinished=false;goalOverlay=null;roundResultOverlay=null;gameTime=0;renderGoalPlanUI()}
 function launchAutoBall(b){const s=ensureSpawn(),spread=rad(+$('tossSpread').value||34),base=-Math.PI/2,a=base+(Math.random()-.5)*spread,speed=lerp(900,+$('maxSpeed').value*.78,(+$('tossSpeed').value||62)/100)*(0.82+Math.random()*.32);b.x=clamp(s.x+(Math.random()-.5)*b.r*2.2,b.r,canvas.width-b.r);b.y=clamp(s.y+(Math.random()-.5)*b.r*.6,b.r,canvas.height-b.r);b.vx=Math.cos(a)*speed;b.vy=Math.sin(a)*speed;b.released=true;b.hasLaunched=true;b.age=0;b.cooldown=.18;playTone(170+Math.random()*55,.035,'triangle',.025);if(!directorBallId)ensureDirectorAssignment()}
 function sinkBall(b){b.active=false;b.released=false;b.vx=b.vy=0;b.targetHoleId=null;directorBallId=directorBallId===b.id?null:directorBallId}
-function resetRound(){timedGoalIndex=0;score={left:0,right:0};updateScores();particles=[];trails=[];roundResultOverlay=null;spawnBalls(true);toast('Tur sıfırlandı');render()}
+function resetRound(){matchClockStart=performance.now();timedGoalIndex=0;score={left:0,right:0};updateScores();particles=[];trails=[];roundResultOverlay=null;spawnBalls(true);toast('Tur sıfırlandı');render()}
 function activeReleasedBalls(){return balls.filter(b=>b.active&&b.released)}
 function scoringHoles(){return objects.filter(o=>o.type==='hole'&&o.visible)}
 function nextPlanEvent(){return goalPlan[goalPlanIndex]||null}
@@ -386,12 +386,13 @@ function scheduledGoalSeconds(){
  const count=$('scriptedResult').checked&&goalPlan.length?goalPlan.length:Math.max(1,Math.min(100,Number($('ballCount').value)||12));
  return Array.from({length:count},(_,i)=>first+i*step).filter(x=>x<duration);
 }
-let timedGoalIndex=0;
+let timedGoalIndex=0,matchClockStart=performance.now();
 function runTimedMatch(){
  if(roundFinished)return;
  const duration=Math.max(3,Number($('matchDuration').value)||30);
  const schedule=scheduledGoalSeconds();
- while(timedGoalIndex<schedule.length&&gameTime>=schedule[timedGoalIndex]){
+ const elapsed=Math.max(0,(performance.now()-matchClockStart)/1000);
+ while(timedGoalIndex<schedule.length&&elapsed>=schedule[timedGoalIndex]){
   const event=$('scriptedResult').checked?nextPlanEvent():null;
   if($('scriptedResult').checked&&!event){timedGoalIndex++;continue}
   let b=balls.find(b=>b.active&&b.released)||balls.find(b=>b.active);
@@ -403,7 +404,7 @@ function runTimedMatch(){
   else{const fake={x:b.x,y:b.y,side,value:1,sound:'stadium'};goal(fake,b)}
   timedGoalIndex++;
  }
- if(gameTime>=duration){
+ if(elapsed>=duration){
   for(const b of balls)if(b.active)sinkBall(b);
   finishRound();
  }
