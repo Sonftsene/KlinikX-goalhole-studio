@@ -20,10 +20,15 @@ const state={
  players:[],ball:null,elapsed:0,phase:'kickoff',possessions:[0,0],
  events:[],goals:[],current:null,cooldown:0,freeze:0,lastEvent:'',
  eventTime:0,passes:0,shots:0,saves:0,turnovers:0,halftime:false,
- camera:{x:50,y:80,zoom:1},lastShot:null,goalAnimation:null
+ camera:{x:50,y:80,zoom:1},lastShot:null,goalAnimation:null,scriptIndex:0,director:null,fx:[],lastDramaTick:-1,goalCard:null
 };
 function enabled(){return $('gameType')?.value==='football11'}
-function duration(){return Math.max(15,Number($('footballDuration')?.value)||60)}
+function duration(){return Math.max(5,Number($('footballDuration')?.value)||20)}
+function clockDuration(){return Math.max(10,Number($('footballClock')?.value)||60)}
+function clockSecond(){return state.elapsed/duration()*clockDuration()}
+function fmtClock(t){t=Math.max(0,Math.floor(t));return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
+function scripted(){return !!$('footballSyncGoals')?.checked}
+function goalSchedule(){if(!scripted())return [];const raw=$('goalTimes')?.value?.trim()||'';if(raw)return raw.split(/[,;\s]+/).map(Number).filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);const first=Math.max(.5,Number($('firstGoalSecond')?.value)||4),step=Math.max(.5,Number($('goalInterval')?.value)||5),count=$('scriptedResult')?.checked&&goalPlan.length?goalPlan.length:Math.max(1,Math.min(20,Math.floor(duration()/step)));return Array.from({length:count},(_,i)=>first+i*step).filter(v=>v<duration())}
 function speed(){return clamp(Number($('footballSpeed')?.value)||1.3,.5,3)}
 function tactic(side){return $('footballTactic'+(side===0?'Left':'Right'))?.value||'balanced'}
 function pitch(){const w=canvas.width,h=canvas.height;const marginX=w*.075,marginY=h*.095;
@@ -43,7 +48,7 @@ function reset(quiet=false){
  state.players=[];state.elapsed=0;state.phase='kickoff';state.possessions=[0,0];
  state.events=[];state.goals=[];state.current=null;state.cooldown=0;state.freeze=0;
  state.lastEvent='';state.eventTime=0;state.passes=0;state.shots=0;state.saves=0;
- state.turnovers=0;state.halftime=false;state.lastShot=null;state.goalAnimation=null;
+ state.turnovers=0;state.halftime=false;state.lastShot=null;state.goalAnimation=null;state.scriptIndex=0;state.director=null;state.fx=[];state.lastDramaTick=-1;state.goalCard=null;
  state.camera={x:50,y:80,zoom:1};
  for(let team=0;team<2;team++)for(const p of layout){
   const y=team===0?p.y:H-p.y;
@@ -61,14 +66,14 @@ function reset(quiet=false){
  state.phase='live';
  score={left:0,right:0};updateScores();
  roundFinished=false;roundResultOverlay=null;goalOverlay=null;
- if(!quiet)say('KICK OFF • '+teamName(side).toUpperCase());
+ if(!quiet)say('KICK OFF • '+teamName(side).toUpperCase(),1.1);
  updateStats();
 }
 function updateStats(){
  if(!$('footballStats'))return;
  const p=state.possessions,percent=Math.round(100*p[0]/Math.max(.001,p[0]+p[1]));
  $('footballStats').textContent='⚽ '+teamName(0)+' '+score.left+'–'+score.right+' '+teamName(1)+
- '  •  '+Math.round(state.elapsed)+'/'+duration()+'s  •  Possession '+percent+'%–'+(100-percent)+'%'+
+ '  •  '+fmtClock(clockSecond())+'/'+fmtClock(clockDuration())+' (×'+(clockDuration()/duration()).toFixed(1)+')  •  Possession '+percent+'%–'+(100-percent)+'%'+
  '  •  '+state.shots+' shots  •  '+state.passes+' passes';
 }
 function nearestOpponent(p){let best=null,d=Infinity;for(const q of state.players){
@@ -184,7 +189,7 @@ function handleFlight(dt){
   restart(team,'THROW IN',x,clamp(b.y,10,150));return;
  }
  // Goalkeepers actively save shots inside their own goal area.
- if(b.mode==='shot'){
+ if(b.mode==='shot'&&!b.directed){
   for(const gk of state.players.filter(p=>p.role==='GK'&&p.team!==b.team)){
    const d=dist(gk,b);
    if(d<4.4){
@@ -193,7 +198,7 @@ function handleFlight(dt){
    }
   }
  }
- if(b.flight<.10)return;
+ if(b.flight<.10||b.directed)return;
  // Players physically intercept travelling balls.
  const candidates=state.players.filter(p=>
    p.role!=='GK'&&p.touch<state.elapsed&&dist(p,b)<(b.mode==='shot'?2.6:3.7))
@@ -219,14 +224,22 @@ function restart(team,label,x=50,y=80){
  say(label+' • '+teamName(team),1);
 }
 function makeGoal(team,x,y){
+ const b=state.ball,dir=state.director,planned=!!dir&&b.directed;
+ const event=planned&&$('scriptedResult')?.checked?goalPlan[state.scriptIndex]||null:null;
  score[team===0?'left':'right']++;updateScores();
- state.goals.push({team,second:state.elapsed,scorer:state.ball.lastShooter||0});
- state.goalAnimation={team,x,y,until:state.elapsed+1.5};
- say('GOOOAL! ⚽ '+teamName(team).toUpperCase(),2);
+ const scorer=event?.scorer||('#'+String(b.lastShooter||9));
+ const minute=event?.minute||fmtClock(clockSecond());
+ state.goals.push({team,second:state.elapsed,matchSecond:clockSecond(),scorer});
+ state.goalCard={team,scorer,minute,imageImg:event?.imageImg||null,until:state.elapsed+1.55};
+ state.goalAnimation={team,x,y,until:state.elapsed+1.35};
+ say('⚽ GOAL! '+teamName(team).toUpperCase()+' • '+scorer,1.6);
  try{playGoalSound()}catch(e){}
- if($('shake')?.checked)shakeAmount=canvas.width*.016;
- state.freeze=2.0;state.phase='goal';state.ball.mode='goal';state.ball.owner=null;
- state.ball.x=x;state.ball.y=y;state.ball.vx=0;state.ball.vy=0;
+ if($('shake')?.checked)shakeAmount=canvas.width*.018;
+ if(planned){state.scriptIndex++;state.director=null}
+ const count=Math.min(100,Math.round(10+(Number($('goalFxPower')?.value||70)/100)*55));
+ for(let i=0;i<count;i++){const a=rnd(0,Math.PI*2);state.fx.push({x,y,vx:Math.cos(a)*rnd(10,48),vy:Math.sin(a)*rnd(8,42),life:rnd(.5,1.2),team})}
+ state.freeze=1.35;state.phase='goal';b.mode='goal';b.owner=null;b.directed=false;
+ b.x=x;b.y=y;b.vx=0;b.vy=0;
  updateStats();
 }
 function resume(){
@@ -237,8 +250,55 @@ function resume(){
  }
  const kickoff=nearestOfTeam(side,50,80,true);
  kickoff.x=50;kickoff.y=80;
- b.x=50;b.y=80;b.mode='free';b.owner=null;b.vx=0;b.vy=0;b.team=side;
+ b.x=50;b.y=80;b.mode='free';b.owner=null;b.vx=0;b.vy=0;b.team=side;b.directed=false;
  setCarrier(kickoff);state.phase='live';state.goalAnimation=null;state.cooldown=.5;
+}
+// Scripted attack director: controls *when* the shot crosses the line, not the score.
+function updateDirector(dt){
+ const schedule=goalSchedule(),due=schedule[state.scriptIndex];
+ if(due===undefined||roundFinished)return;
+ const b=state.ball,remain=due-state.elapsed;
+ if(!state.director&&remain<=Math.min(3.8,Math.max(1.1,due*.8))){
+  const ev=$('scriptedResult')?.checked?goalPlan[state.scriptIndex]:null;
+  if($('scriptedResult')?.checked&&goalPlan.length&&!ev)return;
+  const side=ev?.side==='right'?1:ev?.side==='left'?0:state.scriptIndex%2;
+  const striker=state.players.filter(p=>p.team===side&&p.role==='FWD').sort((a,c)=>Math.abs(a.x-50)-Math.abs(c.x-50))[0];
+  state.director={due,side,striker,shot:false,started:state.elapsed};
+  say('⚡ ATTACK • '+teamName(side),1.1);
+ }
+ const dir=state.director;if(!dir)return;
+ if(dir.shot)return;
+ const striker=dir.striker,goalY=dir.side===0?0:160;
+ // The striker makes a real run, without teleporting.
+ const runY=dir.side===0?14:146;
+ advance(striker,dt*speed(),50,runY,34);
+ if(remain>.78){
+  // Through-ball: the ball physically travels to the attacker.
+  if(!dir.passed){
+   const p=b.owner;
+   if(p&&p.team===dir.side){
+    kick(p,striker.x,striker.y,'pass',striker);
+    dir.passed=true;say('↗ THROUGH BALL • '+teamName(dir.side),.9);
+   }else if(p){
+    // The defending side plays a real long clearance toward the attack.
+    kick(p,striker.x,striker.y,'clear',striker);dir.passed=true;
+   }
+  }
+  // Make the attacking striker chase the actual ball, not appear at it.
+  if(!b.owner&&b.mode!=='goal'&&dist(striker,b)<5)setCarrier(striker);
+  return;
+ }
+ // The timed shot is a genuine ball flight. Velocity is calculated so that
+ // the ball crosses the goal line at the chosen *video* second.
+ const flight=Math.max(.12,remain);
+ const targetX=50+rnd(-3.5,3.5);
+ b.owner=null;b.mode='shot';b.team=dir.side;b.lastTouch=dir.side;
+ b.lastShooter=striker.n;b.directed=true;b.flight=0;
+ b.vx=(targetX-b.x)/(flight*speed());
+ b.vy=(goalY-b.y)/(flight*speed());
+ dir.shot=true;state.shots++;state.lastShot={team:dir.side,x:targetX,y:goalY,at:state.elapsed};
+ say('🔥 SHOT ON TARGET!',.8);
+ try{playTone(410,.09,'triangle',.07)}catch(e){}
 }
 function step(dt){
  if(!enabled()||mode!=='play'||roundFinished)return;
@@ -256,6 +316,8 @@ function step(dt){
   if(state.freeze<=0)resume();
   return;
  }
+ updateDirector(dt);
+ if($('viralDrama')?.checked){const remain=Math.ceil(duration()-state.elapsed);if(remain<=5&&remain>=1&&remain!==state.lastDramaTick){state.lastDramaTick=remain;try{playTone(remain===1?920:530+remain*40,.06,'sine',.025)}catch(e){}}}
  state.cooldown=Math.max(0,state.cooldown-dt);
  const b=state.ball;
  const owner=b.owner;
@@ -270,8 +332,8 @@ function step(dt){
   advance(owner,d,tx,ty,owner.role==='GK'?6:17);
   b.x=owner.x;b.y=owner.y+attack*1.6;
   owner.decision-=dt;
-  if(owner.decision<=0)attackDecision(owner);
-  if(b.owner===owner&&state.cooldown<=0){
+  if(owner.decision<=0&&!state.director)attackDecision(owner);
+  if(b.owner===owner&&state.cooldown<=0&&!state.director){
    const opp=nearestOpponent(owner);
    if(opp.d<3.4&&Math.random()<dt*(tactic(opp.player.team)==='press'?2.8:1.7)){
     state.turnovers++;setCarrier(opp.player);say('⚔ TACKLE • '+teamName(opp.player.team),.8);
@@ -293,6 +355,7 @@ function step(dt){
   const pace=p.role==='GK'?10:p.role==='FWD'?17:14;
   advance(p,d,target.x,target.y,pace*(tactic(p.team)==='press'?1.16:1));
  }
+ for(const f of state.fx){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=.975;f.vy*=.975;f.life-=dt}state.fx=state.fx.filter(f=>f.life>0);
  if(Math.floor(state.elapsed*4)!==Math.floor((state.elapsed-dt)*4))updateStats();
 }
 function path(ctx,points){ctx.beginPath();points.forEach(([x,y],i)=>{const q=toCanvas(x,y);if(i)ctx.lineTo(q.x,q.y);else ctx.moveTo(q.x,q.y)})}
