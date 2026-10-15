@@ -88,6 +88,28 @@ function wav(seconds=4){
   assert(timed.hits.every(x=>x.distance<=x.radius),'Goal awarded outside hole: '+JSON.stringify(timed.hits));
   assert(timed.hits.every((x,i)=>Math.abs(x.at-[.5,1.5,2.5][i])<.25),'Goals not timed: '+JSON.stringify(timed.hits));
   console.log('Timed goals and exact match finish: OK',timed);
+  const viral=await page.evaluate(()=>{
+    const old={w:canvas.width,h:canvas.height,holes:objects.filter(o=>o.type==='hole').map(o=>({x:o.x,y:o.y,r:o.r}))};
+    document.getElementById('viralPreset').click();
+    const plan=goalPlan.map(e=>e.side);
+    return {old,w:canvas.width,h:canvas.height,balls:+document.getElementById('ballCount').value,
+      fps:+document.getElementById('fps').value,goalTimes:scheduledGoalSeconds(),plan,
+      holes:objects.filter(o=>o.type==='hole').map(o=>({x:o.x,y:o.y,r:o.r})),
+      duration:+document.getElementById('matchDuration').value,
+      viralHook:document.getElementById('viralHook').checked};
+  });
+  assert(viral.w===1080&&viral.h===1920,'Viral preset wrong dimensions: '+JSON.stringify(viral));
+  assert(viral.fps===60&&viral.duration===21&&viral.balls===7&&viral.viralHook,'Viral preset incorrect: '+JSON.stringify(viral));
+  assert(viral.plan.filter(x=>x==='left').length===3&&viral.plan.filter(x=>x==='right').length===4,'Wrong 3-4 script: '+JSON.stringify(viral.plan));
+  assert(viral.goalTimes.length===7,'Wrong goal timing count: '+JSON.stringify(viral.goalTimes));
+  for(let i=0;i<viral.holes.length;i++){
+    assert(Math.abs(viral.holes[i].x-viral.old.holes[i].x*viral.w/viral.old.w)<1,'Field x geometry changed');
+    assert(Math.abs(viral.holes[i].y-viral.old.holes[i].y*viral.h/viral.old.h)<1,'Field y geometry changed');
+  }
+  console.log('Viral preset, score script, field scaling: OK');
+  const persisted=await page.evaluate(()=>serialize(false).viral);
+  assert(persisted.viralCamera&&persisted.viralLoop&&persisted.viralGlow,'Viral settings not persisted');
+  console.log('Viral settings persistence: OK');
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
