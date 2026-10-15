@@ -297,7 +297,7 @@ function makeGoal(team,x,y){
  const count=Math.min(42,Math.round(8+(Number($('goalFxPower')?.value||70)/100)*28));
  for(let i=0;i<count;i++){const a=rnd(0,Math.PI*2);state.fx.push({x,y,vx:Math.cos(a)*rnd(10,48),vy:Math.sin(a)*rnd(8,42),life:rnd(.5,1.2),team})}
  const next=goalSchedule()[state.scriptIndex];
- state.freeze=next===undefined?1.35:clamp((next-state.elapsed)*.22,.08,1.35);state.phase='goal';b.mode='goal';b.owner=null;b.directed=false;
+ state.freeze=next===undefined?.55:clamp((next-state.elapsed)*.10,.08,.48);state.phase='goal';b.mode='goal';b.owner=null;b.directed=false;
  b.x=x;b.y=y;b.vx=0;b.vy=0;
  updateStats();
 }
@@ -577,6 +577,18 @@ function drawActionTrails(){
 function drawBroadcastMoment(){
  if(!$('footballBroadcast')?.checked)return;
  const w=canvas.width,h=canvas.height,ev=state.goalAnimation;
+ if(state.elapsed<1.15&&$('viralHook')?.checked){
+  const age=state.elapsed,alpha=clamp(Math.min(age/.18,(1.15-age)/.25),0,1);
+  ctx.save();ctx.globalAlpha=alpha;
+  const ww=w*.74,hh=h*.073,yy=h*.47;
+  ctx.fillStyle='rgba(2,10,24,.88)';drawRoundRect(ctx,(w-ww)/2,yy,ww,hh,w*.018);ctx.fill();
+  ctx.strokeStyle='rgba(255,217,119,.82)';ctx.lineWidth=Math.max(2,w*.003);ctx.stroke();
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffe3a1';
+  ctx.font='950 '+Math.round(w*.042)+'px Segoe UI';ctx.fillText('MATCHDAY • 90 SECONDS',w/2,yy+hh*.32);
+  ctx.fillStyle='#fff';ctx.font='900 '+Math.round(w*.028)+'px Segoe UI';
+  ctx.fillText(teamName(0).toUpperCase()+'  VS  '+teamName(1).toUpperCase(),w/2,yy+hh*.73,ww*.93);
+  ctx.restore();
+ }
  if(ev&&state.elapsed-ev.at<.65){
   const age=state.elapsed-ev.at,alpha=clamp(Math.min(age/.09,(.65-age)/.18),0,1);
   ctx.save();ctx.globalAlpha=alpha;
