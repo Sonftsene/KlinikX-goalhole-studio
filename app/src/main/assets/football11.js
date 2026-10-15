@@ -28,7 +28,7 @@ function clockDuration(){return Math.max(10,Number($('footballClock')?.value)||6
 function clockSecond(){return state.elapsed/duration()*clockDuration()}
 function fmtClock(t){t=Math.max(0,Math.floor(t));return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
 function scripted(){return !!$('footballSyncGoals')?.checked}
-function goalSchedule(){if(!scripted())return [];const raw=$('goalTimes')?.value?.trim()||'';if(raw)return raw.split(/[,;\s]+/).map(Number).filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);const first=Math.max(.5,Number($('firstGoalSecond')?.value)||4),step=Math.max(.5,Number($('goalInterval')?.value)||5),count=$('scriptedResult')?.checked&&goalPlan.length?goalPlan.length:Math.max(1,Math.min(20,Math.floor(duration()/step)));return Array.from({length:count},(_,i)=>first+i*step).filter(v=>v<duration())}
+function goalSchedule(){if(!scripted())return [];const raw=$('goalTimes')?.value?.trim()||'';const factor=$('footballGoalTimeUnit')?.value==='match'?duration()/clockDuration():1;if(raw)return raw.split(/[,;\s]+/).map(Number).map(v=>v*factor).filter(v=>Number.isFinite(v)&&v>.15&&v<duration()).sort((a,b)=>a-b);const first=Math.max(.5,Number($('firstGoalSecond')?.value)||4)*factor,step=Math.max(.5,Number($('goalInterval')?.value)||5)*factor,count=$('scriptedResult')?.checked&&goalPlan.length?goalPlan.length:Math.max(1,Math.min(20,Math.floor(duration()/Math.max(.2,step))));return Array.from({length:count},(_,i)=>first+i*step).filter(v=>v<duration())}
 function speed(){return clamp((Number($('footballSpeed')?.value)||1.3)*Math.sqrt(clockDuration()/duration()),.5,5.5)}
 function tactic(side){return $('footballTactic'+(side===0?'Left':'Right'))?.value||'balanced'}
 function pitch(){const w=canvas.width,h=canvas.height;const marginX=w*.075,marginY=h*.155;
@@ -570,7 +570,7 @@ function init(){
   render();
  });
  $('footballPreset').addEventListener('click',()=>{applyPreset();toast('11v11 futbol simülasyonu hazır')});
- for(const id of ['footballDuration','footballClock','footballSyncGoals','footballGoalStyle','footballPlayerStyle','footballCameraZoom','footballTicker','footballSpeed','footballAttack','footballTacticLeft','footballTacticRight','footballCamera']){
+ for(const id of ['footballDuration','footballClock','footballSyncGoals','footballGoalTimeUnit','footballGoalStyle','footballPlayerStyle','footballCameraZoom','footballTicker','footballSpeed','footballAttack','footballTacticLeft','footballTacticRight','footballCamera']){
   $(id)?.addEventListener('change',()=>{if(enabled())updateStats();const d=duration(),c=clockDuration();if($('footballClockRatio'))$('footballClockRatio').textContent=c+' ÷ '+d+' = '+(c/d).toFixed(2)+'×'});
  }
  if(enabled())reset(true);
