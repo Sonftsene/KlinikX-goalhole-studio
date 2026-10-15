@@ -221,6 +221,30 @@ function wav(seconds=4){
   });
   assert(matchUnit.every((v,i)=>Math.abs(v-[5,11,18][i])<.01),'Match-clock goal time conversion failed: '+JSON.stringify(matchUnit));
   console.log('11v11 match-clock timestamp conversion 15/33/54 → video 5/11/18: OK');
+  const stoppage=await page.evaluate(()=>{
+    const F=window.Football11;
+    document.getElementById('footballDuration').value='20';
+    document.getElementById('footballClock').value='90';
+    document.getElementById('footballExtraFirst').value='2';
+    document.getElementById('footballExtraSecond').value='4';
+    document.getElementById('footballGoalTimeUnit').value='match';
+    document.getElementById('goalTimes').value='45+2, 70, 90+3';
+    const schedule=F.goalSchedule(),total=F.totalMatchSeconds(),half=F.halfVideoSecond();
+    F.reset(true);
+    F.state.elapsed=half*.98;const beforeHalf=F.clockLabel();
+    F.state.elapsed=half;const atHalf=F.clockLabel();
+    F.state.elapsed=half+.3;const afterHalf=F.clockLabel();
+    F.state.elapsed=20;const final=F.clockLabel();
+    return {schedule,total,half,beforeHalf,atHalf,afterHalf,final};
+  });
+  assert(stoppage.total===96&&Math.abs(stoppage.half-(47/96)*20)<.01,
+    'Stoppage match duration or halftime incorrect: '+JSON.stringify(stoppage));
+  assert(stoppage.atHalf==='45+2'&&stoppage.afterHalf==='46'&&stoppage.final==='90+4',
+    'Stoppage-time clock labels incorrect: '+JSON.stringify(stoppage));
+  assert(stoppage.schedule.length===3&&stoppage.schedule.every((v,i)=>Math.abs(v-[47,72,95][i]/96*20)<.001),
+    '45+ and 90+ goal scheduling incorrect: '+JSON.stringify(stoppage));
+  console.log('90-second match with 45+2 and 90+4, 45+2/90+3 goals, and halftime: OK',stoppage);
+
 
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
