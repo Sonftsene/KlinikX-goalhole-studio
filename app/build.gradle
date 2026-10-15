@@ -10,8 +10,8 @@ android {
         applicationId 'com.goalhole.studio'
         minSdk 26
         targetSdk 35
-        versionCode 18
-        versionName '7.2-android'
+        versionCode 19
+        versionName '8.0-android'
     }
 
     buildTypes {
