@@ -769,8 +769,8 @@ function init(){
   const isFootball=enabled();
   $('footballControls').style.display=isFootball?'block':'none';
   $('pinballOnlyNote').style.display=isFootball?'block':'none';
-  if(isFootball)reset(true);
-  else {spawnBalls(true);roundFinished=false}
+  if(isFootball){if(isAndroidNative()&&$('fps').value==='60')$('fps').value='30';reset(true)}
+  else {stopCrowd();spawnBalls(true);roundFinished=false}
   render();
  });
  $('footballPreset').addEventListener('click',()=>{applyPreset();toast('11v11 futbol simülasyonu hazır')});
