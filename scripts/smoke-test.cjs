@@ -212,6 +212,15 @@ function wav(seconds=4){
   assert(synced.events.every((e,i)=>Math.abs(e.second-[5,11,18][i])<.12),'Scripted goals not at exact video seconds: '+JSON.stringify(synced));
   assert(synced.events[0].scorer==='Vinicius'&&synced.events[1].scorer==='Dybala','Scorer names not synced: '+JSON.stringify(synced));
   console.log('11v11 20-second video, 60-second match clock, three timed real goals and scorers: OK',synced);
+  const matchUnit=await page.evaluate(()=>{
+    document.getElementById('footballGoalTimeUnit').value='match';
+    document.getElementById('goalTimes').value='15, 33, 54';
+    const t=window.Football11.goalSchedule();
+    document.getElementById('footballGoalTimeUnit').value='video';
+    return t;
+  });
+  assert(matchUnit.every((v,i)=>Math.abs(v-[5,11,18][i])<.01),'Match-clock goal time conversion failed: '+JSON.stringify(matchUnit));
+  console.log('11v11 match-clock timestamp conversion 15/33/54 → video 5/11/18: OK');
 
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
