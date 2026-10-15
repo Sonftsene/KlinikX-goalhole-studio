@@ -8,6 +8,8 @@ for(let i=0;i<scripts.length;i++)new vm.Script(scripts[i][1],{filename:'inline-'
 console.log('Inline JavaScript syntax OK:',scripts.length);
 new vm.Script(fs.readFileSync(path.resolve('app/src/main/assets/football11.js'),'utf8'),{filename:'football11.js'});
 console.log('11v11 match engine syntax OK');
+new vm.Script(fs.readFileSync(path.resolve('app/src/main/assets/highlights.js'),'utf8'),{filename:'highlights.js'});
+console.log('New cinematic Highlight Director syntax OK');
 function wav(seconds=4){
  const rate=8000,n=seconds*rate,buf=Buffer.alloc(44+n*2);
  buf.write('RIFF',0);buf.writeUInt32LE(buf.length-8,4);buf.write('WAVEfmt ',8);
@@ -283,7 +285,35 @@ function wav(seconds=4){
 
 
 
-  assert(!errors.length,'Browser errors: '+errors.join('; '));
+  const highlights=await page.evaluate(()=>{
+    const H=window.HighlightDirector;
+    document.getElementById('gameType').value='highlights';
+    document.getElementById('gameType').dispatchEvent(new Event('change'));
+    document.getElementById('hlDuration').value='30';
+    document.getElementById('hlScript').value='12|L|GOAL|Haaland|FIRST GOAL!\n45+2|R|SAVE|Keeper|BIG SAVE!\n90+3|R|GOAL|Messi|EQUALIZER!';
+    H.reset(true);
+    const parsed=H.parseScript(document.getElementById('hlScript').value);
+    mode='play';
+    for(let i=0;i<320;i++){H.step(.1);if(i%15===0)H.render()}
+    H.render();
+    const result={enabled:H.enabled(),parsed,stats:H.stats(),score:[score.left,score.right],done:roundFinished,
+      elapsed:H.state.elapsed,segments:H.state.segments.length,
+      pixels:[...ctx.getImageData(canvas.width/2|0,canvas.height/2|0,1,1).data]};
+    mode='edit';H.applyPreset('wide');
+    result.wide={ratio:document.getElementById('ratio').value,duration:document.getElementById('hlDuration').value,
+      canvas:[canvas.width,canvas.height],events:H.stats().events};
+    H.render();
+    return result;
+  });
+  assert(highlights.enabled&&highlights.parsed.length===3&&highlights.stats.goals===2,
+    'New highlight director script parsing failed: '+JSON.stringify(highlights));
+  assert(highlights.score[0]===1&&highlights.score[1]===1&&highlights.done&&Math.abs(highlights.elapsed-30)<.01,
+    'Highlights timeline/score/finish failed: '+JSON.stringify(highlights));
+  assert(highlights.wide.ratio==='16:9'&&highlights.wide.canvas[0]>highlights.wide.canvas[1]&&highlights.wide.events===9,
+    'Horizontal highlights preset failed: '+JSON.stringify(highlights));
+  assert(highlights.pixels[3]===255,'Highlights canvas did not render: '+JSON.stringify(highlights));
+  console.log('Original 9:16 cinematic highlight script, scores, finale and 16:9 wide preset: OK',highlights);
+    assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
