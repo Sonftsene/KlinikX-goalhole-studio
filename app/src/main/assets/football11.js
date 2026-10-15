@@ -136,7 +136,7 @@ function kick(p,tx,ty,kind,target){
  const dx=tx-b.x,dy=ty-b.y,d=Math.hypot(dx,dy)||1;
  const v=(kind==='shot'?rnd(95,115):kind==='clear'?85:rnd(60,78))*speed();
  b.owner=null;b.mode=kind;b.vx=dx/d*v;b.vy=dy/d*v;b.target=target||null;
- b.team=p.team;b.flight=0;b.lastTouch=p.team;
+ b.team=p.team;b.flight=0;b.lastTouch=p.team;if(kind==='shot')b.lastShooter=p.n;
  p.touch=state.elapsed+.4;state.cooldown=.22;
  if(kind==='pass'){state.passes++;say('↗ '+teamName(p.team)+' • PASS',.8)}
  if(kind==='shot'){state.shots++;state.lastShot={team:p.team,x:tx,y:ty,at:state.elapsed};
@@ -204,8 +204,11 @@ function handleFlight(dt){
   setCarrier(receiver);return;
  }
  if(b.flight>2.6){
-  const q=nearestOfTeam(b.mode==='pass'&&b.target?b.target.team:1-b.team,b.x,b.y);
-  if(q){setCarrier(q);q.x=b.x;q.y=b.y}
+  // A long pass becomes a loose ball. No player is teleported to receive it.
+  b.mode='loose';b.vx*=Math.pow(.28,dt);b.vy*=Math.pow(.28,dt);
+  if(Math.hypot(b.vx,b.vy)<3){b.vx=0;b.vy=0}
+  const receiver=state.players.filter(p=>p.role!=='GK').sort((a,c)=>dist(a,b)-dist(c,b))[0];
+  if(receiver&&dist(receiver,b)<4)setCarrier(receiver);
  }
 }
 function restart(team,label,x=50,y=80){
@@ -277,7 +280,11 @@ function step(dt){
   }
  }else if(b.mode!=='free'&&b.mode!=='goal')handleFlight(d);
  else if(b.mode==='free'&&state.phase==='live'){
-  const p=nearestOfTeam(b.team,b.x,b.y);setCarrier(p);
+  const p=nearestOfTeam(b.team,b.x,b.y);if(p&&dist(p,b)<4)setCarrier(p);
+ }
+ if(!b.owner&&b.mode==='loose'){
+  const receiver=state.players.filter(p=>p.role!=='GK').sort((a,c)=>dist(a,b)-dist(c,b))[0];
+  if(receiver)advance(receiver,d,b.x,b.y,19);
  }
  // Off-ball intelligent formations: defenders press, attackers create lanes.
  for(const p of state.players){
@@ -399,18 +406,19 @@ function render(){
  if(!enabled())return;
  if(!state.ball)reset(true);
  ctx.save();ctx.clearRect(0,0,canvas.width,canvas.height);
- field();
- // Camera effect remains inside the pitch and never crops the scoreboard.
+ // The pitch, players and ball share the same camera transform.
  const owner=state.ball.owner;
  const target=owner&&((owner.team===0&&owner.y<42)||(owner.team===1&&owner.y>118))&&$('footballCamera')?.checked?1.085:1;
  state.camera.zoom=lerp(state.camera.zoom,target,.04);
+ ctx.save();
  if(state.camera.zoom>1.001){
   const center=toCanvas(50,owner?owner.y:80);
-  ctx.save();ctx.translate(center.x,center.y);ctx.scale(state.camera.zoom,state.camera.zoom);ctx.translate(-center.x,-center.y);
+  ctx.translate(center.x,center.y);ctx.scale(state.camera.zoom,state.camera.zoom);ctx.translate(-center.x,-center.y);
  }
+ field();
  for(const p of state.players)drawPlayer(p);
  drawBall();
- if(state.camera.zoom>1.001)ctx.restore();
+ ctx.restore();
  drawHUD();
  if(roundFinished)drawFinalResult();
  ctx.restore();
