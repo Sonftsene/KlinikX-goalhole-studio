@@ -458,54 +458,72 @@ function field(){
  ctx.drawImage(fieldCache,0,0);
 }
 
+// Player silhouettes are prerendered once per shirt/number/scale, not redrawn
+// with 30+ Canvas paths and badge clipping on every video frame.
+const spriteCache=new Map();
+function buildPlayerSprite(p,r,c,badge,style){
+ const size=Math.ceil(r*4.1),sprite=document.createElement('canvas');
+ sprite.width=size;sprite.height=size;
+ const g=sprite.getContext('2d');
+ g.translate(size/2,size/2);
+ const skin=p.team===0?'#e7b98c':'#d99b76';
+ g.lineCap='round';
+ const emblem=(x,y,rad)=>{
+  if(!badge)return;
+  g.save();g.beginPath();g.arc(x,y,rad,0,Math.PI*2);g.clip();
+  const iw=badge.naturalWidth||badge.width||1,ih=badge.naturalHeight||badge.height||1;
+  const scale=Math.max(2*rad/iw,2*rad/ih);
+  g.drawImage(badge,x-iw*scale/2,y-ih*scale/2,iw*scale,ih*scale);
+  g.restore();
+ };
+ if(style==='disc'){
+  g.fillStyle=c;g.strokeStyle='#0e2030';g.lineWidth=r*.14;
+  g.beginPath();g.arc(0,0,r*.82,0,Math.PI*2);g.fill();g.stroke();
+  emblem(0,-r*.12,r*.48);
+ }else{
+  g.strokeStyle='#17222d';g.lineWidth=r*.28;
+  g.beginPath();g.moveTo(-r*.25,r*.19);g.lineTo(-r*.34,r*.88);
+  g.moveTo(r*.25,r*.19);g.lineTo(r*.34,r*.88);g.stroke();
+  g.strokeStyle=p.team===0?'#fff':'#171827';g.lineWidth=r*.19;
+  g.beginPath();g.moveTo(-r*.31,r*.50);g.lineTo(-r*.35,r*.73);
+  g.moveTo(r*.31,r*.50);g.lineTo(r*.35,r*.73);g.stroke();
+  g.fillStyle='#080f18';g.fillRect(-r*.52,r*.77,r*.35,r*.22);g.fillRect(r*.17,r*.77,r*.35,r*.22);
+  g.fillStyle=p.team===0?'#fff':'#111827';g.fillRect(-r*.47,r*.09,r*.94,r*.37);
+  g.strokeStyle=skin;g.lineWidth=r*.25;
+  g.beginPath();g.moveTo(-r*.50,-r*.20);g.lineTo(-r*.89,-r*.04);
+  g.moveTo(r*.50,-r*.20);g.lineTo(r*.89,-r*.04);g.stroke();
+  g.fillStyle=c;g.strokeStyle='rgba(0,0,0,.52)';g.lineWidth=r*.085;
+  g.beginPath();g.moveTo(-r*.56,-r*.49);g.lineTo(r*.56,-r*.49);
+  g.lineTo(r*.52,r*.27);g.lineTo(-r*.52,r*.27);g.closePath();g.fill();g.stroke();
+  g.fillStyle='rgba(255,255,255,.27)';
+  g.fillRect(-r*.48,-r*.39,r*.13,r*.56);g.fillRect(r*.35,-r*.39,r*.13,r*.56);
+  if(badge){g.fillStyle='rgba(255,255,255,.94)';g.beginPath();g.arc(0,-r*.15,r*.32,0,Math.PI*2);g.fill();emblem(0,-r*.15,r*.28)}
+  g.fillStyle=skin;g.beginPath();g.ellipse(0,-r*.74,r*.36,r*.32,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#26221e';g.beginPath();g.ellipse(0,-r*.91,r*.34,r*.16,0,Math.PI,Math.PI*2);g.fill();
+ }
+ g.textAlign='center';g.textBaseline='middle';g.fillStyle='#fff';g.shadowColor='#000';g.shadowBlur=r*.12;
+ g.font='900 '+Math.round(r*(badge?.44:.66))+'px Segoe UI';
+ g.fillText(String(p.n),0,badge?r*.29:-r*.06);
+ return sprite;
+}
 function drawPlayer(p){
- const q=toCanvas(p.x,p.y),r=clamp(canvas.width*.031,19,68)*(Number($('footballPlayerScale')?.value||100)/100);
+ const q=toCanvas(p.x,p.y),r=clamp(canvas.width*.031,19,68)*(Number($('footballPlayerScale')?.value||125)/100);
  const c=p.role==='GK'?(p.team===0?'#a9f15a':'#59d2ed'):color(p.team);
  const badge=p.team===0?leftBadgeImg:rightBadgeImg;
+ const style=$('footballPlayerStyle')?.value||'kit';
+ const key=[p.team,p.n,p.role,Math.round(r),c,style,badge?.src||''].join('|');
+ let sprite=spriteCache.get(key);
+ if(!sprite){if(spriteCache.size>55)spriteCache.clear();sprite=buildPlayerSprite(p,r,c,badge,style);spriteCache.set(key,sprite)}
  ctx.save();ctx.translate(q.x,q.y);
- ctx.fillStyle='rgba(0,0,0,.29)';ctx.beginPath();ctx.ellipse(r*.18,r*.65,r*1.0,r*.53,0,0,Math.PI*2);ctx.fill();
- const stride=Math.sin(p.anim*3)*r*.20;
- if($('footballPlayerStyle')?.value==='disc'){
-  ctx.fillStyle=c;ctx.strokeStyle='#101c2b';ctx.lineWidth=r*.14;
-  ctx.beginPath();ctx.arc(0,0,r*.82,0,Math.PI*2);ctx.fill();ctx.stroke();
-  if(badge)drawImageCoverCircle(badge,0,-r*.13,r*.50);
- }else{
-  // Top-down human silhouette: animated boots, socks, shorts, sleeves and head.
-  const skin=p.team===0?'#e7b98c':'#d99b76';
-  ctx.lineCap='round';ctx.strokeStyle='#17222d';ctx.lineWidth=r*.27;
-  ctx.beginPath();ctx.moveTo(-r*.27,r*.23);ctx.lineTo(-r*.30-stride,r*.90);
-  ctx.moveTo(r*.27,r*.23);ctx.lineTo(r*.30+stride,r*.90);ctx.stroke();
-  ctx.strokeStyle=p.team===0?'#f8fafc':'#111827';ctx.lineWidth=r*.18;
-  ctx.beginPath();ctx.moveTo(-r*.3,r*.47);ctx.lineTo(-r*.3-stride*.7,r*.7);
-  ctx.moveTo(r*.3,r*.47);ctx.lineTo(r*.3+stride*.7,r*.7);ctx.stroke();
-  ctx.fillStyle='#09131d';ctx.fillRect(-r*.51-stride,r*.78,r*.29,r*.22);
-  ctx.fillRect(r*.22+stride,r*.78,r*.29,r*.22);
-  ctx.fillStyle=p.team===0?'#eaf2ff':'#171c2a';
-  ctx.fillRect(-r*.46,r*.10,r*.92,r*.37);
-  ctx.strokeStyle=skin;ctx.lineWidth=r*.24;
-  ctx.beginPath();ctx.moveTo(-r*.51,-r*.23);ctx.lineTo(-r*.89,-r*.03-stride*.2);
-  ctx.moveTo(r*.51,-r*.23);ctx.lineTo(r*.89,-r*.03+stride*.2);ctx.stroke();
-  ctx.fillStyle=c;ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=r*.09;
-  ctx.beginPath();ctx.moveTo(-r*.55,-r*.49);ctx.lineTo(r*.55,-r*.49);
-  ctx.lineTo(r*.53,r*.26);ctx.lineTo(-r*.53,r*.26);ctx.closePath();ctx.fill();ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.32)';ctx.fillRect(-r*.47,-r*.38,r*.13,r*.56);
-  ctx.fillRect(r*.34,-r*.38,r*.13,r*.56);
-  // Reuse the exact uploaded team crest on every matching player's shirt.
-  if(badge){
-   ctx.fillStyle='rgba(255,255,255,.88)';ctx.beginPath();ctx.arc(0,-r*.15,r*.31,0,Math.PI*2);ctx.fill();
-   drawImageCoverCircle(badge,0,-r*.15,r*.28);
-  }
-  ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(0,-r*.73,r*.36,r*.33,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#25221e';ctx.beginPath();ctx.ellipse(0,-r*.91,r*.34,r*.16,0,Math.PI,Math.PI*2);ctx.fill();
- }
- ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';
- ctx.shadowColor='#000';ctx.shadowBlur=r*.14;
- ctx.font='900 '+Math.round(r*(badge?.44:.66))+'px Segoe UI';ctx.fillText(String(p.n),0,badge?r*.29:(p.role==='GK'?-r*.12:-r*.05));
- ctx.shadowBlur=0;
+ ctx.fillStyle='rgba(0,0,0,.32)';ctx.beginPath();ctx.ellipse(r*.17,r*.68,r*.95,r*.45,0,0,Math.PI*2);ctx.fill();
+ const sway=Math.sin(p.anim*3)*.065;
+ ctx.rotate((p.face===1?Math.PI:0)+sway);
+ ctx.drawImage(sprite,-sprite.width/2,-sprite.height/2);
+ ctx.rotate(-((p.face===1?Math.PI:0)+sway));
  if(state.ball?.owner===p){
-  ctx.strokeStyle='#fbe681';ctx.lineWidth=Math.max(2,r*.10);
-  ctx.beginPath();ctx.ellipse(0,0,r*1.15,r*1.3,0,0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle='#ffe990';ctx.beginPath();ctx.moveTo(0,-r*1.55);ctx.lineTo(-r*.23,-r*1.30);ctx.lineTo(r*.23,-r*1.30);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#ffe88b';ctx.lineWidth=Math.max(2,r*.095);
+  ctx.beginPath();ctx.ellipse(0,0,r*1.10,r*1.24,0,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#ffe88b';ctx.beginPath();ctx.moveTo(0,-r*1.46);ctx.lineTo(-r*.23,-r*1.23);ctx.lineTo(r*.23,-r*1.23);ctx.closePath();ctx.fill();
  }
  ctx.restore();
 }
