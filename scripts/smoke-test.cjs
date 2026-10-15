@@ -169,6 +169,8 @@ function wav(seconds=4){
   console.log('AI passing and tactical play: OK',footballPlay);
   const footballGoal=await page.evaluate(()=>{
     const F=window.Football11;
+    document.getElementById('scriptedResult').checked=false;
+    document.getElementById('goalTimes').value='';
     F.reset(true);
     const b=F.state.ball;
     for(const p of F.state.players.filter(x=>x.team===1)){p.x=10;p.y=50}
