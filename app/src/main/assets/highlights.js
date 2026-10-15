@@ -309,9 +309,10 @@ function finale(){
 }
 function render(){
  if(!enabled())return;
- events();background();
- if(state.elapsed>=1.25)scene();else scene();
+ events();background();scene();
  header();caption();hook();finale();
+ const w=C().width,h=C().height;
+ txt('ORIGINAL MATCH SIMULATION',w*.5,h*.977,w*(h>w?.016:.008),'rgba(205,231,244,.58)',700);
 }
 function applyPreset(kind){
  $('gameType').value='highlights';
@@ -321,7 +322,7 @@ function applyPreset(kind){
  $('ratio').value=kind==='wide'?'16:9':'9:16';
  $('quality').value='1080';
  $('fps').value='30';$('bitrate').value='12000000';
- $('hlDuration').value=kind==='wide'?'150':'30';
+ $('hlDuration').value=kind==='wide'?'150':kind==='penalty'?'18':kind==='comeback'?'26':'30';
  $('hlScript').value=kind==='wide'?[
  '8|L|SAVE|GOALKEEPER|MASSIVE OPENING SAVE!',
  '18|R|GOAL|FORWARD|FIRST BLOOD!',
@@ -332,8 +333,8 @@ function applyPreset(kind){
  '71|R|GOAL|NUMBER 10|WHAT A STRIKE!',
  '84|L|SAVE|KEEPER|WORLD CLASS STOP!',
  '90+3|L|GOAL|CAPTAIN|UNBELIEVABLE WINNER!'
- ].join('\n'):sample;
- $('hlStyle').value='cinema';$('hlHook').value='WHO WINS THIS MATCH?';
+ ].join('\n'):kind==='penalty'?'20|L|PENALTY|CAPTAIN|ICE COLD PENALTY!\n48|R|SAVE|GOALKEEPER|HE SAVED IT!\n90+4|L|PENALTY|NUMBER 9|LAST KICK WINNER!':kind==='comeback'?'12|R|GOAL|STRIKER|WHAT A START!\n44|R|GOAL|CAPTAIN|TWO NIL!\n70|L|GOAL|NUMBER 10|THE COMEBACK STARTS!\n86|L|GOAL|NUMBER 9|THE EQUALIZER!\n90+5|L|GOAL|CAPTAIN|UNBELIEVABLE WINNER!':sample;
+ $('hlStyle').value='cinema';$('hlHook').value=kind==='penalty'?'LAST KICK DECIDES EVERYTHING!':kind==='comeback'?'2-0 DOWN. CAN THEY COME BACK?':'WHO WINS THIS MATCH?';
  resizeCanvas();reset(true);render();toast('Highlight Director • '+(kind==='wide'?'16:9':'9:16')+' hazır');
 }
 function init(){
@@ -347,6 +348,7 @@ function init(){
  section.innerHTML=
   '<div class="tinyNote" style="margin:10px 0">🎬 Baştan tasarlanmış bağımsız maç özeti motoru: 22 oyuncunun maçını bekletmez; önemli pozisyonları sinematik sahnelerle anlatır. Kendi ürettiğin simülasyondur, gerçek yayın görüntüsü değildir.</div>'+
   '<div class="row"><button class="btn primary" id="hlShortPreset" type="button">⚡ Viral Shorts 9:16</button><button class="btn primary" id="hlWidePreset" type="button">🏟️ TV Özeti 16:9</button></div>'+
+  '<div class="row"><button class="btn" id="hlPenaltyPreset" type="button">🥅 Penaltı gerilimi</button><button class="btn" id="hlComebackPreset" type="button">🔥 Son dakika dönüşü</button></div>'+
   '<div class="row"><div><label class="lbl">Video süresi (saniye)</label><input id="hlDuration" type="number" min="8" max="240" value="30"></div><div><label class="lbl">Kamera tarzı</label><select id="hlStyle"><option value="cinema">Cinematic • Dinamik</option><option value="broadcast">TV Yayını • Sakin</option></select></div></div>'+
   '<label class="lbl">İlk saniye merak cümlesi</label><input id="hlHook" type="text" value="WHO WINS THIS MATCH?" placeholder="WHO WINS THIS MATCH?">'+
   '<label class="lbl">Maç özeti senaryosu (her satır ayrı pozisyon)</label>'+
@@ -358,17 +360,27 @@ function init(){
  $('hlScript').value=sample;
  $('hlShortPreset').onclick=()=>applyPreset('short');
  $('hlWidePreset').onclick=()=>applyPreset('wide');
+ $('hlPenaltyPreset').onclick=()=>applyPreset('penalty');
+ $('hlComebackPreset').onclick=()=>applyPreset('comeback');
  $('hlPreview').onclick=()=>{if(mode!=='play')$('playBtn').click();else reset(true)};
  $('hlReset').onclick=()=>{reset(true);render()};
  for(const id of ['hlDuration','hlStyle','hlHook','hlScript']){
   $(id).addEventListener('change',()=>{reset(true);render();const a=stats();$('hlSummary').textContent=a.events+' pozisyon • '+a.goals+' gol • '+a.duration+' saniye'});
  }
- sel.value='highlights';section.style.display='block';football.style.display='none';$('pinballOnlyNote').style.display='block';
+ sel.value='highlights';section.style.display='block';football.style.display='none';$('pinballOnlyNote').style.display='none';
+ function focusUI(){
+  for(const panel of document.querySelectorAll('aside.left section.panel')){
+   const label=panel.querySelector('.panelHead')?.textContent||'';
+   const keep=/Sahne|Scene|Takımlar|Teams|Oyun Modu|Game Mode|Kayıt|Record/i.test(label);
+   panel.style.display=enabled()&&!keep?'none':'';
+  }
+ }
+ focusUI();
  sel.addEventListener('change',()=>{
   section.style.display=enabled()?'block':'none';
-  if(enabled()){football.style.display='none';$('pinballOnlyNote').style.display='block';reset(true)}
+  if(enabled()){football.style.display='none';$('pinballOnlyNote').style.display='none';reset(true)}
   else if($('pinballOnlyNote'))$('pinballOnlyNote').style.display=sel.value==='football11'?'block':'none';
-  render();
+  focusUI();render();
  });
 }
 function config(){return {duration:$('hlDuration').value,style:$('hlStyle').value,hook:$('hlHook').value,script:$('hlScript').value}}
