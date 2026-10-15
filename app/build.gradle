@@ -10,8 +10,8 @@ android {
         applicationId 'com.goalhole.studio'
         minSdk 26
         targetSdk 35
-        versionCode 9
-        versionName '6.3-android'
+        versionCode 10
+        versionName '6.4-android'
     }
 
     buildTypes {
