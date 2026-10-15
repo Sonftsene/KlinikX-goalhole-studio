@@ -213,6 +213,7 @@ function wav(seconds=4){
   assert(synced.events[0].scorer==='Vinicius'&&synced.events[1].scorer==='Dybala','Scorer names not synced: '+JSON.stringify(synced));
   console.log('11v11 20-second video, 60-second match clock, three timed real goals and scorers: OK',synced);
   const matchUnit=await page.evaluate(()=>{
+    goalPlan=[];document.getElementById('scriptedResult').checked=false;
     document.getElementById('footballGoalTimeUnit').value='match';
     document.getElementById('goalTimes').value='15, 33, 54';
     const t=window.Football11.goalSchedule();
@@ -244,6 +245,40 @@ function wav(seconds=4){
   assert(stoppage.schedule.length===3&&stoppage.schedule.every((v,i)=>Math.abs(v-[47,72,95][i]/96*20)<.001),
     '45+ and 90+ goal scheduling incorrect: '+JSON.stringify(stoppage));
   console.log('90-second match with 45+2 and 90+4, 45+2/90+3 goals, and halftime: OK',stoppage);
+  const minutePlan=await page.evaluate(()=>{
+    const F=window.Football11;
+    document.getElementById('footballDuration').value='90';
+    document.getElementById('footballClock').value='90';
+    document.getElementById('footballExtraFirst').value='0';
+    document.getElementById('footballExtraSecond').value='0';
+    document.getElementById('goalTimes').value='';
+    document.getElementById('goalInterval').value='';
+    document.getElementById('firstGoalSecond').value='';
+    document.getElementById('scriptedResult').checked=true;
+    document.getElementById('footballSyncGoals').checked=true;
+    goalPlan=[makePlanEvent('left',{scorer:'Haaland',minute:'20.dk'}),
+              makePlanEvent('right',{scorer:'Messi',minute:'45'}),
+              makePlanEvent('left',{scorer:'Mbappe',minute:'80'})];
+    const schedule=F.goalSchedule(),minutes=goalPlan.map(p=>F.planMinuteSecond(p.minute));
+    F.reset(true);
+    let last=0;const events=[];
+    for(let i=0;i<11000&&!roundFinished;i++){
+      F.step(1/120);
+      if(F.state.goals.length>last){events.push({...F.state.goals[F.state.goals.length-1]});last=F.state.goals.length}
+    }
+    const noPlan=(()=>{goalPlan=[];document.getElementById('scriptedResult').checked=false;return F.goalSchedule()})();
+    return {schedule,minutes,events,finished:roundFinished,elapsed:F.state.elapsed,noPlan};
+  });
+  assert(minutePlan.schedule.every((v,i)=>Math.abs(v-[20,45,80][i])<.01),
+    '90s match minute-to-second conversion incorrect: '+JSON.stringify(minutePlan));
+  assert(minutePlan.events.length===3&&minutePlan.events.every((e,i)=>Math.abs(e.second-[20,45,80][i])<.15),
+    'Goal-plan minute does not match physical goal second: '+JSON.stringify(minutePlan));
+  assert(minutePlan.events.map(e=>e.scorer).join(',')==='Haaland,Messi,Mbappe',
+    'Planned scorer not attached to goal: '+JSON.stringify(minutePlan));
+  assert(minutePlan.finished&&minutePlan.noPlan.length===0,
+    'Goal intervals must not be mandatory: '+JSON.stringify(minutePlan));
+  console.log('90s match, goals at exactly 20/45/80, named scorers and no goal intervals: OK',minutePlan);
+
 
 
   assert(!errors.length,'Browser errors: '+errors.join('; '));
