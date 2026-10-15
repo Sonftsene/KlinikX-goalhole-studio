@@ -133,7 +133,7 @@ function reset(quiet=false){
  state.events=[];state.goals=[];state.current=null;state.cooldown=0;state.freeze=0;
  state.lastEvent='';state.eventTime=0;state.passes=0;state.shots=0;state.saves=0;
  state.turnovers=0;state.halftime=false;state.lastShot=null;state.goalAnimation=null;state.scriptIndex=0;state.director=null;state.fx=[];state.lastDramaTick=-1;state.goalCard=null;
- state.camera={x:50,y:80,zoom:1};state.ballHistory=[];state.ballTrailClock=0;
+ state.camera={x:50,y:80,zoom:1};state.ballHistory=[];state.ballTrailClock=0;state.lastAttackSide=-1;
  for(let team=0;team<2;team++)for(const p of layout){
   const y=team===0?p.y:H-p.y;
   state.players.push({team,n:p.n,role:p.role,x:p.x,y,homeX:p.x,homeY:y,
@@ -436,6 +436,24 @@ function step(dt){
   const target=roleTarget(p,b.owner);
   const pace=p.role==='GK'?10:p.role==='FWD'?23:19;
   advance(p,d,target.x,target.y,pace*(tactic(p.team)==='press'?1.16:1));
+ }
+ // Prevent players collapsing into one indistinguishable blob in the midfield.
+ for(let i=0;i<state.players.length;i++){
+  const a=state.players[i];if(a.role==='GK')continue;
+  for(let j=i+1;j<state.players.length;j++){
+   const c=state.players[j];if(c.role==='GK')continue;
+   const dx=c.x-a.x,dy=c.y-a.y,dist2=dx*dx+dy*dy;
+   if(dist2>=22||dist2<.00001)continue;
+   const length=Math.sqrt(dist2),push=(4.7-length)*.28;
+   const ux=dx/length,uy=dy/length;
+   if(a!==state.ball.owner){a.x=clamp(a.x-ux*push,3,97);a.y=clamp(a.y-uy*push,2,158)}
+   if(c!==state.ball.owner){c.x=clamp(c.x+ux*push,3,97);c.y=clamp(c.y+uy*push,2,158)}
+  }
+ }
+ if(state.ball&&state.ball.owner&&state.phase==='live'&&!state.director){
+  const b=state.ball,side=b.owner.team,distance=side===0?b.y:160-b.y;
+  if(distance<35&&state.lastAttackSide!==side){state.lastAttackSide=side;say('🔥 BIG CHANCE • '+teamName(side).toUpperCase(),1.0);try{playTone(510,.075,'triangle',.04)}catch(e){}}
+  else if(distance>65)state.lastAttackSide=-1;
  }
  if(state.ball){state.ballTrailClock+=dt;if(state.ballTrailClock>.045){state.ballTrailClock=0;state.ballHistory.push({x:state.ball.x,y:state.ball.y,at:state.elapsed});if(state.ballHistory.length>14)state.ballHistory.shift()}}
  for(const f of state.fx){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=.975;f.vy*=.975;f.life-=dt}state.fx=state.fx.filter(f=>f.life>0);
