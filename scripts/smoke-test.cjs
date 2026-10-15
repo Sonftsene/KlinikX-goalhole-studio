@@ -6,6 +6,8 @@ const html=fs.readFileSync(htmlPath,'utf8');
 const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 for(let i=0;i<scripts.length;i++)new vm.Script(scripts[i][1],{filename:'inline-'+i+'.js'});
 console.log('Inline JavaScript syntax OK:',scripts.length);
+new vm.Script(fs.readFileSync(path.resolve('app/src/main/assets/football11.js'),'utf8'),{filename:'football11.js'});
+console.log('11v11 match engine syntax OK');
 function wav(seconds=4){
  const rate=8000,n=seconds*rate,buf=Buffer.alloc(44+n*2);
  buf.write('RIFF',0);buf.writeUInt32LE(buf.length-8,4);buf.write('WAVEfmt ',8);
@@ -145,6 +147,46 @@ function wav(seconds=4){
   });
   assert(special.gold&&special.score===2,'Golden ball multiplier failed: '+JSON.stringify(special));
   console.log('Special golden ball: OK');
+  const football=await page.evaluate(()=>{
+    document.getElementById('gameType').value='football11';
+    document.getElementById('gameType').dispatchEvent(new Event('change'));
+    document.getElementById('footballDuration').value='20';
+    document.getElementById('footballPreset').click();
+    const F=window.Football11;
+    return {enabled:F.enabled(),players:F.state.players.length,keepers:F.state.players.filter(p=>p.role==='GK').length,
+      ball:F.state.ball,dimensions:[canvas.width,canvas.height]};
+  });
+  assert(football.enabled&&football.players===22&&football.keepers===2,'11v11 players missing: '+JSON.stringify(football));
+  assert(football.ball&&football.dimensions[0]===1080&&football.dimensions[1]===1920,'11v11 setup incorrect');
+  console.log('11v11 22-player pitch and one match ball: OK');
+  const footballPlay=await page.evaluate(()=>{
+    const F=window.Football11;
+    if(mode==='edit')document.getElementById('playBtn').click();
+    for(let i=0;i<4000;i++)F.step(1/120);
+    return {passes:F.state.passes,shots:F.state.shots,turnovers:F.state.turnovers,elapsed:F.state.elapsed,events:F.state.events.length};
+  });
+  assert(footballPlay.passes>1&&footballPlay.events>1,'No football attacks or passing: '+JSON.stringify(footballPlay));
+  console.log('AI passing and tactical play: OK',footballPlay);
+  const footballGoal=await page.evaluate(()=>{
+    const F=window.Football11;
+    F.reset(true);
+    const b=F.state.ball;
+    for(const p of F.state.players.filter(x=>x.team===1)){p.x=10;p.y=50}
+    b.owner=null;b.mode='shot';b.team=0;b.lastTouch=0;b.x=50;b.y=7;b.vx=0;b.vy=-105;
+    for(let i=0;i<30;i++)F.step(1/120);
+    return {score:score.left,goals:F.state.goals.length,goal:F.state.goals[0]};
+  });
+  assert(footballGoal.score===1&&footballGoal.goals===1,'Goal-line shot not scored: '+JSON.stringify(footballGoal));
+  console.log('Real shot crossing goal line: OK',footballGoal);
+  const footballFinish=await page.evaluate(()=>{
+    const F=window.Football11;
+    F.reset(true);
+    document.getElementById('footballDuration').value='15';
+    for(let i=0;i<1850&&!roundFinished;i++)F.step(1/120);
+    return {finished:roundFinished,elapsed:F.state.elapsed,duration:+document.getElementById('footballDuration').value};
+  });
+  assert(footballFinish.finished&&Math.abs(footballFinish.elapsed-footballFinish.duration)<.05,'Football match did not finish on time: '+JSON.stringify(footballFinish));
+  console.log('11v11 exact match duration: OK');
   assert(!errors.length,'Browser errors: '+errors.join('; '));
   console.log('ALL TESTS PASSED');
  }finally{await browser.close()}
