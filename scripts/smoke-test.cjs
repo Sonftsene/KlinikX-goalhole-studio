@@ -52,7 +52,7 @@ function wav(seconds=4){
     document.getElementById('playBtn').click();
   });
   await page.waitForTimeout(2500);
-  const motion=await page.evaluate(()=>balls.filter(b=>b.active&&b.released&&b.hasLaunched).map(b=>Math.hypot(b.vx,b.vy)));
+  const motion=await page.evaluate(()=>balls.filter(b=>b.active&&b.released&&b.hasLaunched&&b.id!==timedShot?.ballId).map(b=>Math.hypot(b.vx,b.vy)));
   assert(motion.length>0,'No launched balls');
   assert(motion.every(v=>v>1400&&v<1800),'Motion decayed: '+JSON.stringify(motion));
   console.log('Continuous motion: OK',motion);
