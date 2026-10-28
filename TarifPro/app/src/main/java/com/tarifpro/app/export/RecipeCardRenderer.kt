@@ -65,24 +65,26 @@ object RecipeCardRenderer {
         }
     }
 
-    fun stepEmoji(text: String): String {
+    private fun emojiOrNull(text: String): String? {
         val f = TurkishText.fold(text)
         return when {
             "cirp" in f -> "🥣"
-            "buzdolab" in f || "dinlendir" in f || "sogut" in f -> "❄️"
-            "firin" in f -> "🔥"
+            "firin" in f || "pisir" in f -> "🔥"
             "kaynat" in f || "hasla" in f -> "♨️"
-            "kizart" in f || "kavur" in f || "sotele" in f || "tava" in f -> "🍳"
-            "dok" in f || "islat" in f -> "🥛"
+            "kizart" in f || "kavur" in f || "sotele" in f -> "🍳"
+            "islat" in f || "dok" in f -> "🥛"
             "desen" in f || "susle" in f -> "🎨"
+            "buzdolab" in f || "dinlendir" in f || "sogut" in f -> "❄️"
             "yay" in f || "sur" in f -> "🧁"
             "dogra" in f || "kes" in f || "rendele" in f -> "🔪"
             "servis" in f -> "🍽️"
-            "pisir" in f -> "🔥"
-            "karistir" in f || "ekle" in f -> "🥄"
-            else -> "👩‍🍳"
+            "karistir" in f || "ekle" in f || "hazirla" in f -> "🥄"
+            else -> null
         }
     }
+
+    /** Adım için simge: önce başlığa, sonra metne bakar. */
+    fun stepEmoji(title: String, text: String = ""): String = emojiOrNull(title) ?: emojiOrNull(text) ?: "👩‍🍳"
 
     private class CardPainter(
         val recipe: Recipe,
@@ -340,7 +342,7 @@ object RecipeCardRenderer {
                 // Ölç
                 data class Built(val title: StaticLayout, val rows: List<List<Tile>>, val tileW: Float, val height: Float)
                 val built = rowGroups.map { (name, items) ->
-                    val title = layout(name, tp(28f, Color.BLACK, bold = true), cardW - 100f, maxLines = 2)
+                    val title = layout(name, tp(26f, Color.BLACK, bold = true), cardW - 100f, maxLines = 3)
                     val perRow = max(1, floor((cardW - 28f) / 132f).toInt())
                     val tileW = (cardW - 28f) / perRow
                     val tiles = items.map { buildTile(it, tileW) }
@@ -360,7 +362,7 @@ object RecipeCardRenderer {
                         val numP = tp(28f, Color.WHITE, bold = true)
                         val num = (index + i + 1).toString()
                         c.drawText(num, x + 38f - numP.measureText(num) / 2, y + 58f, numP)
-                        val titleColored = layout(rowGroups[i].first, tp(28f, accent, bold = true), cardW - 100f, maxLines = 2)
+                        val titleColored = layout(rowGroups[i].first, tp(26f, accent, bold = true), cardW - 100f, maxLines = 3)
                         draw(c, titleColored, x + 72f, y + 48f - titleColored.height / 2f)
                         var ty = y + 24f + max(48f, b.title.height.toFloat()) + 18f
                         for (row in b.rows) {
@@ -422,7 +424,7 @@ object RecipeCardRenderer {
                             val g = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(0f, banner.top, 0f, banner.bottom, tint, withAlpha(accent, 70), Shader.TileMode.CLAMP) }
                             c.drawRoundRect(banner, 16f, 16f, g)
                             val ep = tp(b.bannerH * 0.42f, Color.BLACK)
-                            val emoji = stepEmoji(st.title + " " + st.text)
+                            val emoji = stepEmoji(st.title, st.text)
                             c.drawText(emoji, banner.centerX() - ep.measureText(emoji) / 2, banner.centerY() + ep.textSize * 0.35f, ep)
                         }
                         st.minutes?.let { m ->

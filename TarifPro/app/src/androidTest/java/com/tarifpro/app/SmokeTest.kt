@@ -190,11 +190,11 @@ class SmokeTest {
             shot("17_sohbet")
             back()
             compose.onNodeWithText("Şefler").performClick()
-            waitText("Ayşe Pastacı")
+            waitText("Ayşe Pastacı", substring = true)
             shot("18_sefler")
         }
         step("profil_ayarlar") {
-            firstText("Ayşe Pastacı").performClick()
+            firstText("Ayşe Pastacı", substring = true).performClick()
             waitText("Takipçi")
             shot("19_sef_profili")
             back()

@@ -514,7 +514,7 @@ fun StepsTab(recipe: Recipe, template: RecipeTemplate, onRate: () -> Unit) {
                         NumberBadge(idx + 1, tc.primary, done = isDone, size = 36)
                         Spacer(Modifier.width(10.dp))
                         Text(step.title.ifBlank { "Adım ${idx + 1}" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Text(RecipeCardRenderer.stepEmoji(step.title + " " + step.text), fontSize = 22.sp)
+                        Text(RecipeCardRenderer.stepEmoji(step.title, step.text), fontSize = 22.sp)
                     }
                     if (!step.image.isNullOrBlank()) {
                         Spacer(Modifier.height(8.dp))

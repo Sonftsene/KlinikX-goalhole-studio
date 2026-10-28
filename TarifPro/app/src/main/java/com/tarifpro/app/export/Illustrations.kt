@@ -64,7 +64,7 @@ object FoodIllustrations {
 
     fun draw(canvas: Canvas, key: String, w: Float, h: Float) {
         val item = item(key)
-        val bg = paint(0)
+        val bg = paint(0xFFFFFFFF.toInt())
         bg.shader = LinearGradient(0f, 0f, 0f, h, item.bgTop, item.bgBottom, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, bg)
         // Arka plan süsü: yumuşak noktalar
