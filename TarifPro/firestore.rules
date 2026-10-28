@@ -1,0 +1,101 @@
+rules_version = '2';
+// Tarif Pro – Firestore güvenlik kuralları
+// Firebase Console › Firestore Database › Rules sekmesine yapıştırıp yayınlayın.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/meta/admins)
+        && me() in get(/databases/$(database)/documents/meta/admins).data.uids;
+    }
+    function notBanned() {
+      return !exists(/databases/$(database)/documents/users/$(me()))
+        || get(/databases/$(database)/documents/users/$(me())).data.get('banned', false) == false;
+    }
+    function follows(author) {
+      return exists(/databases/$(database)/documents/users/$(author)/followers/$(me()));
+    }
+
+    // Yönetici listesi: ilk giriş yapan kişi oluşturabilir, sonra yalnızca yöneticiler değiştirir
+    match /meta/admins {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uids == [me()];
+      allow update: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && uid == me() && request.resource.data.get('isAdmin', false) == false;
+      // Kullanıcı kendi profilini güncelleyebilir (yönetici/yasak alanları hariç);
+      // takipçi sayaçları başkaları tarafından artırılabilir; yönetici her şeyi değiştirebilir.
+      allow update: if isAdmin()
+        || (uid == me() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'banned']))
+        || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following']));
+
+      match /followers/{fid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && fid == me();
+      }
+      match /following/{fid} {
+        allow read: if signedIn();
+        allow write: if uid == me();
+      }
+      match /favorites/{rid} { allow read, write: if uid == me(); }
+      match /collections/{cid} { allow read, write: if uid == me(); }
+      match /inbox/{nid} {
+        allow read, delete: if uid == me();
+        allow create: if signedIn() && notBanned();
+      }
+    }
+
+    match /recipes/{rid} {
+      allow read: if signedIn() && (
+        resource.data.authorId == me() || isAdmin()
+        || resource.data.visibility == 'PUBLIC'
+        || (resource.data.visibility == 'FOLLOWERS' && follows(resource.data.authorId))
+      );
+      allow create: if signedIn() && notBanned() && request.resource.data.authorId == me();
+      allow update: if isAdmin()
+        || (resource.data.authorId == me() && request.resource.data.authorId == me()
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hidden', 'featured']))
+        || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingAvg', 'ratingCount']));
+      allow delete: if isAdmin() || resource.data.authorId == me();
+
+      match /comments/{cid} {
+        allow read: if signedIn();
+        allow create: if signedIn() && notBanned() && request.resource.data.authorId == me();
+        allow update, delete: if isAdmin() || resource.data.authorId == me();
+      }
+      match /ratings/{uid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && uid == me();
+      }
+    }
+
+    match /images/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerId == me();
+      allow delete: if resource.data.ownerId == me() || isAdmin();
+    }
+
+    match /chats/{cid} {
+      allow read: if signedIn() && (resource == null || resource.data.kind == 'CHANNEL' || me() in resource.data.members);
+      allow create: if signedIn() && (request.resource.data.kind == 'CHANNEL' || me() in request.resource.data.members);
+      allow update: if signedIn() && (resource.data.kind == 'CHANNEL' || me() in resource.data.members);
+
+      match /messages/{mid} {
+        allow read: if signedIn() && (get(/databases/$(database)/documents/chats/$(cid)).data.kind == 'CHANNEL'
+          || me() in get(/databases/$(database)/documents/chats/$(cid)).data.members);
+        allow create: if signedIn() && notBanned() && request.resource.data.senderId == me();
+        allow delete: if isAdmin() || resource.data.senderId == me();
+      }
+    }
+
+    match /reports/{id} {
+      allow create: if signedIn() && request.resource.data.reporterId == me();
+      allow read, update: if isAdmin();
+    }
+  }
+}
