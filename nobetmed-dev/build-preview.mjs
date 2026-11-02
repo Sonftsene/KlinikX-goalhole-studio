@@ -11,7 +11,7 @@ let css = read(path.join(app, 'app.css'));
 const dark = css.match(/\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
 css += `\n@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {${dark}\n} }\n`;
 const safe = (s) => s.replace(/<\/script/gi, '<\\/script');
-const js = ['core', 'auth', 'posts', 'shifts', 'admin', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
+const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
 const html = `<title>NöbetMed Klinik Portalı</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +21,12 @@ const html = `<title>NöbetMed Klinik Portalı</title>
 ${css}
 </style>
 <script id="nm-boot" type="application/json">{"csrf":"demo","share":""}</script>
+<script>
+window.NM_DEMO_FILES = ${JSON.stringify(Object.fromEntries(fs.readdirSync(path.join(here, 'fixtures')).map((f) => {
+  const mime = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }[f.split('.').pop()] || 'application/octet-stream';
+  return [f, 'data:' + mime + ';base64,' + fs.readFileSync(path.join(here, 'fixtures', f)).toString('base64')];
+})))};
+</script>
 <script>
 ${safe(read(path.join(app, 'theme.js')))}
 </script>

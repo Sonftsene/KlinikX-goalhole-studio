@@ -6,6 +6,14 @@ import path from 'node:path';
 const BASE = process.argv[2] || 'http://127.0.0.1:8088/';
 const OUT = process.argv[3] || '.';
 const DIR = path.dirname(new URL(import.meta.url).pathname);
+const FX = path.join(DIR, 'fixtures');
+import fs from 'node:fs';
+import os from 'node:os';
+// Sunucu sınırını aşan büyük dosya (parça parça yüklenmeli) ve bilinmeyen bir dosya türü
+const BIG = path.join(os.tmpdir(), 'nm-buyuk-video.mp4');
+if (!fs.existsSync(BIG) || fs.statSync(BIG).size !== 25 * 1048576) fs.writeFileSync(BIG, Buffer.alloc(25 * 1048576, 7));
+const ODD = path.join(os.tmpdir(), 'arsiv-yedek.xyz');
+fs.writeFileSync(ODD, 'herhangi bir icerik');
 const errors = [];
 const browser = await chromium.launch();
 function watch(page, tag) {
@@ -56,21 +64,43 @@ await a.goto(BASE + '#/');
 await a.click('.topbar [data-act=compose]');
 await a.fill('#composer [name=title]', 'Yüksek riskli ilaçlarda çift kontrol');
 await a.fill('#composer [name=body]', 'İnsülin, heparin ve KCl için çift hemşire imzası zorunludur.\nDetaylar ekte. https://ornek.com');
-await a.setInputFiles('#fileInput', [path.join(DIR, 'fixture.png'), path.join(DIR, 'fixture.pdf')]);
-await a.waitForFunction(() => document.querySelectorAll('#attList .att').length === 2 && !document.querySelector('#attList .bar'));
+await a.setInputFiles('#fileInput', [path.join(FX, 'cift-kontrol-protokolu.pdf'), path.join(FX, 'personel-nobet-kasim-2026.xlsx'), path.join(FX, 'basinc-yarasi-onleme.docx'), path.join(DIR, 'fixture.png'), BIG, ODD]);
+await a.waitForFunction(() => document.querySelectorAll('#attList .att').length === 6 && !document.querySelector('#attList .bar'), null, { timeout: 120000 });
+const upErr = await a.locator('#attList').innerText();
+if (/sınır|desteklenmiyor|başarısız|hata/i.test(upErr)) errors.push('yükleme hatası: ' + upErr);
 await a.click('.switch:has([name=required]) .track');
 await a.click('.switch:has([name=pinned]) .track');
 await a.click('button[form=composer]');
 await expectText(a, 'İçerik yayınlandı');
 await expectText(a, 'Yüksek riskli ilaçlarda');
-step('içerik + 2 ek yayınlandı');
+step('içerik + 6 ek yayınlandı (25 MB video ve bilinmeyen tür dahil)');
 
 // Detay, okuma durumu, paylaşım
 await a.click('.post >> text=Yüksek riskli');
 await expectText(a, 'Okuma durumu');
-await a.locator('.preview img').waitFor();
-const imgOk = await a.locator('.preview img').evaluate((i) => i.complete && i.naturalWidth > 0);
+await a.locator('.modal .pv-page canvas').first().waitFor({ timeout: 15000 });
+step('PDF sayfada açıldı');
+await a.locator('.modal .fv:has-text("personel-nobet")').scrollIntoViewIfNeeded();
+await a.locator('.modal .xv-grid').first().waitFor({ timeout: 15000 });
+const xText = await a.locator('.modal .xv-grid').first().innerText();
+if (!/DESTEK PERSONELİ/.test(xText) || !/01\.11\.2026/.test(xText)) errors.push('excel eki içeriği/tarih biçimi beklenen gibi değil');
+step('Excel eki sayfada açıldı');
+await a.locator('.modal .fv:has-text("basinc-yarasi")').scrollIntoViewIfNeeded();
+await a.locator('.modal .dv-page').first().waitFor({ timeout: 15000 });
+if (!/Braden/.test(await a.locator('.modal .dv-page').innerText())) errors.push('word içeriği görünmüyor');
+step('Word eki sayfada açıldı');
+await a.locator('.modal .fv:has-text("fixture.png")').scrollIntoViewIfNeeded();
+await a.locator('.modal .mv img').waitFor();
+const imgOk = await a.locator('.modal .mv img').evaluate((i) => new Promise((r) => i.complete ? r(i.naturalWidth > 0) : (i.onload = () => r(true), i.onerror = () => r(false))));
 if (!imgOk) errors.push('görsel ek yüklenmedi');
+await a.locator('.modal .fv:has-text("nm-buyuk-video")').scrollIntoViewIfNeeded();
+const vurl = await a.locator('.modal .fv:has-text("nm-buyuk-video") [data-act=fv-dl]').getAttribute('data-url');
+const big = await a.evaluate(async (u) => { const r = await fetch(u, { headers: { Range: 'bytes=0-99' } }); const all = await fetch(u, { method: 'HEAD' }); return [r.status, all.headers.get('content-length')]; }, vurl);
+if (big[0] !== 206 || +big[1] !== 25 * 1048576) errors.push('büyük dosya eksik: ' + big);
+await a.locator('.modal .fv:has-text("arsiv-yedek")').scrollIntoViewIfNeeded();
+if (!(await a.locator('.modal .fv:has-text("arsiv-yedek")').innerText()).includes('indirerek açın')) errors.push('bilinmeyen tür kartı yok');
+step('görsel, 25 MB video (tam boyut) ve bilinmeyen tür doğru gösterildi');
+await a.screenshot({ path: path.join(OUT, 'd-detail-files.png') });
 await a.click('[data-act=share]');
 await a.click('[data-share-days="7"]');
 await expectText(a, 'Misafir bağlantısı oluşturuldu');
@@ -83,7 +113,9 @@ step('detay + misafir linki: ' + shareLink);
 const G = await ctx('guest');
 await G.p.goto(shareLink.replace(/^https?:\/\/[^/]+\//, BASE));
 await expectText(G.p, 'Yüksek riskli ilaçlarda');
-const gImg = await G.p.locator('.preview img').evaluate((i) => new Promise((r) => i.complete ? r(i.naturalWidth > 0) : (i.onload = () => r(true), i.onerror = () => r(false))));
+await G.p.locator('.pv-page canvas').first().waitFor({ timeout: 15000 });
+await G.p.locator('.fv:has-text("fixture.png")').scrollIntoViewIfNeeded();
+const gImg = await G.p.locator('.mv img').evaluate((i) => new Promise((r) => i.complete ? r(i.naturalWidth > 0) : (i.onload = () => r(true), i.onerror = () => r(false))));
 if (!gImg) errors.push('misafir görsel açamadı');
 await G.p.screenshot({ path: path.join(OUT, 'd-guest.png') });
 step('misafir sayfası');
@@ -149,36 +181,66 @@ const readers = await a.locator('.modal .card-head .small').innerText();
 console.log('  okuma durumu:', readers);
 await a.keyboard.press('Escape');
 
-// Nöbet çizelgesi
+// Nöbet listeleri (Excel)
 await a.goto(BASE + '#/nobet');
-await a.selectOption('[data-change=sh-unit]', { label: 'Yoğun Bakım' });
-await a.waitForSelector('.roster');
-const cells = a.locator('.cell.editable');
-// 1. gün gece: Elif ; 2. gün gündüz: Elif (çakışma), Kemal (kayıtsız)
-await cells.nth(1).click();
-await a.locator('.pick >> text=Elif Yılmaz').click();
-await a.click('.modal [data-save]');
-await expectText(a, 'Çizelge güncellendi');
-await cells.nth(2).click();
-await a.locator('.pick >> text=Elif Yılmaz').click();
-await a.fill('#extForm [name=ext]', 'Pers. Kemal B.');
-await a.click('#extForm button');
-await a.click('.modal [data-save]');
-await expectText(a, 'çakışan atama');
+await a.waitForSelector('#rsTabs');
+const tabs = await a.locator('#rsTabs button').allInnerTexts();
+if (tabs.length !== 2) errors.push('iki liste bekleniyordu: ' + tabs);
+await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'hemsire-nobet-kasim-2026.xlsx'));
+await expectText(a, 'güncellendi');
+await a.locator('.rs-view:not(.hidden) .xv-grid').waitFor({ timeout: 15000 });
+const hs = await a.evaluate(() => {
+  const g = document.querySelector('.rs-view:not(.hidden) .xv-grid');
+  const title = [...g.querySelectorAll('td')].find((td) => /HEMŞİRE NÖBET LİSTESİ/.test(td.textContent));
+  return { colspan: title && title.colSpan, bg: title && getComputedStyle(title).backgroundColor, frozen: g.querySelectorAll('td.fz').length, me: g.querySelectorAll('td.me').length, sheets: document.querySelectorAll('.rs-view:not(.hidden) .xv-tabs button').length };
+});
+console.log('  hemşire listesi:', JSON.stringify(hs));
+if (hs.colspan < 30 || hs.bg !== 'rgb(11, 106, 102)' || !hs.frozen || !hs.me || hs.sheets !== 2) errors.push('excel görünümü eksik: ' + JSON.stringify(hs));
+await a.click('.xv-me');
 await a.screenshot({ path: path.join(OUT, 'd-roster.png') });
-await a.click('[data-act=sh-tab][data-tab=summary]');
-await expectText(a, 'Pers. Kemal B.');
-const dl = a.waitForEvent('download');
-await a.click('[data-act=sh-csv]');
-const file = await dl;
-console.log('  csv:', file.suggestedFilename());
-step('nöbet çizelgesi + çakışma + özet + csv');
+step('hemşire listesi Excel olarak açıldı (renk, birleşik hücre, dondurma, sayfa sekmeleri)');
+await a.click('#rsTabs button >> nth=1');
+await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'personel-nobet-kasim-2026.xlsx'));
+await a.locator('.rs-view:not(.hidden) .xv-grid >> text=DESTEK PERSONELİ').waitFor({ timeout: 15000 });
+// yeniden adlandır
+await a.click('[data-act=rs-menu]');
+await a.click('.menu >> text=Yeniden adlandır');
+await a.fill('.modal [name=v]', 'Destek Personeli Listesi');
+await a.click('.modal [data-ok]');
+await expectText(a, 'Liste adı güncellendi');
+if (!(await a.locator('#sidebar').innerText()).includes('Destek Personeli Listesi')) errors.push('menüde yeni ad yok');
+// hızlı geçiş
+const t0 = Date.now();
+await a.click('#rsTabs button >> nth=0');
+await a.locator('.rs-view:not(.hidden) .xv-grid >> text=HEMŞİRE NÖBET').waitFor();
+const t1 = Date.now() - t0;
+await a.click('#rsTabs button >> nth=1');
+await a.locator('.rs-view:not(.hidden) .xv-grid >> text=DESTEK PERSONELİ').waitFor();
+console.log('  listeler arası geçiş:', t1 + ' ms');
+if (t1 > 600) errors.push('liste geçişi yavaş: ' + t1);
+// yeni sürüm + sürüm geçmişi
+await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'personel-nobet-kasim-2026.xlsx'));
+await expectText(a, 'güncellendi');
+await a.click('[data-act=rs-menu]');
+await a.click('.menu >> text=Önceki sürümler');
+await a.locator('.modal [data-ver-restore]').waitFor();
+await a.keyboard.press('Escape');
+step('ikinci liste, yeniden adlandırma, anında geçiş ve sürüm geçmişi');
 
-// Üye nöbetlerim
+// Üye listeyi görür, yükleyemez, adını bulur
 await m.goto(BASE + '#/nobet');
-await m.click('[data-act=sh-tab][data-tab=mine]');
-await m.waitForTimeout(500);
-await m.screenshot({ path: path.join(OUT, 'm-shifts.png') });
+await m.locator('.rs-view:not(.hidden) .xv-grid').waitFor({ timeout: 15000 });
+if (await m.locator('.rs-actions input[data-change=rs-file]').count()) errors.push('üye liste yükleyebiliyor');
+await m.click('#rsTabs button >> nth=0');
+await m.locator('.rs-view:not(.hidden) .xv-grid >> text=HEMŞİRE NÖBET').waitFor();
+await m.click('.rs-view:not(.hidden) .xv-me');
+await m.waitForTimeout(600);
+await m.screenshot({ path: path.join(OUT, 'm-roster.png') });
+const sw = await m.evaluate(() => document.documentElement.scrollWidth);
+if (sw > 390) errors.push('mobil taşma: ' + sw);
+const ru = await m.evaluate(async () => (await fetch('api.php?action=rosters.save', { method: 'POST', headers: { 'X-CSRF': S.csrf, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'x y' }) })).status);
+if (ru !== 403) errors.push('üye liste oluşturabildi: ' + ru);
+step('üye listeyi görüyor, adını buluyor, düzenleyemiyor');
 
 // Ayarlar: bant
 await a.goto(BASE + '#/yonetim/ayarlar');

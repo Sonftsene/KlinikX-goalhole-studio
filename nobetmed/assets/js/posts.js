@@ -53,9 +53,11 @@ function renderNav() {
   setHTML($('#sidebar'), html`
     <div class="brand">${BRAND_MARK}<div class="grow"><div class="brand-name">Nöbet<span>Med</span></div><div class="brand-org ellipsis">${S.settings.org_name}</div></div></div>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
-    ${navItem('#/nobet', icon('calendar'), 'Nöbet çizelgesi', 0, r[0] === 'nobet')}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
+    <div class="nav-sec">Nöbet listeleri</div>
+    ${S.rosters.length ? S.rosters.map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
+      : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
     <div class="nav-sec">Bölümler</div>
     ${S.categories.map((cat) => navItem('#/b/' + cat.id, html`<span class="cat-ico sm tone-${cat.color}">${icon(cat.icon)}</span>`, cat.name, (c.unread_by_cat || {})[cat.id] || 0, r[0] === 'b' && +r[1] === cat.id, 'muted'))}
     ${isPublisher() ? html`
@@ -71,7 +73,7 @@ function renderNav() {
   const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${tab('#/nobet', icon('calendar'), 'Nöbet', r[0] === 'nobet', 0)}
+    ${tab('#/nobet', icon('table'), 'Nöbet', r[0] === 'nobet', 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
     ${isPublisher() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
@@ -139,7 +141,10 @@ function route() {
     case 'okunacak': renderFeedPage(view, { filter: 'todo', fixed: true }); break;
     case 'kaydedilenler': renderFeedPage(view, { filter: 'saved', fixed: true }); break;
     case 'ara': if (si) si.value = r[1] || ''; renderFeedPage(view, { q: r[1] || '' }); break;
-    case 'nobet': renderShifts(view); break;
+    case 'nobet':
+      if (RS.stage && document.body.contains(RS.stage) && rosterById(+r[1])) { showRoster(+r[1]); return; }
+      renderRosters(view, +r[1] || null);
+      break;
     case 'yonetim': if (isPublisher()) { renderAdmin(view, r[1] || 'onaylar'); } else location.hash = '#/'; break;
     case 'profil': renderProfile(view); break;
     case 'p':
@@ -177,10 +182,7 @@ function renderHome(view) {
         <div class="k-top"><span>Yeni içerik</span><span class="k-ico" style="background:var(--brand-soft);color:var(--brand-text)">${icon('bell', 'sm')}</span></div>
         <div class="k-val" data-count="unread">${c.unread}</div><div class="k-sub">Henüz açmadığınız</div>
       </button>
-      <a class="kpi" href="#/nobet" id="kpiShift">
-        <div class="k-top"><span>Sıradaki nöbetiniz</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
-        <div class="k-val sm"><span class="skel" style="display:block;height:22px;width:70%"></span></div><div class="k-sub">&nbsp;</div>
-      </a>
+      ${rosterKpi()}
       ${isPublisher() ? html`
       <a class="kpi" href="#/yonetim/onaylar">
         <div class="k-top"><span>Onay bekleyen</span><span class="k-ico" style="background:var(--danger-soft);color:var(--danger)">${icon('inbox', 'sm')}</span></div>
@@ -194,62 +196,34 @@ function renderHome(view) {
     <div class="home-grid">
       <section id="feedHost"></section>
       <aside class="side-col" id="homeSide">
-        <div class="card"><div class="card-head"><h3>Nöbetlerim</h3><a class="small" href="#/nobet">Çizelge</a></div><div id="myShiftsBox"><div class="card-pad"><div class="skel" style="height:14px;margin-bottom:10px"></div><div class="skel" style="height:14px;width:60%"></div></div></div></div>
+        <div class="card" id="rosterCard">${rosterCard()}</div>
       </aside>
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
-  loadMyShiftsSummary();
-}
-
-async function loadMyShiftsSummary() {
-  let list = [];
-  try { list = (await api('shifts.mine')).shifts; } catch (e) { /* */ }
-  const today = ymd(new Date());
-  const upcoming = list.filter((s) => {
-    if (s.date > today) return true;
-    if (s.date < today) {
-      // dünkü gece nöbeti hâlâ sürüyor olabilir
-      const t = shiftType(s.type_id);
-      return t && t.end <= t.start && hm(new Date()) < t.end;
-    }
-    const t = shiftType(s.type_id);
-    if (!t) return true;
-    return t.end <= t.start || hm(new Date()) < t.end;
+  refreshRosters().then(() => {
+    const k = $('#kpiRoster'); if (k) k.outerHTML = fmtVal(rosterKpi());
+    const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());
   });
-  const k = $('#kpiShift');
-  if (k) {
-    const n = upcoming[0];
-    const t = n && shiftType(n.type_id);
-    setHTML(k, html`
-      <div class="k-top"><span>Sıradaki nöbetiniz</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
-      ${n ? html`<div class="k-val sm">${relDay(n.date)}</div><div class="k-sub">${t ? `${t.name} · ${t.start}–${t.end}` : ''}${S.units.length > 1 ? ' · ' + unitName(n.unit_id) : ''}</div>`
-          : html`<div class="k-val sm">Planlı nöbet yok</div><div class="k-sub">Önümüzdeki 60 gün</div>`}`);
-  }
-  const box = $('#myShiftsBox');
-  if (box) {
-    setHTML(box, upcoming.length ? html`<div>${upcoming.slice(0, 5).map(myShiftRow)}</div>`
-      : html`<div class="empty" style="padding:28px 16px"><p class="small">Yaklaşan nöbetiniz bulunmuyor.</p></div>`);
-  }
 }
 
-function relDay(date) {
-  const d = parseDT(date);
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  const diff = Math.round((d - t) / 86400000);
-  if (diff === 0) return 'Bugün';
-  if (diff === 1) return 'Yarın';
-  if (diff === -1) return 'Dün';
-  return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${TR_DAYS_S[d.getDay()]}`;
+function latestRoster() {
+  return S.rosters.filter((r) => r.file).sort((a, b) => b.file.updated_at.localeCompare(a.file.updated_at))[0] || null;
 }
-
-function myShiftRow(s) {
-  const d = parseDT(s.date);
-  const t = shiftType(s.type_id) || { name: 'Vardiya', start: '', end: '', color: 'slate' };
-  return html`<div class="my-shift">
-    <div class="ms-date"><b>${d.getDate()}</b><span>${TR_MONTHS_S[d.getMonth()]}</span></div>
-    <div class="grow"><div class="row" style="gap:6px"><span class="legend-dot tone-${t.color}" style="background:currentColor"></span><b class="small">${t.name}</b><span class="tiny faint">${t.start}–${t.end}</span></div>
-    <div class="tiny faint">${relDay(s.date)}${S.units.length > 1 ? ' · ' + unitName(s.unit_id) : ''}</div></div>
-  </div>`;
+function rosterKpi() {
+  const r = latestRoster();
+  return html`<a class="kpi" href="${r ? '#/nobet/' + r.id : '#/nobet'}" id="kpiRoster">
+    <div class="k-top"><span>Nöbet listesi</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('table', 'sm')}</span></div>
+    ${r ? html`<div class="k-val sm ellipsis">${r.name}</div><div class="k-sub">${fmtRel(r.file.updated_at)} güncellendi</div>`
+      : html`<div class="k-val sm">Henüz yüklenmedi</div><div class="k-sub">Excel listeleri burada açılır</div>`}
+  </a>`;
+}
+function rosterCard() {
+  return html`<div class="card-head"><h3>Nöbet listeleri</h3>${isPublisher() ? html`<a class="small" href="#/nobet">Yönet</a>` : ''}</div>
+    <div class="list">${S.rosters.length ? S.rosters.map((r) => html`<a class="list-row" href="#/nobet/${r.id}" style="color:inherit;text-decoration:none">
+      <span class="cat-ico sm tone-emerald">${icon('table')}</span>
+      <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${r.name}</div><div class="lr-s">${r.file ? fmtRel(r.file.updated_at) + ' güncellendi' : 'Henüz yüklenmedi'}</div></div>
+      ${r.file && isFresh(r.file.updated_at) ? html`<span class="badge brand">Yeni</span>` : ''}${icon('chevR', 'sm')}
+    </a>`) : html`<div class="list-row small muted">Henüz liste oluşturulmadı.</div>`}</div>`;
 }
 
 /* ================= Akış ================= */
@@ -399,47 +373,23 @@ ACT.bookmark = async (el) => {
 /* ================= Ekler ================= */
 function fileKind(mime, name) {
   const ext = (String(name).split('.').pop() || '').toLowerCase();
-  if (mime.startsWith('image/')) return { k: 'image', label: 'GÖRSEL', tone: 'violet' };
-  if (mime.startsWith('video/')) return { k: 'video', label: 'VİDEO', tone: 'rose' };
-  if (mime.startsWith('audio/')) return { k: 'audio', label: 'SES', tone: 'amber' };
+  if (mime.startsWith('image/')) return { k: 'image', label: (ext || 'IMG').toUpperCase().slice(0, 4), tone: 'violet' };
+  if (mime.startsWith('video/')) return { k: 'video', label: (ext || 'VID').toUpperCase().slice(0, 4), tone: 'rose' };
+  if (mime.startsWith('audio/')) return { k: 'audio', label: (ext || 'SES').toUpperCase().slice(0, 4), tone: 'amber' };
   if (mime === 'application/pdf') return { k: 'pdf', label: 'PDF', tone: 'rose' };
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return { k: 'sheet', label: ext.toUpperCase(), tone: 'emerald' };
+  if (['xls', 'xlsx', 'xlsm', 'ods', 'csv'].includes(ext)) return { k: 'sheet', label: ext.toUpperCase(), tone: 'emerald' };
   if (['doc', 'docx'].includes(ext)) return { k: 'doc', label: ext.toUpperCase(), tone: 'sky' };
   if (['ppt', 'pptx'].includes(ext)) return { k: 'slide', label: ext.toUpperCase(), tone: 'amber' };
   return { k: 'file', label: (ext || 'DOSYA').toUpperCase().slice(0, 4), tone: 'slate' };
 }
-function dlUrl(a) { return a.url + (a.url.startsWith('api.php') ? '&dl=1' : ''); }
-
 function attachmentsBlock(atts) {
   if (!atts || !atts.length) return '';
-  const media = atts.filter((a) => ['image', 'video', 'audio'].includes(fileKind(a.mime, a.name).k));
-  return html`
-    <div class="stack" style="gap:10px">
-      ${media.map((a) => {
-        const k = fileKind(a.mime, a.name).k;
-        if (k === 'image') return html`<div class="preview"><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="${a.name}" loading="lazy"></a></div>`;
-        if (k === 'video') return html`<div class="preview"><video src="${a.url}" controls playsinline preload="metadata"></video></div>`;
-        return html`<div class="preview"><audio src="${a.url}" controls preload="metadata"></audio></div>`;
-      })}
-      <div class="label">${icon('paperclip', 'sm')} Ekler (${atts.length})</div>
-      <div class="att-list">${atts.map((a) => {
-        const fk = fileKind(a.mime, a.name);
-        return html`<div class="att">
-          <span class="a-ico tone-${fk.tone}">${fk.label}</span>
-          <div class="grow"><div class="a-name">${a.name}</div><div class="a-sub">${fmtSize(a.size)}</div></div>
-          ${fk.k === 'pdf' ? html`<button class="btn sm" data-act="pdf-preview" data-url="${a.url}">${icon('eye', 'sm')}<span class="desk-only">Görüntüle</span></button>` : ''}
-          <a class="btn sm icon" href="${dlUrl(a)}" download="${a.name}" title="İndir" aria-label="İndir">${icon('download', 'sm')}</a>
-        </div>`;
-      })}</div>
-    </div>`;
+  const auto = atts.filter((a) => previewKind(a) !== 'none').slice(0, 4).map((a) => a.id);
+  return html`<div class="stack" style="gap:10px">
+    <div class="label">${icon('paperclip', 'sm')} Ekler (${atts.length})</div>
+    ${atts.map((a) => fileCard(a, auto.includes(a.id)))}
+  </div>`;
 }
-ACT['pdf-preview'] = (el) => {
-  const url = el.dataset.url;
-  if (window.NM_DEMO_API) { toast('Önizlemede PDF görüntüleyici kapalıdır; sitenize kurduğunuzda açılır.'); return; }
-  if (window.innerWidth < 900) { window.open(url, '_blank', 'noopener'); return; }
-  const m = openModal({ title: 'Belge önizleme', size: 'wide', body: html`<div class="preview"><iframe src="${url}" title="PDF"></iframe></div>`, foot: html`<a class="btn" href="${url}" target="_blank" rel="noopener">${icon('link', 'sm')}Yeni sekmede aç</a>` });
-  m.body.style.padding = '0';
-};
 
 /* ================= İçerik detayı ================= */
 let DETAIL = null;
@@ -509,6 +459,7 @@ function renderDetail() {
       ${readers}
       ${p.updated_at && p.published_at && p.updated_at > p.published_at ? html`<p class="tiny faint">Son düzenleme: ${fmtDateTime(p.updated_at)}</p>` : ''}
     </div>`);
+  hydrateViewers(m.body);
 
   const foot = [];
   if (p.status === 'pending' && isPublisher()) {
@@ -675,7 +626,7 @@ function openComposer(post) {
           <label class="dropzone" id="dropzone">
             <input type="file" multiple hidden id="fileInput">
             ${icon('upload', 'lg')}<div style="margin-top:6px"><b>Dosya seçin</b> veya buraya sürükleyin</div>
-            <div class="hint">PDF, Word, Excel, PowerPoint, görsel, video · dosya başına en fazla ${S.upload_max_mb} MB</div>
+            <div class="hint">Her tür dosya: PDF, Excel, Word, görsel, video… ${S.upload_max_mb ? `· dosya başına en fazla ${S.upload_max_mb} MB` : '· boyut sınırı yok'}</div>
           </label>
           <div class="att-list" id="attList"></div>
         </div>
@@ -697,7 +648,7 @@ function openComposer(post) {
     return html`<div class="att">
       <span class="a-ico tone-${fk.tone}">${fk.label}</span>
       <div class="grow"><div class="a-name">${a.name}</div>
-        <div class="a-sub">${a.state === 'err' ? html`<span style="color:var(--danger)">${a.error}</span>` : a.state === 'up' ? `Yükleniyor… %${Math.round(a.progress * 100)}` : fmtSize(a.size)}</div>
+        <div class="a-sub">${a.state === 'err' ? html`<span style="color:var(--danger)">${a.error}</span>` : a.state === 'up' ? (a.progress ? `Yükleniyor… %${Math.round(a.progress * 100)} · ${fmtSize(a.size)}` : `Sırada · ${fmtSize(a.size)}`) : fmtSize(a.size)}</div>
         ${a.state === 'up' ? html`<div class="bar"><span style="width:${Math.round(a.progress * 100)}%"></span></div>` : ''}
       </div>
       <button type="button" class="btn ghost icon sm" data-rm="${i}" aria-label="Kaldır" ${a.state === 'up' ? raw('disabled') : ''}>${icon('x', 'sm')}</button>
@@ -707,11 +658,12 @@ function openComposer(post) {
   const addFiles = (files) => {
     for (const file of files) {
       const a = { name: file.name, size: file.size, mime: file.type || '', state: 'up', progress: 0 };
-      if (file.size > S.upload_max_mb * 1048576) { a.state = 'err'; a.error = `Dosya ${S.upload_max_mb} MB sınırını aşıyor`; st.atts.push(a); continue; }
+      if (S.upload_max_mb && file.size > S.upload_max_mb * 1048576) { a.state = 'err'; a.error = `Dosya ${S.upload_max_mb} MB sınırını aşıyor`; st.atts.push(a); continue; }
       st.atts.push(a);
-      uploadFile(file, (p) => { a.progress = p; renderAtts(); })
+      // Sırayla yükle: ekler seçildikleri sırada kalır
+      st.queue = (st.queue || Promise.resolve()).then(() => uploadFile(file, (p) => { a.progress = p; renderAtts(); })
         .then((res) => { Object.assign(a, res, { state: 'done' }); renderAtts(); })
-        .catch((e) => { a.state = 'err'; a.error = e.message; renderAtts(); });
+        .catch((e) => { a.state = 'err'; a.error = e.message; renderAtts(); }));
     }
     renderAtts();
   };

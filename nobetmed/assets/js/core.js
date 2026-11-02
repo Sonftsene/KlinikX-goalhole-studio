@@ -13,11 +13,11 @@ const S = {
   categories: [],
   units: [],
   titles: [],
-  shift_types: [],
+  rosters: [],
   people: [],
   counts: { unread: 0, unread_by_cat: {}, todo: 0, saved: 0, pending_posts: 0, pending_users: 0 },
   google_client_id: '',
-  upload_max_mb: 50,
+  upload_max_mb: 0,
   bannerHidden: false,
 };
 
@@ -55,25 +55,46 @@ async function api(action, data = {}) {
   return json;
 }
 
-function uploadFile(file, onProgress) {
+/** Dosyayı parçalara bölerek yükler: sunucunun PHP yükleme sınırı dosya boyutunu kısıtlamaz. */
+async function uploadFile(file, onProgress) {
   if (window.NM_DEMO_API) return window.NM_DEMO_API.upload(file, onProgress);
-  return new Promise((resolve, reject) => {
+  const init = await api('upload.init', { name: file.name, size: file.size });
+  const size = init.chunk_size || 2097152;
+  let offset = 0;
+  const sendChunk = (blob, at) => new Promise((resolve, reject) => {
     const fd = new FormData();
-    fd.append('file', file);
+    fd.append('token', init.token);
+    fd.append('offset', String(at));
+    fd.append('chunk', blob, 'parca');
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'api.php?action=upload');
+    xhr.open('POST', 'api.php?action=upload.chunk');
     xhr.setRequestHeader('X-CSRF', S.csrf);
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress && file.size) onProgress(Math.min(0.999, (at + e.loaded) / file.size)); };
     xhr.onload = () => {
       let json = null;
       try { json = JSON.parse(xhr.responseText); } catch (e) { /* */ }
-      if (xhr.status === 413) return reject(new ApiError('Dosya sunucu sınırını aşıyor.', 413));
-      if (!json || !json.ok) return reject(new ApiError((json && json.error) || 'Yükleme başarısız.', xhr.status));
-      resolve(json.attachment);
+      if (json && json.ok) return resolve(json);
+      const err = new ApiError((json && json.error) || 'Dosya parçası gönderilemedi (' + xhr.status + ').', xhr.status);
+      err.retry = !json || xhr.status >= 500 || xhr.status === 0;
+      reject(err);
     };
-    xhr.onerror = () => reject(new ApiError('Yükleme sırasında bağlantı kesildi.', 0));
+    xhr.onerror = () => { const e = new ApiError('Yükleme sırasında bağlantı kesildi.', 0); e.retry = true; reject(e); };
     xhr.send(fd);
   });
+  while (offset < file.size) {
+    const blob = file.slice(offset, offset + size);
+    for (let attempt = 1; ; attempt++) {
+      try { await sendChunk(blob, offset); break; } catch (e) {
+        if (!e.retry || attempt >= 5) throw e;
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+    offset += blob.size;
+    if (onProgress) onProgress(Math.min(0.999, offset / file.size));
+  }
+  const fin = await api('upload.finish', { token: init.token });
+  if (onProgress) onProgress(1);
+  return fin.attachment;
 }
 
 /* ---------------- HTML ---------------- */
@@ -151,6 +172,9 @@ const ICON_PATHS = {
   list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
   layers: 'M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 16v-4 M12 8h.01',
+  expand: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
+  table: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M3 9h18 M3 15h18 M9 3v18 M15 3v18',
+  history: 'M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2',
 };
 function icon(name, cls = '') {
   const d = ICON_PATHS[name] || ICON_PATHS.folder;
@@ -220,7 +244,6 @@ const byId = (list, id) => list.find((x) => x.id === id) || null;
 const catOf = (id) => byId(S.categories, id) || { id, name: 'Bölüm', icon: 'folder', color: 'slate' };
 const unitName = (id) => (byId(S.units, id) || {}).name || '';
 const titleName = (id) => (byId(S.titles, id) || {}).name || '';
-const shiftType = (id) => byId(S.shift_types, id);
 const ROLE_LABEL = { admin: 'Yönetici', editor: 'Yayıncı', member: 'Üye' };
 const ROLE_HINT = {
   admin: 'Tüm ayarlar, kullanıcılar ve içerikler',
@@ -340,7 +363,7 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
   ov.addEventListener('click', (e) => { if (e.target === ov && downOnOverlay) m.close(); });
   modalStack.push(m);
   const first = ov.querySelector('input:not([type=hidden]):not([type=checkbox]), textarea, select');
-  if (first && window.innerWidth > 900) setTimeout(() => first.focus(), 30);
+  if (first && window.innerWidth > 900) first.focus({ preventScroll: true });
   return m;
 }
 ACT['close-modal'] = (el) => {

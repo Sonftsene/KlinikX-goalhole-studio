@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '2.0.0';
+const NM_VERSION = '2.1.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -103,20 +103,19 @@ function nm_migrate(PDO $pdo): void
     $pk = $my ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
     $end = $my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
 
-    // Hızlı kontrol: şema zaten güncelse çık
+    $version = 0;
     try {
-        $v = $pdo->query("SELECT v FROM settings WHERE k = 'schema_version'")->fetchColumn();
-        if ($v === '1') return;
+        $version = (int)$pdo->query("SELECT v FROM settings WHERE k = 'schema_version'")->fetchColumn();
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
+    if ($version >= 2) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
         "CREATE TABLE IF NOT EXISTS units (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS titles (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS categories (id $pk, name VARCHAR(100) NOT NULL, icon VARCHAR(30) NOT NULL DEFAULT 'folder', color VARCHAR(20) NOT NULL DEFAULT 'teal', sort INT NOT NULL DEFAULT 0)$end",
-        "CREATE TABLE IF NOT EXISTS shift_types (id $pk, name VARCHAR(60) NOT NULL, start_time VARCHAR(5) NOT NULL, end_time VARCHAR(5) NOT NULL, color VARCHAR(20) NOT NULL DEFAULT 'sky', sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS users (
             id $pk,
             name VARCHAR(120) NOT NULL,
@@ -150,39 +149,47 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS attachments (
             id $pk,
             post_id INT NULL,
+            roster_id INT NULL,
             user_id INT NOT NULL,
             orig_name VARCHAR(255) NOT NULL,
             stored_name VARCHAR(80) NOT NULL,
             mime VARCHAR(100) NOT NULL,
-            size INT NOT NULL,
+            size BIGINT NOT NULL,
             created_at VARCHAR(19) NOT NULL
         )$end",
         "CREATE TABLE IF NOT EXISTS acks (post_id INT NOT NULL, user_id INT NOT NULL, created_at VARCHAR(19) NOT NULL, PRIMARY KEY (post_id, user_id))$end",
         "CREATE TABLE IF NOT EXISTS views (post_id INT NOT NULL, user_id INT NOT NULL, PRIMARY KEY (post_id, user_id))$end",
         "CREATE TABLE IF NOT EXISTS saves (post_id INT NOT NULL, user_id INT NOT NULL, PRIMARY KEY (post_id, user_id))$end",
-        "CREATE TABLE IF NOT EXISTS shifts (id $pk, unit_id INT NOT NULL, date VARCHAR(10) NOT NULL, type_id INT NOT NULL, user_id INT NULL, name VARCHAR(120) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS rosters (id $pk, name VARCHAR(120) NOT NULL, sort INT NOT NULL DEFAULT 0, created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS roster_files (id $pk, roster_id INT NOT NULL, attachment_id INT NOT NULL, user_id INT NOT NULL, created_at VARCHAR(19) NOT NULL)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
     foreach ($tables as $sql) $pdo->exec($sql);
+
+    // Sürüm 1'den yükseltme: eklere nöbet listesi bağlantısı
+    if ($version === 1) {
+        try { $pdo->exec('ALTER TABLE attachments ADD COLUMN roster_id INT NULL'); } catch (Throwable $e) { /* zaten var */ }
+        if ($my) {
+            try { $pdo->exec('ALTER TABLE attachments MODIFY size BIGINT NOT NULL'); } catch (Throwable $e) { /* */ }
+        }
+    }
 
     $indexes = [
         'CREATE INDEX idx_posts_status ON posts (status, published_at)',
         'CREATE UNIQUE INDEX idx_posts_share ON posts (share_token)',
         'CREATE INDEX idx_att_post ON attachments (post_id)',
-        'CREATE INDEX idx_shifts_unit_date ON shifts (unit_id, date)',
-        'CREATE INDEX idx_shifts_user ON shifts (user_id, date)',
+        'CREATE INDEX idx_roster_files ON roster_files (roster_id, id)',
         'CREATE INDEX idx_login_ip ON login_attempts (ip, at)',
     ];
     foreach ($indexes as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { /* zaten var */ }
     }
 
-    $count = (int)$pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn();
-    if ($count === 0) {
-        $ins = function (string $sql, array $rows) use ($pdo) {
-            $st = $pdo->prepare($sql);
-            foreach ($rows as $i => $r) $st->execute(array_merge($r, [$i]));
-        };
+    $ins = function (string $sql, array $rows) use ($pdo) {
+        $st = $pdo->prepare($sql);
+        foreach ($rows as $i => $r) $st->execute(array_merge($r, [$i]));
+    };
+    if ((int)$pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn() === 0) {
         $ins('INSERT INTO categories (name, icon, color, sort) VALUES (?, ?, ?, ?)', [
             ['Duyurular', 'megaphone', 'rose'],
             ['Eğitim & Video', 'play', 'violet'],
@@ -194,10 +201,6 @@ function nm_migrate(PDO $pdo): void
             ['Sorumlu Hemşire'], ['Sorumlu Hemşire Yardımcısı'], ['Eğitim Hemşiresi'], ['Hemşire'], ['Personel'],
         ]);
         $ins('INSERT INTO units (name, sort) VALUES (?, ?)', [['Genel']]);
-        $ins('INSERT INTO shift_types (name, start_time, end_time, color, sort) VALUES (?, ?, ?, ?, ?)', [
-            ['Gündüz', '08:00', '16:00', 'amber'],
-            ['Gece', '16:00', '08:00', 'indigo'],
-        ]);
         $set = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?)');
         foreach ([
             'org_name' => 'Klinik Portalı',
@@ -207,10 +210,13 @@ function nm_migrate(PDO $pdo): void
             'banner_tone' => 'danger',
         ] as $k => $v) $set->execute([$k, $v]);
     }
-    $exists = $pdo->query("SELECT COUNT(*) FROM settings WHERE k = 'schema_version'")->fetchColumn();
-    if ((int)$exists === 0) {
-        $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '1')");
+    if ((int)$pdo->query('SELECT COUNT(*) FROM rosters')->fetchColumn() === 0) {
+        $st = $pdo->prepare('INSERT INTO rosters (name, sort, created_at) VALUES (?, ?, ?)');
+        $st->execute(['Hemşire Nöbet Listesi', 0, date('Y-m-d H:i:s')]);
+        $st->execute(['Personel Nöbet Listesi', 1, date('Y-m-d H:i:s')]);
     }
+    $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '2')");
 }
 
 function setting(string $k, string $default = ''): string

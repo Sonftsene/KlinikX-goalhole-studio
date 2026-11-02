@@ -4,7 +4,7 @@ require __DIR__ . '/inc/bootstrap.php';
 nm_session();
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self' https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self' https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
 $v = NM_VERSION;
 $boot = json_encode(['csrf' => $_SESSION['csrf'], 'share' => (string)($_GET['s'] ?? '')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?><!DOCTYPE html>
@@ -28,7 +28,7 @@ $boot = json_encode(['csrf' => $_SESSION['csrf'], 'share' => (string)($_GET['s']
 <body>
   <div id="app"><div class="boot-splash"><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
-<?php foreach (['core', 'auth', 'posts', 'shifts', 'admin', 'main'] as $js): ?>
+<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>
 <?php endforeach; ?>
 </body>

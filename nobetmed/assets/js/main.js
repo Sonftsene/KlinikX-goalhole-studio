@@ -8,7 +8,7 @@ async function start() {
   }
   const r = await api('boot');
   S.csrf = r.csrf || S.csrf;
-  ['me', 'settings', 'categories', 'units', 'titles', 'shift_types', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });
+  ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });
   S.people = r.people || [];
   if (r.counts) S.counts = r.counts;
   document.title = 'NöbetMed · ' + (S.settings.org_name || 'Klinik Portalı');
@@ -20,7 +20,10 @@ async function start() {
 
 // Sekmeye geri dönüldüğünde sayıları tazele
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && S.me && $('#shell')) refreshCounts();
+  if (document.visibilityState === 'visible' && S.me && $('#shell')) {
+    refreshCounts();
+    if (RS.stage && document.body.contains(RS.stage)) syncRosters();
+  }
 });
 setInterval(() => { if (document.visibilityState === 'visible' && S.me && $('#shell')) refreshCounts(); }, 120000);
 

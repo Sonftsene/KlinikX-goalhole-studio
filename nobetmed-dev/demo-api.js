@@ -2,7 +2,8 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v2';
+  const KEY = 'nm-demo-v3';
+  const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
   const pad = (n) => String(n).padStart(2, '0');
   const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   const now = () => fmt(new Date());
@@ -17,7 +18,6 @@
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="${250 + lines.length * 62}" viewBox="0 0 960 ${250 + lines.length * 62}"><rect width="100%" height="100%" fill="#f6faf9"/><rect width="100%" height="120" fill="${color}"/><text x="60" y="76" font-family="Inter,Arial" font-weight="700" font-size="34" fill="#fff">${title}</text>${items}</svg>`;
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
-  const PDF = 'data:application/pdf;base64,' + btoa('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj 4 0 obj<</Length 66>>stream\nBT /F1 22 Tf 60 760 Td (NobetMed demo belgesi) Tj ET\nendstream endobj 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
 
   function seed() {
     const db = {
@@ -32,7 +32,6 @@
         { id: 4, name: 'Belgeler & Formlar', icon: 'file', color: 'sky' },
         { id: 5, name: 'Toplantı Kararları', icon: 'users', color: 'amber' },
       ],
-      shift_types: [{ id: 1, name: 'Gündüz', start: '08:00', end: '16:00', color: 'amber' }, { id: 2, name: 'Gece', start: '16:00', end: '08:00', color: 'indigo' }],
       users: [
         [1, 'Ayşe Kaya', 'ayse.kaya@hastane.org', 1, 1, 'admin', 'active', 0.2],
         [2, 'Mehmet Öztürk', 'mehmet.ozturk@hastane.org', 2, 2, 'editor', 'active', 3],
@@ -45,7 +44,7 @@
         [9, 'Selin Arslan', 'selin.arslan@gmail.com', 5, 3, 'member', 'pending', null],
         [10, 'Kemal Bulut', 'kemal.bulut@hastane.org', 5, 1, 'member', 'active', 70],
       ].map(([id, name, email, title_id, unit_id, role, status, seen]) => ({ id, name, email, title_id, unit_id, role, status, created_at: ago(24 * 40 + id), last_seen_at: seen === null ? null : ago(seen), has_password: true, pw: 'demo1234' })),
-      posts: [], attachments: [], acks: [], views: [], saves: [], shifts: [],
+      posts: [], attachments: [], acks: [], views: [], saves: [], rosters: [], roster_files: [],
       me: 1,
     };
     const P = (o) => { const p = { id: ++db.seq, unit_id: null, status: 'published', pinned: false, required: false, reject_reason: null, share_token: null, share_expires: null, ...o }; p.created_at = p.created_at || ago(o.h || 1); p.updated_at = p.created_at; p.published_at = p.status === 'published' ? p.created_at : null; delete p.h; db.posts.push(p); return p; };
@@ -54,7 +53,7 @@
     const p1 = P({ title: 'Yüksek riskli ilaçlarda çift kontrol protokolü (güncel)', category_id: 3, author_id: 1, pinned: true, required: true, h: 26,
       body: 'İnsülin, heparin, potasyum klorür ve narkotik analjeziklerin hazırlanması ve uygulanması sırasında iki hemşirenin bağımsız kontrolü ve imzası zorunludur.\n\nKontrol adımları:\n1. Doğru hasta, doğru ilaç, doğru doz, doğru yol, doğru zaman\n2. İkinci hemşire hesaplamayı bağımsız olarak yapar\n3. Her iki hemşire ilaç uygulama formunu imzalar\n\nEkteki kontrol listesini ilaç odasına asınız.' });
     A(p1, 'cift-kontrol-kontrol-listesi.png', 'image/svg+xml', 182000, poster('Çift Kontrol Kontrol Listesi', ['Hasta kimliği iki tanımlayıcı ile doğrulandı', 'İlaç adı ve konsantrasyon okundu', 'Doz hesabı ikinci hemşirece yapıldı', 'Pompa hızı birlikte kontrol edildi', 'Uygulama formu iki imzalı'], '#0b7a75'));
-    A(p1, 'Yuksek_Riskli_Ilac_Protokolu_2026.pdf', 'application/pdf', 418000, PDF);
+    A(p1, 'cift-kontrol-protokolu.pdf', 'application/pdf', 27045, fx('cift-kontrol-protokolu.pdf'));
     const p2 = P({ title: '6 Kasım Cuma kalite denetimi hazırlıkları', category_id: 1, author_id: 1, pinned: true, required: true, h: 5,
       body: 'Cuma 09:30\'da iç denetim yapılacaktır. Lütfen vardiya teslimlerinde aşağıdakileri kontrol edin:\n\n• Acil arabası mühür ve sayım formu\n• İlaç buzdolabı ısı takip çizelgesi\n• Atık ayrıştırma kutularının doluluk seviyesi\n• Hasta düşme riski değerlendirme formları\n\nSorularınız için Ayşe Hemşire\'ye ulaşabilirsiniz.' });
     const p3 = P({ title: 'Mavi kod ve yeni defibrilatör kullanımı eğitimi', category_id: 2, author_id: 7, required: true, h: 52,
@@ -62,10 +61,10 @@
     A(p3, 'defibrilator-egitim-ozeti.png', 'image/svg+xml', 96000, poster('Defibrilatör — Hızlı Bakış', ['Pedleri sağ klavikula altı ve sol koltuk altına yerleştirin', 'Erişkin bifazik: 150–200 J', 'Şok öncesi “Herkes uzak!” uyarısı', 'Şok sonrası 2 dk KPR, sonra ritim kontrolü'], '#7b45c4'));
     const p4 = P({ title: 'Ekim ayı hemşirelik toplantısı kararları', category_id: 5, author_id: 1, h: 24 * 5,
       body: 'Alınan kararlar:\n- Nöbet teslim süresi 15 dakika olarak sabitlendi.\n- Order kontrol saatleri 10:00 ve 22:00.\n- Yeni başlayan hemşirelerin oryantasyon programı 2 haftaya çıkarıldı.\n- Bir sonraki toplantı: 1 Aralık, 14:00, eğitim salonu.' });
-    A(p4, 'Ekim_2026_Toplanti_Tutanagi.pdf', 'application/pdf', 230000, PDF);
+    A(p4, 'personel-nobet-kasim-2026.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 7889, fx('personel-nobet-kasim-2026.xlsx'));
     const p5 = P({ title: 'SVK pansuman değişimi ve enfeksiyon önleme rehberi', category_id: 4, author_id: 3, unit_id: 1, h: 24 * 7,
       body: 'Klorheksidinli pansuman 7 günde bir veya kirlendiğinde değiştirilir. Lümen yıkama protokolü ve kateter ilişkili kan dolaşımı enfeksiyonu önleme kontrol listesi ektedir.' });
-    A(p5, 'SVK_Bakim_Rehberi_v4.pdf', 'application/pdf', 512000, PDF);
+    A(p5, 'basinc-yarasi-onleme.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 1384, fx('basinc-yarasi-onleme.docx'));
     P({ title: 'Kasım ayı nöbet listesi yayınlandı', category_id: 1, author_id: 2, h: 24 * 3,
       body: 'Kasım ayı nöbet çizelgesi portaldaki “Nöbet çizelgesi” bölümünde yayınlanmıştır. Değişiklik talepleriniz için en geç 3 gün önceden sorumlu hemşirenize başvurunuz.' });
     P({ title: 'Basınç yarası risk değerlendirmesi (Braden) formu', category_id: 4, author_id: 7, h: 24 * 12,
@@ -84,20 +83,16 @@
     db.views = db.views.filter((v) => !(v.user_id === 1 && v.post_id === p3.id));
     db.saves.push({ post_id: p1.id, user_id: 1 }, { post_id: p4.id, user_id: 3 });
 
-    // nöbet çizelgesi: bu ay ve gelecek ay, Yoğun Bakım
-    const staff = [1, 3, 4, 5, 6, 7];
-    const nameOf = (id) => db.users.find((u) => u.id === id).name;
-    const start = new Date(); start.setDate(1);
-    for (let k = 0; k < 62; k++) {
-      const d = new Date(start); d.setDate(1 + k);
-      const ds = ymd(d);
-      const day = [staff[(2 * k) % 6], staff[(2 * k + 1) % 6]];
-      const night = [staff[(2 * k + 4) % 6], staff[(2 * k + 5) % 6]];
-      day.forEach((u) => db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 1, user_id: u, name: nameOf(u) }));
-      night.forEach((u) => db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 2, user_id: u, name: nameOf(u) }));
-      if (k % 3 === 0) db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 2, user_id: null, name: 'Pers. Kemal B.' });
-      db.shifts.push({ id: ++db.seq, unit_id: 2, date: ds, type_id: k % 2 ? 1 : 2, user_id: 8, name: 'Mert Tan' });
-    }
+    // Excel nöbet listeleri
+    const R = (id, name, file, size, h, by) => {
+      db.rosters.push({ id, name });
+      if (!file) return;
+      const att = { id: ++db.seq, post_id: null, roster_id: id, user_id: by, name: file, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size, url: fx(file) };
+      db.attachments.push(att);
+      db.roster_files.push({ id: ++db.seq, roster_id: id, attachment_id: att.id, user_id: by, created_at: ago(h) });
+    };
+    R(1, 'Hemşire Nöbet Listesi', 'hemsire-nobet-kasim-2026.xlsx', 10006, 30, 1);
+    R(2, 'Personel Nöbet Listesi', 'personel-nobet-kasim-2026.xlsx', 7889, 75, 2);
     return db;
   }
 
@@ -113,7 +108,16 @@
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
   const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true });
-  const lists = () => ({ categories: db.categories, units: db.units, titles: db.titles, shift_types: db.shift_types });
+  const lists = () => ({ categories: db.categories, units: db.units, titles: db.titles });
+  const attOut = (a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl || a.url });
+  function rosterOut(r) {
+    const files = db.roster_files.filter((f) => f.roster_id === r.id).sort((a, b) => b.id - a.id);
+    const f = files[0];
+    const att = f && db.attachments.find((a) => a.id === f.attachment_id);
+    const user = f && db.users.find((u) => u.id === f.user_id);
+    return { id: r.id, name: r.name, versions: files.length, file: att ? { ...attOut(att), updated_at: f.created_at, user_name: user ? user.name : null } : null };
+  }
+  const rosterList = () => db.rosters.map(rosterOut);
   const canView = (u, p) => isPub(u) || p.author_id === u.id || (p.status === 'published' && (p.unit_id === null || p.unit_id === u.unit_id));
   const visible = (u, p) => p.status === 'published' && (isPub(u) || p.unit_id === null || p.unit_id === u.unit_id);
   const has = (arr, p, u) => arr.some((x) => x.post_id === p.id && x.user_id === u.id);
@@ -144,10 +148,11 @@
   const H = {
     boot() {
       const u = me();
-      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 25, ...lists() };
+      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, ...lists() };
       if (u) {
         Object.assign(out.settings, { banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone });
         out.counts = counts(u);
+        out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
       }
       return out;
@@ -251,22 +256,41 @@
       p.share_token = token(); p.share_expires = fmt(new Date(Date.now() + Math.min(d.days, 365) * 86400000));
       return { share: { token: p.share_token, expires: p.share_expires } };
     },
-    'shifts.month'(d) {
-      needUser();
-      const [y, m] = d.month.split('-').map(Number);
-      const from = ymd(new Date(y, m - 1, 0)), to = ymd(new Date(y, m, 1));
-      return { shifts: db.shifts.filter((s) => s.unit_id === d.unit_id && s.date >= from && s.date <= to) };
-    },
-    'shifts.set'(d) {
+    'rosters.list'() { needUser(); return { rosters: rosterList() }; },
+    'rosters.save'(d) {
       needPub();
-      db.shifts = db.shifts.filter((s) => !(s.unit_id === d.unit_id && s.date === d.date && s.type_id === d.type_id));
-      (d.people || []).forEach((p) => db.shifts.push({ id: ++db.seq, unit_id: d.unit_id, date: d.date, type_id: d.type_id, user_id: p.user_id || null, name: p.user_id ? db.users.find((u) => u.id === p.user_id).name : p.name }));
-      return {};
+      if ((d.name || '').trim().length < 2) err('Liste adı en az 2 karakter olmalıdır.');
+      let id = d.id;
+      if (id) (db.rosters.find((r) => r.id === id) || err('Liste bulunamadı.', 404)).name = d.name.trim();
+      else { id = ++db.seq; db.rosters.push({ id, name: d.name.trim() }); }
+      return { id, rosters: rosterList() };
     },
-    'shifts.mine'() {
-      const u = needUser();
-      const from = ymd(new Date(Date.now() - 86400000)), to = ymd(new Date(Date.now() + 60 * 86400000));
-      return { shifts: db.shifts.filter((s) => s.user_id === u.id && s.date >= from && s.date <= to).sort((a, b) => a.date.localeCompare(b.date) || a.type_id - b.type_id) };
+    'rosters.delete'(d) {
+      needPub();
+      db.rosters = db.rosters.filter((r) => r.id !== d.id);
+      db.roster_files = db.roster_files.filter((f) => f.roster_id !== d.id);
+      return { rosters: rosterList() };
+    },
+    'rosters.upload'(d) {
+      const u = needPub();
+      const r = db.rosters.find((x) => x.id === d.id) || err('Liste bulunamadı.', 404);
+      const a = db.attachments.find((x) => x.id === d.attachment_id && x.user_id === u.id && x.post_id === null) || err('Yüklenen dosya bulunamadı.', 404);
+      a.roster_id = r.id;
+      db.roster_files.push({ id: ++db.seq, roster_id: r.id, attachment_id: a.id, user_id: u.id, created_at: now() });
+      return { roster: rosterOut(r) };
+    },
+    'rosters.versions'(d) {
+      needUser();
+      return { versions: db.roster_files.filter((f) => f.roster_id === d.id).sort((a, b) => b.id - a.id).map((f) => {
+        const a = db.attachments.find((x) => x.id === f.attachment_id); const user = db.users.find((x) => x.id === f.user_id);
+        return { version_id: f.id, ...attOut(a), updated_at: f.created_at, user_name: user ? user.name : null };
+      }) };
+    },
+    'rosters.restore'(d) {
+      const u = needPub();
+      const f = db.roster_files.find((x) => x.id === d.version_id && x.roster_id === d.id) || err('Sürüm bulunamadı.', 404);
+      db.roster_files.push({ id: ++db.seq, roster_id: d.id, attachment_id: f.attachment_id, user_id: u.id, created_at: now() });
+      return { roster: rosterOut(db.rosters.find((r) => r.id === d.id)) };
     },
     'admin.users'() {
       needAdmin();
@@ -297,7 +321,6 @@
       if (d.id === a.id) err('Kendi hesabınızı silemezsiniz.');
       db.users = db.users.filter((u) => u.id !== d.id);
       ['acks', 'views', 'saves'].forEach((k) => { db[k] = db[k].filter((x) => x.user_id !== d.id); });
-      db.shifts.forEach((s) => { if (s.user_id === d.id) s.user_id = null; });
       return {};
     },
     'tax.save'(d) {
@@ -306,7 +329,6 @@
       if ((d.name || '').trim().length < 2) err('Ad en az 2 karakter olmalıdır.');
       const vals = { name: d.name.trim() };
       if (d.kind === 'categories') Object.assign(vals, { icon: d.icon, color: d.color });
-      if (d.kind === 'shift_types') { if (!/^\d{2}:\d{2}$/.test(d.start) || !/^\d{2}:\d{2}$/.test(d.end)) err('Saatleri SS:DD biçiminde girin.'); Object.assign(vals, { start: d.start, end: d.end, color: d.color }); }
       if (d.id) Object.assign(list.find((x) => x.id === d.id) || err('Kayıt bulunamadı.', 404), vals);
       else list.push({ id: ++db.seq, ...vals });
       return { id: d.id, ...lists() };
@@ -316,9 +338,8 @@
       const list = db[d.kind];
       if (list.length <= 1) err('En az bir kayıt kalmalıdır.');
       if (d.kind === 'categories') { const n = db.posts.filter((p) => p.category_id === d.id).length; if (n) err(`Bu bölümde ${n} içerik var. Önce içerikleri başka bölüme taşıyın veya silin.`); }
-      if (d.kind === 'units') { const n = db.shifts.filter((s) => s.unit_id === d.id).length; if (n) err(`Bu birimin nöbet çizelgesinde ${n} kayıt var. Önce çizelgeyi temizleyin.`); db.users.forEach((u) => { if (u.unit_id === d.id) u.unit_id = null; }); db.posts.forEach((p) => { if (p.unit_id === d.id) p.unit_id = null; }); }
+      if (d.kind === 'units') { db.users.forEach((u) => { if (u.unit_id === d.id) u.unit_id = null; }); db.posts.forEach((p) => { if (p.unit_id === d.id) p.unit_id = null; }); }
       if (d.kind === 'titles') db.users.forEach((u) => { if (u.title_id === d.id) u.title_id = null; });
-      if (d.kind === 'shift_types') { const n = db.shifts.filter((s) => s.type_id === d.id).length; if (n) err(`Bu vardiya türü çizelgede ${n} kez kullanılıyor. Önce o atamaları kaldırın.`); }
       db[d.kind] = list.filter((x) => x.id !== d.id);
       return lists();
     },
@@ -342,9 +363,6 @@
       return new Promise((resolve, reject) => {
         const u = me();
         if (!u) return reject(new Error('Giriş gerekli'));
-        const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'webm', 'mov', 'm4v', 'mp3', 'm4a', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt'];
-        if (!allowed.includes(ext)) return reject(new Error('Bu dosya türü desteklenmiyor: .' + ext));
         let p = 0;
         const t = setInterval(() => {
           p = Math.min(1, p + 0.18 + Math.random() * 0.2);

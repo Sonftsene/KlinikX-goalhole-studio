@@ -18,7 +18,8 @@ Veritabanı ilk açılışta otomatik oluşur (`data/nobetmed.sqlite`). SQL içe
 
 Yönetici olarak giriş yaptıktan sonra sol menüden:
 
-- **Bölüm ve birimler** → Servislerinizi (Yoğun Bakım, Acil…) ve vardiya saatlerinizi düzenleyin.
+- **Nöbet listeleri** → Hazır gelen iki listenin (*Hemşire Nöbet Listesi*, *Personel Nöbet Listesi*) adını **⋯ → Yeniden adlandır** ile değiştirin ve Excel dosyalarınızı yükleyin.
+- **Bölüm ve birimler** → Servislerinizi (Yoğun Bakım, Acil…) düzenleyin.
 - **Ayarlar** → Üye kaydı türünü seçin:
   - *Onaylı kayıt* (varsayılan): Herkes kayıt olur, siz onaylayınca giriş yapar.
   - *Açık kayıt*: Kayıt olan hemen girer.
@@ -29,8 +30,8 @@ Yönetici olarak giriş yaptıktan sonra sol menüden:
 
 | Yetki | Neler yapabilir |
 |---|---|
-| **Yönetici** | Her şey: kullanıcılar, bölümler, ayarlar, içerik onayı, nöbet çizelgesi |
-| **Yayıncı** | Onaysız yayın, ekibin içeriklerini onaylama, nöbet çizelgesi düzenleme |
+| **Yönetici** | Her şey: kullanıcılar, bölümler, ayarlar, içerik onayı, nöbet listeleri |
+| **Yayıncı** | Onaysız yayın, ekibin içeriklerini onaylama, nöbet listelerini yükleme ve düzenleme |
 | **Üye** | Görüntüleme, okundu onayı; eklediği içerikler onaya düşer |
 
 Sorumlu hemşireye *Yönetici*, yardımcısına ve eğitim hemşiresine *Yayıncı* vermeniz önerilir.
@@ -56,13 +57,21 @@ SQLite yüzlerce kullanıcı için yeterlidir. Yine de MySQL isterseniz:
 
 Google ile gelen yeni kişiler de kayıt ayarınıza (onaylı / açık / kapalı) tabidir.
 
-## 7. Dosya boyutu sınırı
+## 7. Nöbet listeleri (Excel)
 
-Varsayılan sınır dosya başına 100 MB'tır (`config.php` → `MAX_UPLOAD_MB`).
-Sunucunun PHP sınırı daha düşükse uygulama otomatik olarak onu gösterir.
-Büyük videolar için hPanel → **Gelişmiş → PHP Yapılandırması** → `upload_max_filesize` ve `post_max_size` değerlerini artırın.
+- Nöbet listeleri **Excel dosyası olarak yüklenir** ve sitede doğrudan, Excel'deki gibi açık görünür: renkler, kalın yazılar, kenarlıklar, birleştirilmiş hücreler, sütun genişlikleri, dondurulmuş satır/sütunlar ve birden fazla sayfa (alt sekmeler).
+- Desteklenen biçimler: `.xlsx`, `.xlsm`, `.xls`, `.ods`, `.csv` (PDF veya fotoğraf da yüklenebilir).
+- İstediğiniz kadar liste açabilir, her birine ad verebilirsiniz. Listeler arasındaki geçiş anında olur.
+- Listeyi güncellemek için **Yeni sürüm yükle** deyin. Son 15 sürüm saklanır. Yanlış dosya yüklenirse **⋯ → Önceki sürümler** bölümünden geri alabilirsiniz.
+- Ekip üyeleri listede arama yapabilir. **Beni bul** düğmesi, kendi adlarının geçtiği hücreleri işaretler.
 
-## 8. Yedekleme
+## 8. Dosya yükleme
+
+- **Her tür dosya** yüklenebilir. PDF, Excel, Word (.docx), görsel, video, ses ve metin dosyaları sitede doğrudan açılır. Diğerleri (PowerPoint, eski .doc, zip vb.) indirilerek açılır.
+- **Boyut sınırı yoktur.** Dosyalar küçük parçalar halinde gönderildiği için sunucunun PHP yükleme sınırına takılmaz. Tek sınır hosting paketinizin disk alanıdır.
+- İsterseniz `config.php` → `MAX_UPLOAD_MB` ile dosya başına bir sınır koyabilirsiniz (0 = sınırsız).
+
+## 9. Yedekleme
 
 Tüm veriler iki yerdedir:
 
@@ -71,13 +80,14 @@ Tüm veriler iki yerdedir:
 
 Bu ikisini düzenli olarak indirmeniz yeterlidir (Hostinger otomatik yedekleri de bunları kapsar).
 
-## 9. Gizlilik ve güvenlik
+## 10. Gizlilik ve güvenlik
 
 - Site arama motorlarına kapalıdır (`robots.txt`, `X-Robots-Tag` başlığı ve sayfa etiketleri).
 - Giriş yapmayan kişi hiçbir içerik göremez. Misafir bağlantısı yalnızca tek bir içeriği, süreli olarak açar ve istediğiniz an iptal edilebilir.
 - `data`, `uploads` ve `inc` klasörlerine tarayıcıdan doğrudan erişim engellidir; dosyalar yalnızca yetki kontrolünden sonra indirilir.
+- Yüklenen dosyalar sunucuda uzantısız (`.bin`) saklanır, bu yüzden yüklenen hiçbir dosya sunucuda çalıştırılamaz.
 - Şifreler tek yönlü şifrelenir; 15 dakikada 8 hatalı denemeden sonra giriş geçici olarak kilitlenir.
 
-## 10. Telefonda uygulama gibi kullanma
+## 11. Telefonda uygulama gibi kullanma
 
 Siteyi telefonda açın → tarayıcı menüsü → **Ana ekrana ekle**. Portal, kendi simgesiyle uygulama gibi açılır.

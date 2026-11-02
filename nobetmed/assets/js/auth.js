@@ -14,7 +14,7 @@ function authLayout(inner) {
         <p>WhatsApp gruplarında kaybolan bilgiler yerine düzenli, aranabilir ve kimin okuduğu belli olan bir klinik portalı.</p>
         <div class="auth-feats">
           <div class="auth-feat"><span class="fi">${icon('checkCircle')}</span><div><b>Okundu takibi</b><span>Zorunlu protokolleri kimin okuduğunu anında görün.</span></div></div>
-          <div class="auth-feat"><span class="fi">${icon('calendar')}</span><div><b>Akıllı nöbet çizelgesi</b><span>Çakışma uyarıları, kişi bazlı sayılar, Excel ve yazdırma.</span></div></div>
+          <div class="auth-feat"><span class="fi">${icon('calendar')}</span><div><b>Excel nöbet listeleri</b><span>Excel'de hazırladığınız liste sitede açık görünür; herkes adını tek tıkla bulur.</span></div></div>
           <div class="auth-feat"><span class="fi">${icon('lock')}</span><div><b>Kapalı ve güvenli</b><span>Arama motorlarına kapalı, yalnızca onaylı üyeler erişir.</span></div></div>
         </div>
       </div>
@@ -165,4 +165,5 @@ async function renderGuest(token) {
         ${attachmentsBlock(p.attachments)}
       </article>
     </div>`);
+  hydrateViewers(APP());
 }

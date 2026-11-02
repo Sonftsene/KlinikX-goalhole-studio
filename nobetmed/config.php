@@ -21,6 +21,8 @@ define('DB_PASS', '');
 // "Authorized JavaScript origins" kısmına sitenizin adresini ekleyin.
 define('GOOGLE_CLIENT_ID', '');
 
-// Saat dilimi ve dosya yükleme sınırı (MB)
 define('APP_TIMEZONE', 'Europe/Istanbul');
-define('MAX_UPLOAD_MB', 100);
+
+// Dosya başına yükleme sınırı (MB). 0 = sınırsız (dosyalar parça parça yüklenir,
+// sunucunun PHP yükleme sınırına takılmaz; tek sınır hosting disk alanınızdır).
+define('MAX_UPLOAD_MB', 0);

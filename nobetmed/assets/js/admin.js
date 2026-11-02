@@ -163,9 +163,8 @@ FORMS.user = (f) => submitForm(f, async (d) => {
 /* ---------------- Yapı: bölümler, birimler, ünvanlar, vardiyalar ---------------- */
 const TAX = {
   categories: { title: 'Bölümler', desc: 'Ana menüdeki içerik bölümleri', add: 'Bölüm ekle' },
-  units: { title: 'Birimler', desc: 'Servisler; nöbet çizelgesi ve hedefli içerik için', add: 'Birim ekle' },
+  units: { title: 'Birimler', desc: 'Servisler; içerikleri belirli bir birime hedeflemek için', add: 'Birim ekle' },
   titles: { title: 'Ünvanlar', desc: 'Kayıt ve profillerde görünen ünvanlar', add: 'Ünvan ekle' },
-  shift_types: { title: 'Vardiya türleri', desc: 'Nöbet çizelgesindeki sütunlar', add: 'Vardiya ekle' },
 };
 const CAT_ICONS = ['megaphone', 'play', 'stethoscope', 'file', 'users', 'book', 'pill', 'shield', 'clipboard', 'heart', 'folder', 'bell'];
 const COLORS = ['teal', 'sky', 'indigo', 'violet', 'rose', 'amber', 'emerald', 'slate'];
@@ -177,17 +176,17 @@ function drawStructure(body) {
     return html`<div class="card">
       <div class="card-head"><div><h3>${meta.title}</h3><div class="tiny faint">${meta.desc}</div></div><button class="btn sm" data-act="tax-edit" data-kind="${kind}">${icon('plus', 'sm')}${meta.add}</button></div>
       <div class="list">${list.map((x) => html`<div class="list-row">
-        ${kind === 'categories' ? catIcon(x, 'sm') : kind === 'shift_types' ? html`<span class="legend-dot tone-${x.color}" style="background:currentColor"></span>` : ''}
-        <div class="grow"><div class="lr-t">${x.name}</div>${kind === 'shift_types' ? html`<div class="lr-s">${x.start} – ${x.end}${x.end <= x.start ? ' (ertesi gün)' : ''}</div>` : ''}</div>
+        ${kind === 'categories' ? catIcon(x, 'sm') : ''}
+        <div class="grow"><div class="lr-t">${x.name}</div></div>
         <button class="btn ghost icon sm" data-act="tax-edit" data-kind="${kind}" data-id="${x.id}" aria-label="Düzenle">${icon('edit', 'sm')}</button>
         <button class="btn ghost icon sm danger" data-act="tax-del" data-kind="${kind}" data-id="${x.id}" aria-label="Sil">${icon('trash', 'sm')}</button>
       </div>`)}</div></div>`;
   };
-  setHTML(body, html`<div class="grid2" style="gap:16px;align-items:start">${card('categories')}${card('units')}${card('shift_types')}${card('titles')}</div>`);
+  setHTML(body, html`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start">${card('categories')}${card('units')}${card('titles')}</div>`);
 }
 
 function applyLists(r) {
-  ['categories', 'units', 'titles', 'shift_types'].forEach((k) => { if (r[k]) S[k] = r[k]; });
+  ['categories', 'units', 'titles'].forEach((k) => { if (r[k]) S[k] = r[k]; });
   renderNav();
   if ($('#adminBody') && AD.tab === 'yapi') drawStructure($('#adminBody'));
 }
@@ -195,7 +194,7 @@ function applyLists(r) {
 ACT['tax-edit'] = (el) => {
   const kind = el.dataset.kind;
   const x = el.dataset.id ? byId(S[kind], +el.dataset.id) : null;
-  const st = { icon: x ? x.icon : 'folder', color: x ? x.color : (kind === 'shift_types' ? 'sky' : 'teal') };
+  const st = { icon: x ? x.icon : 'folder', color: x ? x.color : 'teal' };
   const swatches = () => html`<div class="row wrap" style="gap:6px">${COLORS.map((c) => html`<button type="button" class="cat-ico sm tone-${c}" data-color="${c}" style="border:2px solid ${st.color === c ? 'currentColor' : 'transparent'}" aria-label="${c}"><span class="legend-dot" style="background:currentColor"></span></button>`)}</div>`;
   const icons = () => html`<div class="row wrap" style="gap:6px">${CAT_ICONS.map((i) => html`<button type="button" class="cat-ico tone-${st.icon === i ? st.color : 'slate'}" data-icon="${i}" style="border:0" aria-label="${i}">${icon(i)}</button>`)}</div>`;
   const m = openModal({
@@ -203,9 +202,8 @@ ACT['tax-edit'] = (el) => {
     size: 'narrow',
     body: html`<form class="stack" id="taxForm" data-form="tax">
       <div class="field"><label>Ad</label><input class="input" name="name" required minlength="2" value="${x ? x.name : ''}"></div>
-      ${kind === 'shift_types' ? html`<div class="grid2"><div class="field"><label>Başlangıç</label><input class="input" type="time" name="start" required value="${x ? x.start : '08:00'}"></div><div class="field"><label>Bitiş</label><input class="input" type="time" name="end" required value="${x ? x.end : '16:00'}"></div></div><p class="hint">Bitiş başlangıçtan önceyse vardiya ertesi güne taşar (gece nöbeti).</p>` : ''}
       ${kind === 'categories' ? html`<div class="field"><label>Simge</label><div id="iconBox">${icons()}</div></div>` : ''}
-      ${kind === 'categories' || kind === 'shift_types' ? html`<div class="field"><label>Renk</label><div id="colorBox">${swatches()}</div></div>` : ''}
+      ${kind === 'categories' ? html`<div class="field"><label>Renk</label><div id="colorBox">${swatches()}</div></div>` : ''}
       <div class="form-error hidden" data-err></div>
     </form>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="taxForm">Kaydet</button>`,

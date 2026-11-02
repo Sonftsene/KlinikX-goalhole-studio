@@ -14,21 +14,34 @@ set_exception_handler(function (Throwable $e) {
     echo json_encode(['ok' => false, 'error' => 'Sunucu hatası oluştu. Lütfen tekrar deneyin.']);
 });
 
-const ALLOWED_EXT = [
+/** Bilinen uzantılar için MIME türü. Listede olmayan her dosya da yüklenebilir (application/octet-stream). */
+const MIME_MAP = [
     'pdf' => 'application/pdf',
     'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif',
-    'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime', 'm4v' => 'video/mp4',
-    'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4',
+    'bmp' => 'image/bmp', 'avif' => 'image/avif', 'heic' => 'image/heic', 'heif' => 'image/heif', 'svg' => 'image/svg+xml',
+    'tif' => 'image/tiff', 'tiff' => 'image/tiff',
+    'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime', 'ogv' => 'video/ogg',
+    'avi' => 'video/x-msvideo', 'mkv' => 'video/x-matroska', '3gp' => 'video/3gpp',
+    'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg', 'aac' => 'audio/aac', 'opus' => 'audio/ogg',
     'doc' => 'application/msword',
     'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'xls' => 'application/vnd.ms-excel',
     'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xlsm' => 'application/vnd.ms-excel.sheet.macroEnabled.12',
+    'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+    'odt' => 'application/vnd.oasis.opendocument.text',
     'ppt' => 'application/vnd.ms-powerpoint',
     'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'csv' => 'text/csv', 'txt' => 'text/plain',
+    'csv' => 'text/csv', 'txt' => 'text/plain', 'md' => 'text/plain', 'log' => 'text/plain', 'json' => 'application/json',
+    'xml' => 'text/plain', 'rtf' => 'application/rtf', 'zip' => 'application/zip', 'rar' => 'application/vnd.rar', '7z' => 'application/x-7z-compressed',
 ];
-const INLINE_MIME_PREFIX = ['image/', 'video/', 'audio/', 'application/pdf'];
+/** Tarayıcıda doğrudan (inline) açılmasında sakınca olmayan türler. Diğerleri her zaman indirme olarak gönderilir. */
+const INLINE_SAFE = [
+    'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif',
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/aac',
+];
 const ROLES = ['admin', 'editor', 'member'];
+const ROSTER_KEEP_VERSIONS = 15;
 const COLORS = ['teal', 'sky', 'indigo', 'violet', 'rose', 'amber', 'emerald', 'slate'];
 const ICONS = ['megaphone', 'play', 'stethoscope', 'file', 'users', 'book', 'pill', 'shield', 'clipboard', 'heart', 'folder', 'bell'];
 const POST_SELECT = "SELECT p.*, u.name AS author_name, u.title_id AS author_title_id,
@@ -85,11 +98,16 @@ $routes = [
     'posts.ack' => 'a_posts_ack',
     'posts.bookmark' => 'a_posts_bookmark',
     'posts.share' => 'a_posts_share',
-    'upload' => 'a_upload',
+    'upload.init' => 'a_upload_init',
+    'upload.chunk' => 'a_upload_chunk',
+    'upload.finish' => 'a_upload_finish',
     'guest.get' => 'a_guest_get',
-    'shifts.month' => 'a_shifts_month',
-    'shifts.set' => 'a_shifts_set',
-    'shifts.mine' => 'a_shifts_mine',
+    'rosters.list' => 'a_rosters_list',
+    'rosters.save' => 'a_rosters_save',
+    'rosters.delete' => 'a_rosters_delete',
+    'rosters.upload' => 'a_rosters_upload',
+    'rosters.versions' => 'a_rosters_versions',
+    'rosters.restore' => 'a_rosters_restore',
     'admin.users' => 'a_admin_users',
     'admin.user.save' => 'a_admin_user_save',
     'admin.user.resetpw' => 'a_admin_user_resetpw',
@@ -236,7 +254,6 @@ function lists(): array
         'categories' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'icon' => $r['icon'], 'color' => $r['color']], all('SELECT * FROM categories ORDER BY sort, id')),
         'units' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all('SELECT * FROM units ORDER BY sort, id')),
         'titles' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all('SELECT * FROM titles ORDER BY sort, id')),
-        'shift_types' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'start' => $r['start_time'], 'end' => $r['end_time'], 'color' => $r['color']], all('SELECT * FROM shift_types ORDER BY sort, id')),
     ];
 }
 
@@ -356,7 +373,8 @@ function a_boot(): void
             'registration' => setting('registration', 'approval'),
         ],
         'google_client_id' => GOOGLE_CLIENT_ID,
-        'upload_max_mb' => upload_limit_mb(),
+        'upload_max_mb' => MAX_UPLOAD_MB,
+        'chunk_size' => chunk_size(),
     ] + lists();
     if ($me) {
         $data['settings'] += [
@@ -365,6 +383,7 @@ function a_boot(): void
             'banner_tone' => setting('banner_tone', 'danger'),
         ];
         $data['counts'] = counts_for($me);
+        $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
         $data['people'] = array_map(fn($r) => [
             'id' => (int)$r['id'], 'name' => $r['name'],
             'title_id' => $r['title_id'] !== null ? (int)$r['title_id'] : null,
@@ -374,12 +393,13 @@ function a_boot(): void
     out($data);
 }
 
-function upload_limit_mb(): int
+/** Parça boyutu: sunucunun PHP yükleme sınırının altında kalır, böylece dosya boyutu sınırsız olur. */
+function chunk_size(): int
 {
     $toBytes = function (string $v): int {
         $v = trim($v);
-        if ($v === '') return PHP_INT_MAX;
-        $n = (int)$v;
+        if ($v === '' || $v === '0' || $v === '-1') return PHP_INT_MAX;
+        $n = (float)$v;
         switch (strtolower(substr($v, -1))) {
             case 'g': $n *= 1024;
             // no break
@@ -387,10 +407,10 @@ function upload_limit_mb(): int
             // no break
             case 'k': $n *= 1024;
         }
-        return $n > 0 ? $n : PHP_INT_MAX;
+        return $n > 0 ? (int)$n : PHP_INT_MAX;
     };
-    $limit = min($toBytes((string)ini_get('upload_max_filesize')), $toBytes((string)ini_get('post_max_size')), MAX_UPLOAD_MB * 1048576);
-    return max(1, (int)floor($limit / 1048576));
+    $limit = min($toBytes((string)ini_get('upload_max_filesize')), $toBytes((string)ini_get('post_max_size')) - 65536);
+    return (int)max(262144, min(8 * 1048576, $limit - 65536));
 }
 
 function a_counts(): void
@@ -688,7 +708,7 @@ function a_posts_save(): void
         }
     }
     foreach (arr('attachment_ids') as $aid) {
-        q('UPDATE attachments SET post_id = ? WHERE id = ? AND user_id = ? AND post_id IS NULL', [$id, (int)$aid, $me['id']]);
+        q('UPDATE attachments SET post_id = ? WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$id, (int)$aid, $me['id']]);
     }
     out(['id' => $id, 'status' => $status]);
 }
@@ -814,34 +834,91 @@ function a_guest_get(): void
 /* Dosyalar                                                            */
 /* ------------------------------------------------------------------ */
 
-function a_upload(): void
+function mime_for(string $name): string
 {
-    $me = need_user();
-    $f = $_FILES['file'] ?? null;
-    if (!$f || !is_array($f) || is_array($f['error'])) fail('Dosya alınamadı.');
-    if ($f['error'] === UPLOAD_ERR_INI_SIZE || $f['error'] === UPLOAD_ERR_FORM_SIZE) fail('Dosya çok büyük. En fazla ' . upload_limit_mb() . ' MB yükleyebilirsiniz.');
-    if ($f['error'] !== UPLOAD_ERR_OK) fail('Dosya yüklenemedi (kod ' . (int)$f['error'] . ').');
-    if ($f['size'] > upload_limit_mb() * 1048576) fail('Dosya çok büyük. En fazla ' . upload_limit_mb() . ' MB yükleyebilirsiniz.');
-    $orig = mb_substr(basename(str_replace('\\', '/', (string)$f['name'])), 0, 200);
-    $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-    if (!isset(ALLOWED_EXT[$ext])) fail('Bu dosya türü desteklenmiyor: .' . $ext);
-    $mime = ALLOWED_EXT[$ext];
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    return MIME_MAP[$ext] ?? 'application/octet-stream';
+}
 
+function upload_dir(): string
+{
     $dir = NM_ROOT . '/uploads';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
-    $stored = date('Ym') . '_' . bin2hex(random_bytes(10)) . '.' . $ext;
-    if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $stored)) fail('Dosya sunucuya kaydedilemedi. Klasör izinlerini kontrol edin.', 500);
+    return $dir;
+}
 
-    q('INSERT INTO attachments (post_id, user_id, orig_name, stored_name, mime, size, created_at) VALUES (NULL, ?, ?, ?, ?, ?, ?)',
-        [$me['id'], $orig, $stored, $mime, (int)$f['size'], now()]);
+function a_upload_init(): void
+{
+    need_user();
+    global $IN;
+    $name = mb_substr(basename(str_replace('\\', '/', s('name', 255))), 0, 200);
+    $size = isset($IN['size']) && is_numeric($IN['size']) ? (int)$IN['size'] : -1;
+    if ($name === '' || $size < 0) fail('Dosya bilgisi eksik.');
+    if (MAX_UPLOAD_MB > 0 && $size > MAX_UPLOAD_MB * 1048576) fail('Dosya çok büyük. En fazla ' . MAX_UPLOAD_MB . ' MB yükleyebilirsiniz.');
+    $dir = upload_dir();
+    $free = @disk_free_space($dir);
+    if ($free !== false && $size > $free) fail('Sunucuda yeterli disk alanı yok.', 507);
+    // Yarım kalmış eski yüklemeleri temizle
+    foreach (glob($dir . '/*.part') ?: [] as $old) {
+        if (filemtime($old) < time() - 86400) @unlink($old);
+    }
+    $token = bin2hex(random_bytes(12));
+    if (file_put_contents($dir . '/' . $token . '.part', '') === false) fail('Yükleme klasörüne yazılamıyor. Klasör izinlerini kontrol edin.', 500);
+    $_SESSION['uploads'][$token] = ['name' => $name, 'size' => $size];
+    out(['token' => $token, 'chunk_size' => chunk_size()]);
+}
+
+function upload_meta(): array
+{
+    $token = s('token', 40);
+    if (!preg_match('/^[a-f0-9]{24}$/', $token) || empty($_SESSION['uploads'][$token])) fail('Yükleme oturumu bulunamadı. Lütfen tekrar deneyin.', 409);
+    $path = upload_dir() . '/' . $token . '.part';
+    if (!is_file($path)) fail('Yükleme oturumu sona erdi. Lütfen tekrar deneyin.', 409);
+    return [$token, $path, $_SESSION['uploads'][$token]];
+}
+
+function a_upload_chunk(): void
+{
+    need_user();
+    [, $path, $meta] = upload_meta();
+    $offset = (int)i('offset');
+    $f = $_FILES['chunk'] ?? null;
+    if (!$f || !is_array($f) || is_array($f['error']) || $f['error'] !== UPLOAD_ERR_OK) fail('Dosya parçası alınamadı (kod ' . (int)($f['error'] ?? -1) . ').');
+    clearstatcache(true, $path);
+    $have = filesize($path);
+    if ($offset > $have) fail('Yükleme sırası bozuldu. Lütfen tekrar deneyin.', 409);
+    if ($offset + (int)$f['size'] > $meta['size']) fail('Dosya beklenenden büyük.');
+    $in = fopen($f['tmp_name'], 'rb');
+    $outF = fopen($path, 'c');
+    if (!$in || !$outF) fail('Dosya parçası kaydedilemedi.', 500);
+    ftruncate($outF, $offset);
+    fseek($outF, $offset);
+    $written = stream_copy_to_stream($in, $outF);
+    fclose($in);
+    fclose($outF);
+    if ($written !== (int)$f['size']) fail('Sunucuda yer kalmamış olabilir; parça yazılamadı.', 507);
+    out(['received' => $offset + $written]);
+}
+
+function a_upload_finish(): void
+{
+    $me = need_user();
+    [$token, $path, $meta] = upload_meta();
+    clearstatcache(true, $path);
+    if (filesize($path) !== $meta['size']) fail('Dosya eksik yüklendi. Lütfen tekrar deneyin.', 409);
+    $stored = date('Ym') . '_' . bin2hex(random_bytes(10)) . '.bin';
+    if (!rename($path, upload_dir() . '/' . $stored)) fail('Dosya kaydedilemedi.', 500);
+    unset($_SESSION['uploads'][$token]);
+    $mime = mime_for($meta['name']);
+    q('INSERT INTO attachments (post_id, roster_id, user_id, orig_name, stored_name, mime, size, created_at) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?)',
+        [$me['id'], $meta['name'], $stored, $mime, $meta['size'], now()]);
     $id = insert_id();
-
-    // Bir günden eski, içeriğe bağlanmamış dosyaları temizle
-    foreach (all('SELECT id, stored_name FROM attachments WHERE post_id IS NULL AND created_at < ?', [date('Y-m-d H:i:s', time() - 86400)]) as $o) {
-        @unlink($dir . '/' . $o['stored_name']);
+    // Bir günden eski, hiçbir yere bağlanmamış dosyaları temizle
+    foreach (all('SELECT id, stored_name FROM attachments WHERE post_id IS NULL AND roster_id IS NULL AND created_at < ?', [date('Y-m-d H:i:s', time() - 86400)]) as $o) {
+        @unlink(upload_dir() . '/' . $o['stored_name']);
         q('DELETE FROM attachments WHERE id = ?', [$o['id']]);
     }
-    out(['attachment' => ['id' => $id, 'name' => $orig, 'mime' => $mime, 'size' => (int)$f['size'], 'url' => 'api.php?action=file&id=' . $id]]);
+    out(['attachment' => ['id' => $id, 'name' => $meta['name'], 'mime' => $mime, 'size' => $meta['size'], 'url' => 'api.php?action=file&id=' . $id]]);
 }
 
 function serve_file(): void
@@ -852,7 +929,9 @@ function serve_file(): void
     $allowed = false;
     if ($a) {
         $me = current_user();
-        if ($a['post_id'] === null) {
+        if ($a['roster_id'] !== null) {
+            $allowed = (bool)$me;
+        } elseif ($a['post_id'] === null) {
             $allowed = $me && (int)$a['user_id'] === (int)$me['id'];
         } else {
             $post = one('SELECT * FROM posts WHERE id = ?', [$a['post_id']]);
@@ -874,8 +953,7 @@ function serve_file(): void
 
     $mime = $a['mime'];
     $inline = empty($_GET['dl']);
-    $canInline = false;
-    foreach (INLINE_MIME_PREFIX as $pre) if (str_starts_with($mime, $pre)) $canInline = true;
+    $canInline = in_array($mime, INLINE_SAFE, true);
     $disp = ($inline && $canInline) ? 'inline' : 'attachment';
     $name = $a['orig_name'];
     $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: 'dosya');
@@ -886,7 +964,8 @@ function serve_file(): void
     header('Content-Type: ' . $mime);
     header('Content-Disposition: ' . $disp . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
     header('Accept-Ranges: bytes');
-    header('Cache-Control: private, max-age=3600');
+    // Ek kimliği değişmez (yeni yükleme = yeni kimlik), bu yüzden tarayıcı önbelleği uzun tutulabilir
+    header('Cache-Control: private, max-age=31536000, immutable');
     if ($mime !== 'application/pdf') header("Content-Security-Policy: default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
 
     if (isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', (string)$_SERVER['HTTP_RANGE'], $m)) {
@@ -923,66 +1002,111 @@ function serve_file(): void
 }
 
 /* ------------------------------------------------------------------ */
-/* Nöbet Çizelgesi                                                     */
+/* Nöbet Listeleri (Excel)                                             */
 /* ------------------------------------------------------------------ */
 
-function a_shifts_month(): void
+function roster_out(array $r): array
+{
+    $cur = one('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size
+        FROM roster_files f JOIN attachments a ON a.id = f.attachment_id LEFT JOIN users u ON u.id = f.user_id
+        WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$r['id']]);
+    return [
+        'id' => (int)$r['id'],
+        'name' => $r['name'],
+        'file' => $cur ? [
+            'id' => (int)$cur['id'], 'name' => $cur['orig_name'], 'mime' => $cur['mime'], 'size' => (int)$cur['size'],
+            'url' => 'api.php?action=file&id=' . (int)$cur['id'], 'updated_at' => $cur['created_at'], 'user_name' => $cur['user_name'],
+        ] : null,
+        'versions' => (int)val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ?', [$r['id']]),
+    ];
+}
+
+function a_rosters_list(): void
 {
     need_user();
-    $unit = (int)i('unit_id');
-    $ym = s('month', 7);
-    if (!preg_match('/^\d{4}-\d{2}$/', $ym)) fail('Geçersiz ay.');
-    $first = $ym . '-01';
-    $from = date('Y-m-d', strtotime($first . ' -1 day'));
-    $to = date('Y-m-d', strtotime($first . ' +1 month'));
-    $rows = all('SELECT id, date, type_id, user_id, name FROM shifts WHERE unit_id = ? AND date >= ? AND date <= ? ORDER BY date, type_id, id', [$unit, $from, $to]);
-    out(['shifts' => array_map(fn($r) => [
-        'id' => (int)$r['id'], 'date' => $r['date'], 'type_id' => (int)$r['type_id'],
-        'user_id' => $r['user_id'] !== null ? (int)$r['user_id'] : null, 'name' => $r['name'],
+    out(['rosters' => array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'))]);
+}
+
+function a_rosters_save(): void
+{
+    need_publisher();
+    $id = i('id');
+    $name = s('name', 120);
+    if (mb_strlen($name) < 2) fail('Liste adı en az 2 karakter olmalıdır.');
+    if ($id) {
+        if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
+        q('UPDATE rosters SET name = ? WHERE id = ?', [$name, $id]);
+    } else {
+        q('INSERT INTO rosters (name, sort, created_at) VALUES (?, ?, ?)', [$name, (int)val('SELECT COALESCE(MAX(sort), 0) + 1 FROM rosters'), now()]);
+        $id = insert_id();
+    }
+    out(['id' => $id, 'rosters' => array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'))]);
+}
+
+function delete_attachment_if_unused(int $attId): void
+{
+    if ((int)val('SELECT COUNT(*) FROM roster_files WHERE attachment_id = ?', [$attId]) > 0) return;
+    $a = one('SELECT * FROM attachments WHERE id = ?', [$attId]);
+    if (!$a || $a['post_id'] !== null) return;
+    @unlink(NM_ROOT . '/uploads/' . $a['stored_name']);
+    q('DELETE FROM attachments WHERE id = ?', [$attId]);
+}
+
+function a_rosters_delete(): void
+{
+    need_publisher();
+    $id = (int)i('id');
+    if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
+    $atts = array_column(all('SELECT attachment_id FROM roster_files WHERE roster_id = ?', [$id]), 'attachment_id');
+    q('DELETE FROM roster_files WHERE roster_id = ?', [$id]);
+    q('DELETE FROM rosters WHERE id = ?', [$id]);
+    foreach (array_unique($atts) as $aid) delete_attachment_if_unused((int)$aid);
+    out(['rosters' => array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'))]);
+}
+
+function add_roster_version(int $rosterId, int $attId, array $me): void
+{
+    q('UPDATE attachments SET roster_id = ? WHERE id = ?', [$rosterId, $attId]);
+    q('INSERT INTO roster_files (roster_id, attachment_id, user_id, created_at) VALUES (?, ?, ?, ?)', [$rosterId, $attId, $me['id'], now()]);
+    $old = all('SELECT id, attachment_id FROM roster_files WHERE roster_id = ? ORDER BY id DESC LIMIT 1000 OFFSET ' . ROSTER_KEEP_VERSIONS, [$rosterId]);
+    foreach ($old as $o) {
+        q('DELETE FROM roster_files WHERE id = ?', [$o['id']]);
+        delete_attachment_if_unused((int)$o['attachment_id']);
+    }
+}
+
+function a_rosters_upload(): void
+{
+    $me = need_publisher();
+    $id = (int)i('id');
+    $attId = (int)i('attachment_id');
+    if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
+    if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
+    add_roster_version($id, $attId, $me);
+    out(['roster' => roster_out(one('SELECT * FROM rosters WHERE id = ?', [$id]))]);
+}
+
+function a_rosters_versions(): void
+{
+    need_user();
+    $id = (int)i('id');
+    $rows = all('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size
+        FROM roster_files f JOIN attachments a ON a.id = f.attachment_id LEFT JOIN users u ON u.id = f.user_id
+        WHERE f.roster_id = ? ORDER BY f.id DESC', [$id]);
+    out(['versions' => array_map(fn($r) => [
+        'version_id' => (int)$r['fid'], 'id' => (int)$r['id'], 'name' => $r['orig_name'], 'mime' => $r['mime'], 'size' => (int)$r['size'],
+        'url' => 'api.php?action=file&id=' . (int)$r['id'], 'updated_at' => $r['created_at'], 'user_name' => $r['user_name'],
     ], $rows)]);
 }
 
-function a_shifts_set(): void
+function a_rosters_restore(): void
 {
-    need_publisher();
-    $unit = i('unit_id');
-    $date = s('date', 10);
-    $type = i('type_id');
-    if (!valid_id('units', $unit)) fail('Geçersiz birim.');
-    if (!valid_id('shift_types', $type)) fail('Geçersiz vardiya.');
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date)) fail('Geçersiz tarih.');
-    $people = [];
-    $seen = [];
-    foreach (array_slice(arr('people'), 0, 30) as $p) {
-        if (!is_array($p)) continue;
-        $uid = isset($p['user_id']) && is_numeric($p['user_id']) ? (int)$p['user_id'] : null;
-        $name = mb_substr(trim((string)($p['name'] ?? '')), 0, 120);
-        if ($uid !== null) {
-            $u = one('SELECT id, name FROM users WHERE id = ?', [$uid]);
-            if (!$u) continue;
-            $name = $u['name'];
-        }
-        if ($name === '') continue;
-        $key = $uid !== null ? 'u' . $uid : 'n' . tr_lower($name);
-        if (isset($seen[$key])) continue;
-        $seen[$key] = true;
-        $people[] = [$uid, $name];
-    }
-    db()->beginTransaction();
-    q('DELETE FROM shifts WHERE unit_id = ? AND date = ? AND type_id = ?', [$unit, $date, $type]);
-    foreach ($people as [$uid, $name]) {
-        q('INSERT INTO shifts (unit_id, date, type_id, user_id, name) VALUES (?, ?, ?, ?, ?)', [$unit, $date, $type, $uid, $name]);
-    }
-    db()->commit();
-    out();
-}
-
-function a_shifts_mine(): void
-{
-    $me = need_user();
-    $rows = all('SELECT s.date, s.type_id, s.unit_id FROM shifts s WHERE s.user_id = ? AND s.date >= ? AND s.date <= ? ORDER BY s.date, s.type_id',
-        [$me['id'], date('Y-m-d', strtotime('-1 day')), date('Y-m-d', strtotime('+60 days'))]);
-    out(['shifts' => array_map(fn($r) => ['date' => $r['date'], 'type_id' => (int)$r['type_id'], 'unit_id' => (int)$r['unit_id']], $rows)]);
+    $me = need_publisher();
+    $id = (int)i('id');
+    $f = one('SELECT * FROM roster_files WHERE id = ? AND roster_id = ?', [(int)i('version_id'), $id]);
+    if (!$f) fail('Sürüm bulunamadı.', 404);
+    add_roster_version($id, (int)$f['attachment_id'], $me);
+    out(['roster' => roster_out(one('SELECT * FROM rosters WHERE id = ?', [$id]))]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1060,7 +1184,6 @@ function a_admin_user_delete(): void
     if (!$u) fail('Kullanıcı bulunamadı.', 404);
     if ($u['role'] === 'admin' && $u['status'] === 'active' && admin_count() <= 1) fail('Son yönetici silinemez.');
     foreach (['acks', 'views', 'saves'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
-    q('UPDATE shifts SET user_id = NULL WHERE user_id = ?', [$id]);
     q('DELETE FROM users WHERE id = ?', [$id]);
     out();
 }
@@ -1081,13 +1204,6 @@ function a_tax_save(): void
         case 'units':
         case 'titles':
             $cols = ['name' => $name];
-            break;
-        case 'shift_types':
-            $start = s('start', 5);
-            $end = s('end', 5);
-            if (!preg_match('/^\d{2}:\d{2}$/', $start) || !preg_match('/^\d{2}:\d{2}$/', $end)) fail('Saatleri SS:DD biçiminde girin.');
-            $color = in_array(s('color', 20), COLORS, true) ? s('color', 20) : 'sky';
-            $cols = ['name' => $name, 'start_time' => $start, 'end_time' => $end, 'color' => $color];
             break;
         default:
             fail('Geçersiz tür.');
@@ -1111,7 +1227,7 @@ function a_tax_delete(): void
     need_admin();
     $kind = s('kind', 20);
     $id = (int)i('id');
-    if (!in_array($kind, ['categories', 'units', 'titles', 'shift_types'], true) || !valid_id($kind, $id)) fail('Kayıt bulunamadı.', 404);
+    if (!in_array($kind, ['categories', 'units', 'titles'], true) || !valid_id($kind, $id)) fail('Kayıt bulunamadı.', 404);
     if ((int)val("SELECT COUNT(*) FROM $kind") <= 1) fail('En az bir kayıt kalmalıdır.');
     switch ($kind) {
         case 'categories':
@@ -1119,17 +1235,11 @@ function a_tax_delete(): void
             if ($n > 0) fail("Bu bölümde $n içerik var. Önce içerikleri başka bölüme taşıyın veya silin.");
             break;
         case 'units':
-            $n = (int)val('SELECT COUNT(*) FROM shifts WHERE unit_id = ?', [$id]);
-            if ($n > 0) fail("Bu birimin nöbet çizelgesinde $n kayıt var. Önce çizelgeyi temizleyin.");
             q('UPDATE users SET unit_id = NULL WHERE unit_id = ?', [$id]);
             q('UPDATE posts SET unit_id = NULL WHERE unit_id = ?', [$id]);
             break;
         case 'titles':
             q('UPDATE users SET title_id = NULL WHERE title_id = ?', [$id]);
-            break;
-        case 'shift_types':
-            $n = (int)val('SELECT COUNT(*) FROM shifts WHERE type_id = ?', [$id]);
-            if ($n > 0) fail("Bu vardiya türü çizelgede $n kez kullanılıyor. Önce o atamaları kaldırın.");
             break;
     }
     q("DELETE FROM $kind WHERE id = ?", [$id]);
