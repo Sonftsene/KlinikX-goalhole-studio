@@ -61,7 +61,7 @@
     A(p3, 'defibrilator-egitim-ozeti.png', 'image/svg+xml', 96000, poster('Defibrilatör — Hızlı Bakış', ['Pedleri sağ klavikula altı ve sol koltuk altına yerleştirin', 'Erişkin bifazik: 150–200 J', 'Şok öncesi “Herkes uzak!” uyarısı', 'Şok sonrası 2 dk KPR, sonra ritim kontrolü'], '#7b45c4'));
     const p4 = P({ title: 'Ekim ayı hemşirelik toplantısı kararları', category_id: 5, author_id: 1, h: 24 * 5,
       body: 'Alınan kararlar:\n- Nöbet teslim süresi 15 dakika olarak sabitlendi.\n- Order kontrol saatleri 10:00 ve 22:00.\n- Yeni başlayan hemşirelerin oryantasyon programı 2 haftaya çıkarıldı.\n- Bir sonraki toplantı: 1 Aralık, 14:00, eğitim salonu.' });
-    A(p4, 'personel-nobet-kasim-2026.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 7889, fx('personel-nobet-kasim-2026.xlsx'));
+    A(p4, 'personel-nobet-kasim-2026.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 8029, fx('personel-nobet-kasim-2026.xlsx'));
     const p5 = P({ title: 'SVK pansuman değişimi ve enfeksiyon önleme rehberi', category_id: 4, author_id: 3, unit_id: 1, h: 24 * 7,
       body: 'Klorheksidinli pansuman 7 günde bir veya kirlendiğinde değiştirilir. Lümen yıkama protokolü ve kateter ilişkili kan dolaşımı enfeksiyonu önleme kontrol listesi ektedir.' });
     A(p5, 'basinc-yarasi-onleme.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 1384, fx('basinc-yarasi-onleme.docx'));
@@ -91,8 +91,8 @@
       db.attachments.push(att);
       db.roster_files.push({ id: ++db.seq, roster_id: id, attachment_id: att.id, user_id: by, created_at: ago(h) });
     };
-    R(1, 'Hemşire Nöbet Listesi', 'hemsire-nobet-kasim-2026.xlsx', 10006, 30, 1);
-    R(2, 'Personel Nöbet Listesi', 'personel-nobet-kasim-2026.xlsx', 7889, 75, 2);
+    R(1, 'Hemşire Nöbet Listesi', 'hemsire-nobet-kasim-2026.xlsx', 11790, 30, 1);
+    R(2, 'Personel Nöbet Listesi', 'personel-nobet-kasim-2026.xlsx', 8029, 75, 2);
     return db;
   }
 
@@ -370,6 +370,8 @@
           if (p >= 1) {
             clearInterval(t);
             const a = { id: ++db.seq, post_id: null, user_id: u.id, name: file.name, mime: file.type || 'application/octet-stream', size: file.size, url: '', blobUrl: URL.createObjectURL(file) };
+            // Görüntüleyici dosyayı doğrudan buradan okur (sayfa güvenlik kuralı blob/data adreslerine erişimi engelleyebilir)
+            (window.NM_FILE_REG = window.NM_FILE_REG || {})[a.blobUrl] = file;
             db.attachments.push(a);
             save();
             resolve({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl });

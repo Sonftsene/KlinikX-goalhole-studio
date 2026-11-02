@@ -48,12 +48,29 @@ function previewKind(att) {
 
 /* ---------------- İndirme önbelleği ---------------- */
 const _buf = new Map();
+function dataUrlToBuffer(url) {
+  const i = url.indexOf(',');
+  const meta = url.slice(5, i), data = url.slice(i + 1);
+  if (/;base64/i.test(meta)) {
+    const bin = atob(data);
+    const out = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+    return out.buffer;
+  }
+  return new TextEncoder().encode(decodeURIComponent(data)).buffer;
+}
 function fetchBuffer(url) {
   if (_buf.has(url)) return _buf.get(url);
-  const p = fetch(url, { credentials: 'same-origin' }).then((r) => {
-    if (!r.ok) throw new Error(r.status === 404 ? 'Dosya bulunamadı veya erişim yetkiniz yok.' : 'Dosya alınamadı (' + r.status + ').');
-    return r.arrayBuffer();
-  });
+  let p;
+  const local = window.NM_FILE_REG && window.NM_FILE_REG[url];
+  if (local) p = local.arrayBuffer();
+  else if (url.startsWith('data:')) p = Promise.resolve().then(() => dataUrlToBuffer(url));
+  else {
+    p = fetch(url, { credentials: 'same-origin' }).then((r) => {
+      if (!r.ok) throw new Error(r.status === 404 ? 'Dosya bulunamadı veya erişim yetkiniz yok.' : 'Dosya alınamadı (' + r.status + ').');
+      return r.arrayBuffer();
+    }, () => { throw new Error('Dosya alınamadı. Bağlantınızı kontrol edin.'); });
+  }
   _buf.set(url, p);
   p.catch(() => _buf.delete(url));
   if (_buf.size > 12) _buf.delete(_buf.keys().next().value);
@@ -223,7 +240,7 @@ function modelFromExcelJS(wb) {
   const theme = themePalette(wb);
   const sheets = [];
   wb.worksheets.forEach((ws) => {
-    if (ws.state && ws.state !== 'visible') return;
+    if (ws.state === 'hidden' || ws.state === 'veryHidden') return;
     const cells = new Map();
     let maxR = -1, maxC = -1;
     const merges = [];
@@ -283,6 +300,7 @@ function modelFromExcelJS(wb) {
       frozenC: view.state === 'frozen' ? (view.xSplit || 0) : 0,
       grid: view.showGridLines !== false,
       truncated: maxR + 1 > nRows,
+      images: typeof ws.getImages === 'function' ? ws.getImages().length : 0,
       styled: true,
     });
   });
@@ -339,11 +357,16 @@ async function loadSheetModel(att) {
   const p = (async () => {
     const ext = extOf(att.name);
     const buf = await fetchBuffer(att.url);
-    if (ext === 'xlsx' || ext === 'xlsm') {
+    const zip = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+    const isZip = zip[0] === 0x50 && zip[1] === 0x4b;
+    // Çok büyük dosyalarda renk/biçim yerine hız öncelikli okuyucu kullanılır
+    if (isZip && (ext === 'xlsx' || ext === 'xlsm' || ext === '') && buf.byteLength < 4 * 1048576) {
       try {
         await loadVendor('exceljs');
         const wb = new ExcelJS.Workbook();
-        await wb.xlsx.load(buf);
+        // Görüntüleme için gerekmeyen kısımları atla: tüm sütuna/sayfaya uygulanmış açılır liste,
+        // koşullu biçim veya köprü kuralları okuyucuyu dakikalarca kilitleyebiliyor.
+        await wb.xlsx.load(buf, { ignoreNodes: ['dataValidations', 'conditionalFormatting', 'hyperlinks', 'extLst', 'tableParts', 'autoFilter', 'sheetProtection', 'rowBreaks', 'colBreaks', 'pageSetup', 'printOptions', 'headerFooter', 'picture', 'legacyDrawing'] });
         return modelFromExcelJS(wb);
       } catch (e) {
         if (/Görüntüleyici yüklenemedi/.test(e.message)) throw e;
@@ -351,7 +374,7 @@ async function loadSheetModel(att) {
       }
     }
     await loadVendor('xlsx');
-    const wb = ext === 'csv' ? XLSX.read(decodeText(buf), { type: 'string', raw: false }) : XLSX.read(new Uint8Array(buf), { type: 'array', cellStyles: true, cellNF: true });
+    const wb = ext === 'csv' ? XLSX.read(decodeText(buf), { type: 'string', raw: false, sheetRows: 20001 }) : XLSX.read(new Uint8Array(buf), { type: 'array', cellStyles: true, cellNF: true, sheetRows: 20001 });
     return modelFromSheetJS(wb);
   })();
   _models.set(key, p);
@@ -396,8 +419,9 @@ function sheetLayout(sh) {
   return { vr, vc, master, covered };
 }
 
-function sheetHTML(sh, z, lay) {
-  const { vr, vc, master, covered } = lay;
+function sheetHTML(sh, z, lay, maxRows) {
+  const { vc, master, covered } = lay;
+  const vr = maxRows && lay.vr.length > maxRows ? lay.vr.slice(0, maxRows) : lay.vr;
   const hdrW = Math.round(44 * z), hdrH = Math.round(22 * z);
   const fs = (11 * 4 / 3 * z).toFixed(1);
   const total = hdrW + vc.reduce((a, c) => a + Math.round(sh.colW[c] * z), 0);
@@ -487,7 +511,7 @@ async function mountSheet(el, att, opts = {}) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Excel açılıyor…</span></div>`);
   const model = await loadSheetModel(att);
   if (!model.sheets.length) throw new Error('Bu dosyada görüntülenecek sayfa yok.');
-  const state = { sheet: 0, z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 1), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
+  const state = { limit: {}, sheet: 0, z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 1), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
   const meMatch = S.me ? nameMatcher(S.me.name) : () => false;
   setHTML(el, html`<div class="xv">
     <div class="xv-bar">
@@ -516,9 +540,17 @@ async function mountSheet(el, att, opts = {}) {
     const sh = model.sheets[state.sheet];
     if (!layouts.has(state.sheet)) layouts.set(state.sheet, sheetLayout(sh));
     const keepL = scroll.scrollLeft / Math.max(1, scroll.scrollWidth), keepT = scroll.scrollTop / Math.max(1, scroll.scrollHeight);
-    const out = sheetHTML(sh, state.z, layouts.get(state.sheet));
+    const lay = layouts.get(state.sheet);
+    if (!state.limit[state.sheet]) state.limit[state.sheet] = Math.max(200, Math.floor(30000 / Math.max(1, lay.vc.length)));
+    const limit = state.limit[state.sheet];
+    const out = sheetHTML(sh, state.z, lay, limit);
     width = out.width;
-    scroll.innerHTML = out.html + (sh.truncated ? '<div class="xv-note">Dosya çok büyük olduğu için ilk satırlar gösteriliyor. Tamamı için dosyayı indirin.</div>' : '') + (!sh.nRows ? '<div class="xv-note">Bu sayfa boş.</div>' : '');
+    const left = lay.vr.length - limit;
+    scroll.innerHTML = out.html
+      + (left > 0 ? `<div class="xv-note"><button type="button" class="btn sm xv-more">Sonraki ${Math.min(left, limit)} satırı göster</button> <span>${lay.vr.length} satırın ${limit} tanesi gösteriliyor</span></div>` : '')
+      + (sh.truncated ? '<div class="xv-note">Dosya çok büyük olduğu için ilk satırlar gösteriliyor. Tamamı için dosyayı indirin.</div>' : '')
+      + (sh.images ? '<div class="xv-note">Bu sayfada görsel veya şekil var; onlar burada gösterilemiyor. Tam görünüm için dosyayı indirin.</div>' : '')
+      + (!sh.nRows ? '<div class="xv-note">Bu sayfada gösterilecek hücre yok.</div>' : '');
     scroll.scrollLeft = keepL * scroll.scrollWidth; scroll.scrollTop = keepT * scroll.scrollHeight;
     el.querySelector('.xv-zr').textContent = Math.round(state.z * 100) + '%';
     tabs.innerHTML = model.sheets.length > 1 ? model.sheets.map((s, i) => `<button type="button" class="${i === state.sheet ? 'on' : ''}" data-sheet="${i}">${esc(s.name)}</button>`).join('') : '';
@@ -549,6 +581,13 @@ async function mountSheet(el, att, opts = {}) {
   el.querySelector('.xv-zo').addEventListener('click', () => setZoom(state.z - 0.1));
   el.querySelector('.xv-zr').addEventListener('click', () => setZoom(1));
   el.querySelector('.xv-fit').addEventListener('click', () => setZoom(state.z * (scroll.clientWidth - 2) / Math.max(1, width)));
+  scroll.addEventListener('click', (e) => {
+    if (!e.target.closest('.xv-more')) return;
+    state.limit[state.sheet] *= 2;
+    const top = scroll.scrollTop;
+    draw();
+    scroll.scrollTop = top;
+  });
   tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-sheet]'); if (b) { state.sheet = +b.dataset.sheet; scroll.scrollTo(0, 0); draw(); } });
   input.addEventListener('input', debounce(() => { state.q = input.value; applySearch(true); }, 150));
   input.addEventListener('keydown', (e) => {
@@ -651,12 +690,12 @@ async function mountText(el, att) {
   if (extOf(att.name) === 'json') { try { txt = JSON.stringify(JSON.parse(txt), null, 2); } catch (e) { /* olduğu gibi */ } }
   el.innerHTML = `<pre class="tv">${esc(txt)}</pre>`;
 }
-function unsupported(el, att, msg) {
+function unsupported(el, att, msg, detail) {
   const fk = fileKind(att.mime || '', att.name);
   const ext = extOf(att.name);
   const tip = ['ppt', 'pptx', 'doc', 'odt', 'rtf'].includes(ext) ? 'İpucu: Dosyayı PDF olarak kaydedip yüklerseniz herkes sitede doğrudan görebilir.' : '';
   setHTML(el, html`<div class="fv-none"><span class="a-ico tone-${fk.tone}" style="width:52px;height:52px;border-radius:12px;font-size:12px">${fk.label}</span>
-    <div><b>${msg || 'Bu dosya türü sitede önizlenemiyor.'}</b><div class="small muted">İndirerek cihazınızdaki uygulamayla açabilirsiniz.${tip ? ' ' + tip : ''}</div></div>
+    <div><b>${msg || 'Bu dosya türü sitede önizlenemiyor.'}</b><div class="small muted">İndirerek cihazınızdaki uygulamayla açabilirsiniz.${tip ? ' ' + tip : ''}</div>${detail ? html`<div class="tiny faint" style="margin-top:4px">Teknik ayrıntı: ${detail}</div>` : ''}</div>
     <button class="btn sm" data-act="fv-dl" data-url="${att.url}" data-name="${att.name}">${icon('download', 'sm')}İndir</button></div>`);
 }
 function mountMedia(el, att, kind) {
@@ -678,7 +717,9 @@ async function mountPreview(el, att, opts = {}) {
     if (kind === 'image' || kind === 'video' || kind === 'audio') return mountMedia(el, att, kind);
     return unsupported(el, att);
   } catch (e) {
-    unsupported(el, att, e.message && /yüklenemedi|bulunamadı|alınamadı|sayfa yok/.test(e.message) ? e.message : 'Dosya açılamadı. Bozuk veya desteklenmeyen bir biçimde olabilir.');
+    console.error('[NöbetMed] Önizleme hatası:', att.name, e);
+    const known = e && e.message && /yüklenemedi|bulunamadı|alınamadı|sayfa yok/.test(e.message);
+    unsupported(el, att, known ? e.message : 'Dosya açılamadı. Bozuk veya desteklenmeyen bir biçimde olabilir.', known ? '' : String((e && e.message) || e).slice(0, 160));
   }
 }
 

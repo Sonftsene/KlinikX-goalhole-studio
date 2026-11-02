@@ -65,6 +65,9 @@ const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } }
   ws.getColumn(1).width = 5; ws.getColumn(2).width = 20; ws.getColumn(3).width = 17;
   for (let d = 1; d <= days; d++) ws.getColumn(3 + d).width = 4.3;
   ws.getColumn(lastCol).width = 8;
+  // Gerçek şablonlardaki gibi: gün sütunlarının tamamında G/N/24/İ/Y açılır listesi
+  ws.dataValidations.add(`${ws.getColumn(4).letter}4:${ws.getColumn(3 + days).letter}1048576`, { type: 'list', allowBlank: true, formulae: ['"G,N,24,İ,Y"'] });
+  ws.getCell(2, 2).note = 'Liste sorumlu hemşire tarafından onaylanmıştır.';
   const notes = wb.addWorksheet('Açıklamalar');
   notes.getCell('A1').value = 'Nöbet teslim saatleri'; notes.getCell('A1').font = { bold: true, size: 13 };
   notes.getCell('A2').value = 'Gündüz teslim: 07:45 · Gece teslim: 15:45'; notes.getCell('A3').value = 'Son güncelleme'; notes.getCell('B3').value = new Date(Date.UTC(2026, 9, 30)); notes.getCell('B3').numFmt = 'dd.mm.yyyy dddd';
@@ -89,6 +92,7 @@ const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } }
     w2.getCell(r, 1).numFmt = 'dd.mm.yyyy';
   }
   [12, 12, 22, 22, 18].forEach((w, i) => { w2.getColumn(i + 1).width = w; });
+  w2.dataValidations.add('C3:D1048576', { type: 'list', allowBlank: true, formulae: ['"' + staff.join(',') + '"'] });
   await wb2.xlsx.writeFile(out + '/personel-nobet-kasim-2026.xlsx');
   console.log('ok');
 })();
