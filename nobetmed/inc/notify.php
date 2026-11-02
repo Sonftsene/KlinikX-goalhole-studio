@@ -251,7 +251,7 @@ function job_digest(): int
 function job_shift_remind(): int
 {
     $tomorrow = date('Y-m-d', strtotime('+1 day'));
-    $rows = all("SELECT s.*, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? AND s.kind = 'shift'", [$tomorrow]);
+    $rows = all("SELECT s.*, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? AND s.kind IN ('shift', 'role')", [$tomorrow]);
     if (!$rows) return 0;
     $users = active_users_sql();
     $sent = 0;

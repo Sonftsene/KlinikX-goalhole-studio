@@ -151,7 +151,7 @@ function a_rosters_shifts_save(): void
         $date = (string)($e['date'] ?? '');
         $code = mb_substr(trim((string)($e['code'] ?? '')), 0, 20);
         if ($name === '' || $code === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
-        $kind = in_array($e['kind'] ?? '', ['shift', 'leave', 'off'], true) ? $e['kind'] : 'shift';
+        $kind = in_array($e['kind'] ?? '', ['shift', 'leave', 'off', 'role'], true) ? $e['kind'] : 'shift';
         $hm = fn($v) => is_string($v) && preg_match('/^\d{2}:\d{2}$/', $v) ? $v : null;
         $st->execute([$rid, $fid, $name, mb_substr((string)($e['title'] ?? ''), 0, 80) ?: null, $date, $code, mb_substr((string)($e['label'] ?? ''), 0, 60) ?: null, $kind,
             isset($e['hours']) && is_numeric($e['hours']) ? (int)$e['hours'] : null, $hm($e['start'] ?? null), $hm($e['end'] ?? null)]);
@@ -541,4 +541,78 @@ function a_passkey_login_finish(): void
     login_user($u);
     audit($u, 'login.passkey', $pk['name'] ?? '');
     out(['must_change' => (int)($u['must_change'] ?? 0) === 1]);
+}
+
+
+/* ---------------- Nöbet kodu sözlüğü (yönetici düzenler) ---------------- */
+
+/** Kayıtlı sözlük; yoksa null (tarayıcı varsayılan sözlüğü kullanır) */
+function shift_codes(): ?array
+{
+    $j = json_decode((string)setting('shift_codes', ''), true);
+    return is_array($j) && $j ? $j : null;
+}
+
+function a_shiftcodes_save(): void
+{
+    $me = need_admin();
+    global $IN;
+    if (!empty($IN['reset'])) {
+        set_setting('shift_codes', '');
+        audit($me, 'settings.save', 'Nöbet kodları', 'Varsayılana döndü');
+        out(['codes' => null]);
+    }
+    $hm = fn($v) => is_string($v) && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v) ? $v : null;
+    $codes = [];
+    $seen = [];
+    foreach (array_slice(is_array($IN['codes'] ?? null) ? $IN['codes'] : [], 0, 80) as $c) {
+        if (!is_array($c)) continue;
+        $code = mb_substr(trim((string)($c['code'] ?? '')), 0, 12);
+        if ($code === '' || isset($seen[mb_strtolower($code)])) continue;
+        $seen[mb_strtolower($code)] = 1;
+        $kind = in_array($c['kind'] ?? '', ['shift', 'leave', 'off'], true) ? $c['kind'] : 'shift';
+        $start = $kind === 'shift' ? $hm($c['start'] ?? null) : null;
+        $end = $kind === 'shift' ? $hm($c['end'] ?? null) : null;
+        $hours = 0;
+        if ($start && $end) {
+            $m = ((int)substr($end, 0, 2) * 60 + (int)substr($end, 3)) - ((int)substr($start, 0, 2) * 60 + (int)substr($start, 3));
+            if ($m <= 0) $m += 1440;
+            $hours = round($m / 60, 1);
+        } elseif ($kind === 'shift' && is_numeric($c['hours'] ?? null)) {
+            $hours = max(0, min(48, (float)$c['hours']));
+        }
+        $aliases = array_values(array_filter(array_map(fn($a) => mb_substr(trim((string)$a), 0, 30), array_slice(is_array($c['aliases'] ?? null) ? $c['aliases'] : [], 0, 10)), fn($a) => $a !== ''));
+        $row = ['code' => $code, 'label' => mb_substr(trim((string)($c['label'] ?? '')), 0, 40) ?: $code, 'start' => $start, 'end' => $end, 'hours' => $hours, 'kind' => $kind];
+        if ($start && $end && $end <= $start) $row['nextDay'] = true;
+        if ($aliases) $row['aliases'] = $aliases;
+        $codes[] = $row;
+    }
+    if (!$codes) fail('En az bir kod girin.');
+    set_setting('shift_codes', json_encode($codes, JSON_UNESCAPED_UNICODE));
+    audit($me, 'settings.save', 'Nöbet kodları', count($codes) . ' kod');
+    out(['codes' => $codes]);
+}
+
+/* ---------------- Yönetici kurulum listesi ---------------- */
+
+function a_setup_status(): void
+{
+    need_admin();
+    $cron = (int)setting('cron_last', '0');
+    $rosterPeople = [];
+    foreach (all('SELECT DISTINCT s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id') as $x) $rosterPeople[] = (string)$x['name'];
+    $users = all("SELECT name FROM users WHERE status = 'active'");
+    $matched = 0;
+    foreach ($rosterPeople as $n) foreach ($users as $u) if (names_match($n, (string)$u['name'])) { $matched++; break; }
+    out(['status' => [
+        'mail' => mail_ready(),
+        'cron' => $cron > time() - 2 * 86400,
+        'cron_last' => $cron ? date('Y-m-d H:i:s', $cron) : null,
+        'roster' => (bool)val('SELECT COUNT(*) FROM roster_files'),
+        'parsed' => (bool)val('SELECT COUNT(*) FROM roster_shifts'),
+        'roster_people' => count($rosterPeople),
+        'matched' => $matched,
+        'users' => count($users),
+        'push' => push_ready(),
+    ]]);
 }

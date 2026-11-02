@@ -18,8 +18,9 @@ function watch(page, tag) {
   page.on('pageerror', (e) => errors.push(`[${tag}] pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(m.text())) errors.push(`[${tag}] console: ${m.text()}`); });
 }
-async function ctx(tag, mobile) {
+async function ctx(tag, mobile, withTour) {
   const c = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, acceptDownloads: true } : { viewport: { width: 1360, height: 860 }, acceptDownloads: true });
+  if (!withTour) await c.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
   const p = await c.newPage(); watch(p, tag); return { c, p };
 }
 const expectText = async (p, t, timeout = 8000) => { try { await p.getByText(t, { exact: false }).first().waitFor({ timeout }); } catch (e) { await p.screenshot({ path: path.join(OUT, 'FAIL.png') }); console.log('BODY:', (await p.locator('body').innerText()).slice(0, 800)); throw e; } };
@@ -42,9 +43,10 @@ await login(m, 'elif@test.com', 'YeniSifre99');
 
 // 1) Ana sayfa: sıradaki nöbet + bugün nöbette
 await m.goto(BASE + '#/');
-await m.locator('#kpiMyShift .k-val:not(:has(.skel))').waitFor();
-const kpi = await m.locator('#kpiMyShift').innerText();
-if (!/Pzt|Sal|Çar|Per|Cum|Cmt|Paz|Bugün|Yarın/.test(kpi)) fail('sıradaki nöbet KPI: ' + kpi);
+await m.locator('#heroShift .hs-t').waitFor();
+const kpi = await m.locator('#heroShift').innerText();
+if (!/nöbetin var|nöbettesin/.test(kpi)) fail('Bugün kartı: ' + kpi);
+if (!(await m.locator('.hero .hchip[href="#/okunacak"]').count())) fail('okunacak çipi yok');
 await m.locator('#todayCard .duty-chip').first().waitFor({ timeout: 8000 }).catch(() => fail('bugün nöbette kartı boş'));
 await m.screenshot({ path: path.join(OUT, 'f-home-mobile.png') });
 step('ana sayfa: sıradaki nöbet (' + kpi.replace(/\s+/g, ' ').slice(0, 60) + ') ve bugün nöbette');
@@ -52,15 +54,21 @@ step('ana sayfa: sıradaki nöbet (' + kpi.replace(/\s+/g, ' ').slice(0, 60) + '
 // 2) Nöbetlerim: sonraki nöbet, ay özeti, takvim, ICS
 await m.goto(BASE + '#/nobetim');
 await m.locator('.next-shift').waitFor();
-const stat = await m.locator('.stat-month').first().innerText();
-const days = await m.locator('.my-day').count();
-if (days < 5) fail('takvimde az gün: ' + days);
+const stat = await m.locator('#calCard .cal-stats').first().innerText();
+const days = await m.locator('#calCard .cal-d.has').count();
 const [dl] = await Promise.all([m.waitForEvent('download'), m.click('#icsBtn')]);
 const ics = fs.readFileSync(await dl.path(), 'utf8');
 const nEv = (ics.match(/BEGIN:VEVENT/g) || []).length;
 if (!ics.startsWith('BEGIN:VCALENDAR') || nEv < 3) fail('ICS hatalı: ' + nEv);
-await m.locator('#dutyCard .duty-g').first().waitFor();
-await m.click('[data-act=duty-day][data-d="1"]');
+await m.locator('#calCard .cal-d.has').first().waitFor();
+const calDays = await m.locator('#calCard .cal-d.has').count();
+if (calDays < 5) fail('takvimde renkli gün az: ' + calDays);
+if (!(await m.locator('#calCard .cal-legend .code-chip').count())) fail('kod açıklaması yok');
+await m.locator('#calCard .cal-d.has').nth(1).click();
+await m.locator('#dayPanel .dm-row').waitFor();
+await m.locator('#dayDuty .duty-g').first().waitFor();
+await m.click('[data-act=cal-mv][data-d="1"]');
+await m.click('[data-act=cal-mv][data-d="-1"]');
 await m.waitForTimeout(300);
 await m.screenshot({ path: path.join(OUT, 'f-nobetim.png'), fullPage: true });
 const sw1 = await m.evaluate(() => document.documentElement.scrollWidth);
@@ -81,7 +89,11 @@ step('profil: telefon/dahili ve sabah özeti tercihi');
 
 // 4) Rehber: kişi, ara düğmesi, bugün filtresi
 await a.goto(BASE + '#/rehber');
+await a.locator('#dutyCard .duty-g').first().waitFor();
+await a.click('#dutyCard [data-act=duty-day][data-d="1"]');
+await a.locator('#dutyCard .duty-g').first().waitFor();
 await a.locator('.dir-row').first().waitFor();
+if ((await a.locator('.hub-tabs a.on').innerText()).trim() !== 'Kim nöbette') fail('nöbet sekmesi seçili değil');
 const elifRow = a.locator('.dir-row', { hasText: 'Elif Yılmaz' });
 if (!(await elifRow.locator('a[href^="tel:"]').count())) fail('rehberde ara düğmesi yok');
 if (!(await elifRow.locator('a[href*="wa.me/905321112233"]').count())) fail('rehberde WhatsApp yok');
@@ -142,7 +154,7 @@ if (nAud < 10 || !/liste/i.test(audTxt)) fail('işlem günlüğü: ' + nAud);
 step(`işlem günlüğü: ${nAud} kayıt, arama çalışıyor`);
 
 // 9) Yedekleme
-await a.goto(BASE + '#/yonetim/ayarlar');
+await a.goto(BASE + '#/yonetim/ayarlar/yedek');
 await a.locator('#backupBox [data-act=bk-create]').waitFor();
 await a.click('#backupBox [data-act=bk-create]');
 await expectText(a, 'Yedek alındı');
@@ -156,6 +168,8 @@ if (bkNoCsrf === 200) fail('CSRF olmadan yedek indirildi');
 step(`yedekleme: oluşturma, indirme (${bk.len} bayt), yetki`);
 
 // 10) Hatırlatmalar ve sabah özeti (cron)
+await a.goto(BASE + '#/yonetim/ayarlar/bildirim');
+await a.locator('[name=shift_remind_hour]').waitFor();
 await a.selectOption('[name=shift_remind_hour]', '0');
 if (!(await a.isChecked('[name=digest_on]'))) await a.click('.switch:has([name=digest_on]) .track');
 await a.selectOption('[name=digest_hour]', '0');
@@ -175,6 +189,7 @@ const badge = await m.locator('#notifCount').innerText().catch(() => '');
 await m.click('#notifBtn');
 await m.locator('.notif-pop .np-item').first().waitFor();
 const nItems = await m.locator('.notif-pop .np-item').count();
+if (!(await m.locator('.notif-pop .np-sec').count())) fail('bildirim grupları yok');
 await m.screenshot({ path: path.join(OUT, 'f-notif.png') });
 await m.click('[data-act=notif-readall]');
 await m.waitForTimeout(300);
@@ -211,7 +226,7 @@ await a.click('.modal [data-inv-go]');
 await expectText(a, 'Davetler hazır');
 const link = await a.locator('.modal [data-copy]').first().getAttribute('data-copy');
 await a.keyboard.press('Escape');
-const P = await ctx('invite', true);
+const P = await ctx('invite', true, true);
 await P.p.goto(link.replace('http://127.0.0.1', 'http://localhost'));
 await expectText(P.p, 'Hoş geldin');
 if (!(await P.p.locator('[data-form=invite-reg] [name=name][readonly]').count())) fail('kişisel davette ad kilitli değil');
@@ -219,6 +234,12 @@ await P.p.fill('[data-form=invite-reg] [name=email]', 'davetli@test.com');
 await P.p.fill('[data-form=invite-reg] [name=password]', 'DavetSifre1');
 await P.p.click('[data-form=invite-reg] button[type=submit]');
 await expectText(P.p, 'Hesabın oluşturuldu');
+// İlk girişte 3 adımlık tanıtım
+await P.p.locator('.tour .tour-step').waitFor({ timeout: 6000 });
+await P.p.screenshot({ path: path.join(OUT, 'f-tour.png') });
+await P.p.click('[data-tour=next]'); await P.p.click('[data-tour=next]');
+await P.p.click('[data-tour=done]');
+await P.p.locator('.tour').waitFor({ state: 'detached' });
 await P.p.goto(BASE + '#/nobetim');
 await P.p.locator('.next-shift, .card.empty').first().waitFor();
 const hasNext = await P.p.locator('.next-shift').count();
@@ -273,6 +294,63 @@ if (badEp === 'ok') fail('bilinmeyen push adresi kabul edildi');
 const pend = await m.evaluate(async () => (await fetch('api.php?action=push.pending')).status);
 if (pend !== 400) fail('push.pending başlıksız: ' + pend);
 step(`push: anahtar ${pk.key ? 'hazır' : 'yok (' + (pk.error || '') + ')'}, yabancı adres reddedildi, başlıksız istek reddedildi`);
+
+// 17) Excel: Sadece ben
+await m.goto(BASE + '#/nobet');
+await m.locator('.rs-view:not(.hidden) .xv-grid').waitFor({ timeout: 15000 });
+await m.click('#rsTabs button >> nth=0');
+await m.locator('.rs-view:not(.hidden) .xv-grid >> text=HEMŞİRE NÖBET').waitFor();
+const rowsAll = await m.locator('.rs-view:not(.hidden) .xv-grid tbody tr').count();
+await m.click('.rs-view:not(.hidden) .xv-only');
+await m.waitForTimeout(400);
+const rowsMe = await m.locator('.rs-view:not(.hidden) .xv-grid tbody tr').count();
+const meVisible = await m.locator('.rs-view:not(.hidden) .xv-grid td.me').count();
+await m.screenshot({ path: path.join(OUT, 'f-onlyme.png') });
+if (!(rowsMe < rowsAll && meVisible)) fail(`sadece ben: ${rowsAll} → ${rowsMe}, me=${meVisible}`);
+await m.click('.rs-view:not(.hidden) .xv-only');
+step(`Excel "Sadece ben": ${rowsAll} satır → ${rowsMe} satır`);
+
+// 18) Ayar bölümleri + nöbet kodu sözlüğü
+await a.goto(BASE + '#/yonetim/ayarlar/nobet');
+await a.locator('#codesBox tbody tr').first().waitFor();
+const visCards = await a.locator('form[data-form=settings] [data-sec]:not(.hidden)').count();
+const allCards = await a.locator('form[data-form=settings] [data-sec]').count();
+if (visCards >= allCards) fail('ayar bölümleri ayrılmıyor');
+await a.click('[data-act=code-add]');
+const last = a.locator('#codesBox tbody tr').last();
+await last.locator('input[data-k=code]').fill('X9');
+await last.locator('input[data-k=label]').fill('Test vardiyası');
+await last.locator('input[data-k=start]').fill('09:00');
+await last.locator('input[data-k=end]').fill('17:00');
+await a.click('[data-act=code-save]');
+await expectText(a, 'Kodlar kaydedildi');
+const codes = (await apiCall(a, 'boot')).settings.shift_codes || [];
+const x9 = codes.find((c) => c.code === 'X9');
+if (!x9 || x9.hours !== 8) fail('kod kaydedilmedi: ' + JSON.stringify(x9));
+await a.click('[data-act=set-sec][data-s=bildirim]');
+if (!(await a.locator('[data-sec=bildirim]:not(.hidden)').count())) fail('bildirim bölümü açılmadı');
+await a.click('[data-act=set-sec][data-s=nobet]');
+await a.click('[data-act=code-reset]');
+await a.click('.modal [data-ok]');
+await expectText(a, 'Varsayılan kodlar');
+step(`ayarlar ${allCards} kart → bölüm başına ${visCards}; kod sözlüğü kaydet/varsayılan`);
+
+// 19) Kurulum listesi + büyük yazı
+await a.goto(BASE + '#/');
+await a.locator('#setupBox .setup-row').first().waitFor();
+const su = await a.locator('#setupBox .setup-row').count();
+const suOk = await a.locator('#setupBox .setup-row.ok').count();
+await m.goto(BASE + '#/profil');
+await m.click('[data-act=fs][data-v=lg]');
+if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg')))) fail('büyük yazı açılmadı');
+await m.reload();
+if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg')))) fail('büyük yazı hatırlanmadı');
+await m.goto(BASE + '#/');
+await m.locator('#heroShift .hs-t').waitFor();
+await m.screenshot({ path: path.join(OUT, 'f-home-buyuk.png') });
+await m.goto(BASE + '#/profil');
+await m.click('[data-act=fs][data-v=""]');
+step(`kurulum listesi ${suOk}/${su}, büyük yazı seçeneği`);
 
 // Masaüstü ekran görüntüleri
 await a.goto(BASE + '#/');

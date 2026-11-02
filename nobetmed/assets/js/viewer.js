@@ -693,7 +693,7 @@ async function mountSheet(el, att, opts = {}) {
     <div class="xv-bar">
       <div class="search xv-search">${icon('search')}<input class="input" type="search" placeholder="Listede ara (isim, tarih…)" aria-label="Listede ara"></div>
       <span class="xv-count tiny faint"></span>
-      ${S.me ? html`<button class="btn sm xv-me" type="button" title="Adımın geçtiği hücreler">${icon('user', 'sm')}<span>Beni bul</span></button>` : ''}
+      ${S.me ? html`<button class="btn sm xv-me" type="button" title="Adımın geçtiği hücreler">${icon('user', 'sm')}<span>Beni bul</span></button><button class="btn sm xv-only hidden" type="button" title="Yalnızca adımın geçtiği satırları göster" aria-pressed="false">${icon('eye', 'sm')}<span>Sadece ben</span></button>` : ''}
       <div class="grow"></div>
       <div class="row" style="gap:4px">
         <button class="btn sm icon xv-zo" type="button" aria-label="Uzaklaştır">−</button>
@@ -737,11 +737,54 @@ async function mountSheet(el, att, opts = {}) {
     }
     return { rows: new Set(rows), cols: new Set(cols) };
   };
+  /** "Sadece ben": başlık satırları + adımın geçtiği satırlar dışındakileri gizle */
+  const meRowsOf = (sh) => {
+    const rows = [];
+    for (let r = 0; r < sh.nRows; r++) {
+      if (sh.hiddenR.has(r)) continue;
+      for (let c = 0; c < sh.nCols; c++) { const x = sh.cells.get(r * 100000 + c); if (x && x.text && meMatch(x.text)) { rows.push(r); break; } }
+    }
+    return rows;
+  };
+  const onlyMeSheet = (sh) => {
+    const mine = meRowsOf(sh);
+    if (!mine.length) return null;
+    const keep = new Set(mine);
+    const first = mine[0];
+    const hdrCell = /^(\d{1,2}\.?|pzt|pazartesi|sal|salı|çar|çarşamba|per|perşembe|cum|cuma|cmt|cts|cumartesi|paz|pazar)$/;
+    for (let r = 0; r < first; r++) {
+      if (r < sh.frozenR) { keep.add(r); continue; }
+      let n = 0, title = false;
+      for (let c = 0; c < sh.nCols; c++) {
+        const x = sh.cells.get(r * 100000 + c);
+        if (!x || !x.text) continue;
+        const t = trLower(String(x.text).trim());
+        if (hdrCell.test(t)) n++;
+        if (/ad[ıi]? ?soyad|ünvan|unvan|^isim|^personel$/.test(t)) title = true;
+      }
+      if (n >= 7 || title) keep.add(r);
+    }
+    for (const m of sh.merges) {
+      if (m.r2 - m.r1 > 3) continue;
+      for (let r = m.r1; r <= m.r2; r++) if (keep.has(r)) { for (let k = m.r1; k <= m.r2; k++) keep.add(k); break; }
+    }
+    const hiddenR = new Set(sh.hiddenR);
+    for (let r = 0; r < sh.nRows; r++) if (!keep.has(r)) hiddenR.add(r);
+    return { ...sh, hiddenR };
+  };
+  const onlyBtn = el.querySelector('.xv-only');
+  try { state.onlyMe = localStorage.getItem('nm-onlyme') === '1'; } catch (e) { state.onlyMe = false; }
   const draw = () => {
-    const sh = model.sheets[state.sheet];
-    if (!layouts.has(state.sheet)) layouts.set(state.sheet, sheetLayout(sh));
+    let sh = model.sheets[state.sheet];
+    const lk = state.sheet + (state.onlyMe ? ':me' : '');
+    if (state.onlyMe && !layouts.has(lk)) { const v = onlyMeSheet(sh); if (v) { layouts.set(lk, sheetLayout(v)); layouts.set(lk + ':sh', v); } }
+    const useMe = state.onlyMe && layouts.has(lk);
+    if (useMe) sh = layouts.get(lk + ':sh');
+    if (onlyBtn) { onlyBtn.classList.toggle('hidden', !meRowsOf(model.sheets[state.sheet]).length); onlyBtn.classList.toggle('active', useMe); onlyBtn.setAttribute('aria-pressed', useMe ? 'true' : 'false'); }
+    const key = useMe ? lk : state.sheet;
+    if (!layouts.has(key)) layouts.set(key, sheetLayout(sh));
     const keepL = scroll.scrollLeft / Math.max(1, scroll.scrollWidth), keepT = scroll.scrollTop / Math.max(1, scroll.scrollHeight);
-    const lay = layouts.get(state.sheet);
+    const lay = layouts.get(key);
     if (!state.limit[state.sheet]) state.limit[state.sheet] = Math.max(200, Math.floor(30000 / Math.max(1, lay.vc.length)));
     const limit = state.limit[state.sheet];
     const out = sheetHTML(sh, state.z, lay, limit, frozenFor(sh, lay));
@@ -804,6 +847,13 @@ async function mountSheet(el, att, opts = {}) {
     e.preventDefault();
     state.hitIdx = (state.hitIdx + 1) % state.hits.length;
     focusCell(state.hits[state.hitIdx], 'hit-cur');
+  });
+  if (onlyBtn) onlyBtn.addEventListener('click', () => {
+    state.onlyMe = !state.onlyMe;
+    try { localStorage.setItem('nm-onlyme', state.onlyMe ? '1' : '0'); } catch (e) { /* */ }
+    scroll.scrollTo(0, 0);
+    draw();
+    countEl.textContent = state.onlyMe ? 'Yalnızca sizin satırlarınız gösteriliyor' : '';
   });
   const meBtn = el.querySelector('.xv-me');
   if (meBtn) meBtn.addEventListener('click', () => {

@@ -58,8 +58,8 @@ function renderNav() {
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
     <div class="nav-sec">Nöbet</div>
-    ${navItem('#/nobetim', icon('calendar'), 'Nöbetlerim', 0, r[0] === 'nobetim')}
-    ${navItem('#/rehber', icon('phone'), 'Kim nöbette · Rehber', 0, r[0] === 'rehber')}
+    ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
+    ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
     ${S.rosters.length ? S.rosters.map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
     <div class="nav-sec">Bölümler</div>
@@ -80,7 +80,7 @@ function renderNav() {
   const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${tab('#/nobet', icon('table'), 'Nöbet', r[0] === 'nobet', 0)}
+    ${tab(hubHref(), icon('calendar'), 'Nöbet', ['nobet', 'nobetim', 'rehber'].includes(r[0]), 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
     ${isPublisher() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
@@ -180,36 +180,12 @@ function greeting() {
 }
 
 function renderHome(view) {
-  const c = S.counts;
-  const first = S.me.name.split(' ')[0];
-  const now = new Date();
   setHTML(view, html`
-    <div class="page-head">
-      <div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div>
-    </div>
-    <div class="kpis">
-      <a class="kpi" href="#/okunacak">
-        <div class="k-top"><span>Okumanız gereken</span><span class="k-ico" style="background:var(--warn-soft);color:var(--warn)">${icon('checkCircle', 'sm')}</span></div>
-        <div class="k-val" data-count="todo">${c.todo}</div><div class="k-sub">${c.todo ? 'Onayınızı bekleyen zorunlu içerik' : 'Hepsi tamam, teşekkürler'}</div>
-      </a>
-      <button class="kpi" data-act="feed-filter" data-filter="unread">
-        <div class="k-top"><span>Yeni içerik</span><span class="k-ico" style="background:var(--brand-soft);color:var(--brand-text)">${icon('bell', 'sm')}</span></div>
-        <div class="k-val" data-count="unread">${c.unread}</div><div class="k-sub">Henüz açmadığınız</div>
-      </button>
-      ${myShiftKpiHtml()}
-      ${isPublisher() ? html`
-      <a class="kpi" href="#/yonetim/onaylar">
-        <div class="k-top"><span>Onay bekleyen</span><span class="k-ico" style="background:var(--danger-soft);color:var(--danger)">${icon('inbox', 'sm')}</span></div>
-        <div class="k-val" data-count="pending_posts">${c.pending_posts}</div><div class="k-sub">${isAdmin() && c.pending_users ? c.pending_users + ' yeni üye başvurusu' : 'İçerik onayı'}</div>
-      </a>` : html`
-      <a class="kpi" href="#/kaydedilenler">
-        <div class="k-top"><span>Kaydedilenler</span><span class="k-ico" style="background:var(--c-amber-bg);color:var(--c-amber)">${icon('bookmark', 'sm')}</span></div>
-        <div class="k-val" data-count="saved">${c.saved}</div><div class="k-sub">Hızlı erişim listeniz</div>
-      </a>`}
-    </div>
+    ${heroHtml()}
     <div class="home-grid">
       <section id="feedHost"></section>
       <aside class="side-col" id="homeSide">
+        ${isAdmin() ? html`<div id="setupBox"></div>` : ''}
         <div id="homeTips"></div>
         <div class="card" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
         <div class="card" id="rosterCard">${rosterCard()}</div>
@@ -217,22 +193,14 @@ function renderHome(view) {
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
   loadHomeExtras();
+  maybeShowTour();
   refreshRosters().then(() => {
-    const k = $('#kpiRoster'); if (k) k.outerHTML = fmtVal(rosterKpi());
     const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());
   });
 }
 
 function latestRoster() {
   return S.rosters.filter((r) => r.file).sort((a, b) => b.file.updated_at.localeCompare(a.file.updated_at))[0] || null;
-}
-function rosterKpi() {
-  const r = latestRoster();
-  return html`<a class="kpi" href="${r ? '#/nobet/' + r.id : '#/nobet'}" id="kpiRoster">
-    <div class="k-top"><span>Nöbet listesi</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('table', 'sm')}</span></div>
-    ${r ? html`<div class="k-val sm ellipsis">${r.name}</div><div class="k-sub">${fmtRel(r.file.updated_at)} güncellendi</div>`
-      : html`<div class="k-val sm">Henüz yüklenmedi</div><div class="k-sub">Excel listeleri burada açılır</div>`}
-  </a>`;
 }
 function rosterCard() {
   return html`<div class="card-head"><h3>Nöbet listeleri</h3>${isPublisher() ? html`<a class="small" href="#/nobet">Yönet</a>` : ''}</div>
@@ -324,7 +292,7 @@ ACT['feed-filter'] = (el) => {
   if (!FEED || !document.body.contains(FEED.host)) return;
   FEED.filter = el.dataset.filter;
   loadFeed(true);
-  if (el.classList.contains('kpi')) FEED.host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (el.classList.contains('kpi') || el.classList.contains('hchip')) FEED.host.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 ACT['feed-more'] = () => loadFeed(false);
 

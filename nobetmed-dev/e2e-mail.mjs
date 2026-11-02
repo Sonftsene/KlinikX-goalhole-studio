@@ -46,6 +46,7 @@ async function waitMail(pred, label, ms = 8000) {
 const browser = await chromium.launch();
 async function ctx(tag) {
   const c = await browser.newContext({ viewport: { width: 1360, height: 860 } });
+  await c.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
   const p = await c.newPage();
   p.on('pageerror', (e) => errors.push(`[${tag}] ${e.message}`));
   p.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|Failed to load resource/.test(m.text())) errors.push(`[${tag}] ${m.text()}`); });
@@ -90,7 +91,7 @@ check(meName[1] === 'admin', 'ilk hesap yönetici değil');
 step('ilk yönetici geçici şifreyle girdi ve kendi şifresini belirledi');
 
 /* 3) E-posta ayarları + test e-postası */
-await a.goto(BASE + '#/yonetim/ayarlar');
+await a.goto(BASE + '#/yonetim/ayarlar/bildirim');
 await a.locator('[name=mail_host]').waitFor();
 await a.click('.switch:has([name=mail_on]) .track');
 await a.fill('[name=mail_from_name]', 'Yoğun Bakım Portalı');
@@ -181,7 +182,7 @@ check(!mails().slice(before).some((x) => x.to === 'elif@ornek.com'), 'bildirimi 
 step('bildirimi kapatan üyeye duyuru e-postası gitmedi');
 
 /* 9) Yönetici olay seçimi: nöbet e-postası kapatılınca gitmez */
-await a.goto(BASE + '#/yonetim/ayarlar');
+await a.goto(BASE + '#/yonetim/ayarlar/bildirim');
 await a.locator('[name=notify_roster]').waitFor({ state: 'attached' });
 await a.click('.switch:has([name=notify_roster]) .track');
 await a.click('form[data-form=settings] button[type=submit]');
@@ -239,7 +240,7 @@ await waitMail((x) => x.to === ADMIN_EMAIL && /Onay bekleyen içerik/.test(x.sub
 step('başvuru, onay ve onay bekleyen içerik e-postaları gitti');
 
 /* 12) Gönderim geçmişi */
-await a.goto(BASE + '#/yonetim/ayarlar');
+await a.goto(BASE + '#/yonetim/ayarlar/bildirim');
 await a.click('[data-act=mail-log]');
 await text(a, 'Gönderildi');
 step('gönderim geçmişi görüntülendi');

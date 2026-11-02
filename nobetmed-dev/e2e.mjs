@@ -22,6 +22,7 @@ function watch(page, tag) {
 }
 async function ctx(tag, mobile) {
   const c = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 860 } });
+  await c.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
   const p = await c.newPage(); watch(p, tag); return { c, p };
 }
 const step = (s) => console.log('✓', s);
@@ -166,7 +167,7 @@ await m.click('[data-form=force-change] button[type=submit]');
 step('üye ilk girişte kendi şifresini belirledi');
 await expectText(m, 'Elif');
 await m.screenshot({ path: path.join(OUT, 'm-home.png') });
-const todo = await m.locator('.kpi .k-val').first().innerText();
+const todo = await m.locator('[data-count=todo]').first().innerText();
 if (todo.trim() !== '1') errors.push('todo sayısı beklenen 1, gelen ' + todo);
 await m.click('.post >> text=Yüksek riskli');
 await m.click('[data-act=ack]');
@@ -272,7 +273,7 @@ if (ru !== 403) errors.push('üye liste oluşturabildi: ' + ru);
 step('üye listeyi görüyor, adını buluyor, düzenleyemiyor');
 
 // Ayarlar: bant
-await a.goto(BASE + '#/yonetim/ayarlar');
+await a.goto(BASE + '#/yonetim/ayarlar/genel');
 await a.click('.switch:has([name=banner_on]) .track');
 await a.fill('[name=banner_text]', '6 Kasım Cuma 09:30 kalite denetimi');
 await a.click('form[data-form=settings] button[type=submit]');

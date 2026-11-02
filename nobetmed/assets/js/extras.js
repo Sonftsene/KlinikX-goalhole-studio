@@ -17,6 +17,7 @@ function shiftTime(s) { return s.start && s.end ? `${s.start}–${s.end}` : ''; 
 function shiftTone(s) {
   if (s.kind === 'leave') return 'slate';
   if (s.kind === 'off') return 'slate';
+  if (s.kind === 'role') return 'teal';
   if (s.hours >= 24 || (s.start && s.end && s.start === s.end)) return 'emerald';
   if (s.start && s.end && s.end <= s.start) return 'indigo';
   return 'amber';
@@ -58,7 +59,10 @@ ACT.notifs = async (el) => {
   try { items = (await api('notif.list')).items; } catch (e) { /* çevrimdışı */ }
   const list = pop.querySelector('.np-list');
   if (!list) return;
-  setHTML(list, items.length ? items.map((n) => html`<button class="np-item ${n.read ? '' : 'unread'}" data-act="notif-open" data-id="${n.id}" data-url="${n.url || '#/'}">
+  const today = ymd(new Date()), weekAgo = ymd(new Date(Date.now() - 6 * DAY_MS));
+  const grp = (n) => (n.at.slice(0, 10) >= today ? 'Bugün' : n.at.slice(0, 10) >= weekAgo ? 'Bu hafta' : 'Daha eski');
+  let lastG = '';
+  setHTML(list, items.length ? items.map((n) => html`${grp(n) !== lastG ? html`<div class="np-sec">${(lastG = grp(n))}</div>` : ''}<button class="np-item ${n.read ? '' : 'unread'}" data-act="notif-open" data-id="${n.id}" data-url="${n.url || '#/'}">
       <span class="np-ico tone-${{ roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky' }[n.kind] || 'slate'}">${icon({ roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users' }[n.kind] || 'bell', 'sm')}</span>
       <span class="grow" style="min-width:0"><span class="np-t">${n.title}</span>${n.body ? html`<span class="np-b">${n.body}</span>` : ''}<span class="np-at">${fmtRel(n.at)}</span></span>
       ${n.read ? '' : html`<span class="dot"></span>`}
@@ -80,7 +84,22 @@ ACT['notif-readall'] = async () => {
 };
 
 /* =================================================================== */
-/* Ana sayfa: sıradaki nöbet, bugün nöbette, ipuçları                    */
+/* Nöbet kodları: her yerde aynı renk ve açıklama                       */
+/* =================================================================== */
+/** Yöneticinin düzenlediği kod sözlüğü (yoksa varsayılan) */
+function shiftDict() { const d = S.settings && S.settings.shift_codes; return Array.isArray(d) && d.length ? d : SHIFT_CODES_DEFAULT; }
+const hmShort = (t) => (t && t.endsWith(':00') ? t.slice(0, 2) : t || '');
+/** "24 saat · 08–08", "Gündüz · 08–16", "Yıllık izin" */
+function shiftDesc(s) {
+  if (!s) return '';
+  const lab = s.label && s.label !== s.code ? s.label : s.kind === 'leave' ? 'İzin' : '';
+  const t = s.start && s.end ? `${hmShort(s.start)}–${hmShort(s.end)}` : '';
+  return [lab, t].filter(Boolean).join(' · ');
+}
+function codeChip(s, big) { return html`<span class="code-chip tone-${shiftTone(s)} ${big ? 'big' : ''}" title="${shiftDesc(s)}">${s.code}</span>`; }
+
+/* =================================================================== */
+/* Ana sayfa: "Bugün" kartı, kim nöbette, ipuçları                       */
 /* =================================================================== */
 const MY = { entries: null, at: 0 };
 async function loadMyShifts(force) {
@@ -98,47 +117,84 @@ function nextShift(entries) {
   return (entries || []).filter((s) => s.kind === 'shift').find((s) => {
     if (s.date > today) return true;
     if (s.date < today) return false;
-    // bugün: bitmemişse
     if (!s.end || !s.start) return true;
     return s.end <= s.start || hmNow < s.end;
   }) || null;
 }
-function myShiftKpiHtml() {
-  return html`<a class="kpi" href="#/nobetim" id="kpiMyShift">
-    <div class="k-top"><span>Sıradaki nöbetin</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
-    <div class="k-val sm"><span class="skel" style="display:block;height:22px;width:70%"></span></div><div class="k-sub">&nbsp;</div></a>`;
+/** Şu an süren nöbet (dün başlayan gece/24 saat dahil) */
+function currentShift(entries) {
+  const now = new Date(), today = ymd(now), yest = ymd(new Date(now.getTime() - DAY_MS)), t = hm(now);
+  return (entries || []).find((e) => e.kind === 'shift' && e.start && e.end && (
+    (e.date === today && t >= e.start && (e.end <= e.start || t < e.end))
+    || (e.date === yest && e.end <= e.start && t < e.end))) || null;
+}
+function daysUntil(d) { const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((parseDT(d) - t) / DAY_MS); }
+
+function heroHtml() {
+  const c = S.counts;
+  const first = S.me.name.split(' ')[0];
+  const now = new Date();
+  const pend = (c.pending_posts || 0) + (isAdmin() ? c.pending_users || 0 : 0);
+  return html`<section class="hero">
+    <div class="hero-head"><div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div></div>
+    <a class="hero-shift" id="heroShift" href="#/nobetim"><span class="hs-ico tone-slate">${icon('calendar')}</span><span class="grow"><span class="skel" style="display:block;height:18px;width:62%"></span><span class="skel" style="display:block;height:13px;width:40%;margin-top:8px"></span></span></a>
+    <div class="hero-chips">
+      <a class="hchip ${c.todo ? 'warn' : 'ok'}" href="#/okunacak">${icon(c.todo ? 'alert' : 'checkCircle', 'sm')}${c.todo ? html`<span>Okuman gereken <b data-count="todo">${c.todo}</b></span>` : html`<span>Okunacak yok</span>`}</a>
+      <button class="hchip ${c.unread ? 'brand' : ''}" data-act="feed-filter" data-filter="unread">${icon('bell', 'sm')}<span>Yeni <b data-count="unread">${c.unread}</b></span></button>
+      ${isPublisher() && pend ? html`<a class="hchip danger" href="${c.pending_posts ? '#/yonetim/onaylar' : '#/yonetim/kullanicilar'}">${icon('inbox', 'sm')}<span>Onay bekleyen <b>${pend}</b></span></a>` : ''}
+      <a class="hchip" href="#/rehber">${icon('users', 'sm')}<span>Kim nöbette</span></a>
+    </div>
+  </section>`;
+}
+function heroShiftHtml(my) {
+  const box = (tone, ic, t, sub) => html`<span class="hs-ico tone-${tone}">${icon(ic)}</span><span class="grow" style="min-width:0"><span class="hs-t">${t}</span><span class="hs-s">${sub}</span></span>${icon('chevR', 'sm')}`;
+  if (!my.has_data) return box('slate', 'table', 'Nöbet listesi bekleniyor', 'Liste yüklenince nöbetlerin burada görünür.');
+  const ent = my.entries || [];
+  if (!ent.length) return box('slate', 'search', 'Listede adın bulunamadı', `Portaldaki adın (“${S.me.name}”) listedekiyle aynı olmalı.`);
+  const y = new Date().getFullYear(), mo = new Date().getMonth() + 1;
+  const monthList = ent.filter((e) => e.date.startsWith(`${y}-${pad(mo)}`));
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, mo) : null;
+  const monthTxt = sm ? ` · Bu ay ${sm.shifts} nöbet, ${sm.hours} saat` : '';
+  const cur = currentShift(ent);
+  if (cur) return box(shiftTone(cur), 'clock', 'Şu an nöbettesin', html`${codeChip(cur)} ${shiftDesc(cur)} · ${cur.end}’de bitiyor`);
+  const n = nextShift(ent);
+  if (!n) return box('slate', 'calendar', 'Yakında nöbetin görünmüyor', 'Önümüzdeki günlerde listede nöbetin yok' + monthTxt);
+  const d = daysUntil(n.date);
+  const t = d <= 0 ? (n.start ? `Bugün ${n.start}’de nöbetin başlıyor` : 'Bugün nöbetin var') : d === 1 ? 'Yarın nöbetin var' : `${d} gün sonra nöbetin var`;
+  return box(shiftTone(n), 'calendar', t, html`${codeChip(n)} ${dateLabel(n.date).replace(/^(Bugün|Yarın) · /, '')} · ${shiftDesc(n)}${monthTxt}`);
 }
 async function loadHomeExtras() {
   const [my, day] = await Promise.all([loadMyShifts(true), api('shifts.day').catch(() => null)]);
-  const k = $('#kpiMyShift');
-  if (k) {
-    const n = nextShift(my.entries);
-    setHTML(k, html`<div class="k-top"><span>Sıradaki nöbetin</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
-      ${n ? html`<div class="k-val sm">${relDayShort(n.date)} · ${n.code}</div><div class="k-sub">${[n.label !== n.code ? n.label : '', shiftTime(n), n.roster].filter(Boolean).join(' · ') || '\u00a0'}</div>`
-        : html`<div class="k-val sm">${my.has_data ? 'Planlı nöbet yok' : 'Liste bekleniyor'}</div><div class="k-sub">${my.has_data ? 'Önümüzdeki 60 gün' : 'Nöbet listesi yüklenince görünür'}</div>`}`);
-  }
+  const k = $('#heroShift');
+  if (k) setHTML(k, heroShiftHtml(my));
   const tc = $('#todayCard');
   if (tc && day) setHTML(tc, todayCardHtml(day, true));
   const tips = $('#homeTips');
   if (tips) setHTML(tips, await homeTipsHtml());
+  const sb = $('#setupBox');
+  if (sb) mountSetupBox(sb);
 }
 function relDayShort(d) {
+  const diff = daysUntil(d);
   const dt = parseDT(d);
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  const diff = Math.round((dt - t) / DAY_MS);
   return diff === 0 ? 'Bugün' : diff === 1 ? 'Yarın' : `${dt.getDate()} ${TR_MONTHS_S[dt.getMonth()]} ${TR_DAYS_S[dt.getDay()]}`;
 }
-function todayCardHtml(day, compact) {
-  const head = html`<div class="card-head"><h3>${icon('users', 'sm')} ${day.date === ymd(new Date()) ? 'Bugün nöbette' : dateLabel(day.date)}</h3><a class="small" href="#/nobetim">Tümü</a></div>`;
-  if (!day.has_data) return html`${head}<div class="list-row small muted">Nöbet listesi yüklendiğinde burada görünür.</div>`;
-  const shifts = day.groups.filter((g) => g.kind === 'shift');
-  if (!shifts.length && !(day.carry || []).length) return html`${head}<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
-  const person = (p) => html`<span class="duty-chip">${avatar(p.name, 'sm')}<span class="ellipsis">${p.name}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="Ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
-  return html`${head}<div class="duty">
-    ${(day.carry || []).length && !compact ? html`<div class="duty-g"><div class="duty-h"><span class="badge">Dünden devam</span></div><div class="duty-p">${day.carry.map(person)}</div></div>` : ''}
-    ${shifts.map((g) => html`<div class="duty-g"><div class="duty-h"><span class="badge tone-${shiftTone(g)}">${g.code}</span><b>${g.label && g.label !== g.code ? g.label : ''}</b><span class="tiny faint">${shiftTime(g)}</span></div>
-      <div class="duty-p">${g.people.map(person)}</div></div>`)}
+function dutyPerson(p) {
+  return html`<span class="duty-chip">${avatar(p.name, 'sm')}<span class="ellipsis">${p.name}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="${p.name} ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
+}
+/** Bir günün nöbetçileri (vardiyaya göre gruplu) */
+function dutyListHtml(day, compact) {
+  if (!day.has_data) return html`<div class="list-row small muted">Nöbet listesi yüklendiğinde burada görünür.</div>`;
+  const shifts = day.groups.filter((g) => g.kind === 'shift' || g.kind === 'role');
+  if (!shifts.length && !(day.carry || []).length) return html`<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
+  return html`<div class="duty">
+    ${(day.carry || []).length && !compact ? html`<div class="duty-g"><div class="duty-h"><span class="code-chip tone-indigo">Dün</span><b>Dünden devam eden</b></div><div class="duty-p">${day.carry.map(dutyPerson)}</div></div>` : ''}
+    ${shifts.map((g) => html`<div class="duty-g"><div class="duty-h">${codeChip(g)}<b>${shiftDesc(g)}</b><span class="tiny faint">${g.people.length} kişi</span></div>
+      <div class="duty-p">${g.people.map(dutyPerson)}</div></div>`)}
   </div>`;
+}
+function todayCardHtml(day, compact) {
+  return html`<div class="card-head"><h3>${icon('users', 'sm')} ${day.date === ymd(new Date()) ? 'Bugün nöbette' : dateLabel(day.date)}</h3><a class="small" href="#/rehber">Tümü</a></div>${dutyListHtml(day, compact)}`;
 }
 async function homeTipsHtml() {
   const tips = [];
@@ -161,66 +217,87 @@ ACT['tip-hide'] = (el) => {
 ACT['go-profile'] = () => { location.hash = '#/profil'; };
 
 /* =================================================================== */
-/* Nöbetlerim                                                           */
+/* Nöbet sayfası: Takvimim · Kim nöbette · Excel liste                  */
 /* =================================================================== */
-const MS = { day: null };
+const HUB_HREF = { cal: '#/nobetim', who: '#/rehber', list: '#/nobet' };
+function hubHref() { try { return HUB_HREF[localStorage.getItem('nm-hub')] || '#/nobetim'; } catch (e) { return '#/nobetim'; } }
+function hubTabs(active) {
+  try { localStorage.setItem('nm-hub', active); } catch (e) { /* */ }
+  const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${l}</span></a>`;
+  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${t('list', 'table', 'Excel liste')}</nav>`;
+}
+function hubHead(active, sub, actions) {
+  return html`<div class="page-head hub-head"><div><h1>Nöbet</h1><p>${sub}</p></div>${actions || ''}</div>${hubTabs(active)}`;
+}
+
+const CAL = { y: 0, m: 0, sel: null };
 async function renderMyShifts(view) {
-  setHTML(view, html`<div class="page-head"><div><h1>Nöbetlerim</h1><p>Yüklenen nöbet listelerinde <b>${S.me.name}</b> adıyla eşleşen nöbetler</p></div>
-      <div class="row wrap"><button class="btn" data-act="ics" id="icsBtn" disabled>${icon('calendar', 'sm')}Telefon takvimine ekle</button></div></div>
+  setHTML(view, html`${hubHead('cal', html`<b>${S.me.name}</b> adıyla listelerdeki nöbetlerin`, html`<button class="btn" data-act="ics" id="icsBtn" disabled>${icon('calendar', 'sm')}<span>Telefon takvimine ekle</span></button>`)}
     <div id="myBody"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   const my = await loadMyShifts(true);
-  MS.day = ymd(new Date());
   const body = $('#myBody');
   if (!body) return;
+  if (!CAL.y) { const d = new Date(); CAL.y = d.getFullYear(); CAL.m = d.getMonth() + 1; CAL.sel = ymd(d); }
   const entries = my.entries || [];
-  const today = ymd(new Date());
-  const upcoming = entries.filter((e) => e.date >= today);
   const n = nextShift(entries);
-  const now = new Date();
-  const months = [[now.getFullYear(), now.getMonth() + 1], [new Date(now.getFullYear(), now.getMonth() + 1, 1).getFullYear(), new Date(now.getFullYear(), now.getMonth() + 1, 1).getMonth() + 1]];
-  const sumHtml = months.map(([y, m]) => {
-    const list = entries.filter((e) => e.date.startsWith(`${y}-${pad(m)}`));
-    if (!list.length) return '';
-    const sm = typeof summarizeMonth === 'function' ? summarizeMonth(list, y, m) : null;
-    return html`<div class="card card-pad stat-month"><div class="small muted"><b style="color:var(--text)">${TR_MONTHS[m - 1]} ${y}</b></div>
-      <div class="stat-row">
-        <div><b>${sm ? sm.shifts : list.filter((e) => e.kind === 'shift').length}</b><span>nöbet</span></div>
-        <div><b>${sm ? sm.hours : '—'}</b><span>saat</span></div>
-        <div><b class="${sm && sm.overtime > 0 ? 'pos' : ''}">${sm ? (sm.overtime > 0 ? '+' : '') + Math.abs(sm.overtime) : '—'}</b><span>${sm && sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div>
-        <div><b>${sm ? sm.leaveDays : 0}</b><span>izin günü</span></div>
-      </div></div>`;
-  });
-  const byDate = {};
-  upcoming.forEach((e) => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+  const cur = currentShift(entries);
+  const top = cur || n;
   setHTML(body, html`
-    ${!my.has_data ? html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3><p class="small">Yöneticiniz Excel nöbet listesini yüklediğinde nöbetleriniz burada otomatik görünür.</p></div>`
-    : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa Hesabım sayfasından adınızı düzeltin.</p></div>`
+    ${!my.has_data ? html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3><p class="small">Yöneticiniz Excel nöbet listesini yüklediğinde nöbetleriniz burada takvim olarak görünür.</p></div>`
+    : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa Hesabım sayfasından adınızı düzeltin.</p><a class="btn" href="#/nobet" style="margin-top:12px">${icon('table', 'sm')}Excel listeye bak</a></div>`
     : html`
-      ${n ? html`<div class="next-shift tone-${shiftTone(n)}"><div class="ns-l">Sıradaki nöbetin</div><div class="ns-d">${dateLabel(n.date)}</div>
-        <div class="ns-c"><span class="ns-code">${n.code}</span>${[n.label, shiftTime(n), n.hours && !/saat/i.test(n.label || '') ? n.hours + ' saat' : ''].filter(Boolean).join(' · ')}</div><div class="ns-r">${n.roster || ''}</div></div>` : ''}
-      <div class="stat-grid">${sumHtml}</div>
-      <div class="card"><div class="card-head"><h3>Takvimim</h3><span class="tiny faint">${upcoming.length} kayıt</span></div>
-        <div class="list">${Object.keys(byDate).sort().map((d) => html`<div class="my-day ${d === today ? 'today' : ''}">
-          <div class="md-date"><b>${parseDT(d).getDate()}</b><span>${TR_MONTHS_S[parseDT(d).getMonth()]}</span><em>${TR_DAYS_S[parseDT(d).getDay()]}</em></div>
-          <div class="grow">${byDate[d].map((e) => html`<div class="md-item"><span class="badge tone-${shiftTone(e)}">${e.code}</span><span class="small"><b>${e.label || (e.kind === 'leave' ? 'İzin' : 'Nöbet')}</b>${shiftTime(e) ? ' · ' + shiftTime(e) : ''}</span><span class="tiny faint">${e.roster || ''}</span></div>`)}</div>
-        </div>`)}</div></div>`}
-    <div class="card" id="dutyCard" style="margin-top:16px"></div>`);
-  $('#icsBtn').disabled = !upcoming.some((e) => e.kind === 'shift');
-  loadDuty();
+      ${top ? html`<div class="next-shift tone-${shiftTone(top)}"><div class="ns-l">${cur ? 'Şu an nöbettesin' : 'Sıradaki nöbetin'}</div><div class="ns-d">${cur ? `${cur.end}’de bitiyor` : dateLabel(top.date)}</div>
+        <div class="ns-c">${codeChip(top, true)}<span>${shiftDesc(top)}${top.hours ? html` · <b>${top.hours} saat</b>` : ''}</span></div><div class="ns-r">${top.roster || ''}</div></div>` : ''}
+      <div class="cal-wrap"><div class="card cal-card" id="calCard"></div><div class="card" id="dayPanel"></div></div>`}`);
+  $('#icsBtn').disabled = !entries.some((e) => e.kind === 'shift' && e.date >= ymd(new Date()));
+  drawCalendar();
+  loadDayPanel();
 }
-async function loadDuty() {
-  const box = $('#dutyCard');
+function drawCalendar() {
+  const box = $('#calCard');
   if (!box) return;
-  let day = null;
-  try { day = await api('shifts.day', { date: MS.day }); } catch (e) { setHTML(box, html`<div class="list-row small muted">${e.message}</div>`); return; }
-  setHTML(box, html`<div class="card-head"><h3>${icon('users', 'sm')} Kim nöbette?</h3>
-      <div class="row" style="gap:4px"><button class="btn sm icon" data-act="duty-day" data-d="-1" aria-label="Önceki gün">${icon('chevL', 'sm')}</button>
-      <button class="btn sm" data-act="duty-today">${dateLabel(MS.day)}</button>
-      <button class="btn sm icon" data-act="duty-day" data-d="1" aria-label="Sonraki gün">${icon('chevR', 'sm')}</button></div></div>
-    ${raw(todayCardHtml(day, false).s.replace(/^<div class="card-head">[\s\S]*?<\/div>/, ''))}`);
+  const { y, m } = CAL;
+  const byDate = {};
+  (MY.entries || []).forEach((e) => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+  const days = new Date(y, m, 0).getDate();
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const today = ymd(new Date());
+  const pre = `${y}-${pad(m)}`;
+  const monthList = (MY.entries || []).filter((e) => e.date.startsWith(pre));
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, m) : null;
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(html`<span class="cal-d empty" aria-hidden="true"></span>`);
+  for (let d = 1; d <= days; d++) {
+    const ds = `${pre}-${pad(d)}`;
+    const list = byDate[ds] || [];
+    const main = list.find((e) => e.kind === 'shift') || list[0];
+    cells.push(html`<button type="button" class="cal-d ${main ? 'has tone-' + shiftTone(main) : ''} ${ds === today ? 'today' : ''} ${ds === CAL.sel ? 'sel' : ''}" data-act="cal-day" data-d="${ds}" aria-label="${dateLabel(ds)}${main ? ' · ' + main.code + ' ' + shiftDesc(main) : ''}"><span class="cd-n">${d}</span>${main ? html`<span class="cd-c">${main.code}</span>` : ''}</button>`);
+  }
+  const used = new Map();
+  monthList.forEach((e) => used.set(e.kind + '|' + e.code, e));
+  setHTML(box, html`<div class="cal-head"><button type="button" class="btn sm icon" data-act="cal-mv" data-d="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b>${TR_MONTHS[m - 1]} ${y}</b><button type="button" class="btn sm icon" data-act="cal-mv" data-d="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>
+    ${sm ? html`<div class="stat-row cal-stats"><div><b>${sm.shifts}</b><span>nöbet</span></div><div><b>${sm.hours}</b><span>saat</span></div>
+      <div><b class="${sm.overtime > 0 ? 'pos' : ''}">${sm.overtime > 0 ? '+' : ''}${Math.abs(sm.overtime)}</b><span>${sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div><div><b>${sm.leaveDays}</b><span>izin günü</span></div></div>`
+      : html`<p class="tiny faint cal-none">Bu ay için listede nöbetiniz yok.</p>`}
+    <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
+    ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || e.code}</span></span>`)}</div>` : ''}`);
 }
-ACT['duty-day'] = (el) => { const d = parseDT(MS.day); d.setDate(d.getDate() + +el.dataset.d); MS.day = ymd(d); loadDuty(); };
-ACT['duty-today'] = () => { MS.day = ymd(new Date()); loadDuty(); };
+ACT['cal-day'] = (el) => { CAL.sel = el.dataset.d; drawCalendar(); loadDayPanel(); if (window.innerWidth < 900) { const p = $('#dayPanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
+ACT['cal-mv'] = (el) => { const d = new Date(CAL.y, CAL.m - 1 + +el.dataset.d, 1); CAL.y = d.getFullYear(); CAL.m = d.getMonth() + 1; drawCalendar(); };
+async function loadDayPanel() {
+  const box = $('#dayPanel');
+  if (!box || !CAL.sel) return;
+  const mine = (MY.entries || []).filter((e) => e.date === CAL.sel);
+  const head = html`<div class="card-head"><h3>${dateLabel(CAL.sel)}</h3></div>`;
+  const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div></div>`)}</div>`
+    : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
+  setHTML(box, html`${head}${mineHtml}<div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
+  const want = CAL.sel;
+  let day = null;
+  try { day = await api('shifts.day', { date: want }); } catch (e) { /* */ }
+  const dd = $('#dayDuty');
+  if (dd && CAL.sel === want) setHTML(dd, day ? dutyListHtml(day, false) : html`<div class="list-row small muted">Yüklenemedi.</div>`);
+}
 ACT.ics = () => {
   const today = ymd(new Date());
   const list = (MY.entries || []).filter((s) => s.date >= today && s.kind === 'shift');
@@ -246,7 +323,7 @@ async function syncRosterShifts(roster, model) {
   if (roster.parsed_file_id === roster.file.id && !roster._reparse) return;
   roster._reparse = false;
   let res;
-  try { res = extractShifts(model, { fileName: roster.file.name, uploadedAt: roster.file.updated_at, year: roster._year, month: roster._month }); } catch (e) { return; }
+  try { res = extractShifts(model, { dict: shiftDict(), fileName: roster.file.name, uploadedAt: roster.file.updated_at, year: roster._year, month: roster._month }); } catch (e) { return; }
   if (!res || !res.ok || !res.entries.length) return;
   const period = `${res.year}-${pad(res.month)}`;
   try {
@@ -278,17 +355,36 @@ ACT['rs-period'] = async () => {
 };
 
 /* =================================================================== */
-/* Ekip rehberi                                                         */
+/* Kim nöbette + ekip rehberi                                           */
 /* =================================================================== */
 const DIR = { people: null, q: '', filter: 'all' };
+const DUTY = { day: null };
 async function renderDirectory(view) {
-  setHTML(view, html`<div class="page-head"><div><h1>Ekip rehberi</h1><p>Ekip arkadaşlarınıza tek dokunuşla ulaşın</p></div></div>
+  if (!DUTY.day) DUTY.day = ymd(new Date());
+  setHTML(view, html`${hubHead('who', 'Hangi gün kim nöbette, ekibe tek dokunuşla ulaşın')}
+    <div class="card" id="dutyCard"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>
+    <div class="sec-title">${icon('phone', 'sm')} Ekip rehberi</div>
     <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, ünvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
       <div class="seg"><button class="${DIR.filter === 'all' ? 'on' : ''}" data-act="dir-f" data-f="all">Herkes</button><button class="${DIR.filter === 'today' ? 'on' : ''}" data-act="dir-f" data-f="today">Bugün nöbette</button></div></div>
     <div id="dirList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div></div>`);
+  loadDuty();
   try { DIR.people = (await api('people.list')).people; } catch (e) { DIR.people = DIR.people || []; }
   drawDirectory();
 }
+async function loadDuty() {
+  const box = $('#dutyCard');
+  if (!box) return;
+  const want = DUTY.day;
+  let day = null;
+  try { day = await api('shifts.day', { date: want }); } catch (e) { setHTML(box, html`<div class="list-row small muted">${e.message}</div>`); return; }
+  if (want !== DUTY.day || !$('#dutyCard')) return;
+  setHTML(box, html`<div class="card-head duty-nav"><button class="btn sm icon" data-act="duty-day" data-d="-1" aria-label="Önceki gün">${icon('chevL', 'sm')}</button>
+      <button class="btn sm ghost grow" data-act="duty-today"><b>${dateLabel(DUTY.day)}</b></button>
+      <button class="btn sm icon" data-act="duty-day" data-d="1" aria-label="Sonraki gün">${icon('chevR', 'sm')}</button></div>
+    ${dutyListHtml(day, false)}`);
+}
+ACT['duty-day'] = (el) => { const d = parseDT(DUTY.day); d.setDate(d.getDate() + +el.dataset.d); DUTY.day = ymd(d); loadDuty(); };
+ACT['duty-today'] = () => { DUTY.day = ymd(new Date()); loadDuty(); };
 function drawDirectory() {
   const box = $('#dirList');
   if (!box || !DIR.people) return;
@@ -296,7 +392,7 @@ function drawDirectory() {
   const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || trLower([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
   setHTML(box, list.length ? html`<div class="card"><div class="list">${list.map((p) => html`<div class="list-row dir-row">
       ${avatar(p.name)}
-      <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` <span class="badge tone-${shiftTone(p.today)}" title="${p.today.label || ''}">${p.today.code}</span>` : ''}</div>
+      <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div>
         <div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ')}${p.extension ? html` · Dahili <b>${p.extension}</b>` : ''}${p.phone ? html` · <span class="sel">${p.phone}</span>` : ''}</div></div>
       <div class="row" style="gap:4px">
         ${p.phone ? html`<a class="btn sm icon" href="${telLink(p.phone)}" aria-label="Ara" title="Ara">${icon('phone', 'sm')}</a><a class="btn sm icon" href="https://wa.me/${waNumber(p.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp" title="WhatsApp">${icon('chat', 'sm')}</a>` : ''}
@@ -312,6 +408,7 @@ ACT['dir-f'] = (el) => { DIR.filter = el.dataset.f; $$('[data-act=dir-f]').forEa
 function profileExtrasHtml() {
   const me = S.me;
   return html`
+    ${appearanceCardHtml()}
     <form class="card card-pad stack" data-form="me-contact">
       <h3 style="font-size:14.5px">Rehber bilgilerim</h3>
       <div class="grid2"><div class="field"><label>Cep telefonu</label><input class="input" name="phone" type="tel" value="${me.phone || ''}" placeholder="05xx xxx xx xx"></div>
@@ -758,8 +855,8 @@ function settingsExtrasHtml(A) {
   const SWX = (name, on, title, hint) => html`<label class="switch"><input type="checkbox" name="${name}" ${on ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>${title}</b>${hint ? html`<span>${hint}</span>` : ''}</span></label>`;
   const hours = (name, v) => html`<select class="select" name="${name}" style="width:auto">${Array.from({ length: 24 }, (_, h) => html`<option value="${h}" ${h === v ? raw('selected') : ''}>${pad(h)}:00</option>`)}</select>`;
   return html`
-    <div class="card card-pad stack">
-      <div><h3 style="font-size:15px">${icon('clock', 'sm')} Hatırlatmalar ve sabah özeti</h3><p class="small muted">Otomatik çalışır. Saatinde çalışması için Hostinger’da 10 dakikalık cron görevi önerilir (Kurulum rehberi).</p></div>
+    <div class="card card-pad stack" data-sec="bildirim">
+      <div><h3 style="font-size:15px">${icon('clock', 'sm')} Hatırlatmalar ve sabah özeti</h3><p class="small muted">Kendiliğinden çalışır. Tam saatinde gitmesi için hPanel’de zamanlanmış görev (Cron Jobs) kurun — Kurulum rehberi, 13. bölüm.</p></div>
       ${SWX('shift_remind_on', A.shift_remind_on, 'Nöbetten bir gün önce hatırlat', 'Excel listesinde adı geçen kişiye e-posta ve telefon bildirimi.')}
       <div class="row wrap"><span class="small muted">Hatırlatma saati</span>${hours('shift_remind_hour', A.shift_remind_hour)}</div>
       ${SWX('digest_on', A.digest_on, 'Sabah özeti e-postası', '“Sabah özeti” seçenlere her sabah tek e-posta: bugünkü nöbet, yeni duyurular, okunacaklar, onay bekleyenler.')}
@@ -769,11 +866,12 @@ function settingsExtrasHtml(A) {
       <div class="row wrap"><span class="small muted">Zorunlu okumayı</span><input class="input" type="number" name="auto_remind_days" min="0" max="60" value="${A.auto_remind_days}" style="width:80px"><span class="small muted">gün içinde okumayanlara otomatik hatırlat (0 = kapalı)</span></div>
       <div class="row wrap"><span class="small muted">Belge gözden geçirme tarihinden</span><input class="input" type="number" name="review_warn_days" min="1" max="120" value="${A.review_warn_days}" style="width:80px"><span class="small muted">gün önce uyar</span></div>
     </div>
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="bildirim">
       <div><h3 style="font-size:15px">${icon('bell', 'sm')} Telefon bildirimleri</h3><p class="small muted">Portalı telefona ekleyenlere duyuru ve hatırlatmalar anında gelir (Android ve iPhone — iPhone’da önce “Ana Ekrana Ekle”).</p></div>
-      ${SWX('push_enabled', A.push_enabled, 'Telefon bildirimlerini kullan', A.push_ready ? '' : 'Bu sunucuda kullanılamıyor (OpenSSL gerekli).')}
+      ${SWX('push_enabled', A.push_enabled, 'Telefon bildirimlerini kullan', A.push_ready ? '' : 'Sunucunuz şu an bu özelliği desteklemiyor; hosting desteğine “PHP OpenSSL” eklentisini sorun.')}
     </div>
-    <div class="card card-pad stack">
+    ${shiftCodesCardHtml()}
+    <div class="card card-pad stack" data-sec="yedek">
       <div><h3 style="font-size:15px">${icon('download', 'sm')} Yedekleme</h3><p class="small muted">Veritabanı her hafta otomatik yedeklenir (son 4 yedek saklanır). İstediğiniz an indirebilirsiniz.</p></div>
       ${SWX('backup_weekly', A.backup_weekly, 'Haftalık otomatik yedek', '')}
       <div id="backupBox" class="stack" style="gap:8px"><div class="tiny faint">Yükleniyor…</div></div>
@@ -822,3 +920,186 @@ function reviewBadge(d) {
   const cls = d < today ? 'danger' : d <= soon ? 'warn' : '';
   return html`<span class="badge ${cls}" title="Gözden geçirme tarihi">${icon('clock')}${d < today ? 'Gözden geçirme tarihi geçti' : 'Gözden geçir: ' + fmtDate(d, true)}</span>`;
 }
+
+/* =================================================================== */
+/* İlk açılış tanıtımı (3 adım)                                          */
+/* =================================================================== */
+function maybeShowTour() {
+  if (!S.me) return;
+  const k = 'nm-tour-' + S.me.id;
+  try { if (localStorage.getItem('nm-tour') || localStorage.getItem(k)) return; localStorage.setItem(k, '1'); } catch (e) { return; }
+  setTimeout(showTour, 500);
+}
+function showTour() {
+  const steps = [
+    ['calendar', 'tone-indigo', 'Nöbetin burada', 'Alttaki <b>Nöbet</b> sekmesinde takvimini, hangi gün kimin nöbette olduğunu ve Excel listenin kendisini bulursun. Renkler her yerde aynı: <span class="code-chip tone-amber">G</span> gündüz, <span class="code-chip tone-indigo">N</span> gece, <span class="code-chip tone-emerald">24</span> 24 saat, <span class="code-chip tone-slate">İ</span> izin.'],
+    ['checkCircle', 'tone-amber', 'Okuman gerekenler', 'Zorunlu duyuru ve protokolleri açıp <b>“Okudum, anladım”</b> demen yeterli. Kaç tane kaldığı ana sayfanın en üstünde yazar.'],
+    ['bell', 'tone-teal', 'Hiçbir şeyi kaçırma', 'Yeni duyurular ve nöbet hatırlatmaları sağ üstteki zilde toplanır. Telefon bildirimlerini açarsan nöbetinden bir gün önce de haber verilir.'],
+  ];
+  let i = 0;
+  const m = openModal({ title: 'Hoş geldin', size: 'narrow' });
+  m.el.classList.add('tour');
+  const draw = async () => {
+    const [ic, tone, t, d] = steps[i];
+    const last = i === steps.length - 1;
+    let pushBtn = '';
+    if (last && S.settings.push_ready && typeof pushState === 'function' && !window.NM_DEMO_API) {
+      try { if ((await pushState()) === 'off') pushBtn = html`<button class="btn" data-tour="push">${icon('bell', 'sm')}Bildirimleri aç</button>`; } catch (e) { /* */ }
+    }
+    m.setTitle(`${i + 1} / ${steps.length}`);
+    m.setBody(html`<div class="tour-step"><span class="tour-ico ${tone}">${icon(ic, 'lg')}</span><h2>${t}</h2><p>${raw(d)}</p>
+      <div class="tour-dots">${steps.map((_, k) => html`<span class="${k === i ? 'on' : ''}"></span>`)}</div></div>`);
+    m.setFoot(html`${i ? html`<button class="btn ghost" data-tour="back">Geri</button>` : html`<button class="btn ghost" data-tour="skip">Geç</button>`}<div class="grow"></div>${pushBtn}<button class="btn primary" data-tour="${last ? 'done' : 'next'}">${last ? 'Başla' : 'İleri'}</button>`);
+  };
+  m.el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tour]');
+    if (!b) return;
+    const a = b.dataset.tour;
+    if (a === 'next') { i++; draw(); }
+    else if (a === 'back') { i--; draw(); }
+    else if (a === 'skip' || a === 'done') m.close();
+    else if (a === 'push') { try { await pushEnable(); toast('Telefon bildirimleri açıldı'); m.close(); } catch (err) { toast(err.message, 'err'); } }
+  });
+  draw();
+}
+ACT['tour'] = () => showTour();
+
+/* =================================================================== */
+/* Yönetici: kurulum kontrol listesi                                    */
+/* =================================================================== */
+async function mountSetupBox(box) {
+  try { if (localStorage.getItem('nm-setup-hide')) return; } catch (e) { /* */ }
+  let st;
+  try { st = (await api('setup.status')).status; } catch (e) { return; }
+  const team = st.roster_people ? st.matched >= Math.ceil(st.roster_people * 0.6) : st.users > 3;
+  const items = [
+    [st.roster, 'Nöbet listesini yükle', 'Excel listeyi yükleyin; herkes açık görür.', '#/nobet'],
+    [st.parsed, 'Nöbetleri okut', 'Listeyi bir kez açmanız yeterli. Takvimim ve hatırlatmalar buradan beslenir.', '#/nobet'],
+    [team, 'Ekibi davet et' + (st.roster_people ? ` (${st.matched}/${st.roster_people})` : ''), 'QR kod veya nöbet listesinden kişiye özel davet bağlantısı.', '#/yonetim/kullanicilar'],
+    [st.mail, 'E-posta gönderimini ayarla', 'Duyuru, hatırlatma ve şifre e-postaları için.', '#/yonetim/ayarlar/bildirim'],
+    [st.cron, 'Zamanlanmış görevi kur', 'Hatırlatmalar saatinde gitsin: hPanel › Cron Jobs (Kurulum rehberi, 13. bölüm).', '#/yonetim/ayarlar/bildirim'],
+    [location.protocol === 'https:' || !!window.NM_DEMO_API, 'Güvenli bağlantıyı (SSL) aç', 'Parmak izi girişi ve telefon bildirimleri için gerekli: hPanel › SSL.', ''],
+  ];
+  const done = items.filter((x) => x[0]).length;
+  if (done === items.length) { setHTML(box, ''); return; }
+  setHTML(box, html`<div class="card setup"><div class="card-head"><div><h3>Kurulumu tamamlayın</h3><div class="tiny faint">${done} / ${items.length} adım tamam</div></div><button class="btn sm icon ghost" data-act="setup-hide" aria-label="Gizle">${icon('x', 'sm')}</button></div>
+    <div class="setup-bar"><div class="progress"><span style="width:${Math.round(done / items.length * 100)}%"></span></div></div>
+    <div class="setup-list">${items.map(([ok, t, d, href]) => html`<a class="setup-row ${ok ? 'ok' : ''}" href="${href || '#'}" ${href ? '' : raw('data-act="noop"')}>
+      <span class="su-ck">${icon(ok ? 'check' : 'chevR', 'sm')}</span><span class="grow" style="min-width:0"><b>${t}</b>${ok ? '' : html`<span>${d}</span>`}</span></a>`)}</div></div>`);
+}
+ACT['setup-hide'] = (el) => { try { localStorage.setItem('nm-setup-hide', '1'); } catch (e) { /* */ } const c = el.closest('#setupBox'); if (c) setHTML(c, ''); };
+ACT.noop = () => {};
+
+/* =================================================================== */
+/* Ayarlar: bölümler ve nöbet kodu sözlüğü                              */
+/* =================================================================== */
+const SET_SECS = [['genel', 'Genel', 'sliders'], ['bildirim', 'Bildirimler', 'bell'], ['nobet', 'Nöbet', 'calendar'], ['guvenlik', 'Güvenlik', 'lock'], ['yedek', 'Yedek', 'download']];
+function settingsTabsHtml(cur) {
+  return html`<div class="seg set-tabs" role="tablist">${SET_SECS.map(([k, l, ic]) => html`<button type="button" class="${cur === k ? 'on' : ''}" data-act="set-sec" data-s="${k}">${icon(ic, 'sm')}${l}</button>`)}</div>`;
+}
+function settingsSecNow() {
+  const r = currentRoute()[2];
+  if (SET_SECS.some(([k]) => k === r)) return r;
+  try { const v = localStorage.getItem('nm-setsec'); if (SET_SECS.some(([k]) => k === v)) return v; } catch (e) { /* */ }
+  return 'genel';
+}
+function applySettingsSec(sec) {
+  $$('form[data-form=settings] [data-sec]').forEach((c) => c.classList.toggle('hidden', c.dataset.sec !== sec));
+  $$('[data-act=set-sec]').forEach((b) => b.classList.toggle('on', b.dataset.s === sec));
+  try { localStorage.setItem('nm-setsec', sec); } catch (e) { /* */ }
+}
+ACT['set-sec'] = (el) => { applySettingsSec(el.dataset.s); history.replaceState(null, '', '#/yonetim/ayarlar/' + el.dataset.s); };
+
+const CODES = { list: [] };
+function shiftCodesCardHtml() {
+  return html`<div class="card card-pad stack" data-sec="nobet">
+    <div><h3 style="font-size:15px">${icon('table', 'sm')} Nöbet kodları</h3><p class="small muted">Excel listedeki kısaltmaların anlamı. Takvimde, hatırlatmalarda, renklerde ve saat/fazla mesai hesabında kullanılır. Değiştirince listeler yeniden okunur.</p></div>
+    <div id="codesBox"></div></div>`;
+}
+function mountCodesBox() {
+  CODES.list = JSON.parse(JSON.stringify(shiftDict()));
+  drawCodes();
+  const box = $('#codesBox');
+  if (!box) return;
+  box.addEventListener('input', (e) => {
+    const i = e.target.closest('[data-i]');
+    if (!i) return;
+    const row = CODES.list[+i.dataset.i];
+    if (row) row[i.dataset.k] = e.target.value;
+  });
+  box.addEventListener('change', (e) => {
+    const i = e.target.closest('select[data-i]');
+    if (!i) return;
+    CODES.list[+i.dataset.i].kind = i.value;
+    drawCodes();
+  });
+}
+function drawCodes() {
+  const box = $('#codesBox');
+  if (!box) return;
+  const kinds = [['shift', 'Nöbet'], ['leave', 'İzin'], ['off', 'Diğer']];
+  setHTML(box, html`<div class="table-wrap codes-wrap"><table class="t codes-t"><thead><tr><th>Kod</th><th>Açıklama</th><th>Başlangıç</th><th>Bitiş</th><th>Tür</th><th></th></tr></thead><tbody>
+    ${CODES.list.map((c, i) => html`<tr>
+      <td><div class="row" style="gap:6px">${codeChip({ ...c, code: c.code || '?' })}<input class="input" data-i="${i}" data-k="code" value="${c.code || ''}" maxlength="12" style="width:72px" aria-label="Kod"></div></td>
+      <td><input class="input" data-i="${i}" data-k="label" value="${c.label || ''}" maxlength="40" aria-label="Açıklama"></td>
+      <td>${c.kind === 'shift' ? html`<input class="input" type="time" data-i="${i}" data-k="start" value="${c.start || ''}" aria-label="Başlangıç">` : html`<span class="faint">—</span>`}</td>
+      <td>${c.kind === 'shift' ? html`<input class="input" type="time" data-i="${i}" data-k="end" value="${c.end || ''}" aria-label="Bitiş">` : html`<span class="faint">—</span>`}</td>
+      <td><select class="select" data-i="${i}" data-k="kind" aria-label="Tür">${kinds.map(([k, l]) => html`<option value="${k}" ${c.kind === k ? raw('selected') : ''}>${l}</option>`)}</select></td>
+      <td><button type="button" class="btn sm icon ghost danger" data-act="code-del" data-i="${i}" aria-label="Sil">${icon('trash', 'sm')}</button></td></tr>`)}
+  </tbody></table></div>
+  <div class="row wrap"><button type="button" class="btn" data-act="code-add">${icon('plus', 'sm')}Kod ekle</button><span class="grow"></span>
+    <button type="button" class="btn ghost" data-act="code-reset">Varsayılana dön</button><button type="button" class="btn primary" data-act="code-save">Kodları kaydet</button></div>
+  <p class="tiny faint">Örnek: “8 16” = Gündüz 08:00–16:00. Bitiş başlangıçtan önceyse ertesi güne geçen nöbet sayılır (gece, 24 saat).</p>`);
+}
+ACT['code-add'] = () => { CODES.list.push({ code: '', label: '', start: '08:00', end: '16:00', kind: 'shift' }); drawCodes(); const ins = $$('#codesBox input[data-k=code]'); if (ins.length) ins[ins.length - 1].focus(); };
+ACT['code-del'] = (el) => { CODES.list.splice(+el.dataset.i, 1); drawCodes(); };
+ACT['code-reset'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Varsayılan kodlara dönülsün mü?', text: 'Yaptığınız değişiklikler silinir ve listeler varsayılan kodlarla yeniden okunur.', ok: 'Varsayılana dön' }))) return;
+  try { await api('shiftcodes.save', { reset: true }); S.settings.shift_codes = null; CODES.list = JSON.parse(JSON.stringify(SHIFT_CODES_DEFAULT)); drawCodes(); reparseAllRosters(); toast('Varsayılan kodlar geri yüklendi'); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['code-save'] = (el) => busy(el, async () => {
+  try {
+    const r = await api('shiftcodes.save', { codes: CODES.list.filter((c) => String(c.code || '').trim()) });
+    S.settings.shift_codes = r.codes;
+    CODES.list = JSON.parse(JSON.stringify(r.codes));
+    drawCodes();
+    const n = reparseAllRosters();
+    toast(n ? `Kodlar kaydedildi · ${n} liste yeniden okunuyor` : 'Kodlar kaydedildi');
+  } catch (e) { toast(e.message, 'err'); }
+});
+/** Kod sözlüğü değişince tüm Excel listeleri yeniden oku */
+function reparseAllRosters() {
+  let n = 0;
+  (S.rosters || []).forEach((r) => {
+    if (!r.file || !['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) return;
+    n++;
+    r._reparse = true;
+    loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {});
+  });
+  MY.at = 0;
+  return n;
+}
+
+/* =================================================================== */
+/* Görünüm: yazı boyutu ve tema                                         */
+/* =================================================================== */
+function appearanceCardHtml() {
+  const lg = document.documentElement.classList.contains('fs-lg');
+  return html`<div class="card card-pad stack">
+    <h3 style="font-size:14.5px">Görünüm</h3>
+    <div><div class="tiny faint" style="margin-bottom:6px">Yazı boyutu</div><div class="seg seg-block"><button class="${lg ? '' : 'on'}" data-act="fs" data-v="">Normal</button><button class="${lg ? 'on' : ''}" data-act="fs" data-v="lg" style="font-size:14.5px">Büyük</button></div></div>
+    <div><div class="tiny faint" style="margin-bottom:6px">Tema</div><div class="seg seg-block"><button class="${isDark() ? '' : 'on'}" data-act="theme-set" data-v="light">${icon('sun', 'sm')}Açık</button><button class="${isDark() ? 'on' : ''}" data-act="theme-set" data-v="dark">${icon('moon', 'sm')}Koyu</button></div></div>
+    <button class="btn ghost sm" data-act="tour" style="align-self:flex-start">${icon('info', 'sm')}Kısa tanıtımı tekrar göster</button>
+  </div>`;
+}
+ACT.fs = (el) => {
+  const lg = el.dataset.v === 'lg';
+  document.documentElement.classList.toggle('fs-lg', lg);
+  try { localStorage.setItem('nm-fs', lg ? 'lg' : ''); } catch (e) { /* */ }
+  $$('[data-act=fs]').forEach((b) => b.classList.toggle('on', b === el));
+};
+ACT['theme-set'] = (el) => {
+  setTheme(el.dataset.v);
+  $$('[data-act=theme-set]').forEach((b) => b.classList.toggle('on', b === el));
+  const b = $('#themeBtn'); if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
+};

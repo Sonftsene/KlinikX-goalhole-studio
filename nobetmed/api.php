@@ -142,6 +142,8 @@ $routes = [
     'backup.create' => 'a_backup_create',
     'backup.delete' => 'a_backup_delete',
     'audit.list' => 'a_audit_list',
+    'shiftcodes.save' => 'a_shiftcodes_save',
+    'setup.status' => 'a_setup_status',
     'templates.list' => 'a_templates_list',
     'templates.save' => 'a_templates_save',
     'templates.delete' => 'a_templates_delete',
@@ -444,6 +446,7 @@ function a_boot(): void
             'mail_ready' => mail_ready(),
             'notify_post' => mail_event_on('notify_post') || (push_ready() && event_on('notify_post')),
             'push_ready' => push_ready(),
+            'shift_codes' => shift_codes(),
         ];
         $data['counts'] = counts_for($me);
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));

@@ -259,19 +259,21 @@ async function drawSettings(body) {
   let A;
   try { A = (await api('settings.get')).admin; } catch (e) { toast(e.message, 'err'); return; }
   const st = S.settings;
-  setHTML(body, html`<form class="stack" data-form="settings" style="max-width:720px;gap:16px">
-    <div class="card card-pad stack">
+  const sec = settingsSecNow();
+  setHTML(body, html`<form class="stack" data-form="settings" style="max-width:760px;gap:16px">
+    ${settingsTabsHtml(sec)}
+    <div class="card card-pad stack" data-sec="genel">
       <h3 style="font-size:15px">Genel</h3>
       <div class="field"><label>Kurum / klinik adı</label><input class="input" name="org_name" value="${st.org_name}" required></div>
     </div>
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="nobet">
       <div><h3 style="font-size:15px">${icon('megaphone', 'sm')} Otomatik duyuru</h3><p class="small muted">Nöbet listesi yüklenince ekip ana sayfada görsün.</p></div>
       ${SW('auto_post_roster', A.auto_post_roster, 'Nöbet listesi güncellenince duyuru yayınla', 'Duyurular bölümüne “… nöbet listesi güncellendi” başlıklı, listeye bağlantı veren bir duyuru eklenir.')}
       ${SW('auto_post_required', A.auto_post_required, 'Bu duyuruyu zorunlu okuma yap', 'Ekip “Okudum, anladım” ile onaylar; kimin listeye baktığını takip edersiniz.')}
     </div>
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="bildirim">
       <div class="row between wrap"><div><h3 style="font-size:15px">${icon('send', 'sm')} E-posta bildirimleri</h3><p class="small muted">Bildirimlerin gönderileceği e-posta hesabı.</p></div>
         <span class="badge ${A.mail_ready ? 'success' : ''}">${A.mail_ready ? 'Etkin' : 'Kapalı'}</span></div>
       ${SW('mail_on', A.mail_on, 'E-posta bildirimlerini aç', '')}
@@ -298,7 +300,7 @@ async function drawSettings(body) {
       </div>
     </div>
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="bildirim">
       <div><h3 style="font-size:15px">${icon('bell', 'sm')} Hangi durumlarda e-posta gitsin?</h3><p class="small muted">Seçtiğiniz olaylarda ilgili kişilere otomatik e-posta gönderilir. Kişiler Hesabım sayfasından bildirimleri kapatabilir; hatırlatma ve hesap e-postaları her zaman gider.</p></div>
       ${A.events.map((ev) => SW(ev.key, ev.on, ev.label, ''))}
       <p class="tiny faint">Ayrıca zorunlu okumalarda “Okumayanlara e-posta ile hatırlat” düğmesi ve “Şifremi unuttum” e-postası kullanılabilir.</p>
@@ -306,18 +308,18 @@ async function drawSettings(body) {
 
     ${settingsExtrasHtml(A)}
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="guvenlik">
       <div><h3 style="font-size:15px">${icon('lock', 'sm')} Gizlilik</h3><p class="small muted">Giriş yapmayan hiç kimse içerik, nöbet listesi veya dosya göremez.</p></div>
       ${SW('allow_guest', A.allow_guest, 'Misafir bağlantılarına izin ver', 'Açıksa, yetkililer tek bir içeriği üye olmayan birine süreli bağlantıyla gösterebilir. Kapalıysa tüm bağlantılar çalışmaz.')}
     </div>
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="guvenlik">
       <div><h3 style="font-size:15px">Üye kaydı</h3><p class="small muted">Kimlerin portala katılabileceğini belirleyin.</p></div>
       ${[['approval', 'Onaylı kayıt (önerilen)', 'Herkes kayıt olabilir, yönetici onaylayınca giriş yapar.'], ['open', 'Açık kayıt', 'Kayıt olan herkes hemen giriş yapabilir.'], ['closed', 'Kapalı', 'Yalnızca yöneticinin eklediği kullanıcılar.']].map(([k, l, h]) => html`
         <label class="pick" style="border:1px solid var(--border);border-radius:10px"><input type="radio" name="registration" value="${k}" ${st.registration === k ? raw('checked') : ''}><div><div class="small"><b>${l}</b></div><div class="tiny faint">${h}</div></div></label>`)}
     </div>
 
-    <div class="card card-pad stack">
+    <div class="card card-pad stack" data-sec="genel">
       <div><h3 style="font-size:15px">Duyuru bandı</h3><p class="small muted">Tüm üyelerin ekranının en üstünde görünen kısa uyarı.</p></div>
       ${SW('banner_on', st.banner_on, 'Bandı göster', '')}
       <div class="field"><label>Metin</label><input class="input" name="banner_text" maxlength="300" value="${st.banner_text || ''}" placeholder="Örn: 6 Kasım Cuma 09:30'da kalite denetimi yapılacaktır."></div>
@@ -326,7 +328,9 @@ async function drawSettings(body) {
     <div class="form-error hidden" data-err></div>
     <div class="settings-save"><button class="btn primary" type="submit">Ayarları kaydet</button></div>
   </form>`);
+  applySettingsSec(sec);
   mountBackupBox();
+  mountCodesBox();
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);
@@ -383,7 +387,6 @@ function renderProfile(view) {
         </form>
         ${profileExtrasHtml()}
         <div class="card card-pad stack" style="gap:10px">
-          <button class="btn block" data-act="theme">${icon('moon', 'sm')}Açık / koyu tema</button>
           <button class="btn block danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button>
           <p class="tiny faint" style="text-align:center">İpucu: Telefonda tarayıcı menüsünden “Ana ekrana ekle” ile uygulama gibi kullanabilirsiniz.</p>
         </div>

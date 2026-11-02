@@ -333,7 +333,8 @@ function spHeaderCode(h, dict) {
   else if (/gece|akşam|aksam/.test(t)) code = '16 8';
   else if (/\b24\b|nöbet|nobet/.test(t)) code = '8 8';
   if (code) { const k = classifyCode(code, dict); if (k) return { ...k, label: k.label }; }
-  return { code: h, label: h, start: null, end: null, hours: null, kind: 'shift', raw: h };
+  // Saat bilgisi olmayan sütun (ör. "Sorumlu"): nöbet saati sayılmayan görev
+  return { code: h, label: h, start: null, end: null, hours: null, kind: 'role', raw: h };
 }
 
 function spSplitNames(t) {

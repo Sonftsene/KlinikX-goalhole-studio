@@ -2,7 +2,7 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v6';
+  const KEY = 'nm-demo-v7';
   const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
   const fsize = (f, def) => { const u = window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]; return u ? Math.round((u.length - u.indexOf(',') - 1) * 0.75) : def; };
   const ROSTER_FILES = window.NM_DEMO_ROSTERS || [['Yoğun Bakım 3. Basamak', 'ornek-cizelge-kasim-3-basamak.xlsx'], ['Yoğun Bakım 2. Basamak', 'ornek-cizelge-kasim-2-basamak.xlsx']];
@@ -146,7 +146,7 @@
       if (!/\.(xlsx|xlsm|xls|ods|csv)$/i.test(ro.file.name)) continue;
       try {
         const model = await loadSheetModel(ro.file);
-        const res = extractShifts(model, { fileName: ro.file.name, uploadedAt: ro.file.updated_at });
+        const res = extractShifts(model, { dict: (db.settings.shift_codes && db.settings.shift_codes.length ? db.settings.shift_codes : undefined), fileName: ro.file.name, uploadedAt: ro.file.updated_at });
         if (res && res.ok) db.shifts[r.id] = { file_id: ro.file.id, period: `${res.year}-${pad(res.month)}`, entries: res.entries.map((e) => ({ name: e.name, title: e.title, date: e.date, code: e.code, label: e.label, kind: e.kind, hours: e.hours, start: e.start, end: e.end })) };
       } catch (e) { /* okunamadı */ }
     }
@@ -206,7 +206,7 @@
       const u = me();
       const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
       if (u) {
-        Object.assign(out.settings, { push_ready: false, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
+        Object.assign(out.settings, { push_ready: false, shift_codes: db.settings.shift_codes || null, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
         out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -556,6 +556,33 @@
       return { invite: { kind: inv.kind, name: inv.name || '', email: inv.email || '', title_id: inv.title_id || null, unit_id: inv.unit_id || null, auto_approve: inv.auto_approve }, org_name: db.settings.org_name };
     },
     'passkey.list'() { needUser(); return { items: [] }; },
+    'shiftcodes.save'(d) {
+      needAdmin();
+      if (d.reset) { db.settings.shift_codes = null; return { codes: null }; }
+      const codes = (d.codes || []).filter((c) => String(c.code || '').trim()).map((c) => {
+        const kind = ['shift', 'leave', 'off'].includes(c.kind) ? c.kind : 'shift';
+        const start = kind === 'shift' && /^\d{2}:\d{2}$/.test(c.start || '') ? c.start : null;
+        const end = kind === 'shift' && /^\d{2}:\d{2}$/.test(c.end || '') ? c.end : null;
+        let hours = 0;
+        if (start && end) { let m = (+end.slice(0, 2) * 60 + +end.slice(3)) - (+start.slice(0, 2) * 60 + +start.slice(3)); if (m <= 0) m += 1440; hours = Math.round(m / 6) / 10; }
+        const row = { code: String(c.code).trim().slice(0, 12), label: String(c.label || c.code).trim().slice(0, 40), start, end, hours, kind };
+        if (start && end && end <= start) row.nextDay = true;
+        if (Array.isArray(c.aliases) && c.aliases.length) row.aliases = c.aliases;
+        return row;
+      });
+      if (!codes.length) err('En az bir kod girin.');
+      db.settings.shift_codes = codes;
+      db.shifts = {};
+      audit('settings.save', 'Nöbet kodları', codes.length + ' kod');
+      return { codes };
+    },
+    async 'setup.status'() {
+      needAdmin();
+      await ensureShifts();
+      const people = [...new Set(allShifts().map((e) => e.name))];
+      const users = db.users.filter((u) => u.status === 'active');
+      return { status: { mail: mailReady(), cron: false, cron_last: null, roster: db.roster_files.length > 0, parsed: allShifts().length > 0, roster_people: people.length, matched: people.filter((n) => users.some((u) => nameMatch(n, u.name))).length, users: users.length, push: true } };
+    },
     'attachments.text'() { return { length: 0 }; },
   };
   // Davetle kayıt: önizlemede auth.register davet kodunu da kabul eder

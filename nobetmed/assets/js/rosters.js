@@ -15,13 +15,14 @@ async function refreshRosters() {
 function renderRosters(view, id) {
   RS.views.clear();
   if (!S.rosters.length) {
-    setHTML(view, html`<div class="page-head"><div><h1>Nöbet listeleri</h1><p>Excel nöbet listelerinizi yükleyin; sitede doğrudan açık görünür.</p></div></div>
+    setHTML(view, html`${hubHead('list', 'Excel nöbet listeleri, yüklendiği gibi açık görünür')}
       <div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3>
       ${isPublisher() ? html`<p class="small" style="margin-bottom:14px">Bir liste oluşturup Excel dosyanızı yükleyin.</p><button class="btn primary" data-act="rs-new">${icon('plus', 'sm')}Liste oluştur</button>` : html`<p class="small">Yöneticiniz liste yüklediğinde burada görünecek.</p>`}</div>`);
     return;
   }
   const want = id && rosterById(id) ? id : rosterById(lastRoster()) ? lastRoster() : S.rosters[0].id;
   setHTML(view, html`
+    ${hubTabs('list')}
     <div class="rs-top">
       <div class="seg rs-tabs" role="tablist" id="rsTabs"></div>
       ${isPublisher() ? html`<button class="btn sm ghost" data-act="rs-new">${icon('plus', 'sm')}Yeni liste</button>` : ''}
