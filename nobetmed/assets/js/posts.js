@@ -17,6 +17,7 @@ function renderShell() {
         </form>
         <div class="grow desk-only"></div>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
+        ${notifButtonHtml()}
         <button class="btn ghost icon" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>
       </header>
       <div class="content" id="view"></div>
@@ -25,6 +26,7 @@ function renderShell() {
   </div>`);
   renderNav();
   renderBanner();
+  updateNotifBadge();
 }
 
 function renderBanner() {
@@ -55,7 +57,9 @@ function renderNav() {
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
-    <div class="nav-sec">Nöbet listeleri</div>
+    <div class="nav-sec">Nöbet</div>
+    ${navItem('#/nobetim', icon('calendar'), 'Nöbetlerim', 0, r[0] === 'nobetim')}
+    ${navItem('#/rehber', icon('phone'), 'Kim nöbette · Rehber', 0, r[0] === 'rehber')}
     ${S.rosters.length ? S.rosters.map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
     <div class="nav-sec">Bölümler</div>
@@ -66,7 +70,10 @@ function renderNav() {
       ${isAdmin() ? html`
         ${navItem('#/yonetim/kullanicilar', icon('users'), 'Kullanıcılar', c.pending_users, r[0] === 'yonetim' && r[1] === 'kullanicilar', 'warn')}
         ${navItem('#/yonetim/yapi', icon('layers'), 'Bölüm ve birimler', 0, r[0] === 'yonetim' && r[1] === 'yapi')}
-        ${navItem('#/yonetim/ayarlar', icon('sliders'), 'Ayarlar', 0, r[0] === 'yonetim' && r[1] === 'ayarlar')}` : ''}` : ''}
+        ${navItem('#/yonetim/raporlar', icon('chart'), 'Okuma raporu', 0, r[0] === 'yonetim' && r[1] === 'raporlar')}
+        ${navItem('#/yonetim/gunluk', icon('history'), 'İşlem günlüğü', 0, r[0] === 'yonetim' && r[1] === 'gunluk')}
+        ${navItem('#/yonetim/ayarlar', icon('sliders'), 'Ayarlar', 0, r[0] === 'yonetim' && r[1] === 'ayarlar')}` : html`
+        ${navItem('#/yonetim/raporlar', icon('chart'), 'Okuma raporu', 0, r[0] === 'yonetim' && r[1] === 'raporlar')}`}` : ''}
     <div class="sidebar-foot">
       <button class="me-card" data-act="me-menu">${avatar(me.name)}<div class="grow"><div class="n ellipsis">${me.name}</div><div class="t ellipsis">${titleName(me.title_id) || ROLE_LABEL[me.role]}${unitName(me.unit_id) ? ' · ' + unitName(me.unit_id) : ''}</div></div>${icon('more', 'sm')}</button>
     </div>`);
@@ -98,8 +105,12 @@ ACT['me-menu'] = (el) => openMenu(el, [
   { id: 'o', icon: 'logout', label: 'Çıkış yap', danger: true, run: logout },
 ]);
 async function logout() {
+  // Ortak cihazlarda başkasının bildirimleri gelmesin
+  if (typeof pushDisable === 'function' && S.settings.push_ready) { try { await Promise.race([pushDisable(), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* */ } }
   try { await api('auth.logout'); } catch (e) { /* */ }
   S.me = null;
+  offlineCacheClear();
+  if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
   location.hash = '';
   await start();
 }
@@ -120,6 +131,7 @@ async function refreshCounts() {
     const r = await api('counts');
     S.counts = r.counts;
     renderNav();
+    updateNotifBadge();
     $$('[data-count]').forEach((el) => { el.textContent = S.counts[el.dataset.count] || 0; });
     if (FEED && document.body.contains(FEED.host) && !FEED.loading) renderFeed();
   } catch (e) { /* sessiz */ }
@@ -147,6 +159,8 @@ function route() {
       break;
     case 'yonetim': if (isPublisher()) { renderAdmin(view, r[1] || 'onaylar'); } else location.hash = '#/'; break;
     case 'profil': renderProfile(view); break;
+    case 'nobetim': renderMyShifts(view); break;
+    case 'rehber': renderDirectory(view); break;
     case 'p':
       history.replaceState(null, '', '#/');
       renderHome(view);
@@ -182,7 +196,7 @@ function renderHome(view) {
         <div class="k-top"><span>Yeni içerik</span><span class="k-ico" style="background:var(--brand-soft);color:var(--brand-text)">${icon('bell', 'sm')}</span></div>
         <div class="k-val" data-count="unread">${c.unread}</div><div class="k-sub">Henüz açmadığınız</div>
       </button>
-      ${rosterKpi()}
+      ${myShiftKpiHtml()}
       ${isPublisher() ? html`
       <a class="kpi" href="#/yonetim/onaylar">
         <div class="k-top"><span>Onay bekleyen</span><span class="k-ico" style="background:var(--danger-soft);color:var(--danger)">${icon('inbox', 'sm')}</span></div>
@@ -196,10 +210,13 @@ function renderHome(view) {
     <div class="home-grid">
       <section id="feedHost"></section>
       <aside class="side-col" id="homeSide">
+        <div id="homeTips"></div>
+        <div class="card" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
         <div class="card" id="rosterCard">${rosterCard()}</div>
       </aside>
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
+  loadHomeExtras();
   refreshRosters().then(() => {
     const k = $('#kpiRoster'); if (k) k.outerHTML = fmtVal(rosterKpi());
     const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());
@@ -346,6 +363,7 @@ function postCard(p) {
       <div class="p-meta"><span style="color:var(--c-${cat.color});font-weight:600">${cat.name}</span><span class="sep"></span><span>${p.author_name}</span><span class="sep"></span><span>${fmtRel(p.published_at || p.created_at)}</span>${unread ? html`<span class="dot" title="Yeni" style="margin-left:2px"></span>` : ''}</div>
       <h3>${p.title}</h3>
       <p class="p-ex">${p.excerpt}</p>
+      ${p.match ? html`<p class="p-match">${icon(p.match.where === 'file' ? 'paperclip' : 'search', 'sm')}${p.match.where === 'file' ? html`<b>${p.match.file}</b>: ` : ''}${hiText(p.match.text, FEED && FEED.q)}</p>` : ''}
       ${(() => { const b = postBadges(p); const a = ackMini(p); return b.length || fmtVal(a) ? html`<div class="p-foot">${b}${a}</div>` : ''; })()}
     </div>
     ${p.status === 'published' ? html`<div class="p-side"><button class="bm ${p.saved ? 'on' : ''}" data-act="bookmark" data-id="${p.id}" aria-label="${p.saved ? 'Kaydı kaldır' : 'Kaydet'}" title="${p.saved ? 'Kaydı kaldır' : 'Kaydet'}">${icon('bookmark')}</button></div>` : ''}
@@ -451,7 +469,7 @@ function renderDetail() {
     <div class="stack" style="gap:18px">
       ${statusNote}
       <div class="stack" style="gap:10px">
-        ${(() => { const b = postBadges(p, true); return b.length ? html`<div class="row wrap" style="gap:6px">${b}</div>` : ''; })()}
+        ${(() => { const b = postBadges(p, true); if (p.review_at && isPublisher()) b.push(reviewBadge(p.review_at)); return b.length ? html`<div class="row wrap" style="gap:6px">${b}</div>` : ''; })()}
         <h1 class="detail-title">${p.title}</h1>
         <div class="row small muted" style="gap:10px">${avatar(p.author_name, 'sm')}<span><b style="color:var(--text)">${p.author_name}</b>${p.author_title_id ? ' · ' + titleName(p.author_title_id) : ''}</span><span class="faint">·</span><span title="${fmtDateTime(p.published_at || p.created_at)}">${fmtDate(p.published_at || p.created_at, true)}</span></div>
       </div>
@@ -474,6 +492,7 @@ function renderDetail() {
     if (p.status === 'published') {
       foot.push(html`<button class="btn ${p.saved ? 'active' : ''}" data-act="detail-save">${icon('bookmark')}${p.saved ? 'Kaydedildi' : 'Kaydet'}</button>`);
       foot.push(html`<button class="btn" data-act="share">${icon('link')}Paylaş</button>`);
+      foot.push(html`<button class="btn icon" data-act="wa-share" aria-label="WhatsApp ile paylaş" title="WhatsApp ile paylaş">${icon('chat')}</button>`);
     }
     foot.push(html`<div class="grow"></div>`);
     if (canEdit(p)) foot.push(html`<button class="btn icon" data-act="post-menu" aria-label="Diğer">${icon('more')}</button>`);
@@ -629,6 +648,7 @@ function openComposer(post) {
     body: html`
       <form class="stack" id="composer" data-form="composer" style="gap:16px">
         ${!isPublisher() ? html`<div class="form-note">${icon('info', 'sm')} İçeriğiniz yönetici onayından sonra yayınlanacaktır.</div>` : ''}
+        <div id="tplBox"></div>
         <div class="field"><label>Başlık</label><input class="input" name="title" required minlength="3" maxlength="200" value="${post ? post.title : ''}" placeholder="Örn: Yüksek riskli ilaçlarda çift kontrol protokolü"></div>
         <div class="grid2">
           <div class="field"><label>Bölüm</label><select class="select" name="category_id" required>${options(S.categories, defaultCat)}</select></div>
@@ -649,14 +669,16 @@ function openComposer(post) {
           ${isPublisher() && !editing && S.settings.notify_post ? html`<label class="switch"><input type="checkbox" name="notify" checked><span class="track"></span><span class="s-text"><b>E-posta ile bildir</b><span>Yayınlanınca ilgili ekibe e-posta gider.</span></span></label>` : ''}
           ${isPublisher() ? html`<label class="switch"><input type="checkbox" name="pinned" ${post && post.pinned ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>En üste sabitle</b><span>Ana sayfada her zaman ilk sırada görünür.</span></span></label>` : ''}
         </div>
+        ${composerExtraFields(post)}
         <div class="form-error hidden" data-err></div>
       </form>`,
-    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayınla' : 'Onaya gönder'}</button>`,
+    foot: html`${isPublisher() ? html`<button class="btn ghost desk-only" type="button" data-act="tpl-save" title="Bu metni sonra tekrar kullanmak için saklar">${icon('bookmark', 'sm')}Şablon olarak kaydet</button><div class="grow"></div>` : ''}<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayınla' : 'Onaya gönder'}</button>`,
   });
   const form = m.el.querySelector('#composer');
   form._st = st;
   form._post = post;
   form._modal = m;
+  composerExtras(form, post);
   const list = m.el.querySelector('#attList');
   const renderAtts = () => setHTML(list, st.atts.map((a, i) => {
     const fk = fileKind(a.mime || '', a.name);
@@ -677,7 +699,7 @@ function openComposer(post) {
       st.atts.push(a);
       // Sırayla yükle: ekler seçildikleri sırada kalır
       st.queue = (st.queue || Promise.resolve()).then(() => uploadFile(file, (p) => { a.progress = p; renderAtts(); })
-        .then((res) => { Object.assign(a, res, { state: 'done' }); renderAtts(); })
+        .then((res) => { Object.assign(a, res, { state: 'done' }); renderAtts(); indexAttachmentText(res, file); })
         .catch((e) => { a.state = 'err'; a.error = e.message; renderAtts(); }));
     }
     renderAtts();
@@ -707,6 +729,7 @@ FORMS.composer = (f) => submitForm(f, async (d) => {
     required: !!d.required, pinned: !!d.pinned,
     attachment_ids: st.atts.filter((a) => a.state === 'done' && !a.existing).map((a) => a.id),
     remove_attachment_ids: st.removed,
+    review_at: d.review_at || null,
   };
   if ('notify' in d) payload.notify = !!d.notify;
   const r = await api('posts.save', payload);

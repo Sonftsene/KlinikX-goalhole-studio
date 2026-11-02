@@ -4,12 +4,14 @@
 const AD = { tab: 'onaylar', users: null, userFilter: 'all', userQ: '' };
 
 function renderAdmin(view, tab) {
-  if (!isAdmin() && tab !== 'onaylar') { location.hash = '#/yonetim/onaylar'; return; }
+  if (!isAdmin() && tab !== 'onaylar' && tab !== 'raporlar') { location.hash = '#/yonetim/onaylar'; return; }
   AD.tab = tab;
   if (tab === 'kullanicilar') AD.users = null;
   const c = S.counts;
   const tabs = [['onaylar', 'Onay bekleyenler', c.pending_posts]];
-  if (isAdmin()) tabs.push(['kullanicilar', 'Kullanıcılar', c.pending_users], ['yapi', 'Bölüm ve birimler', 0], ['ayarlar', 'Ayarlar', 0]);
+  if (isAdmin()) tabs.push(['kullanicilar', 'Kullanıcılar', c.pending_users], ['yapi', 'Bölüm ve birimler', 0]);
+  tabs.push(['raporlar', 'Okuma raporu', 0]);
+  if (isAdmin()) tabs.push(['gunluk', 'İşlem günlüğü', 0], ['ayarlar', 'Ayarlar', 0]);
   setHTML(view, html`
     <div class="page-head"><div><h1>Yönetim</h1><p>${isAdmin() ? 'İçerik onayları, kullanıcılar ve portal ayarları' : 'Ekibinizin gönderdiği içerikleri onaylayın'}</p></div></div>
     <div class="tabs">${tabs.map(([k, l, n]) => html`<button class="${tab === k ? 'on' : ''}" data-act="go" data-href="#/yonetim/${k}">${l}${n ? html`<span class="count warn">${n}</span>` : ''}</button>`)}</div>
@@ -33,6 +35,8 @@ function drawAdminTab() {
   if (AD.tab === 'kullanicilar') return drawUsers(body);
   if (AD.tab === 'yapi') return drawStructure(body);
   if (AD.tab === 'ayarlar') return drawSettings(body);
+  if (AD.tab === 'raporlar') return drawReports(body);
+  if (AD.tab === 'gunluk') return drawAudit(body);
 }
 
 /* ---------------- Kullanıcılar ---------------- */
@@ -48,8 +52,10 @@ async function drawUsers(body) {
   setHTML(body, html`
     <div class="toolbar">
       <div class="seg">${[['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['active', 'Aktif'], ['disabled', 'Pasif']].map(([k, l]) => html`<button class="${AD.userFilter === k ? 'on' : ''}" data-act="u-filter" data-f="${k}">${l}<span class="count ${k === 'pending' && n[k] ? 'warn' : 'muted'}">${n[k]}</span></button>`)}</div>
-      <div class="row">
-        <div class="search" style="width:220px">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
+      <div class="row wrap">
+        <div class="search" style="width:220px;max-width:100%">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
+        <button class="btn" data-act="inv-roster" title="Nöbet listesinde adı geçip hesabı olmayanlara davet">${icon('table', 'sm')}Listeden davet et</button>
+        <button class="btn" data-act="inv-qr" title="Servise asılacak QR kod">${icon('qr', 'sm')}QR ile kayıt</button>
         <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
       </div>
     </div>
@@ -140,6 +146,10 @@ function userModal(u) {
       <div class="grid2">
         <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, u ? u.title_id : null, '—')}</select></div>
         <div class="field"><label>Birim</label><select class="select" name="unit_id">${options(S.units, u ? u.unit_id : (S.units[0] || {}).id, '—')}</select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Cep telefonu <span class="faint">(rehber)</span></label><input class="input" name="phone" type="tel" value="${u ? u.phone || '' : ''}" placeholder="05xx xxx xx xx"></div>
+        <div class="field"><label>Dahili</label><input class="input" name="extension" value="${u ? u.extension || '' : ''}"></div>
       </div>
       <div class="field"><label>Yetki</label>
         <div class="stack" style="gap:8px">${['member', 'editor', 'admin'].map((r) => html`<label class="pick" style="border:1px solid var(--border);border-radius:10px"><input type="radio" name="role" value="${r}" ${(u ? u.role : 'member') === r ? raw('checked') : ''}><div><div class="small"><b>${ROLE_LABEL[r]}</b></div><div class="tiny faint">${ROLE_HINT[r]}</div></div></label>`)}</div>
@@ -294,6 +304,8 @@ async function drawSettings(body) {
       <p class="tiny faint">Ayrıca zorunlu okumalarda “Okumayanlara e-posta ile hatırlat” düğmesi ve “Şifremi unuttum” e-postası kullanılabilir.</p>
     </div>
 
+    ${settingsExtrasHtml(A)}
+
     <div class="card card-pad stack">
       <div><h3 style="font-size:15px">${icon('lock', 'sm')} Gizlilik</h3><p class="small muted">Giriş yapmayan hiç kimse içerik, nöbet listesi veya dosya göremez.</p></div>
       ${SW('allow_guest', A.allow_guest, 'Misafir bağlantılarına izin ver', 'Açıksa, yetkililer tek bir içeriği üye olmayan birine süreli bağlantıyla gösterebilir. Kapalıysa tüm bağlantılar çalışmaz.')}
@@ -314,12 +326,14 @@ async function drawSettings(body) {
     <div class="form-error hidden" data-err></div>
     <div class="settings-save"><button class="btn primary" type="submit">Ayarları kaydet</button></div>
   </form>`);
+  mountBackupBox();
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);
   const A = r.admin;
   Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text, banner_tone: d.banner_tone, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
   S.mail_ready = A.mail_ready;
+  S.settings.push_ready = !!(A.push_enabled && A.push_ready);
   S.bannerHidden = false;
   renderBanner();
   renderNav();
@@ -367,10 +381,7 @@ function renderProfile(view) {
           <div class="form-error hidden" data-err></div>
           <button class="btn" type="submit">Şifreyi kaydet</button>
         </form>
-        ${S.settings.mail_ready ? html`<div class="card card-pad stack">
-          <h3 style="font-size:14.5px">E-posta bildirimleri</h3>
-          <label class="switch"><input type="checkbox" data-change="me-notify" ${me.email_notify ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Bildirimleri e-postayla al</b><span>Yeni duyuru, nöbet listesi güncellemesi vb. ${me.email} adresine gelir.</span></span></label>
-        </div>` : ''}
+        ${profileExtrasHtml()}
         <div class="card card-pad stack" style="gap:10px">
           <button class="btn block" data-act="theme">${icon('moon', 'sm')}Açık / koyu tema</button>
           <button class="btn block danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button>
@@ -379,6 +390,7 @@ function renderProfile(view) {
       </div>
     </div>`);
   mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
+  mountProfileExtras();
 }
 ACT.logout = () => logout();
 CHANGE['me-notify'] = async (el) => {

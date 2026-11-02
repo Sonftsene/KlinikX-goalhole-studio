@@ -1,0 +1,824 @@
+/* NöbetMed — ek özellikler: bildirim merkezi, nöbetlerim, bugün nöbette, rehber, parmak izi girişi,
+   şablonlar, davetler/QR, okuma raporu, işlem günlüğü, yedekleme, belge metni çıkarma */
+'use strict';
+
+/* =================================================================== */
+/* Ortak yardımcılar                                                    */
+/* =================================================================== */
+const DAY_MS = 86400000;
+function dateLabel(d) {
+  const dt = parseDT(d);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((dt - t) / DAY_MS);
+  const base = `${dt.getDate()} ${TR_MONTHS[dt.getMonth()]} ${TR_DAYS[dt.getDay()]}`;
+  return diff === 0 ? 'Bugün · ' + base : diff === 1 ? 'Yarın · ' + base : diff === -1 ? 'Dün · ' + base : base;
+}
+function shiftTime(s) { return s.start && s.end ? `${s.start}–${s.end}` : ''; }
+function shiftTone(s) {
+  if (s.kind === 'leave') return 'slate';
+  if (s.kind === 'off') return 'slate';
+  if (s.hours >= 24 || (s.start && s.end && s.start === s.end)) return 'emerald';
+  if (s.start && s.end && s.end <= s.start) return 'indigo';
+  return 'amber';
+}
+function telLink(p) { return p ? 'tel:' + String(p).replace(/[^0-9+]/g, '') : ''; }
+function waNumber(p) {
+  let d = String(p || '').replace(/\D/g, '');
+  if (d.startsWith('0')) d = '9' + d;
+  else if (d.length === 10) d = '90' + d;
+  return d;
+}
+
+/* =================================================================== */
+/* Bildirim merkezi                                                     */
+/* =================================================================== */
+function notifButtonHtml() {
+  return html`<button class="btn ghost icon notif-btn" data-act="notifs" aria-label="Bildirimler" id="notifBtn">${icon('bell')}<span class="count notif-count hidden" id="notifCount"></span></button>`;
+}
+function updateNotifBadge() {
+  const el = $('#notifCount');
+  if (!el) return;
+  const n = (S.counts && S.counts.notif_unread) || 0;
+  el.textContent = n > 99 ? '99+' : n;
+  el.classList.toggle('hidden', !n);
+}
+function closeNotifPop() { const p = $('.notif-pop'); if (p) p.remove(); }
+ACT.notifs = async (el) => {
+  if ($('.notif-pop')) return closeNotifPop();
+  const pop = document.createElement('div');
+  pop.className = 'notif-pop';
+  pop.innerHTML = fmtVal(html`<div class="np-head"><b>Bildirimler</b><button class="btn sm ghost" data-act="notif-readall">Tümünü okundu say</button></div><div class="np-list"><div style="padding:24px;display:grid;place-items:center"><div class="spinner"></div></div></div>`);
+  document.body.appendChild(pop);
+  const r = el.getBoundingClientRect();
+  if (window.innerWidth > 900) { pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; }
+  setTimeout(() => document.addEventListener('click', function off(e) {
+    if (!pop.contains(e.target) && !e.target.closest('[data-act=notifs]')) { closeNotifPop(); document.removeEventListener('click', off, true); }
+  }, true), 0);
+  let items = [];
+  try { items = (await api('notif.list')).items; } catch (e) { /* çevrimdışı */ }
+  const list = pop.querySelector('.np-list');
+  if (!list) return;
+  setHTML(list, items.length ? items.map((n) => html`<button class="np-item ${n.read ? '' : 'unread'}" data-act="notif-open" data-id="${n.id}" data-url="${n.url || '#/'}">
+      <span class="np-ico tone-${{ roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky' }[n.kind] || 'slate'}">${icon({ roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users' }[n.kind] || 'bell', 'sm')}</span>
+      <span class="grow" style="min-width:0"><span class="np-t">${n.title}</span>${n.body ? html`<span class="np-b">${n.body}</span>` : ''}<span class="np-at">${fmtRel(n.at)}</span></span>
+      ${n.read ? '' : html`<span class="dot"></span>`}
+    </button>`)
+    : html`<div class="empty" style="padding:30px 16px"><div class="e-ico">${icon('bell', 'lg')}</div><p class="small">Henüz bildiriminiz yok.</p></div>`);
+};
+ACT['notif-open'] = async (el) => {
+  closeNotifPop();
+  try { await api('notif.read', { id: +el.dataset.id }); } catch (e) { /* */ }
+  const url = el.dataset.url || '#/';
+  if (location.hash === url) route(); else location.hash = url;
+  refreshCounts();
+};
+ACT['notif-readall'] = async () => {
+  try { await api('notif.read', {}); } catch (e) { /* */ }
+  closeNotifPop();
+  S.counts.notif_unread = 0;
+  updateNotifBadge();
+};
+
+/* =================================================================== */
+/* Ana sayfa: sıradaki nöbet, bugün nöbette, ipuçları                    */
+/* =================================================================== */
+const MY = { entries: null, at: 0 };
+async function loadMyShifts(force) {
+  if (!force && MY.entries && Date.now() - MY.at < 60000) return MY;
+  try {
+    const r = await api('shifts.my');
+    Object.assign(MY, r, { at: Date.now() });
+  } catch (e) { if (!MY.entries) MY.entries = []; }
+  return MY;
+}
+function nextShift(entries) {
+  const now = new Date();
+  const today = ymd(now);
+  const hmNow = hm(now);
+  return (entries || []).filter((s) => s.kind === 'shift').find((s) => {
+    if (s.date > today) return true;
+    if (s.date < today) return false;
+    // bugün: bitmemişse
+    if (!s.end || !s.start) return true;
+    return s.end <= s.start || hmNow < s.end;
+  }) || null;
+}
+function myShiftKpiHtml() {
+  return html`<a class="kpi" href="#/nobetim" id="kpiMyShift">
+    <div class="k-top"><span>Sıradaki nöbetin</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
+    <div class="k-val sm"><span class="skel" style="display:block;height:22px;width:70%"></span></div><div class="k-sub">&nbsp;</div></a>`;
+}
+async function loadHomeExtras() {
+  const [my, day] = await Promise.all([loadMyShifts(true), api('shifts.day').catch(() => null)]);
+  const k = $('#kpiMyShift');
+  if (k) {
+    const n = nextShift(my.entries);
+    setHTML(k, html`<div class="k-top"><span>Sıradaki nöbetin</span><span class="k-ico" style="background:var(--info-soft);color:var(--info)">${icon('calendar', 'sm')}</span></div>
+      ${n ? html`<div class="k-val sm">${relDayShort(n.date)} · ${n.code}</div><div class="k-sub">${[n.label !== n.code ? n.label : '', shiftTime(n), n.roster].filter(Boolean).join(' · ') || '\u00a0'}</div>`
+        : html`<div class="k-val sm">${my.has_data ? 'Planlı nöbet yok' : 'Liste bekleniyor'}</div><div class="k-sub">${my.has_data ? 'Önümüzdeki 60 gün' : 'Nöbet listesi yüklenince görünür'}</div>`}`);
+  }
+  const tc = $('#todayCard');
+  if (tc && day) setHTML(tc, todayCardHtml(day, true));
+  const tips = $('#homeTips');
+  if (tips) setHTML(tips, await homeTipsHtml());
+}
+function relDayShort(d) {
+  const dt = parseDT(d);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((dt - t) / DAY_MS);
+  return diff === 0 ? 'Bugün' : diff === 1 ? 'Yarın' : `${dt.getDate()} ${TR_MONTHS_S[dt.getMonth()]} ${TR_DAYS_S[dt.getDay()]}`;
+}
+function todayCardHtml(day, compact) {
+  const head = html`<div class="card-head"><h3>${icon('users', 'sm')} ${day.date === ymd(new Date()) ? 'Bugün nöbette' : dateLabel(day.date)}</h3><a class="small" href="#/nobetim">Tümü</a></div>`;
+  if (!day.has_data) return html`${head}<div class="list-row small muted">Nöbet listesi yüklendiğinde burada görünür.</div>`;
+  const shifts = day.groups.filter((g) => g.kind === 'shift');
+  if (!shifts.length && !(day.carry || []).length) return html`${head}<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
+  const person = (p) => html`<span class="duty-chip">${avatar(p.name, 'sm')}<span class="ellipsis">${p.name}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="Ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
+  return html`${head}<div class="duty">
+    ${(day.carry || []).length && !compact ? html`<div class="duty-g"><div class="duty-h"><span class="badge">Dünden devam</span></div><div class="duty-p">${day.carry.map(person)}</div></div>` : ''}
+    ${shifts.map((g) => html`<div class="duty-g"><div class="duty-h"><span class="badge tone-${shiftTone(g)}">${g.code}</span><b>${g.label && g.label !== g.code ? g.label : ''}</b><span class="tiny faint">${shiftTime(g)}</span></div>
+      <div class="duty-p">${g.people.map(person)}</div></div>`)}
+  </div>`;
+}
+async function homeTipsHtml() {
+  const tips = [];
+  let dismissed = {};
+  try { dismissed = JSON.parse(localStorage.getItem('nm-tips') || '{}'); } catch (e) { /* */ }
+  if (!dismissed.passkey && passkeySupported() && !window.NM_DEMO_API) {
+    try { if (!(await api('passkey.list')).items.length) tips.push(['passkey', 'fingerprint', 'Parmak izi / Face ID ile giriş', 'Şifre yazmadan tek dokunuşla girin.', 'Ekle', 'pk-add']); } catch (e) { /* */ }
+  }
+  if (!dismissed.push && typeof pushState === 'function' && S.settings.push_ready) {
+    try { const st = await pushState(); if (st === 'off') tips.push(['push', 'bell', 'Telefon bildirimlerini açın', 'Duyuru ve nöbet hatırlatmaları anında gelsin.', 'Aç', 'push-on']); } catch (e) { /* */ }
+  }
+  if (!dismissed.phone && !S.me.phone) tips.push(['phone', 'phone', 'Rehbere telefonunuzu ekleyin', 'Ekip sizi nöbetteyken tek dokunuşla arayabilsin.', 'Ekle', 'go-profile']);
+  if (!tips.length) return '';
+  return html`<div class="card tips">${tips.map(([k, ic, t, d, b, act]) => html`<div class="tip"><span class="cat-ico sm tone-teal">${icon(ic)}</span><div class="grow"><b class="small">${t}</b><div class="tiny faint">${d}</div></div><button class="btn sm primary" data-act="${act}">${b}</button><button class="btn sm icon ghost" data-act="tip-hide" data-k="${k}" aria-label="Gizle">${icon('x', 'sm')}</button></div>`)}</div>`;
+}
+ACT['tip-hide'] = (el) => {
+  try { const d = JSON.parse(localStorage.getItem('nm-tips') || '{}'); d[el.dataset.k] = 1; localStorage.setItem('nm-tips', JSON.stringify(d)); } catch (e) { /* */ }
+  el.closest('.tip').remove();
+};
+ACT['go-profile'] = () => { location.hash = '#/profil'; };
+
+/* =================================================================== */
+/* Nöbetlerim                                                           */
+/* =================================================================== */
+const MS = { day: null };
+async function renderMyShifts(view) {
+  setHTML(view, html`<div class="page-head"><div><h1>Nöbetlerim</h1><p>Yüklenen nöbet listelerinde <b>${S.me.name}</b> adıyla eşleşen nöbetler</p></div>
+      <div class="row wrap"><button class="btn" data-act="ics" id="icsBtn" disabled>${icon('calendar', 'sm')}Telefon takvimine ekle</button></div></div>
+    <div id="myBody"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
+  const my = await loadMyShifts(true);
+  MS.day = ymd(new Date());
+  const body = $('#myBody');
+  if (!body) return;
+  const entries = my.entries || [];
+  const today = ymd(new Date());
+  const upcoming = entries.filter((e) => e.date >= today);
+  const n = nextShift(entries);
+  const now = new Date();
+  const months = [[now.getFullYear(), now.getMonth() + 1], [new Date(now.getFullYear(), now.getMonth() + 1, 1).getFullYear(), new Date(now.getFullYear(), now.getMonth() + 1, 1).getMonth() + 1]];
+  const sumHtml = months.map(([y, m]) => {
+    const list = entries.filter((e) => e.date.startsWith(`${y}-${pad(m)}`));
+    if (!list.length) return '';
+    const sm = typeof summarizeMonth === 'function' ? summarizeMonth(list, y, m) : null;
+    return html`<div class="card card-pad stat-month"><div class="small muted"><b style="color:var(--text)">${TR_MONTHS[m - 1]} ${y}</b></div>
+      <div class="stat-row">
+        <div><b>${sm ? sm.shifts : list.filter((e) => e.kind === 'shift').length}</b><span>nöbet</span></div>
+        <div><b>${sm ? sm.hours : '—'}</b><span>saat</span></div>
+        <div><b class="${sm && sm.overtime > 0 ? 'pos' : ''}">${sm ? (sm.overtime > 0 ? '+' : '') + Math.abs(sm.overtime) : '—'}</b><span>${sm && sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div>
+        <div><b>${sm ? sm.leaveDays : 0}</b><span>izin günü</span></div>
+      </div></div>`;
+  });
+  const byDate = {};
+  upcoming.forEach((e) => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+  setHTML(body, html`
+    ${!my.has_data ? html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3><p class="small">Yöneticiniz Excel nöbet listesini yüklediğinde nöbetleriniz burada otomatik görünür.</p></div>`
+    : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa Hesabım sayfasından adınızı düzeltin.</p></div>`
+    : html`
+      ${n ? html`<div class="next-shift tone-${shiftTone(n)}"><div class="ns-l">Sıradaki nöbetin</div><div class="ns-d">${dateLabel(n.date)}</div>
+        <div class="ns-c"><span class="ns-code">${n.code}</span>${[n.label, shiftTime(n), n.hours && !/saat/i.test(n.label || '') ? n.hours + ' saat' : ''].filter(Boolean).join(' · ')}</div><div class="ns-r">${n.roster || ''}</div></div>` : ''}
+      <div class="stat-grid">${sumHtml}</div>
+      <div class="card"><div class="card-head"><h3>Takvimim</h3><span class="tiny faint">${upcoming.length} kayıt</span></div>
+        <div class="list">${Object.keys(byDate).sort().map((d) => html`<div class="my-day ${d === today ? 'today' : ''}">
+          <div class="md-date"><b>${parseDT(d).getDate()}</b><span>${TR_MONTHS_S[parseDT(d).getMonth()]}</span><em>${TR_DAYS_S[parseDT(d).getDay()]}</em></div>
+          <div class="grow">${byDate[d].map((e) => html`<div class="md-item"><span class="badge tone-${shiftTone(e)}">${e.code}</span><span class="small"><b>${e.label || (e.kind === 'leave' ? 'İzin' : 'Nöbet')}</b>${shiftTime(e) ? ' · ' + shiftTime(e) : ''}</span><span class="tiny faint">${e.roster || ''}</span></div>`)}</div>
+        </div>`)}</div></div>`}
+    <div class="card" id="dutyCard" style="margin-top:16px"></div>`);
+  $('#icsBtn').disabled = !upcoming.some((e) => e.kind === 'shift');
+  loadDuty();
+}
+async function loadDuty() {
+  const box = $('#dutyCard');
+  if (!box) return;
+  let day = null;
+  try { day = await api('shifts.day', { date: MS.day }); } catch (e) { setHTML(box, html`<div class="list-row small muted">${e.message}</div>`); return; }
+  setHTML(box, html`<div class="card-head"><h3>${icon('users', 'sm')} Kim nöbette?</h3>
+      <div class="row" style="gap:4px"><button class="btn sm icon" data-act="duty-day" data-d="-1" aria-label="Önceki gün">${icon('chevL', 'sm')}</button>
+      <button class="btn sm" data-act="duty-today">${dateLabel(MS.day)}</button>
+      <button class="btn sm icon" data-act="duty-day" data-d="1" aria-label="Sonraki gün">${icon('chevR', 'sm')}</button></div></div>
+    ${raw(todayCardHtml(day, false).s.replace(/^<div class="card-head">[\s\S]*?<\/div>/, ''))}`);
+}
+ACT['duty-day'] = (el) => { const d = parseDT(MS.day); d.setDate(d.getDate() + +el.dataset.d); MS.day = ymd(d); loadDuty(); };
+ACT['duty-today'] = () => { MS.day = ymd(new Date()); loadDuty(); };
+ACT.ics = () => {
+  const today = ymd(new Date());
+  const list = (MY.entries || []).filter((s) => s.date >= today && s.kind === 'shift');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const addDay = (d) => { const x = parseDT(d); x.setDate(x.getDate() + 1); return ymd(x); };
+  const ev = list.map((s, i) => {
+    const st = s.start || '08:00', en = s.end || '16:00';
+    const endDate = en <= st ? addDay(s.date) : s.date;
+    return ['BEGIN:VEVENT', `UID:nobetmed-${S.me.id}-${s.date}-${i}@nobetmed`, `DTSTAMP:${stamp}`,
+      `DTSTART:${s.date.replace(/-/g, '')}T${st.replace(':', '')}00`, `DTEND:${endDate.replace(/-/g, '')}T${en.replace(':', '')}00`,
+      `SUMMARY:${s.code} nöbet${s.label ? ' – ' + s.label : ''}`, `DESCRIPTION:${s.roster || ''}`,
+      'BEGIN:VALARM', 'TRIGGER:-PT12H', 'ACTION:DISPLAY', 'DESCRIPTION:Yarın nöbetiniz var', 'END:VALARM', 'END:VEVENT'].join('\r\n');
+  });
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NobetMed//TR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nöbetlerim', ...ev, 'END:VCALENDAR'].join('\r\n');
+  if (downloadBlob(new Blob([ics], { type: 'text/calendar;charset=utf-8' }), 'nobetlerim.ics') !== false) toast('Takvim dosyası indirildi. Açınca telefonunuzun takvimine eklenir.');
+};
+
+/* =================================================================== */
+/* Nöbet listesinden nöbetleri çıkar (yayıncı yüklediğinde/gördüğünde)  */
+/* =================================================================== */
+async function syncRosterShifts(roster, model) {
+  if (!isPublisher() || !roster || !roster.file || !model || typeof extractShifts !== 'function') return;
+  if (roster.parsed_file_id === roster.file.id && !roster._reparse) return;
+  roster._reparse = false;
+  let res;
+  try { res = extractShifts(model, { fileName: roster.file.name, uploadedAt: roster.file.updated_at, year: roster._year, month: roster._month }); } catch (e) { return; }
+  if (!res || !res.ok || !res.entries.length) return;
+  const period = `${res.year}-${pad(res.month)}`;
+  try {
+    const r = await api('rosters.shifts', { roster_id: roster.id, file_id: roster.file.id, period, entries: res.entries });
+    Object.assign(roster, { parsed_file_id: roster.file.id, period, parsed_count: r.saved });
+    if (RS.active === roster.id) drawRosterInfo();
+    MY.at = 0;
+  } catch (e) { /* sessiz */ }
+}
+function periodLabel(p) { if (!p) return ''; const [y, m] = p.split('-').map(Number); return `${TR_MONTHS[m - 1]} ${y}`; }
+ACT['rs-period'] = async () => {
+  const r = rosterById(RS.active);
+  if (!r) return;
+  const cur = r.period || ymd(new Date()).slice(0, 7);
+  const m = openModal({ title: 'Listenin ayı', size: 'narrow', body: html`<form class="stack" id="perForm"><p class="small muted">Nöbetlerim ve hatırlatmalar bu aya göre hesaplanır. Excel’de ay bilgisi bulunamadıysa buradan düzeltin.</p>
+      <div class="grid2"><div class="field"><label>Ay</label><select class="select" name="m">${TR_MONTHS.map((n, i) => html`<option value="${i + 1}" ${+cur.slice(5) === i + 1 ? raw('selected') : ''}>${n}</option>`)}</select></div>
+      <div class="field"><label>Yıl</label><input class="input" type="number" name="y" value="${cur.slice(0, 4)}" min="2020" max="2099"></div></div></form>`,
+  foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
+  m.el.querySelector('[data-ok]').addEventListener('click', async (e) => busy(e.currentTarget, async () => {
+    const f = m.el.querySelector('#perForm');
+    const period = `${f.y.value}-${pad(+f.m.value)}`;
+    try {
+      await api('rosters.period', { id: r.id, period });
+      r.period = period; m.close(); drawRosterInfo(); MY.at = 0; toast('Listenin ayı güncellendi');
+      // Ay değişince gün sayısı da değişebilir: listeyi yeni aya göre yeniden oku
+      if (r.file) { Object.assign(r, { _year: +f.y.value, _month: +f.m.value, _reparse: true }); loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {}); }
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};
+
+/* =================================================================== */
+/* Ekip rehberi                                                         */
+/* =================================================================== */
+const DIR = { people: null, q: '', filter: 'all' };
+async function renderDirectory(view) {
+  setHTML(view, html`<div class="page-head"><div><h1>Ekip rehberi</h1><p>Ekip arkadaşlarınıza tek dokunuşla ulaşın</p></div></div>
+    <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, ünvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
+      <div class="seg"><button class="${DIR.filter === 'all' ? 'on' : ''}" data-act="dir-f" data-f="all">Herkes</button><button class="${DIR.filter === 'today' ? 'on' : ''}" data-act="dir-f" data-f="today">Bugün nöbette</button></div></div>
+    <div id="dirList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div></div>`);
+  try { DIR.people = (await api('people.list')).people; } catch (e) { DIR.people = DIR.people || []; }
+  drawDirectory();
+}
+function drawDirectory() {
+  const box = $('#dirList');
+  if (!box || !DIR.people) return;
+  const q = trLower(DIR.q);
+  const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || trLower([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
+  setHTML(box, list.length ? html`<div class="card"><div class="list">${list.map((p) => html`<div class="list-row dir-row">
+      ${avatar(p.name)}
+      <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` <span class="badge tone-${shiftTone(p.today)}" title="${p.today.label || ''}">${p.today.code}</span>` : ''}</div>
+        <div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ')}${p.extension ? html` · Dahili <b>${p.extension}</b>` : ''}${p.phone ? html` · <span class="sel">${p.phone}</span>` : ''}</div></div>
+      <div class="row" style="gap:4px">
+        ${p.phone ? html`<a class="btn sm icon" href="${telLink(p.phone)}" aria-label="Ara" title="Ara">${icon('phone', 'sm')}</a><a class="btn sm icon" href="https://wa.me/${waNumber(p.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp" title="WhatsApp">${icon('chat', 'sm')}</a>` : ''}
+        <a class="btn sm icon" href="mailto:${p.email}" aria-label="E-posta" title="E-posta">${icon('mail', 'sm')}</a>
+      </div></div>`)}</div></div>` : html`<div class="card empty"><p class="small">Eşleşen kişi yok.</p></div>`);
+}
+CHANGE['dir-q'] = debounce((el) => { DIR.q = el.value; drawDirectory(); }, 150);
+ACT['dir-f'] = (el) => { DIR.filter = el.dataset.f; $$('[data-act=dir-f]').forEach((b) => b.classList.toggle('on', b === el)); drawDirectory(); };
+
+/* =================================================================== */
+/* Profil ekleri: iletişim, bildirim tercihi, parmak izi                */
+/* =================================================================== */
+function profileExtrasHtml() {
+  const me = S.me;
+  return html`
+    <form class="card card-pad stack" data-form="me-contact">
+      <h3 style="font-size:14.5px">Rehber bilgilerim</h3>
+      <div class="grid2"><div class="field"><label>Cep telefonu</label><input class="input" name="phone" type="tel" value="${me.phone || ''}" placeholder="05xx xxx xx xx"></div>
+      <div class="field"><label>Dahili</label><input class="input" name="extension" value="${me.extension || ''}" placeholder="1234"></div></div>
+      <p class="tiny faint">Yalnızca giriş yapmış ekip üyeleri görür.</p>
+      <div class="form-error hidden" data-err></div>
+      <button class="btn" type="submit">Kaydet</button>
+    </form>
+    <div class="card card-pad stack">
+      <h3 style="font-size:14.5px">Bildirimler</h3>
+      <div class="seg seg-block">${[['instant', 'Anlık'], ['digest', 'Sabah özeti'], ['off', 'Kapalı']].map(([k, l]) => html`<button class="${(me.notify_mode || 'instant') === k ? 'on' : ''}" data-act="nmode" data-m="${k}">${l}</button>`)}</div>
+      <p class="tiny faint" id="nmodeHint">${{ instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' }[me.notify_mode || 'instant']}</p>
+      <div id="pushBox"></div>
+    </div>
+    <div class="card card-pad stack" id="pkBox"><h3 style="font-size:14.5px">Parmak izi / Face ID ile giriş</h3><div class="tiny faint">Yükleniyor…</div></div>`;
+}
+async function mountProfileExtras() {
+  // telefon bildirimi
+  const pb = $('#pushBox');
+  if (pb) {
+    if (!S.settings.push_ready || typeof pushSupportInfo !== 'function') setHTML(pb, '');
+    else {
+      const info = pushSupportInfo();
+      const st = info.ok ? await pushState() : 'unsupported';
+      setHTML(pb, html`<div class="row between wrap" style="gap:8px;border-top:1px solid var(--border);padding-top:12px">
+        <div><b class="small">Telefon bildirimleri</b><div class="tiny faint">${st === 'on' ? 'Bu cihazda açık.' : st === 'denied' ? 'Tarayıcı ayarlarından bildirim izni verin.' : info.ok ? 'Duyuru ve nöbet hatırlatmaları bu cihaza anında gelir.' : info.reason}</div></div>
+        ${st === 'on' ? html`<div class="row" style="gap:6px"><button class="btn sm" data-act="push-test">Dene</button><button class="btn sm" data-act="push-off">Kapat</button></div>` : info.ok && st !== 'denied' ? html`<button class="btn sm primary" data-act="push-on">Aç</button>` : ''}
+      </div>`);
+    }
+  }
+  // parmak izi
+  const pk = $('#pkBox');
+  if (pk) {
+    if (!passkeySupported()) { setHTML(pk, html`<h3 style="font-size:14.5px">Parmak izi / Face ID ile giriş</h3><p class="tiny faint">Bu tarayıcı veya bağlantı desteklemiyor (HTTPS gerekir).</p>`); return; }
+    let items = [];
+    try { items = (await api('passkey.list')).items; } catch (e) { /* */ }
+    setHTML(pk, html`<h3 style="font-size:14.5px">Parmak izi / Face ID ile giriş</h3>
+      ${items.length ? html`<div class="list" style="border:1px solid var(--border);border-radius:10px">${items.map((x) => html`<div class="list-row"><span class="cat-ico sm tone-emerald">${icon('fingerprint')}</span><div class="grow"><div class="lr-t">${x.name || 'Cihaz'}</div><div class="lr-s">${x.last_used_at ? 'Son kullanım ' + fmtRel(x.last_used_at) : 'Eklendi ' + fmtRel(x.created_at)}</div></div><button class="btn sm icon ghost danger" data-act="pk-del" data-id="${x.id}" aria-label="Kaldır">${icon('trash', 'sm')}</button></div>`)}</div>` : html`<p class="tiny faint">Şifre yazmadan, telefonunuzun parmak izi veya yüz tanımasıyla tek dokunuşla girin.</p>`}
+      <button class="btn" data-act="pk-add">${icon('fingerprint', 'sm')}${items.length ? 'Bu cihazı da ekle' : 'Bu cihaza ekle'}</button>`);
+  }
+}
+FORMS['me-contact'] = (f) => submitForm(f, async (d) => {
+  await api('me.update', { phone: d.phone, extension: d.extension });
+  S.me.phone = d.phone; S.me.extension = d.extension;
+  toast('Rehber bilgileriniz kaydedildi');
+});
+ACT.nmode = async (el) => {
+  const m = el.dataset.m;
+  try {
+    await api('me.update', { notify_mode: m });
+    S.me.notify_mode = m;
+    $$('[data-act=nmode]').forEach((b) => b.classList.toggle('on', b === el));
+    const h = $('#nmodeHint');
+    if (h) h.textContent = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' }[m];
+    toast('Bildirim tercihiniz kaydedildi');
+  } catch (e) { toast(e.message, 'err'); }
+};
+ACT['push-on'] = (el) => busy(el, async () => {
+  try {
+    if (window.NM_DEMO_API) { toast('Önizlemede telefon bildirimi açılamaz; sitenizde çalışır.'); return; }
+    await pushEnable();
+    toast('Telefon bildirimleri açıldı');
+    const tip = el.closest('.tip'); if (tip) tip.remove();
+    mountProfileExtras();
+  } catch (e) { toast(e.message, 'err'); }
+});
+ACT['push-off'] = (el) => busy(el, async () => { try { await pushDisable(); toast('Telefon bildirimleri kapatıldı'); mountProfileExtras(); } catch (e) { toast(e.message, 'err'); } });
+ACT['push-test'] = (el) => busy(el, async () => { try { await api('push.test'); toast('Deneme bildirimi gönderildi'); } catch (e) { toast(e.message, 'err'); } });
+
+/* ---------------- Parmak izi (WebAuthn) istemcisi ---------------- */
+function b64uToBuf(s) {
+  s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+function bufToB64u(buf) {
+  const b = buf instanceof ArrayBuffer ? new Uint8Array(buf) : new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function passkeySupported() { return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials); }
+function passkeyErr(e) {
+  if (e && e.name === 'NotAllowedError') return new Error('İşlem iptal edildi veya süresi doldu.');
+  if (e && e.name === 'InvalidStateError') return new Error('Bu cihaz zaten kayıtlı.');
+  if (e && e.name === 'SecurityError') return new Error('Güvenli bağlantı (HTTPS) gerekli.');
+  return e instanceof Error ? e : new Error(String(e));
+}
+async function passkeyAdd() {
+  const o = (await api('passkey.reg.begin')).publicKey;
+  const publicKey = { ...o, challenge: b64uToBuf(o.challenge), user: { ...o.user, id: b64uToBuf(o.user.id) }, excludeCredentials: (o.excludeCredentials || []).map((c) => ({ ...c, id: b64uToBuf(c.id) })) };
+  let cred;
+  try { cred = await navigator.credentials.create({ publicKey }); } catch (e) { throw passkeyErr(e); }
+  return api('passkey.reg.finish', { id: cred.id, rawId: bufToB64u(cred.rawId), clientDataJSON: bufToB64u(cred.response.clientDataJSON), attestationObject: bufToB64u(cred.response.attestationObject) });
+}
+async function passkeySignIn() {
+  const o = (await api('passkey.login.begin')).publicKey;
+  const publicKey = { ...o, challenge: b64uToBuf(o.challenge), allowCredentials: [] };
+  let cred;
+  try { cred = await navigator.credentials.get({ publicKey }); } catch (e) { throw passkeyErr(e); }
+  const r = cred.response;
+  return api('passkey.login.finish', { id: cred.id, rawId: bufToB64u(cred.rawId), clientDataJSON: bufToB64u(r.clientDataJSON), authenticatorData: bufToB64u(r.authenticatorData), signature: bufToB64u(r.signature), userHandle: r.userHandle ? bufToB64u(r.userHandle) : '' });
+}
+ACT['pk-add'] = (el) => busy(el, async () => {
+  if (window.NM_DEMO_API) { toast('Önizlemede parmak izi eklenemez; sitenizde çalışır.'); return; }
+  try { await passkeyAdd(); toast('Parmak izi / Face ID eklendi. Bir dahaki girişte şifre gerekmez.'); const tip = el.closest('.tip'); if (tip) tip.remove(); mountProfileExtras(); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['pk-del'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Kaldırılsın mı?', text: 'Bu cihazla parmak izi / Face ID girişi kapatılacak.', ok: 'Kaldır', danger: true }))) return;
+  try { await api('passkey.delete', { id: +el.dataset.id }); mountProfileExtras(); toast('Kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['pk-login'] = (el) => busy(el, async () => {
+  try {
+    const r = await passkeySignIn();
+    await start();
+    if (r.must_change) return;
+  } catch (e) { toast(e.message, 'err'); }
+});
+function passkeyLoginButton() {
+  return passkeySupported() && !window.NM_DEMO_API ? html`<button class="btn block" type="button" data-act="pk-login" style="height:44px">${icon('fingerprint')}Parmak izi / Face ID ile giriş</button><div class="divider">veya</div>` : '';
+}
+
+/* =================================================================== */
+/* Duyuru şablonları ve geçerlilik tarihi (editör)                      */
+/* =================================================================== */
+let TPL = null;
+async function composerExtras(form, post) {
+  const box = form.querySelector('#tplBox');
+  if (box && !post) {
+    try { TPL = (await api('templates.list')).items; } catch (e) { TPL = TPL || []; }
+    if (TPL.length) setHTML(box, html`<div class="tpl-row"><span class="tiny faint">Şablondan başla:</span>${TPL.map((t) => html`<button type="button" class="chip-btn" data-tpl="${t.id}">${t.title}</button>`)}
+      ${isPublisher() ? html`<button type="button" class="chip-btn ghost" data-tpl-manage>${icon('sliders', 'sm')}</button>` : ''}</div>`);
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-tpl]');
+      if (b) {
+        const t = TPL.find((x) => x.id === +b.dataset.tpl);
+        if (!t) return;
+        if (!form.title.value) form.title.value = t.title;
+        form.body.value = t.body;
+        if (t.category_id) form.category_id.value = t.category_id;
+        const rq = form.querySelector('[name=required]'); if (rq) rq.checked = t.required;
+        form.body.focus();
+        return;
+      }
+      if (e.target.closest('[data-tpl-manage]')) manageTemplates();
+    });
+  }
+}
+function composerExtraFields(post) {
+  return html`<div class="field"><label>Geçerlilik / gözden geçirme tarihi <span class="faint">(isteğe bağlı)</span></label>
+    <input class="input" type="date" name="review_at" value="${post && post.review_at ? post.review_at : ''}" style="max-width:220px">
+    <p class="hint">Protokol ve formlar için: tarih yaklaşınca yöneticiye ve size hatırlatma gelir.</p></div>`;
+}
+ACT['tpl-save'] = async () => {
+  const f = $('#composer');
+  if (!f || !f.title.value.trim() || !f.body.value.trim()) { toast('Önce başlık ve metni yazın', 'err'); return; }
+  try {
+    TPL = (await api('templates.save', { title: f.title.value.trim(), body: f.body.value, category_id: +f.category_id.value || null, required: !!(f.required && f.required.checked) })).items;
+    toast('Şablon kaydedildi');
+  } catch (e) { toast(e.message, 'err'); }
+};
+function manageTemplates() {
+  const m = openModal({ title: 'Duyuru şablonları', size: 'narrow' });
+  const draw = () => m.setBody(html`<div class="card"><div class="list">${(TPL || []).map((t) => html`<div class="list-row"><div class="grow"><div class="lr-t">${t.title}</div><div class="lr-s ellipsis">${t.body.slice(0, 60)}</div></div><button class="btn sm icon ghost danger" data-tdel="${t.id}" aria-label="Sil">${icon('trash', 'sm')}</button></div>`)}</div></div><p class="tiny faint" style="margin-top:10px">Yeni şablon: editörde metni yazıp “Şablon olarak kaydet” deyin.</p>`);
+  draw();
+  m.el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tdel]');
+    if (!b) return;
+    try { TPL = (await api('templates.delete', { id: +b.dataset.tdel })).items; draw(); } catch (err) { toast(err.message, 'err'); }
+  });
+}
+
+/* =================================================================== */
+/* Belge metnini çıkar (belge içinde arama için)                        */
+/* =================================================================== */
+async function extractDocText(buf, name) {
+  const ext = extOf(name);
+  try {
+    if (ext === 'pdf') {
+      await loadVendor('pdf');
+      const lib = window.pdfjsLib;
+      if (!lib.GlobalWorkerOptions.workerSrc) lib.GlobalWorkerOptions.workerSrc = new URL(VENDOR.pdfWorker, location.href).href;
+      const doc = await lib.getDocument({ data: new Uint8Array(buf.slice(0)), isEvalSupported: false }).promise;
+      let out = '';
+      for (let i = 1; i <= Math.min(doc.numPages, 80); i++) {
+        const tc = await (await doc.getPage(i)).getTextContent();
+        out += tc.items.map((x) => x.str).join(' ') + '\n';
+        if (out.length > 400000) break;
+      }
+      return out;
+    }
+    if (ext === 'docx') { await loadVendor('mammoth'); return (await window.mammoth.extractRawText({ arrayBuffer: buf.slice(0) })).value; }
+    if (['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(ext)) {
+      await loadVendor('xlsx');
+      const wb = ext === 'csv' ? XLSX.read(decodeText(buf), { type: 'string' }) : XLSX.read(new Uint8Array(buf), { type: 'array' });
+      return wb.SheetNames.map((n) => XLSX.utils.sheet_to_csv(wb.Sheets[n], { FS: ' ', blankrows: false })).join('\n');
+    }
+    if (['txt', 'md', 'log', 'json', 'xml'].includes(ext)) return decodeText(buf);
+  } catch (e) { /* metin çıkarılamadı */ }
+  return '';
+}
+async function indexAttachmentText(att, file) {
+  if (!att || !att.id || window.NM_DEMO_API) return;
+  if (!['pdf', 'docx', 'xlsx', 'xlsm', 'xls', 'ods', 'csv', 'txt', 'md', 'log', 'json', 'xml'].includes(extOf(att.name))) return;
+  try {
+    const buf = file ? await file.arrayBuffer() : await fetchBuffer(att.url);
+    const text = await extractDocText(buf, att.name);
+    await api('attachments.text', { id: att.id, text: text || '' });
+  } catch (e) { /* sessiz */ }
+}
+
+/* =================================================================== */
+/* WhatsApp ile paylaş                                                  */
+/* =================================================================== */
+ACT['wa-share'] = () => {
+  const p = DETAIL && DETAIL.post;
+  if (!p) return;
+  const text = `📢 ${p.title}\n${appBaseUrl()}#/p/${p.id}`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+};
+
+/* =================================================================== */
+/* Davetler: QR ile kayıt ve nöbet listesinden toplu hesap               */
+/* =================================================================== */
+function qrSvg(text, size = 220) {
+  if (!window.qrcode) return '';
+  const qr = window.qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const cell = size / (n + 8);
+  let path = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) path += `M${(c + 4) * cell},${(r + 4) * cell}h${cell}v${cell}h-${cell}z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${path}" fill="#0f1b21"/></svg>`;
+}
+ACT['inv-qr'] = async () => {
+  const m = openModal({ title: 'QR kodla kayıt', body: html`<form class="stack" id="qrForm">
+      <p class="small muted">Servise asacağınız QR kodu okutan kişi kayıt formuna gider. Bağlantı 30 gün geçerlidir.</p>
+      <div class="field"><label>Birim</label><select class="select" name="unit_id">${options(S.units, (S.units[0] || {}).id, 'Seçmesine izin ver')}</select></div>
+      <label class="switch"><input type="checkbox" name="auto_approve"><span class="track"></span><span class="s-text"><b>Onay beklemeden giriş yapabilsin</b><span>Kapalıysa her başvuruyu siz onaylarsınız (önerilir).</span></span></label>
+    </form><div id="qrOut"></div>`,
+  foot: html`<button class="btn" data-act="close-modal">Kapat</button><button class="btn primary" data-qr-make>QR kod oluştur</button>` });
+  m.el.querySelector('[data-qr-make]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const f = m.el.querySelector('#qrForm');
+    try {
+      await loadVendor('qrcode');
+      const r = await api('invites.general', { unit_id: +f.unit_id.value || null, auto_approve: f.auto_approve.checked, days: 30 });
+      const url = r.invite.url;
+      setHTML(m.el.querySelector('#qrOut'), html`<div class="qr-card" id="qrPrint">
+        <div class="qr-org">${S.settings.org_name}</div><div class="qr-svg">${raw(qrSvg(url, 240))}</div>
+        <div class="qr-t">Portala katılmak için okutun</div><div class="qr-s">Telefon kamerasıyla QR kodu okutun, kayıt formunu doldurun.</div></div>
+        <div class="row wrap" style="margin-top:10px"><input class="input" readonly value="${url}"><button class="btn icon" data-copy="${url}" aria-label="Kopyala">${icon('copy')}</button>
+        <button class="btn" data-act="qr-print">${icon('printer', 'sm')}Yazdır</button>
+        <a class="btn" href="https://wa.me/?text=${encodeURIComponent('Portala katılmak için: ' + url)}" target="_blank" rel="noopener">${icon('chat', 'sm')}WhatsApp</a></div>`);
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+  m.el.addEventListener('click', async (e) => { const c = e.target.closest('[data-copy]'); if (c) toast((await copyText(c.dataset.copy)) ? 'Bağlantı kopyalandı' : 'Kopyalanamadı'); });
+};
+ACT['qr-print'] = () => {
+  if (window.NM_DEMO_API) { toast('Önizlemede yazdırma kapalıdır; sitenizde çalışır.'); return; }
+  const card = $('#qrPrint');
+  if (!card) return;
+  const w = window.open('', '_blank', 'width=600,height=800');
+  if (!w) return toast('Açılır pencere engellendi', 'err');
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>QR</title><style>body{font-family:Inter,Arial,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0}.qr-card{text-align:center;border:2px solid #0b7a75;border-radius:24px;padding:40px 48px}.qr-org{font-weight:700;font-size:22px;margin-bottom:16px}.qr-svg svg{width:340px;height:340px}.qr-t{font-weight:700;font-size:24px;margin-top:16px}.qr-s{color:#555;margin-top:6px}</style>${card.outerHTML}<script>setTimeout(()=>print(),300)<\/script>`);
+  w.document.close();
+};
+ACT['inv-roster'] = async () => {
+  const m = openModal({ title: 'Nöbet listesinden hesap aç', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  let items = [];
+  try { items = (await api('invites.candidates')).items; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
+  if (!items.length) { m.setBody(html`<div class="empty"><div class="e-ico">${icon('users', 'lg')}</div><h3>Eklenecek kimse yok</h3><p class="small">Nöbet listelerindeki herkesin zaten hesabı var ya da henüz liste okunmadı. Listeyi bir kez açmanız yeterli.</p></div>`); return; }
+  m.setBody(html`<p class="small muted" style="margin-bottom:12px">Nöbet listelerinde adı geçen ama hesabı olmayan <b>${items.length}</b> kişi. E-posta yazdıklarınıza davet e-postası gider; boş bıraktıklarınız için kişiye özel bağlantı oluşur (WhatsApp’tan gönderebilirsiniz). Davetle gelenler onay beklemeden girer.</p>
+    <div class="row wrap" style="margin-bottom:10px"><label class="small"><input type="checkbox" id="invAll" checked> Tümünü seç</label><span class="grow"></span>
+      <span class="tiny faint">Birim:</span><select class="select" id="invUnit" style="width:auto;height:34px">${options(S.units, (S.units[0] || {}).id)}</select></div>
+    <div class="table-wrap"><table class="t"><thead><tr><th></th><th>Ad soyad</th><th>Ünvan</th><th>E-posta (isteğe bağlı)</th></tr></thead>
+    <tbody>${items.map((p, i) => html`<tr class="${p.invited ? 'dim' : ''}"><td><input type="checkbox" data-i="${i}" ${p.invited ? '' : raw('checked')}></td><td><b>${p.name}</b>${p.invited ? html` <span class="badge">davet edildi</span>` : ''}</td>
+      <td><select class="select" data-ti="${i}" style="height:34px">${options(S.titles, p.title_id, '—')}</select></td><td><input class="input" type="email" data-em="${i}" placeholder="ornek@gmail.com" style="height:34px"></td></tr>`)}</tbody></table></div>`);
+  m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-inv-go>${icon('send', 'sm')}Davetleri oluştur</button>`);
+  m.el.querySelector('#invAll').addEventListener('change', (e) => $$('[data-i]', m.el).forEach((c) => { c.checked = e.target.checked; }));
+  m.el.querySelector('[data-inv-go]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const unit = +m.el.querySelector('#invUnit').value || null;
+    const people = items.map((p, i) => ({ p, i })).filter(({ i }) => m.el.querySelector(`[data-i="${i}"]`).checked)
+      .map(({ p, i }) => ({ name: p.name, title_id: +m.el.querySelector(`[data-ti="${i}"]`).value || null, unit_id: unit, email: m.el.querySelector(`[data-em="${i}"]`).value.trim() }));
+    if (!people.length) { toast('Kimse seçilmedi', 'err'); return; }
+    try {
+      const r = await api('invites.personal', { people });
+      showInviteLinks(m, r.items, r.mailed);
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};
+function showInviteLinks(m, list, mailed) {
+  m.setTitle('Davetler hazır');
+  m.setBody(html`${mailed ? html`<div class="form-note success" style="margin-bottom:12px">${mailed} kişiye davet e-postası gönderiliyor.</div>` : ''}
+    <p class="small muted" style="margin-bottom:10px">Her bağlantı kişiye özeldir, 60 gün geçerlidir ve bir kez kullanılır.</p>
+    <div class="card"><div class="list">${list.map((x) => html`<div class="list-row"><div class="grow" style="min-width:0"><div class="lr-t">${x.name}</div><div class="lr-s ellipsis sel">${x.email || x.url}</div></div>
+      <a class="btn sm icon" href="https://wa.me/?text=${encodeURIComponent(`Merhaba ${x.name.split(' ')[0]}, ${S.settings.org_name} portalına davetlisin. Hesabını buradan oluştur: ${x.url}`)}" target="_blank" rel="noopener" aria-label="WhatsApp">${icon('chat', 'sm')}</a>
+      <button class="btn sm icon" data-copy="${x.url}" aria-label="Kopyala">${icon('copy', 'sm')}</button></div>`)}</div></div>`);
+  m.setFoot(html`<button class="btn" data-copy-all>Tümünü kopyala</button><button class="btn primary" data-act="close-modal">Tamam</button>`);
+  m.el.addEventListener('click', async (e) => {
+    const c = e.target.closest('[data-copy]');
+    if (c) return toast((await copyText(c.dataset.copy)) ? 'Bağlantı kopyalandı' : 'Kopyalanamadı');
+    if (e.target.closest('[data-copy-all]')) toast((await copyText(list.map((x) => `${x.name}: ${x.url}`).join('\n'))) ? 'Tüm bağlantılar kopyalandı' : 'Kopyalanamadı');
+  });
+}
+
+/* Davet bağlantısıyla gelen kişi: kayıt formu */
+async function renderInvite(token) {
+  setHTML(APP(), authLayout(html`<div style="display:grid;place-items:center;padding:40px"><div class="spinner"></div></div>`));
+  let r;
+  try { r = await api('invite.get', { token }); } catch (e) {
+    setHTML(APP(), authLayout(html`<div class="empty" style="text-align:left;padding:0"><div class="e-ico" style="margin:0 0 14px">${icon('lock', 'lg')}</div><h1>Davet geçersiz</h1><p class="sub">${e.message}</p><a class="btn block" href="./">Giriş ekranına git</a></div>`));
+    return;
+  }
+  const inv = r.invite;
+  const personal = inv.kind === 'personal';
+  setHTML(APP(), authLayout(html`
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${r.org_name}</div></div></div>
+    <h1>${personal ? `Hoş geldin, ${inv.name.split(' ')[0]}` : 'Portala katıl'}</h1>
+    <p class="sub">${personal ? 'Hesabın hazırlandı. E-postanı ve şifreni belirleyip hemen giriş yap.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsin.' : 'Kaydın yönetici onayından sonra aktifleşir.'}</p>
+    <form class="stack" data-form="invite-reg">
+      <div class="field"><label>Ad soyad</label><input class="input" name="name" value="${inv.name || ''}" ${personal ? raw('readonly') : ''} required minlength="3" autocomplete="name"></div>
+      ${!personal ? html`<div class="grid2"><div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, inv.title_id, 'Seçin')}</select></div>
+        <div class="field"><label>Birim</label><select class="select" name="unit_id" ${inv.unit_id ? raw('disabled') : ''}>${options(S.units, inv.unit_id, 'Seçin')}</select></div></div>` : ''}
+      <div class="field"><label>E-posta</label><input class="input" type="email" name="email" value="${inv.email || ''}" required autocomplete="email"></div>
+      <div class="field"><label>Şifre</label>${pwField('password', 'En az 8 karakter', 'new-password')}</div>
+      <div class="form-error hidden" data-err></div>
+      <button class="btn primary block" type="submit">Hesabımı oluştur</button>
+    </form>`));
+  $('form[data-form=invite-reg]')._token = token;
+}
+FORMS['invite-reg'] = (f) => submitForm(f, async (d) => {
+  const r = await api('auth.register', { ...d, title_id: d.title_id ? +d.title_id : null, unit_id: d.unit_id ? +d.unit_id : null, invite: f._token });
+  history.replaceState(null, '', location.pathname);
+  if (r.pending) return renderAuth('pending');
+  await start();
+  toast('Hesabın oluşturuldu. Hoş geldin!');
+});
+
+/* =================================================================== */
+/* Yönetim: raporlar, işlem günlüğü, yedekleme                          */
+/* =================================================================== */
+async function drawReports(body) {
+  setHTML(body, html`<div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div>`);
+  let rep, rev;
+  try { [rep, rev] = await Promise.all([api('report.reads'), api('report.reviews')]); } catch (e) { toast(e.message, 'err'); return; }
+  REP.data = rep;
+  const today = ymd(new Date());
+  const soon = ymd(new Date(Date.now() + 30 * DAY_MS));
+  const aud = (p) => rep.users.filter((u) => p.unit_id === null || u.unit_id === p.unit_id);
+  setHTML(body, html`<div class="stack" style="gap:16px">
+    <div class="card"><div class="card-head"><div><h3>Okuma raporu</h3><div class="tiny faint">Zorunlu okumalar: kim, ne zaman okudu (denetimlerde kanıt olarak kullanılabilir)</div></div>
+      <button class="btn sm primary" data-act="rep-xlsx" ${rep.posts.length ? '' : raw('disabled')}>${icon('download', 'sm')}Excel olarak indir</button></div>
+      ${rep.posts.length ? html`<div class="table-wrap"><table class="t"><thead><tr><th>İçerik</th><th>Yayın</th><th>Okuma</th><th></th></tr></thead><tbody>${rep.posts.map((p) => {
+        const a = aud(p); const read = a.filter((u) => (rep.acks[p.id] || {})[u.id]).length; const pct = a.length ? Math.round(read / a.length * 100) : 0;
+        return html`<tr><td><a href="#/p/${p.id}"><b>${p.title}</b></a><div class="tiny faint">${p.category || ''}${p.unit_id ? ' · ' + unitName(p.unit_id) : ''}</div></td><td class="small muted nowrap">${fmtDate(p.published_at, true)}</td>
+          <td style="min-width:160px"><div class="row"><div class="progress grow"><span style="width:${pct}%"></span></div><b class="small">${read}/${a.length}</b></div></td><td class="small nowrap">%${pct}</td></tr>`;
+      })}</tbody></table></div>` : html`<div class="list-row small muted">Henüz zorunlu okuma yok.</div>`}</div>
+    <div class="card"><div class="card-head"><div><h3>Gözden geçirilecek belgeler</h3><div class="tiny faint">Geçerlilik tarihi girilmiş protokol ve formlar</div></div></div>
+      <div class="list">${rev.items.length ? rev.items.map((x) => html`<a class="list-row" href="#/p/${x.id}" style="color:inherit;text-decoration:none"><div class="grow"><div class="lr-t">${x.title}</div><div class="lr-s">${x.author || ''}</div></div>
+        <span class="badge ${x.review_at < today ? 'danger' : x.review_at <= soon ? 'warn' : ''}">${x.review_at < today ? 'Süresi geçti' : x.review_at <= soon ? 'Yaklaşıyor' : 'Geçerli'} · ${fmtDate(x.review_at, true)}</span></a>`)
+        : html`<div class="list-row small muted">Geçerlilik tarihi girilmiş belge yok. İçerik eklerken “Geçerlilik / gözden geçirme tarihi” alanını doldurun.</div>`}</div></div>
+  </div>`);
+}
+const REP = { data: null };
+ACT['rep-xlsx'] = (el) => busy(el, async () => {
+  const rep = REP.data;
+  if (!rep) return;
+  try {
+    await loadVendor('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const head = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B7A75' } }, alignment: { vertical: 'middle', wrapText: true } };
+    const ws = wb.addWorksheet('Özet', { views: [{ state: 'frozen', xSplit: 3, ySplit: 2 }] });
+    ws.mergeCells(1, 1, 1, 3 + rep.posts.length);
+    ws.getCell(1, 1).value = `${S.settings.org_name} — Okuma raporu (${fmtDateTime(rep.generated_at)})`;
+    ws.getCell(1, 1).font = { bold: true, size: 13 };
+    const hdr = ['Ad soyad', 'Ünvan', 'Birim', ...rep.posts.map((p) => p.title)];
+    hdr.forEach((h, i) => { const c = ws.getCell(2, i + 1); c.value = h; Object.assign(c, head); if (i >= 3) c.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: true }; });
+    ws.getRow(2).height = 160;
+    rep.users.forEach((u, r) => {
+      const row = 3 + r;
+      ws.getCell(row, 1).value = u.name; ws.getCell(row, 2).value = titleName(u.title_id); ws.getCell(row, 3).value = unitName(u.unit_id);
+      rep.posts.forEach((p, i) => {
+        const c = ws.getCell(row, 4 + i);
+        if (p.unit_id !== null && u.unit_id !== p.unit_id) { c.value = '—'; c.font = { color: { argb: 'FF9CA3AF' } }; }
+        else {
+          const at = (rep.acks[p.id] || {})[u.id];
+          c.value = at ? fmtDate(at, true) : 'Okumadı';
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: at ? 'FFD9F2E3' : 'FFFDE2E2' } };
+        }
+        c.alignment = { horizontal: 'center' };
+      });
+    });
+    ws.getColumn(1).width = 26; ws.getColumn(2).width = 18; ws.getColumn(3).width = 16;
+    rep.posts.forEach((_, i) => { ws.getColumn(4 + i).width = 13; });
+    const d = wb.addWorksheet('Ayrıntı');
+    d.addRow(['İçerik', 'Bölüm', 'Yayın tarihi', 'Ad soyad', 'Ünvan', 'Birim', 'Durum', 'Okuma tarihi']).eachCell((c) => Object.assign(c, head));
+    rep.posts.forEach((p) => rep.users.filter((u) => p.unit_id === null || u.unit_id === p.unit_id).forEach((u) => {
+      const at = (rep.acks[p.id] || {})[u.id];
+      d.addRow([p.title, p.category || '', fmtDate(p.published_at, true), u.name, titleName(u.title_id), unitName(u.unit_id), at ? 'Okudu' : 'Okumadı', at ? fmtDateTime(at) : '']);
+    }));
+    [40, 18, 14, 24, 18, 16, 10, 18].forEach((w, i) => { d.getColumn(i + 1).width = w; });
+    d.autoFilter = { from: 'A1', to: 'H1' };
+    const buf = await wb.xlsx.writeBuffer();
+    if (downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `okuma-raporu-${ymd(new Date())}.xlsx`) !== false) toast('Okuma raporu indirildi');
+  } catch (e) { toast('Rapor oluşturulamadı: ' + e.message, 'err'); }
+});
+
+const AUD = { q: '', items: [], more: false };
+const AUDIT_LABEL = {
+  login: 'Giriş', 'login.passkey': 'Parmak izi ile giriş', 'post.publish': 'İçerik yayınladı', 'post.submit': 'İçerik gönderdi', 'post.edit': 'İçerik düzenledi', 'post.delete': 'İçerik sildi',
+  'post.approve': 'İçerik onayladı', 'post.reject': 'İçerik reddetti', 'roster.upload': 'Nöbet listesi yükledi', 'roster.restore': 'Liste sürümü geri yükledi', 'roster.rename': 'Liste adını değiştirdi',
+  'roster.create': 'Liste oluşturdu', 'roster.delete': 'Liste sildi', 'roster.parse': 'Listeden nöbetler okundu', 'roster.period': 'Liste ayını değiştirdi', 'user.create': 'Kullanıcı ekledi', 'user.edit': 'Kullanıcı düzenledi',
+  'user.approve': 'Üyelik onayladı', 'user.delete': 'Kullanıcı sildi', 'user.resetpw': 'Geçici şifre oluşturdu', 'settings.save': 'Ayarları değiştirdi', 'structure.save': 'Bölüm/birim kaydetti', 'structure.delete': 'Bölüm/birim sildi',
+  'backup.create': 'Yedek aldı', 'backup.download': 'Yedek indirdi', 'backup.delete': 'Yedek sildi', 'invite.general': 'QR davet oluşturdu', 'invite.personal': 'Davet oluşturdu', 'invite.use': 'Davetle katıldı', 'invite.revoke': 'Davet iptal etti',
+  'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
+};
+async function drawAudit(body, more) {
+  if (!more) {
+    setHTML(body, html`<div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="Kişi, işlem veya içerik ara" data-input="aud-q" value="${AUD.q}"></div><span class="tiny faint">Son 1 yılın kayıtları</span></div><div id="audList"></div>`);
+    AUD.items = [];
+  }
+  try {
+    const r = await api('audit.list', { q: AUD.q, offset: AUD.items.length });
+    AUD.items = AUD.items.concat(r.items);
+    AUD.more = r.has_more;
+  } catch (e) { toast(e.message, 'err'); }
+  const box = $('#audList');
+  if (!box) return;
+  setHTML(box, AUD.items.length ? html`<div class="card"><div class="list">${AUD.items.map((x) => html`<div class="list-row audit-row">
+      <span class="tiny faint nowrap" title="${x.at}">${fmtDateTime(x.at)}</span>
+      <div class="grow" style="min-width:0"><div class="small"><b>${x.user || 'Sistem'}</b> · ${AUDIT_LABEL[x.action] || x.action}${x.target ? html`: <span class="muted">${x.target}</span>` : ''}</div>${x.detail ? html`<div class="tiny faint ellipsis">${x.detail}</div>` : ''}</div>
+      <span class="tiny faint desk-only">${x.ip || ''}</span></div>`)}</div></div>
+    ${AUD.more ? html`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="aud-more">Daha fazla</button></div>` : ''}` : html`<div class="card empty"><p class="small">Kayıt bulunamadı.</p></div>`);
+}
+CHANGE['aud-q'] = debounce((el) => { AUD.q = el.value; drawAudit($('#adminBody')).then(() => { const i = $('[data-input="aud-q"]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 300);
+ACT['aud-more'] = () => drawAudit($('#adminBody'), true);
+
+/* Ayarlar sayfası ek kartları */
+function settingsExtrasHtml(A) {
+  const SWX = (name, on, title, hint) => html`<label class="switch"><input type="checkbox" name="${name}" ${on ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>${title}</b>${hint ? html`<span>${hint}</span>` : ''}</span></label>`;
+  const hours = (name, v) => html`<select class="select" name="${name}" style="width:auto">${Array.from({ length: 24 }, (_, h) => html`<option value="${h}" ${h === v ? raw('selected') : ''}>${pad(h)}:00</option>`)}</select>`;
+  return html`
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('clock', 'sm')} Hatırlatmalar ve sabah özeti</h3><p class="small muted">Otomatik çalışır. Saatinde çalışması için Hostinger’da 10 dakikalık cron görevi önerilir (Kurulum rehberi).</p></div>
+      ${SWX('shift_remind_on', A.shift_remind_on, 'Nöbetten bir gün önce hatırlat', 'Excel listesinde adı geçen kişiye e-posta ve telefon bildirimi.')}
+      <div class="row wrap"><span class="small muted">Hatırlatma saati</span>${hours('shift_remind_hour', A.shift_remind_hour)}</div>
+      ${SWX('digest_on', A.digest_on, 'Sabah özeti e-postası', '“Sabah özeti” seçenlere her sabah tek e-posta: bugünkü nöbet, yeni duyurular, okunacaklar, onay bekleyenler.')}
+      <div class="row wrap"><span class="small muted">Özet saati</span>${hours('digest_hour', A.digest_hour)}
+        <span class="small muted">Yeni üyeler için</span><select class="select" name="default_notify_mode" style="width:auto"><option value="instant" ${A.default_notify_mode === 'instant' ? raw('selected') : ''}>Anlık bildirim</option><option value="digest" ${A.default_notify_mode === 'digest' ? raw('selected') : ''}>Sabah özeti</option></select></div>
+      <label class="small"><input type="checkbox" name="apply_mode_all"> Bu tercihi mevcut herkese de uygula (bildirimi kapatanlar hariç)</label>
+      <div class="row wrap"><span class="small muted">Zorunlu okumayı</span><input class="input" type="number" name="auto_remind_days" min="0" max="60" value="${A.auto_remind_days}" style="width:80px"><span class="small muted">gün içinde okumayanlara otomatik hatırlat (0 = kapalı)</span></div>
+      <div class="row wrap"><span class="small muted">Belge gözden geçirme tarihinden</span><input class="input" type="number" name="review_warn_days" min="1" max="120" value="${A.review_warn_days}" style="width:80px"><span class="small muted">gün önce uyar</span></div>
+    </div>
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('bell', 'sm')} Telefon bildirimleri</h3><p class="small muted">Portalı telefona ekleyenlere duyuru ve hatırlatmalar anında gelir (Android ve iPhone — iPhone’da önce “Ana Ekrana Ekle”).</p></div>
+      ${SWX('push_enabled', A.push_enabled, 'Telefon bildirimlerini kullan', A.push_ready ? '' : 'Bu sunucuda kullanılamıyor (OpenSSL gerekli).')}
+    </div>
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('download', 'sm')} Yedekleme</h3><p class="small muted">Veritabanı her hafta otomatik yedeklenir (son 4 yedek saklanır). İstediğiniz an indirebilirsiniz.</p></div>
+      ${SWX('backup_weekly', A.backup_weekly, 'Haftalık otomatik yedek', '')}
+      <div id="backupBox" class="stack" style="gap:8px"><div class="tiny faint">Yükleniyor…</div></div>
+    </div>`;
+}
+async function mountBackupBox() {
+  const box = $('#backupBox');
+  if (!box) return;
+  let r;
+  try { r = await api('backup.list'); } catch (e) { setHTML(box, html`<p class="tiny faint">${e.message}</p>`); return; }
+  const dl = (q) => `api.php?action=backup.download&csrf=${encodeURIComponent(S.csrf)}&${q}`;
+  setHTML(box, html`<div class="row wrap">
+      <a class="btn" href="${dl('full=0')}" data-dl>${icon('download', 'sm')}Veritabanı yedeğini indir</a>
+      ${r.zip ? html`<a class="btn" href="${dl('full=1')}" data-dl>${icon('download', 'sm')}Tam yedek (dosyalar dahil)</a>` : ''}
+      <button class="btn ghost" type="button" data-act="bk-create">${icon('plus', 'sm')}Şimdi yedekle</button></div>
+    ${r.items.length ? html`<div class="list" style="border:1px solid var(--border);border-radius:10px">${r.items.map((x) => html`<div class="list-row"><div class="grow"><div class="lr-t small">${fmtDateTime(x.at)}</div><div class="lr-s">${fmtSize(x.size)}</div></div>
+      <a class="btn sm icon" href="${dl('name=' + encodeURIComponent(x.name))}" data-dl aria-label="İndir">${icon('download', 'sm')}</a><button class="btn sm icon ghost danger" type="button" data-act="bk-del" data-n="${x.name}" aria-label="Sil">${icon('trash', 'sm')}</button></div>`)}</div>` : html`<p class="tiny faint">Henüz kayıtlı yedek yok.</p>`}`);
+  box.querySelectorAll('[data-dl]').forEach((a) => a.addEventListener('click', (e) => { if (window.NM_DEMO_API) { e.preventDefault(); toast('Önizlemede yedek indirilemez; sitenizde çalışır.'); } }));
+}
+ACT['bk-create'] = (el) => busy(el, async () => { try { await api('backup.create'); toast('Yedek alındı'); mountBackupBox(); } catch (e) { toast(e.message, 'err'); } });
+ACT['bk-del'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Yedek silinsin mi?', text: el.dataset.n, ok: 'Sil', danger: true }))) return;
+  try { await api('backup.delete', { name: el.dataset.n }); mountBackupBox(); } catch (e) { toast(e.message, 'err'); }
+};
+
+/* Arama sonucunda eşleşen kelimeyi vurgula (Türkçe büyük/küçük harf duyarsız) */
+function hiText(text, q) {
+  text = String(text || '');
+  q = trLower(String(q || '').trim());
+  if (!q) return text;
+  const low = text.split('').map((c) => { const l = trLower(c); return l.length === 1 ? l : c.toLowerCase().charAt(0); }).join('');
+  const out = [];
+  let i = 0;
+  for (;;) {
+    const at = low.indexOf(q, i);
+    if (at < 0) break;
+    out.push(text.slice(i, at), html`<mark>${text.slice(at, at + q.length)}</mark>`);
+    i = at + q.length;
+  }
+  out.push(text.slice(i));
+  return out;
+}
+function reviewBadge(d) {
+  const today = ymd(new Date());
+  const soon = ymd(new Date(Date.now() + 30 * DAY_MS));
+  const cls = d < today ? 'danger' : d <= soon ? 'warn' : '';
+  return html`<span class="badge ${cls}" title="Gözden geçirme tarihi">${icon('clock')}${d < today ? 'Gözden geçirme tarihi geçti' : 'Gözden geçir: ' + fmtDate(d, true)}</span>`;
+}

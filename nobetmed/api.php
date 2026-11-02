@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/mail.php';
+require __DIR__ . '/inc/notify.php';
+require __DIR__ . '/inc/api_extra.php';
+if (is_file(__DIR__ . '/inc/push.php')) require __DIR__ . '/inc/push.php';
+if (is_file(__DIR__ . '/inc/webauthn.php')) require __DIR__ . '/inc/webauthn.php';
 
 nm_session();
 
@@ -63,6 +67,8 @@ if ($action === 'file') {
     serve_file();
     exit;
 }
+if ($action === 'push.pending') { a_push_pending_get(); exit; }
+if ($action === 'backup.download') { a_backup_download_get(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -119,6 +125,39 @@ $routes = [
     'tax.save' => 'a_tax_save',
     'tax.delete' => 'a_tax_delete',
     'settings.save' => 'a_settings_save',
+    'notif.list' => 'a_notif_list',
+    'notif.read' => 'a_notif_read',
+    'push.key' => 'a_push_key',
+    'push.subscribe' => 'a_push_subscribe',
+    'push.unsubscribe' => 'a_push_unsubscribe',
+    'push.test' => 'a_push_test',
+    'people.list' => 'a_people_list',
+    'shifts.day' => 'a_shifts_day',
+    'shifts.my' => 'a_shifts_mine2',
+    'rosters.shifts' => 'a_rosters_shifts_save',
+    'rosters.period' => 'a_rosters_period',
+    'report.reads' => 'a_report_reads',
+    'report.reviews' => 'a_report_reviews',
+    'backup.list' => 'a_backup_list',
+    'backup.create' => 'a_backup_create',
+    'backup.delete' => 'a_backup_delete',
+    'audit.list' => 'a_audit_list',
+    'templates.list' => 'a_templates_list',
+    'templates.save' => 'a_templates_save',
+    'templates.delete' => 'a_templates_delete',
+    'invites.list' => 'a_invites_list',
+    'invites.general' => 'a_invites_general',
+    'invites.candidates' => 'a_invites_candidates',
+    'invites.personal' => 'a_invites_personal',
+    'invites.revoke' => 'a_invites_revoke',
+    'invite.get' => 'a_invite_get',
+    'attachments.text' => 'a_attachments_text',
+    'passkey.reg.begin' => 'a_passkey_reg_begin',
+    'passkey.reg.finish' => 'a_passkey_reg_finish',
+    'passkey.list' => 'a_passkey_list',
+    'passkey.delete' => 'a_passkey_delete',
+    'passkey.login.begin' => 'a_passkey_login_begin',
+    'passkey.login.finish' => 'a_passkey_login_finish',
     'settings.get' => 'a_settings_get',
     'mail.test' => 'a_mail_test',
     'mail.log' => 'a_mail_log',
@@ -126,6 +165,7 @@ $routes = [
 
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
+jobs_after_response();
 $routes[$action]();
 
 /* ------------------------------------------------------------------ */
@@ -240,6 +280,10 @@ function user_out(array $u): array
         'last_seen_at' => $u['last_seen_at'],
         'has_password' => !empty($u['password_hash']),
         'email_notify' => (int)($u['email_notify'] ?? 1) === 1,
+        'notify_mode' => $u['notify_mode'] ?? 'instant',
+        'push_on' => (int)($u['push_on'] ?? 1) === 1,
+        'phone' => $u['phone'] ?? null,
+        'extension' => $u['extension'] ?? null,
         'must_change' => (int)($u['must_change'] ?? 0) === 1,
     ];
 }
@@ -296,13 +340,14 @@ function can_view_post(array $me, array $p): bool
 
 function attachments_for(int $postId, string $guestToken = ''): array
 {
-    $rows = all('SELECT id, orig_name, mime, size FROM attachments WHERE post_id = ? ORDER BY id', [$postId]);
+    $rows = all('SELECT id, orig_name, mime, size, text_done FROM attachments WHERE post_id = ? ORDER BY id', [$postId]);
     return array_map(fn($a) => [
         'id' => (int)$a['id'],
         'name' => $a['orig_name'],
         'mime' => $a['mime'],
         'size' => (int)$a['size'],
         'url' => 'api.php?action=file&id=' . (int)$a['id'] . ($guestToken !== '' ? '&t=' . rawurlencode($guestToken) : ''),
+        'has_text' => (int)($a['text_done'] ?? 0) === 1,
     ], $rows);
 }
 
@@ -333,6 +378,7 @@ function post_out(array $r, array $aud): array
         'viewed' => (bool)($r['viewed'] ?? false),
         'saved' => (bool)($r['saved'] ?? false),
         'acked' => (bool)($r['acked'] ?? false),
+        'review_at' => $r['review_at'] ?? null,
     ];
 }
 
@@ -363,6 +409,7 @@ function counts_for(array $me): array
         'saved' => (int)val('SELECT COUNT(*) FROM saves WHERE user_id = ?', [$me['id']]),
         'pending_posts' => is_publisher($me) ? (int)val("SELECT COUNT(*) FROM posts WHERE status = 'pending'") : 0,
         'pending_users' => is_admin($me) ? (int)val("SELECT COUNT(*) FROM users WHERE status = 'pending'") : 0,
+        'notif_unread' => (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL', [$me['id']]),
     ];
 }
 
@@ -395,7 +442,8 @@ function a_boot(): void
             'banner_tone' => setting('banner_tone', 'danger'),
             'allow_guest' => setting('allow_guest', '0') === '1',
             'mail_ready' => mail_ready(),
-            'notify_post' => mail_event_on('notify_post'),
+            'notify_post' => mail_event_on('notify_post') || (push_ready() && event_on('notify_post')),
+            'push_ready' => push_ready(),
         ];
         $data['counts'] = counts_for($me);
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
@@ -488,6 +536,7 @@ function a_login(): void
     }
     q('DELETE FROM login_attempts WHERE email = ?', [$email]);
     login_user($u);
+    audit($u, 'login', 'Şifre ile giriş');
     out(['must_change' => (int)($u['must_change'] ?? 0) === 1]);
 }
 
@@ -532,7 +581,8 @@ function a_register(): void
 {
     global $IN;
     $mode = setting('registration', 'approval');
-    if ($mode === 'closed') fail('Yeni üye kaydı şu anda kapalı. Hesap için yöneticinize başvurun.', 403);
+    $inv = invite_valid(s('invite', 40));
+    if ($mode === 'closed' && !$inv) fail('Yeni üye kaydı şu anda kapalı. Hesap için yöneticinize başvurun.', 403);
     $name = s('name', 120);
     $email = validate_email(s('email', 190));
     $pw = (string)($IN['password'] ?? '');
@@ -544,9 +594,20 @@ function a_register(): void
     if (!valid_id('units', $unitId)) $unitId = null;
     if (one('SELECT id FROM users WHERE email = ?', [$email])) fail('Bu e-posta ile zaten bir hesap var.', 409);
     $status = $mode === 'open' ? 'active' : 'pending';
-    q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, 'member', $status, now()]);
+    $role = 'member';
+    if ($inv) {
+        if ($inv['kind'] === 'personal') { $name = $inv['name'] ?: $name; $titleId = $inv['title_id'] !== null ? (int)$inv['title_id'] : $titleId; }
+        if ($inv['unit_id'] !== null) $unitId = (int)$inv['unit_id'];
+        if ((int)$inv['auto_approve'] === 1) $status = 'active';
+        $role = in_array($inv['role'], ROLES, true) ? $inv['role'] : 'member';
+    }
+    q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now(), setting('default_notify_mode', 'instant')]);
     $newId = insert_id();
+    if ($inv) {
+        q('UPDATE invites SET uses = uses + 1, used_by = CASE WHEN kind = \'personal\' THEN ? ELSE used_by END WHERE id = ?', [$newId, $inv['id']]);
+        audit(['id' => $newId, 'name' => $name], 'invite.use', $name, $inv['kind'] === 'personal' ? 'Kişisel davet' : 'QR davet');
+    }
     if ($status === 'active') {
         login_user(one('SELECT * FROM users WHERE id = ?', [$newId]));
         out(['pending' => false]);
@@ -611,10 +672,21 @@ function a_me_update(): void
 {
     $me = need_user();
     global $IN;
+    $only = !array_key_exists('name', $IN);
     if (array_key_exists('email_notify', $IN)) {
-        q('UPDATE users SET email_notify = ? WHERE id = ?', [b('email_notify') ? 1 : 0, $me['id']]);
-        if (!array_key_exists('name', $IN)) out();
+        q('UPDATE users SET email_notify = ?, notify_mode = ? WHERE id = ?', [b('email_notify') ? 1 : 0, b('email_notify') ? 'instant' : 'off', $me['id']]);
     }
+    if (array_key_exists('notify_mode', $IN)) {
+        $mode = in_array(s('notify_mode', 10), ['instant', 'digest', 'off'], true) ? s('notify_mode', 10) : 'instant';
+        q('UPDATE users SET notify_mode = ?, email_notify = ? WHERE id = ?', [$mode, $mode === 'off' ? 0 : 1, $me['id']]);
+    }
+    if (array_key_exists('push_on', $IN)) q('UPDATE users SET push_on = ? WHERE id = ?', [b('push_on') ? 1 : 0, $me['id']]);
+    if (array_key_exists('phone', $IN) || array_key_exists('extension', $IN)) {
+        $phone = preg_replace('/[^0-9+ ()-]/', '', s('phone', 30));
+        $ext = preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12));
+        q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [$phone ?: null, $ext ?: null, $me['id']]);
+    }
+    if ($only) out();
     $name = s('name', 120);
     if (mb_strlen($name) < 3) fail('Ad soyad en az 3 karakter olmalıdır.');
     q('UPDATE users SET name = ? WHERE id = ?', [$name, $me['id']]);
@@ -670,7 +742,8 @@ function a_posts_list(): void
     if ($term !== '') {
         $p[':q1'] = '%' . tr_lower($term) . '%';
         $p[':q2'] = $p[':q1'];
-        $where[] = '(' . like_expr('p.title') . ' LIKE :q1 OR ' . like_expr('p.body') . ' LIKE :q2)';
+        $p[':q3'] = $p[':q1'];
+        $where[] = '(' . like_expr('p.title') . ' LIKE :q1 OR ' . like_expr('p.body') . ' LIKE :q2 OR EXISTS (SELECT 1 FROM attachments ax WHERE ax.post_id = p.id AND ' . like_expr('ax.text_content') . ' LIKE :q3))';
     }
     $order = ($filter === 'all' && $term === '') ? 'p.pinned DESC, ' : '';
     $sql = POST_SELECT . ' WHERE ' . implode(' AND ', $where)
@@ -678,10 +751,29 @@ function a_posts_list(): void
     $rows = all($sql, $p);
     $more = count($rows) > $limit;
     $aud = audience_counts();
-    out([
-        'items' => array_map(fn($r) => post_out($r, $aud), array_slice($rows, 0, $limit)),
-        'has_more' => $more,
-    ]);
+    $items = array_map(fn($r) => post_out($r, $aud), array_slice($rows, 0, $limit));
+    if ($term !== '') foreach ($items as &$it) $it['match'] = search_snippet($it['id'], $term);
+    unset($it);
+    out(['items' => $items, 'has_more' => $more]);
+}
+
+/** Arama sonucunda kelimenin geçtiği yer: içerik metni veya ekli belge */
+function search_snippet(int $postId, string $term): ?array
+{
+    $t = tr_lower($term);
+    $cut = function (string $text) use ($t): ?string {
+        $low = tr_lower($text);
+        $pos = mb_strpos($low, $t);
+        if ($pos === false) return null;
+        $start = max(0, $pos - 70);
+        return ($start > 0 ? '…' : '') . trim(mb_substr(preg_replace('/\s+/u', ' ', $text), $start, 170)) . '…';
+    };
+    $body = (string)val('SELECT body FROM posts WHERE id = ?', [$postId]);
+    if (($x = $cut($body)) !== null && mb_stripos(tr_lower((string)val('SELECT title FROM posts WHERE id = ?', [$postId])), $t) === false) return ['where' => 'body', 'text' => $x];
+    foreach (all('SELECT orig_name, text_content FROM attachments WHERE post_id = ? AND text_content IS NOT NULL', [$postId]) as $a) {
+        if (($x = $cut((string)$a['text_content'])) !== null) return ['where' => 'file', 'file' => $a['orig_name'], 'text' => $x];
+    }
+    return null;
 }
 
 function load_post(int $id, array $me): array
@@ -734,6 +826,9 @@ function a_posts_save(): void
     $unitId = i('unit_id');
     $required = b('required');
     $pinned = b('pinned');
+    $review = s('review_at', 10);
+    if ($review !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $review)) fail('Geçerlilik tarihi hatalı.');
+    $review = $review !== '' ? $review : null;
     if (mb_strlen($title) < 3) fail('Başlık en az 3 karakter olmalıdır.');
     if ($body === '') fail('İçerik metni boş olamaz.');
     if (!valid_id('categories', $catId)) fail('Geçerli bir bölüm seçin.');
@@ -754,11 +849,15 @@ function a_posts_save(): void
         q('UPDATE posts SET title = ?, body = ?, category_id = ?, unit_id = ?, required = ?, pinned = ?, status = ?, reject_reason = NULL, published_at = ?, updated_at = ? WHERE id = ?',
             [$title, $body, $catId, $unitId, (int)$required, (int)$pinned, $status, $publishedAt, now(), $id]);
         if (!$pub && $post['status'] !== 'pending') notify_pending_post((int)$id);
+        q('UPDATE posts SET review_at = ?, review_notified = CASE WHEN review_at = ? THEN review_notified ELSE NULL END WHERE id = ?', [$review, $review, $id]);
+        audit($me, 'post.edit', $title);
     } else {
         $status = $pub ? 'published' : 'pending';
         q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$title, $body, $catId, $unitId, $me['id'], $status, (int)$pinned, (int)$required, now(), now(), $pub ? now() : null]);
         $id = insert_id();
+        if ($review) q('UPDATE posts SET review_at = ? WHERE id = ?', [$review, $id]);
+        audit($me, $pub ? 'post.publish' : 'post.submit', $title);
         // Yazar kendi içeriğini okumuş sayılır
         q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$id, $me['id']]);
         $created = true;
@@ -802,6 +901,7 @@ function a_posts_delete(): void
     delete_post_files($id);
     foreach (['acks', 'views', 'saves'] as $t) q("DELETE FROM $t WHERE post_id = ?", [$id]);
     q('DELETE FROM posts WHERE id = ?', [$id]);
+    audit($me, 'post.delete', $post['title']);
     out();
 }
 
@@ -812,6 +912,7 @@ function a_posts_approve(): void
     $post = one("SELECT * FROM posts WHERE id = ? AND status = 'pending'", [$id]);
     if (!$post) fail('Onay bekleyen içerik bulunamadı.', 404);
     q("UPDATE posts SET status = 'published', reject_reason = NULL, published_at = ?, updated_at = ? WHERE id = ?", [now(), now(), $id]);
+    audit(current_user(), 'post.approve', $post['title']);
     $mailed = notify_post_published($id, 0);
     out(['mailed' => $mailed]);
 }
@@ -824,6 +925,7 @@ function a_posts_reject(): void
     $post = one("SELECT * FROM posts WHERE id = ? AND status = 'pending'", [$id]);
     if (!$post) fail('Onay bekleyen içerik bulunamadı.', 404);
     q("UPDATE posts SET status = 'rejected', reject_reason = ?, updated_at = ? WHERE id = ?", [$reason !== '' ? $reason : null, now(), $id]);
+    audit(current_user(), 'post.reject', $post['title'], $reason);
     out();
 }
 
@@ -1114,6 +1216,9 @@ function roster_out(array $r): array
             'url' => 'api.php?action=file&id=' . (int)$cur['id'], 'updated_at' => $cur['created_at'], 'user_name' => $cur['user_name'],
         ] : null,
         'versions' => (int)val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ?', [$r['id']]),
+        'period' => $r['period'] ?? null,
+        'parsed_file_id' => isset($r['parsed_file_id']) ? (int)$r['parsed_file_id'] : null,
+        'parsed_count' => $cur && isset($r['parsed_file_id']) && (int)$r['parsed_file_id'] === (int)$cur['id'] ? (int)val('SELECT COUNT(*) FROM roster_shifts WHERE roster_id = ?', [$r['id']]) : 0,
     ];
 }
 
@@ -1125,16 +1230,18 @@ function a_rosters_list(): void
 
 function a_rosters_save(): void
 {
-    need_publisher();
+    $me = need_publisher();
     $id = i('id');
     $name = s('name', 120);
     if (mb_strlen($name) < 2) fail('Liste adı en az 2 karakter olmalıdır.');
     if ($id) {
         if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
         q('UPDATE rosters SET name = ? WHERE id = ?', [$name, $id]);
+        audit($me, 'roster.rename', $name);
     } else {
         q('INSERT INTO rosters (name, sort, created_at) VALUES (?, ?, ?)', [$name, (int)val('SELECT COALESCE(MAX(sort), 0) + 1 FROM rosters'), now()]);
         $id = insert_id();
+        audit($me, 'roster.create', $name);
     }
     out(['id' => $id, 'rosters' => array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'))]);
 }
@@ -1150,9 +1257,11 @@ function delete_attachment_if_unused(int $attId): void
 
 function a_rosters_delete(): void
 {
-    need_publisher();
+    $me = need_publisher();
     $id = (int)i('id');
     if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
+    audit($me, 'roster.delete', (string)val('SELECT name FROM rosters WHERE id = ?', [$id]));
+    q('DELETE FROM roster_shifts WHERE roster_id = ?', [$id]);
     $atts = array_column(all('SELECT attachment_id FROM roster_files WHERE roster_id = ?', [$id]), 'attachment_id');
     q('DELETE FROM roster_files WHERE roster_id = ?', [$id]);
     q('DELETE FROM rosters WHERE id = ?', [$id]);
@@ -1180,6 +1289,7 @@ function a_rosters_upload(): void
     if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
     add_roster_version($id, $attId, $me);
     $roster = one('SELECT * FROM rosters WHERE id = ?', [$id]);
+    audit($me, 'roster.upload', $roster['name'], (string)val('SELECT orig_name FROM attachments WHERE id = ?', [$attId]));
     $postId = null;
     if (setting('auto_post_roster', '1') === '1') {
         $file = one('SELECT orig_name FROM attachments WHERE id = ?', [$attId]);
@@ -1216,7 +1326,9 @@ function a_rosters_restore(): void
     $f = one('SELECT * FROM roster_files WHERE id = ? AND roster_id = ?', [(int)i('version_id'), $id]);
     if (!$f) fail('Sürüm bulunamadı.', 404);
     add_roster_version($id, (int)$f['attachment_id'], $me);
-    out(['roster' => roster_out(one('SELECT * FROM rosters WHERE id = ?', [$id]))]);
+    $r = one('SELECT * FROM rosters WHERE id = ?', [$id]);
+    audit($me, 'roster.restore', $r['name'], 'Sürüm #' . (int)i('version_id'));
+    out(['roster' => roster_out($r)]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1262,6 +1374,8 @@ function a_admin_user_save(): void
         if ($losingAdmin && admin_count() <= 1) fail('Sistemde en az bir aktif yönetici kalmalıdır.');
         q('UPDATE users SET name = ?, email = ?, role = ?, status = ?, title_id = ?, unit_id = ? WHERE id = ?',
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
+        if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $id]);
+        audit($me, $approved ? 'user.approve' : 'user.edit', $name, 'Yetki: ' . $role . ', durum: ' . $status);
         if ($approved) notify_user_approved(['name' => $name, 'email' => $email]);
         out(['id' => $id]);
     }
@@ -1275,6 +1389,8 @@ function a_admin_user_save(): void
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now()]);
     $newId = insert_id();
+    if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $newId]);
+    audit($me, 'user.create', $name, $email);
     $mailed = b('send_email') ? send_credentials(['name' => $name, 'email' => $email], $pw, true) : 0;
     out(['id' => $newId, 'password' => $generated, 'mailed' => $mailed]);
 }
@@ -1297,6 +1413,7 @@ function a_admin_user_resetpw(): void
     $pw = random_token(6);
     q('UPDATE users SET password_hash = ?, must_change = 1 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
     $u = one('SELECT name, email FROM users WHERE id = ?', [$id]);
+    audit(current_user(), 'user.resetpw', $u['name']);
     $mailed = b('send_email') ? send_credentials($u, $pw, false) : 0;
     out(['password' => $pw, 'mailed' => $mailed]);
 }
@@ -1310,13 +1427,15 @@ function a_admin_user_delete(): void
     if (!$u) fail('Kullanıcı bulunamadı.', 404);
     if ($u['role'] === 'admin' && $u['status'] === 'active' && admin_count() <= 1) fail('Son yönetici silinemez.');
     foreach (['acks', 'views', 'saves'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
+    foreach (['passkeys', 'push_subscriptions', 'notifications'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
     q('DELETE FROM users WHERE id = ?', [$id]);
+    audit($me, 'user.delete', $u['name'], $u['email']);
     out();
 }
 
 function a_tax_save(): void
 {
-    need_admin();
+    $me = need_admin();
     $kind = s('kind', 20);
     $id = i('id');
     $name = s('name', 100);
@@ -1345,12 +1464,13 @@ function a_tax_save(): void
         q("INSERT INTO $kind ($names) VALUES ($marks)", array_values($cols));
         $id = insert_id();
     }
+    audit($me, 'structure.save', $name, $kind);
     out(['id' => $id] + lists());
 }
 
 function a_tax_delete(): void
 {
-    need_admin();
+    $me = need_admin();
     $kind = s('kind', 20);
     $id = (int)i('id');
     if (!in_array($kind, ['categories', 'units', 'titles'], true) || !valid_id($kind, $id)) fail('Kayıt bulunamadı.', 404);
@@ -1368,6 +1488,7 @@ function a_tax_delete(): void
             q('UPDATE users SET title_id = NULL WHERE title_id = ?', [$id]);
             break;
     }
+    audit($me, 'structure.delete', (string)val("SELECT name FROM $kind WHERE id = ?", [$id]), $kind);
     q("DELETE FROM $kind WHERE id = ?", [$id]);
     out(lists());
 }
@@ -1375,7 +1496,7 @@ function a_tax_delete(): void
 function a_settings_save(): void
 {
     global $IN;
-    need_admin();
+    $me = need_admin();
     $has = fn($k) => array_key_exists($k, $IN);
     $org = s('org_name', 120);
     if ($org !== '') set_setting('org_name', $org);
@@ -1385,8 +1506,15 @@ function a_settings_save(): void
     if ($has('banner_text')) set_setting('banner_text', s('banner_text', 300));
     $tone = s('banner_tone', 10);
     if (in_array($tone, ['danger', 'info', 'success'], true)) set_setting('banner_tone', $tone);
-    foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on'] as $k) {
+    foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on', 'push_enabled', 'digest_on', 'shift_remind_on', 'backup_weekly'] as $k) {
         if ($has($k)) set_setting($k, b($k) ? '1' : '0');
+    }
+    foreach (['digest_hour' => [0, 23], 'shift_remind_hour' => [0, 23], 'auto_remind_days' => [0, 60], 'review_warn_days' => [1, 120]] as $k => [$lo, $hi]) {
+        if ($has($k)) set_setting($k, (string)max($lo, min($hi, (int)i($k))));
+    }
+    if ($has('default_notify_mode') && in_array(s('default_notify_mode', 10), ['instant', 'digest'], true)) set_setting('default_notify_mode', s('default_notify_mode', 10));
+    if (b('apply_mode_all') && in_array(s('default_notify_mode', 10), ['instant', 'digest'], true)) {
+        q("UPDATE users SET notify_mode = ? WHERE notify_mode <> 'off'", [s('default_notify_mode', 10)]);
     }
     foreach (array_keys(MAIL_EVENTS) as $k) {
         if ($has($k)) set_setting($k, b($k) ? '1' : '0');
@@ -1403,6 +1531,7 @@ function a_settings_save(): void
     }
     if ($has('mail_from_name')) set_setting('mail_from_name', s('mail_from_name', 120));
     if (setting('mail_on') === '1' && !filter_var(setting('mail_from'), FILTER_VALIDATE_EMAIL)) fail('E-posta bildirimleri için gönderen e-posta adresini girin.');
+    audit($me, 'settings.save', 'Ayarlar');
     out(['admin' => admin_settings()]);
 }
 
@@ -1414,6 +1543,16 @@ function admin_settings(): array
         'allow_guest' => setting('allow_guest', '0') === '1',
         'auto_post_roster' => setting('auto_post_roster', '1') === '1',
         'auto_post_required' => setting('auto_post_required', '0') === '1',
+        'push_enabled' => setting('push_enabled', '1') === '1',
+        'push_ready' => push_ready(),
+        'digest_on' => setting('digest_on', '0') === '1',
+        'digest_hour' => (int)setting('digest_hour', '7'),
+        'shift_remind_on' => setting('shift_remind_on', '1') === '1',
+        'shift_remind_hour' => (int)setting('shift_remind_hour', '18'),
+        'auto_remind_days' => (int)setting('auto_remind_days', '3'),
+        'review_warn_days' => (int)setting('review_warn_days', '14'),
+        'backup_weekly' => setting('backup_weekly', '1') === '1',
+        'default_notify_mode' => setting('default_notify_mode', 'instant'),
         'mail_on' => setting('mail_on') === '1',
         'mail_host' => setting('mail_host'),
         'mail_port' => (int)setting('mail_port', '465'),

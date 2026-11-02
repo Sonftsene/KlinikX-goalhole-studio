@@ -31,6 +31,7 @@ async function api(action, data = {}) {
     try { return await window.NM_DEMO_API.call(action, data); } catch (e) { throw new ApiError(e.message, e.status || 400); }
   }
   let res;
+  const ck = OFFLINE_READ.has(action) ? 'nm-off:' + action + ':' + JSON.stringify(data) : null;
   try {
     res = await fetch('api.php?action=' + encodeURIComponent(action), {
       method: 'POST',
@@ -39,8 +40,11 @@ async function api(action, data = {}) {
       body: JSON.stringify(data),
     });
   } catch (e) {
+    const cached = ck && offlineGet(ck);
+    if (cached) { setOffline(true); return cached; }
     throw new ApiError('Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.', 0);
   }
+  if (OFFLINE.on) setOffline(false);
   let json = null;
   try { json = await res.json(); } catch (e) { /* geçersiz yanıt */ }
   if (!json) throw new ApiError('Sunucudan geçersiz yanıt alındı (' + res.status + ').', res.status);
@@ -52,8 +56,47 @@ async function api(action, data = {}) {
     throw new ApiError(json.error || 'İşlem başarısız.', res.status);
   }
   if (json.csrf) S.csrf = json.csrf;
+  if (ck) offlinePut(ck, json, action);
   return json;
 }
+
+/* ---------------- Çevrimdışı görüntüleme ----------------
+   Okuma isteklerinin son yanıtı bu cihazda saklanır; internet yokken bunlar gösterilir.
+   Dosyalar (PDF/Excel) service worker önbelleğinden gelir. Çıkışta tümü silinir. */
+const OFFLINE_READ = new Set(['boot', 'counts', 'posts.list', 'posts.get', 'rosters.list', 'shifts.my', 'shifts.day', 'people.list', 'notif.list']);
+const OFFLINE = { on: false };
+function offlineGet(k) {
+  try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+}
+function offlinePut(k, json, action) {
+  if (action === 'boot' && !json.me) return;
+  try {
+    const s = JSON.stringify({ ...json, csrf: undefined });
+    if (s.length > 400000) return;
+    localStorage.setItem(k, s);
+  } catch (e) {
+    // Kota doldu: eski kayıtları sil, bir kez daha dene
+    offlineCacheClear(['nm-off:boot:']);
+    try { localStorage.setItem(k, JSON.stringify({ ...json, csrf: undefined })); } catch (e2) { /* */ }
+  }
+}
+function offlineCacheClear(keep = []) {
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith('nm-off:') && !keep.some((p) => k.startsWith(p))).forEach((k) => localStorage.removeItem(k));
+  } catch (e) { /* */ }
+}
+function setOffline(on) {
+  OFFLINE.on = on;
+  let bar = document.getElementById('offlineBar');
+  if (on && !bar) {
+    bar = document.createElement('div');
+    bar.id = 'offlineBar';
+    bar.className = 'offline-bar';
+    bar.innerHTML = fmtVal(html`${icon('wifiOff', 'sm')}<span>Çevrimdışısınız · son kaydedilen bilgiler gösteriliyor</span>`);
+    document.body.appendChild(bar);
+  } else if (!on && bar) bar.remove();
+}
+window.addEventListener('online', () => { if (OFFLINE.on && S.me && typeof refreshCounts === 'function') { setOffline(false); refreshCounts(); } });
 
 /** Dosyayı parçalara bölerek yükler: sunucunun PHP yükleme sınırı dosya boyutunu kısıtlamaz. */
 async function uploadFile(file, onProgress) {
@@ -174,6 +217,12 @@ const ICON_PATHS = {
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 16v-4 M12 8h.01',
   expand: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
   table: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M3 9h18 M3 15h18 M9 3v18 M15 3v18',
+  phone: 'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z',
+  chat: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
+  mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6',
+  fingerprint: 'M12 11v3a8 8 0 0 1-1 4 M8.5 7.5A5 5 0 0 1 17 11v1.5 M7 11a5 5 0 0 1 .3-1.7 M5 19.5c1-2 1.5-4 1.5-6.5V11 M17 16c-.2 1.7-.6 3.3-1.3 4.7 M2 12a10 10 0 0 1 18-6 M21.8 10a10 10 0 0 1 .2 2c0 1.4-.1 2.7-.3 4 M9 21.5c.9-1.8 1.5-4 1.5-6.5V11a1.5 1.5 0 0 1 3 0v1',
+  wifiOff: 'M1 1l22 22 M16.72 11.06A10.94 10.94 0 0 1 19 12.55 M5 12.55a10.94 10.94 0 0 1 5.17-2.39 M10.71 5.05A16 16 0 0 1 22.58 9 M1.42 9a15.91 15.91 0 0 1 4.7-2.88 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01',
+  qr: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h3v3h-3z M20 14v.01 M14 20h.01 M17 17h4v4h-4',
   history: 'M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2',
 };
 function icon(name, cls = '') {

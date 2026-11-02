@@ -168,8 +168,8 @@ step('zorunlu duyuru e-postası ve okumayanlara hatırlatma gitti');
 
 /* 8) Bildirim tercihi: üye kapatınca duyuru e-postası gelmez */
 await m.goto(BASE + '#/profil');
-await m.click('.switch:has([data-change=me-notify]) .track');
-await text(m, 'bildirimleri kapatıldı');
+await m.click('[data-act=nmode][data-m=off]');
+await text(m, 'Bildirim tercihiniz kaydedildi');
 const before = mails().length;
 await a.click('.topbar [data-act=compose]');
 await a.fill('#composer [name=title]', 'Kantin saatleri değişti');
@@ -186,8 +186,8 @@ await a.locator('[name=notify_roster]').waitFor({ state: 'attached' });
 await a.click('.switch:has([name=notify_roster]) .track');
 await a.click('form[data-form=settings] button[type=submit]');
 await text(a, 'Ayarlar kaydedildi');
-await m.click('.switch:has([data-change=me-notify]) .track');
-await text(m, 'bildirimleri açıldı');
+await m.click('[data-act=nmode][data-m=instant]');
+await text(m, 'Bildirim tercihiniz kaydedildi');
 const before2 = mails().length;
 await a.goto(BASE + '#/nobet');
 await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'ornek-cizelge-kasim-2-basamak.xlsx'));

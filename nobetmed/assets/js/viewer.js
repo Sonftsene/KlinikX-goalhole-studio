@@ -7,6 +7,7 @@ const VENDOR = Object.assign({
   pdf: 'assets/vendor/pdf.min.js',
   pdfWorker: 'assets/vendor/pdf.worker.min.js',
   mammoth: 'assets/vendor/mammoth.browser.min.js',
+  qrcode: 'assets/vendor/qrcode.js',
 }, window.NM_VENDOR || {});
 
 const _scripts = {};
@@ -666,13 +667,15 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
   return { html: h, width: total };
 }
 
+/** Türkçe harf/aksan farkını yok sayan küçük harf ('DEMIR' ~ 'Demir') */
+function foldName(s) { return trLower(s).replace(/[çğıöşüâîûê]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u', ê: 'e' }[c])); }
 function nameMatcher(name) {
-  const full = trLower(name || '').replace(/\s+/g, ' ').trim();
+  const full = foldName(name || '').replace(/\s+/g, ' ').trim();
   const parts = full.split(' ').filter((p) => p.length >= 2);
   if (!parts.length) return () => false;
   const first = parts[0], last = parts[parts.length - 1];
   return (text) => {
-    const t = trLower(text).replace(/\s+/g, ' ');
+    const t = foldName(text).replace(/\s+/g, ' ');
     if (!t) return false;
     if (t.includes(full)) return true;
     return parts.length > 1 && t.includes(first) && t.includes(last);

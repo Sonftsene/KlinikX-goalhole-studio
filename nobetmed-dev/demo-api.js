@@ -2,7 +2,7 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v5';
+  const KEY = 'nm-demo-v6';
   const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
   const fsize = (f, def) => { const u = window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]; return u ? Math.round((u.length - u.indexOf(',') - 1) * 0.75) : def; };
   const ROSTER_FILES = window.NM_DEMO_ROSTERS || [['Yoğun Bakım 3. Basamak', 'ornek-cizelge-kasim-3-basamak.xlsx'], ['Yoğun Bakım 2. Basamak', 'ornek-cizelge-kasim-2-basamak.xlsx']];
@@ -35,7 +35,7 @@
         { id: 5, name: 'Toplantı Kararları', icon: 'users', color: 'amber' },
       ],
       users: [
-        [1, (window.NM_DEMO_ADMIN || {}).name || 'Deniz Yönetici', (window.NM_DEMO_ADMIN || {}).email || 'yonetici@hastane.org', 4, 1, 'admin', 'active', 0.2],
+        [1, (window.NM_DEMO_ADMIN || {}).name || 'Berna Kaya', (window.NM_DEMO_ADMIN || {}).email || 'berna.kaya@hastane.org', 4, 1, 'admin', 'active', 0.2],
         [2, 'Mehmet Öztürk', 'mehmet.ozturk@hastane.org', 2, 2, 'editor', 'active', 3],
         [3, 'Elif Yılmaz', 'elif.yilmaz@hastane.org', 4, 1, 'member', 'active', 1],
         [4, 'Burak Demir', 'burak.demir@hastane.org', 4, 1, 'member', 'active', 20],
@@ -94,6 +94,31 @@
       db.roster_files.push({ id: ++db.seq, roster_id: id, attachment_id: att.id, user_id: by, created_at: ago(h) });
     };
     ROSTER_FILES.forEach(([name, file], i) => R(i + 1, name, file, fsize(file, 34000), 30 + i * 45, i + 1));
+    // Rehber bilgileri
+    [[1, '0532 000 00 01', '4410'], [2, '0533 000 00 02', '4411'], [3, '0534 000 00 03', ''], [7, '0535 000 00 07', '4400'], [5, '0536 000 00 05', '']].forEach(([id, phone, ext]) => { const u = db.users.find((x) => x.id === id); if (u) Object.assign(u, { phone, extension: ext }); });
+    p5.review_at = ymd(new Date(Date.now() + 9 * 86400000));
+    db.templates = [
+      ['Denetim duyurusu', 'Tarih/saat: \nDenetlenecek alanlar: \n• Acil arabası mühür ve sayım formu\n• İlaç buzdolabı ısı takip çizelgesi\n• Atık ayrıştırma\n\nLütfen vardiya teslimlerinde kontrol ediniz.', true],
+      ['Eğitim duyurusu', 'Konu: \nTarih/saat: \nYer: \nEğitimci: \n\nKatılım zorunludur. Katılamayacak olanların sorumlu hemşireye bildirmesi rica olunur.', true],
+      ['Toplantı duyurusu', 'Tarih/saat: \nYer: \nGündem:\n1. \n2. \n\nKatılımınızı rica ederiz.', false],
+      ['Nöbet değişikliği', 'Değişiklik: \nTarih: \nGüncel liste Nöbet listeleri bölümündedir.', false],
+      ['Malzeme / cihaz bilgilendirmesi', 'Malzeme / cihaz: \nDurum: \nAlternatif: \nTahmini çözüm tarihi: ', false],
+      ['Protokol güncellemesi', 'Güncellenen protokol: \nDeğişen maddeler:\n• \n\nEkteki güncel sürümü okuyup onaylayınız.', true],
+    ].map(([title, body, required], i) => ({ id: i + 1, title, body, required, category_id: 1 }));
+    db.notifs = [];
+    const N = (uid, kind, title, body, url, h) => db.notifs.push({ id: ++db.seq, user_id: uid, kind, title, body, url, at: ago(h), read: false });
+    db.users.filter((u) => u.status === 'active').forEach((u) => {
+      N(u.id, 'roster', `“${ROSTER_FILES[0][0]}” nöbet listesi güncellendi`, 'Güncel listeyi açmak için dokunun.', '#/nobet/1', 30);
+      N(u.id, 'post', p2.title, 'Okumanız gereken yeni duyuru', '#/p/' + p2.id, 5);
+      N(u.id, 'shift', 'Yarın nöbetiniz var', 'Nöbetlerim sayfasından ayrıntıları görün.', '#/nobetim', 2);
+    });
+    db.audit = [
+      [1, 'login', '', '', 0.2], [1, 'roster.upload', ROSTER_FILES[0][0], ROSTER_FILES[0][1], 30], [1, 'post.publish', p2.title, '', 5], [7, 'post.publish', p3.title, '', 52],
+      [1, 'user.approve', 'Kemal Bulut', '', 60], [2, 'post.approve', p4.title, '', 120], [1, 'settings.save', 'Ayarlar', '', 140], [1, 'backup.create', 'Haftalık yedek', '', 150],
+    ].map(([uid, action, target, detail, h]) => ({ id: ++db.seq, user_id: uid, action, target, detail, ip: '10.0.0.' + uid, at: ago(h) }));
+    db.backups = [{ name: 'nobetmed-yedek-haftalik.zip', size: 412000, at: ago(24 * 3) }];
+    db.invites = [];
+    Object.assign(db.settings, { push_enabled: true, digest_on: true, digest_hour: 7, shift_remind_on: true, shift_remind_hour: 18, auto_remind_days: 3, review_warn_days: 14, backup_weekly: true, default_notify_mode: 'instant' });
     return db;
   }
 
@@ -108,14 +133,34 @@
   const isPub = (u) => u && (u.role === 'admin' || u.role === 'editor');
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
-  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, must_change: false });
+  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, must_change: false });
+  const audit = (action, target, detail) => { const u = me(); db.audit.unshift({ id: ++db.seq, user_id: u ? u.id : null, action, target: target || '', detail: detail || '', ip: '10.0.0.1', at: now() }); db.audit = db.audit.slice(0, 300); };
+  const notify = (users, kind, title, body, url) => users.forEach((u) => db.notifs.unshift({ id: ++db.seq, user_id: u.id, kind, title, body, url, at: now(), read: false }));
+  db.shifts = db.shifts || {};
+  /* Nöbetler: önizlemede sunucu yok; listeler tarayıcıda okunur (sitede yükleyen yayıncının tarayıcısı okuyup kaydeder) */
+  async function ensureShifts() {
+    if (typeof extractShifts !== 'function' || typeof loadSheetModel !== 'function') return;
+    for (const r of db.rosters) {
+      const ro = rosterOut(r);
+      if (!ro.file || (db.shifts[r.id] && db.shifts[r.id].file_id === ro.file.id)) continue;
+      if (!/\.(xlsx|xlsm|xls|ods|csv)$/i.test(ro.file.name)) continue;
+      try {
+        const model = await loadSheetModel(ro.file);
+        const res = extractShifts(model, { fileName: ro.file.name, uploadedAt: ro.file.updated_at });
+        if (res && res.ok) db.shifts[r.id] = { file_id: ro.file.id, period: `${res.year}-${pad(res.month)}`, entries: res.entries.map((e) => ({ name: e.name, title: e.title, date: e.date, code: e.code, label: e.label, kind: e.kind, hours: e.hours, start: e.start, end: e.end })) };
+      } catch (e) { /* okunamadı */ }
+    }
+  }
+  const allShifts = () => db.rosters.flatMap((r) => { const sh = db.shifts[r.id]; const ro = rosterOut(r); return sh && ro.file && sh.file_id === ro.file.id ? sh.entries.map((e) => ({ ...e, roster_id: r.id, roster: r.name })) : []; });
+  const nameMatch = (a, b) => (typeof matchPersonName === 'function' ? matchPersonName(a, b) : lower(a) === lower(b));
+  const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
   const EVENTS = [['notify_post', 'Yeni duyuru / içerik yayınlandığında (ilgili birimdeki herkese)'], ['notify_roster', 'Nöbet listesi güncellendiğinde (herkese)'], ['notify_pending_post', 'Onay bekleyen içerik gönderildiğinde (yönetici ve yayıncılara)'], ['notify_pending_user', 'Yeni üyelik başvurusu geldiğinde (yöneticilere)'], ['notify_user_approved', 'Üyelik onaylandığında (başvuran kişiye)']];
   const mailReady = () => !!db.settings.mail_on && !!db.settings.mail_from;
   const evOn = (k) => mailReady() && db.settings.events[k] !== false;
   const recipients = (exceptId) => db.users.filter((x) => x.status === 'active' && x.id !== exceptId && x.email_notify !== false).length;
   db.mailLog = db.mailLog || [];
   const logMail = (subject, n) => { if (n > 0) db.mailLog.unshift({ id: ++db.seq, to: n + ' alıcı', subject, kind: '', created_at: now(), sent_at: now(), status: 'sent', error: null }); db.mailLog = db.mailLog.slice(0, 40); return n; };
-  const adminSettings = () => ({ allow_guest: !!db.settings.allow_guest, auto_post_roster: db.settings.auto_post_roster !== false, auto_post_required: !!db.settings.auto_post_required, mail_on: !!db.settings.mail_on, mail_host: db.settings.mail_host || '', mail_port: db.settings.mail_port || 465, mail_secure: db.settings.mail_secure || 'ssl', mail_user: db.settings.mail_user || '', mail_has_pass: true, mail_from: db.settings.mail_from || '', mail_from_name: db.settings.mail_from_name || '', mail_ready: mailReady(), events: EVENTS.map(([key, label]) => ({ key, label, on: db.settings.events[key] !== false })), queue: { pending: 0, failed: 0, sent_today: db.mailLog.length } });
+  const adminSettings = () => ({ push_enabled: db.settings.push_enabled !== false, push_ready: true, digest_on: !!db.settings.digest_on, digest_hour: db.settings.digest_hour ?? 7, shift_remind_on: db.settings.shift_remind_on !== false, shift_remind_hour: db.settings.shift_remind_hour ?? 18, auto_remind_days: db.settings.auto_remind_days ?? 3, review_warn_days: db.settings.review_warn_days ?? 14, backup_weekly: db.settings.backup_weekly !== false, default_notify_mode: db.settings.default_notify_mode || 'instant', allow_guest: !!db.settings.allow_guest, auto_post_roster: db.settings.auto_post_roster !== false, auto_post_required: !!db.settings.auto_post_required, mail_on: !!db.settings.mail_on, mail_host: db.settings.mail_host || '', mail_port: db.settings.mail_port || 465, mail_secure: db.settings.mail_secure || 'ssl', mail_user: db.settings.mail_user || '', mail_has_pass: true, mail_from: db.settings.mail_from || '', mail_from_name: db.settings.mail_from_name || '', mail_ready: mailReady(), events: EVENTS.map(([key, label]) => ({ key, label, on: db.settings.events[key] !== false })), queue: { pending: 0, failed: 0, sent_today: db.mailLog.length } });
   const lists = () => ({ categories: db.categories, units: db.units, titles: db.titles });
   const attOut = (a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl || a.url });
   function rosterOut(r) {
@@ -123,7 +168,9 @@
     const f = files[0];
     const att = f && db.attachments.find((a) => a.id === f.attachment_id);
     const user = f && db.users.find((u) => u.id === f.user_id);
-    return { id: r.id, name: r.name, versions: files.length, file: att ? { ...attOut(att), updated_at: f.created_at, user_name: user ? user.name : null } : null };
+    const sh = db.shifts && db.shifts[r.id];
+    const parsed = sh && att && sh.file_id === att.id;
+    return { id: r.id, name: r.name, versions: files.length, file: att ? { ...attOut(att), updated_at: f.created_at, user_name: user ? user.name : null } : null, period: sh ? sh.period : null, parsed_file_id: parsed ? att.id : (sh ? sh.file_id : null), parsed_count: parsed ? sh.entries.length : 0 };
   }
   const rosterList = () => db.rosters.map(rosterOut);
   const canView = (u, p) => isPub(u) || p.author_id === u.id || (p.status === 'published' && (p.unit_id === null || p.unit_id === u.unit_id));
@@ -134,7 +181,7 @@
   function postOut(p, u) {
     const author = db.users.find((x) => x.id === p.author_id);
     return {
-      ...p, excerpt: p.body.replace(/\s+/g, ' ').slice(0, 220), author_name: author ? author.name : 'Silinmiş kullanıcı', author_title_id: author ? author.title_id : null,
+      ...p, review_at: p.review_at || null, excerpt: p.body.replace(/\s+/g, ' ').slice(0, 220), author_name: author ? author.name : 'Silinmiş kullanıcı', author_title_id: author ? author.title_id : null,
       att_count: db.attachments.filter((a) => a.post_id === p.id).length, ack_count: db.acks.filter((a) => a.post_id === p.id).length, audience: audience(p),
       viewed: has(db.views, p, u), saved: has(db.saves, p, u), acked: has(db.acks, p, u),
     };
@@ -149,6 +196,7 @@
       saved: db.saves.filter((s) => s.user_id === u.id).length,
       pending_posts: isPub(u) ? db.posts.filter((p) => p.status === 'pending').length : 0,
       pending_users: u.role === 'admin' ? db.users.filter((x) => x.status === 'pending').length : 0,
+      notif_unread: db.notifs.filter((n) => n.user_id === u.id && !n.read).length,
     };
   }
   const sortKey = (p) => p.published_at || p.created_at;
@@ -158,7 +206,7 @@
       const u = me();
       const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
       if (u) {
-        Object.assign(out.settings, { banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
+        Object.assign(out.settings, { push_ready: false, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
         out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -186,7 +234,11 @@
     },
     'auth.logout'() { db.me = null; return {}; },
     'auth.forgot'() { if (!mailReady()) err('E-posta gönderimi ayarlanmamış.'); return { message: 'Bu e-posta ile kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi. (Önizlemede gerçek e-posta gönderilmez.)' }; },
-    'me.update'(d) { const u = needUser(); if ('email_notify' in d) { u.email_notify = !!d.email_notify; if (!('name' in d)) return {}; } if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
+    'me.update'(d) {
+      const u = needUser();
+      if ('notify_mode' in d) { u.notify_mode = ['instant', 'digest', 'off'].includes(d.notify_mode) ? d.notify_mode : 'instant'; return {}; }
+      if ('phone' in d || 'extension' in d) { u.phone = String(d.phone || '').replace(/[^0-9+ ()-]/g, '') || null; u.extension = String(d.extension || '').slice(0, 12) || null; return {}; }
+      if ('email_notify' in d) { u.email_notify = !!d.email_notify; if (!('name' in d)) return {}; } if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
     'me.password'(d) { const u = needUser(); if (d.current !== u.pw) err('Mevcut şifre hatalı. (Demo şifresi: demo1234)'); if ((d.password || '').length < 8) err('Şifre en az 8 karakter olmalıdır.'); u.pw = d.password; return {}; },
     counts() { return { counts: counts(needUser()) }; },
     'posts.list'(d) {
@@ -233,15 +285,17 @@
       if (d.id) {
         p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404);
         if (!pub && !(p.author_id === u.id && p.status !== 'published')) err('Bu içeriği düzenleme yetkiniz yok.', 403);
-        Object.assign(p, { title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, required: !!d.required, updated_at: now(), reject_reason: null });
+        Object.assign(p, { title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, required: !!d.required, review_at: d.review_at || null, updated_at: now(), reject_reason: null });
         if (pub) p.pinned = !!d.pinned; else p.status = 'pending';
       } else {
-        p = { id: ++db.seq, title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, author_id: u.id, status: pub ? 'published' : 'pending', pinned: pub && !!d.pinned, required: !!d.required, reject_reason: null, share_token: null, share_expires: null, created_at: now(), updated_at: now(), published_at: pub ? now() : null };
+        p = { id: ++db.seq, review_at: d.review_at || null, title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, author_id: u.id, status: pub ? 'published' : 'pending', pinned: pub && !!d.pinned, required: !!d.required, reject_reason: null, share_token: null, share_expires: null, created_at: now(), updated_at: now(), published_at: pub ? now() : null };
         db.posts.push(p);
         db.views.push({ post_id: p.id, user_id: u.id });
       }
       (d.remove_attachment_ids || []).forEach((id) => { db.attachments = db.attachments.filter((a) => !(a.id === id && a.post_id === p.id)); });
       (d.attachment_ids || []).forEach((id) => { const a = db.attachments.find((x) => x.id === id && x.post_id === null && x.user_id === u.id); if (a) a.post_id = p.id; });
+      audit(d.id ? 'post.edit' : p.status === 'published' ? 'post.publish' : 'post.submit', p.title);
+      if (!d.id && p.status === 'published') notify(db.users.filter((x) => x.status === 'active' && x.id !== u.id && (p.unit_id === null || x.unit_id === p.unit_id)), 'post', p.title, p.required ? 'Okumanız gereken yeni içerik' : 'Yeni duyuru', '#/p/' + p.id);
       const mailed = !d.id && p.status === 'published' && d.notify !== false && evOn('notify_post') ? logMail((p.required ? 'Okumanız gereken: ' : 'Yeni duyuru: ') + p.title, recipients(u.id)) : 0;
       return { id: p.id, status: p.status, mailed };
     },
@@ -292,6 +346,8 @@
         const p = { id: ++db.seq, title: `“${r.name}” nöbet listesi güncellendi`, body: `${u.name} güncel nöbet listesini yükledi.\nDosya: ${a.name}\n\nListeyi açmak için: ${location.href.split('#')[0]}#/nobet/${r.id}`, category_id: 1, unit_id: null, author_id: u.id, status: 'published', pinned: false, required: !!db.settings.auto_post_required, reject_reason: null, share_token: null, share_expires: null, created_at: now(), updated_at: now(), published_at: now() };
         db.posts.push(p); db.views.push({ post_id: p.id, user_id: u.id }); post_id = p.id;
       }
+      audit('roster.upload', r.name, a.name);
+      notify(db.users.filter((x) => x.status === 'active' && x.id !== u.id), 'roster', `“${r.name}” nöbet listesi güncellendi`, 'Güncel listeyi açmak için dokunun.', '#/nobet/' + r.id);
       const mailed = evOn('notify_roster') ? logMail('Nöbet listesi güncellendi: ' + r.name, recipients(u.id)) : 0;
       return { roster: rosterOut(r), post_id, mailed };
     },
@@ -323,6 +379,8 @@
         const u = db.users.find((x) => x.id === d.id) || err('Kullanıcı bulunamadı.', 404);
         if (u.role === 'admin' && u.status === 'active' && (d.role !== 'admin' || d.status !== 'active') && admins <= 1) err('Sistemde en az bir aktif yönetici kalmalıdır.');
         Object.assign(u, { name: d.name.trim(), email, role: d.role, status: d.status, title_id: d.title_id, unit_id: d.unit_id });
+        if ('phone' in d) Object.assign(u, { phone: d.phone || null, extension: d.extension || null });
+        audit('user.edit', u.name);
         return { id: u.id };
       }
       const pw = d.password || token().slice(0, 8);
@@ -364,7 +422,10 @@
       const st = db.settings;
       if (d.org_name) st.org_name = d.org_name;
       if (d.registration) st.registration = d.registration;
-      ['banner_on', 'allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on'].forEach((k) => { if (k in d) st[k] = !!d[k]; });
+      ['banner_on', 'allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on', 'push_enabled', 'digest_on', 'shift_remind_on', 'backup_weekly'].forEach((k) => { st[k] = !!d[k]; });
+      ['digest_hour', 'shift_remind_hour', 'auto_remind_days', 'review_warn_days'].forEach((k) => { if (k in d) st[k] = +d[k] || 0; });
+      if (d.default_notify_mode) st.default_notify_mode = d.default_notify_mode;
+      audit('settings.save', 'Ayarlar');
       ['banner_text', 'banner_tone', 'mail_host', 'mail_secure', 'mail_user', 'mail_from', 'mail_from_name'].forEach((k) => { if (k in d) st[k] = d[k]; });
       if ('mail_port' in d) st.mail_port = +d.mail_port || 465;
       EVENTS.forEach(([k]) => { if (k in d) st.events[k] = !!d[k]; });
@@ -381,6 +442,135 @@
       if (!missing) err('Herkes okumuş, hatırlatılacak kimse yok.');
       return { sent: logMail('Hatırlatma: ' + p.title, missing) };
     },
+    /* ---- Bildirim merkezi ---- */
+    'notif.list'() { const u = needUser(); return { items: db.notifs.filter((n) => n.user_id === u.id).slice(0, 40) }; },
+    'notif.read'(d) { const u = needUser(); db.notifs.forEach((n) => { if (n.user_id === u.id && (!d.id || n.id === d.id)) n.read = true; }); return {}; },
+    'push.key'() { err('Önizlemede telefon bildirimi yok; sitenizde çalışır.'); },
+    'push.test'() { err('Önizlemede telefon bildirimi yok; sitenizde çalışır.'); },
+    /* ---- Nöbetler ---- */
+    async 'shifts.my'() {
+      const u = needUser();
+      await ensureShifts();
+      const all = allShifts();
+      const t = new Date();
+      const from = ymd(new Date(t.getFullYear(), t.getMonth() - 1, 1)), to = addDays(ymd(t), 70);
+      const entries = all.filter((e) => e.date >= from && e.date <= to && nameMatch(e.name, u.name)).sort((a, b) => a.date.localeCompare(b.date) || String(a.start || '').localeCompare(String(b.start || '')));
+      return { entries, has_data: all.length > 0, name: u.name };
+    },
+    async 'shifts.day'(d) {
+      needUser();
+      await ensureShifts();
+      const all = allShifts();
+      const date = d.date || ymd(new Date());
+      const prev = addDays(date, -1);
+      const users = db.users.filter((x) => x.status === 'active');
+      const person = (e) => { const u = users.find((x) => nameMatch(e.name, x.name)); return { name: e.name, title: e.title, user_id: u ? u.id : null, phone: u ? u.phone || null : null, roster: e.roster }; };
+      const groups = {};
+      all.filter((e) => e.date === date).sort((a, b) => String(a.start || '99').localeCompare(String(b.start || '99')) || a.name.localeCompare(b.name, 'tr')).forEach((e) => {
+        const k = e.kind + '|' + e.code;
+        (groups[k] = groups[k] || { code: e.code, label: e.label, kind: e.kind, start: e.start, end: e.end, people: [] }).people.push(person(e));
+      });
+      const out = Object.values(groups).sort((a, b) => (a.kind !== 'shift') - (b.kind !== 'shift') || String(a.start || '99').localeCompare(String(b.start || '99')));
+      const carry = all.filter((e) => e.date === prev && e.kind === 'shift' && e.start && e.end && e.end <= e.start).map((e) => ({ ...person(e), code: e.code, end: e.end }));
+      return { date, groups: out, carry, has_data: all.length > 0 };
+    },
+    'rosters.shifts'(d) {
+      needPub();
+      db.shifts[d.roster_id] = { file_id: d.file_id, period: d.period, entries: (d.entries || []).map((e) => ({ name: e.name, title: e.title, date: e.date, code: e.code, label: e.label, kind: e.kind, hours: e.hours, start: e.start, end: e.end })) };
+      audit('roster.parse', 'Liste #' + d.roster_id, `${d.entries.length} nöbet kaydı, dönem ${d.period}`);
+      return { saved: db.shifts[d.roster_id].entries.length };
+    },
+    'rosters.period'(d) {
+      needPub();
+      const sh = db.shifts[d.id];
+      if (sh) { sh.period = d.period; sh.entries = sh.entries.map((e) => ({ ...e, date: d.period + e.date.slice(7) })); }
+      audit('roster.period', (db.rosters.find((r) => r.id === d.id) || {}).name, 'Dönem: ' + d.period);
+      return { period: d.period };
+    },
+    async 'people.list'() {
+      needUser();
+      await ensureShifts();
+      const today = ymd(new Date());
+      const todays = allShifts().filter((e) => e.date === today);
+      return { people: db.users.filter((u) => u.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((u) => {
+        const s = todays.find((e) => nameMatch(e.name, u.name));
+        return { id: u.id, name: u.name, email: u.email, phone: u.phone || null, extension: u.extension || null, title_id: u.title_id, unit_id: u.unit_id, role: u.role, last_seen_at: u.last_seen_at, today: s ? { code: s.code, label: s.label, kind: s.kind, start: s.start, end: s.end } : null };
+      }) };
+    },
+    /* ---- Raporlar, günlük, yedek ---- */
+    'report.reads'() {
+      needPub();
+      const posts = db.posts.filter((p) => p.status === 'published' && p.required).sort((a, b) => b.published_at.localeCompare(a.published_at));
+      const acks = {};
+      db.acks.forEach((a) => { if (posts.some((p) => p.id === a.post_id)) (acks[a.post_id] = acks[a.post_id] || {})[a.user_id] = a.created_at; });
+      return { posts: posts.map((p) => ({ id: p.id, title: p.title, category: (db.categories.find((c) => c.id === p.category_id) || {}).name, unit_id: p.unit_id, published_at: p.published_at, review_at: p.review_at || null })),
+        users: db.users.filter((u) => u.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((u) => ({ id: u.id, name: u.name, email: u.email, title_id: u.title_id, unit_id: u.unit_id })), acks, generated_at: now() };
+    },
+    'report.reviews'() {
+      needPub();
+      return { items: db.posts.filter((p) => p.review_at && p.status === 'published').sort((a, b) => a.review_at.localeCompare(b.review_at)).map((p) => ({ id: p.id, title: p.title, review_at: p.review_at, author: (db.users.find((u) => u.id === p.author_id) || {}).name })) };
+    },
+    'audit.list'(d) {
+      needAdmin();
+      const q = lower(d.q || '');
+      const rows = db.audit.map((x) => ({ ...x, user: (db.users.find((u) => u.id === x.user_id) || {}).name || null })).filter((x) => !q || lower([x.user, x.action, x.target, x.detail].join(' ')).includes(q));
+      const off = d.offset || 0;
+      return { items: rows.slice(off, off + 50), has_more: rows.length > off + 50 };
+    },
+    'backup.list'() { needAdmin(); return { items: db.backups, zip: true, weekly: db.settings.backup_weekly !== false, last: db.backups[0] ? db.backups[0].at : null }; },
+    'backup.create'() { needAdmin(); db.backups.unshift({ name: 'nobetmed-yedek-' + now().replace(/[: ]/g, '-') + '.zip', size: 380000 + Math.round(Math.random() * 60000), at: now() }); db.backups = db.backups.slice(0, 4); audit('backup.create', 'Elle yedek'); return { items: db.backups }; },
+    'backup.delete'(d) { needAdmin(); db.backups = db.backups.filter((b) => b.name !== d.name); return { items: db.backups }; },
+    /* ---- Şablonlar ---- */
+    'templates.list'() { needUser(); return { items: db.templates }; },
+    'templates.save'(d) { needPub(); if ((d.title || '').trim().length < 2 || !(d.body || '').trim()) err('Başlık ve metin gerekli.'); db.templates.push({ id: ++db.seq, title: d.title.trim().slice(0, 80), body: d.body, category_id: d.category_id || null, required: !!d.required }); audit('template.create', d.title); return { items: db.templates }; },
+    'templates.delete'(d) { needPub(); db.templates = db.templates.filter((t) => t.id !== d.id); return { items: db.templates }; },
+    /* ---- Davetler ---- */
+    'invites.general'(d) {
+      needAdmin();
+      const inv = { id: ++db.seq, token: token(), kind: 'general', unit_id: d.unit_id || null, auto_approve: !!d.auto_approve, uses: 0, max_uses: 500, expires: fmt(new Date(Date.now() + (d.days || 30) * 86400000)), revoked: false };
+      db.invites.push(inv);
+      audit('invite.general', 'QR davet');
+      return { invite: { ...inv, url: location.href.split(/[?#]/)[0] + '?davet=' + inv.token } };
+    },
+    async 'invites.candidates'() {
+      needAdmin();
+      await ensureShifts();
+      const users = db.users;
+      const seen = {};
+      allShifts().forEach((e) => { if (!seen[lower(e.name)] && !users.some((u) => nameMatch(e.name, u.name))) seen[lower(e.name)] = { name: e.name, title: e.title }; });
+      return { items: Object.values(seen).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((p) => ({ name: p.name, title_id: (db.titles.find((t) => lower(t.name) === lower(p.title || '')) || {}).id || null, invited: db.invites.some((i) => i.kind === 'personal' && lower(i.name) === lower(p.name)) })) };
+    },
+    'invites.personal'(d) {
+      needAdmin();
+      const items = (d.people || []).map((p) => {
+        const inv = { id: ++db.seq, token: token(), kind: 'personal', name: p.name, email: p.email || null, title_id: p.title_id, unit_id: p.unit_id, auto_approve: true, uses: 0, max_uses: 1, expires: fmt(new Date(Date.now() + 60 * 86400000)), revoked: false };
+        db.invites.push(inv);
+        return { ...inv, url: location.href.split(/[?#]/)[0] + '?davet=' + inv.token };
+      });
+      audit('invite.personal', items.length + ' kişi');
+      return { items, mailed: items.filter((x) => x.email).length };
+    },
+    'invite.get'(d) {
+      const inv = db.invites.find((i) => i.token === d.token && !i.revoked && i.uses < i.max_uses);
+      if (!inv) err('Bu davet bağlantısı geçersiz, kullanılmış veya süresi dolmuş.', 404);
+      return { invite: { kind: inv.kind, name: inv.name || '', email: inv.email || '', title_id: inv.title_id || null, unit_id: inv.unit_id || null, auto_approve: inv.auto_approve }, org_name: db.settings.org_name };
+    },
+    'passkey.list'() { needUser(); return { items: [] }; },
+    'attachments.text'() { return { length: 0 }; },
+  };
+  // Davetle kayıt: önizlemede auth.register davet kodunu da kabul eder
+  const _reg = H['auth.register'];
+  H['auth.register'] = (d) => {
+    const inv = d.invite && db.invites.find((i) => i.token === d.invite && !i.revoked && i.uses < i.max_uses);
+    if (!d.invite) return _reg(d);
+    if (!inv) err('Bu davet bağlantısı geçersiz veya kullanılmış.', 404);
+    const reg = db.settings.registration;
+    db.settings.registration = inv.auto_approve ? 'open' : 'approval';
+    try {
+      const r = _reg({ ...d, name: inv.kind === 'personal' ? inv.name : d.name, unit_id: inv.unit_id || d.unit_id, title_id: inv.title_id || d.title_id });
+      inv.uses++;
+      return r;
+    } finally { db.settings.registration = reg; }
   };
 
   window.NM_DEMO_API = {
@@ -388,7 +578,7 @@
       await new Promise((r) => setTimeout(r, 120 + Math.random() * 120));
       const fn = H[action];
       if (!fn) err('Bu işlem önizlemede desteklenmiyor.', 404);
-      const r = fn(JSON.parse(JSON.stringify(data || {})));
+      const r = await fn(JSON.parse(JSON.stringify(data || {})));
       save();
       return { ok: true, ...r };
     },

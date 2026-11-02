@@ -13,6 +13,11 @@ Bu klasör sunucuya **yüklenmez**; yalnızca test ve önizleme içindir.
   ADMIN_EMAIL=... ADMIN_PASS=... node e2e-mail.mjs http://127.0.0.1:8097/ /tmp/mails 2525 /tmp
   ```
   (sitenin config.php dosyasında INITIAL_ADMIN_* dolu olmalı)
+- `e2e-features.mjs` — Yeni özellikler (e2e.mjs'den sonra aynı sunucuda): Nöbetlerim/ICS, rehber, belge içinde arama, şablonlar, okuma raporu Excel, işlem günlüğü, yedek, cron, bildirim merkezi, QR ve listeden davet, parmak izi (sanal doğrulayıcı), çevrimdışı.
+  ```
+  node ../nobetmed-dev/e2e-features.mjs http://localhost:8088/ /tmp <site klasörü>
+  ```
+- `shiftparse-test/`, `push-test/`, `webauthn-test/` — nöbet çözümleyici, web push + service worker ve parmak izi birim/uçtan uca testleri (`run.cjs` / `run.sh` / `run-test.cjs`).
 - `fixtures/` — Örnek nöbet listeleri (.xlsx), PDF protokol ve Word belgesi; testte ve önizlemede kullanılır.
 - `make-fixtures.cjs` — Örnek Excel listelerini üretir (`npm i exceljs` gerekir).
 - `make-cizelge.cjs` — "Aylık Nöbet Ücret Çizelgesi" biçiminde Excel üretir: `node make-cizelge.cjs fixtures/cizelge-ornek.json fixtures`

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '2.1.0';
+const NM_VERSION = '3.0.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -129,7 +129,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 3) return;
+    if ($version >= 4) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -198,6 +198,13 @@ function nm_migrate(PDO $pdo): void
             sent_at VARCHAR(19) NULL,
             error VARCHAR(255) NULL
         )$end",
+        "CREATE TABLE IF NOT EXISTS roster_shifts (id $pk, roster_id INT NOT NULL, file_id INT NOT NULL, name VARCHAR(120) NOT NULL, title VARCHAR(80) NULL, date VARCHAR(10) NOT NULL, code VARCHAR(20) NOT NULL, label VARCHAR(60) NULL, kind VARCHAR(10) NOT NULL DEFAULT 'shift', hours INT NULL, start_time VARCHAR(5) NULL, end_time VARCHAR(5) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS audit_log (id $pk, user_id INT NULL, user_name VARCHAR(120) NULL, action VARCHAR(40) NOT NULL, target VARCHAR(200) NULL, detail VARCHAR(255) NULL, ip VARCHAR(45) NULL, at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS notifications (id $pk, user_id INT NOT NULL, title VARCHAR(200) NOT NULL, body VARCHAR(400) NULL, url VARCHAR(200) NULL, kind VARCHAR(30) NOT NULL DEFAULT '', created_at VARCHAR(19) NOT NULL, read_at VARCHAR(19) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS push_subscriptions (id $pk, user_id INT NOT NULL, endpoint TEXT NOT NULL, endpoint_hash VARCHAR(64) NOT NULL, p256dh VARCHAR(255) NULL, auth VARCHAR(100) NULL, created_at VARCHAR(19) NOT NULL, last_ok VARCHAR(19) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS passkeys (id $pk, user_id INT NOT NULL, credential_id VARCHAR(255) NOT NULL, public_key TEXT NOT NULL, sign_count INT NOT NULL DEFAULT 0, name VARCHAR(80) NULL, created_at VARCHAR(19) NOT NULL, last_used_at VARCHAR(19) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS invites (id $pk, token VARCHAR(40) NOT NULL, kind VARCHAR(10) NOT NULL, name VARCHAR(120) NULL, email VARCHAR(190) NULL, title_id INT NULL, unit_id INT NULL, role VARCHAR(10) NOT NULL DEFAULT 'member', auto_approve INT NOT NULL DEFAULT 0, max_uses INT NOT NULL DEFAULT 1, uses INT NOT NULL DEFAULT 0, expires VARCHAR(19) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, revoked INT NOT NULL DEFAULT 0, used_by INT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS templates (id $pk, title VARCHAR(200) NOT NULL, body TEXT NOT NULL, category_id INT NULL, required INT NOT NULL DEFAULT 0, created_by INT NULL, created_at VARCHAR(19) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS password_resets (id $pk, user_id INT NOT NULL, token_hash VARCHAR(64) NOT NULL, expires INT NOT NULL, used INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
@@ -224,6 +231,13 @@ function nm_migrate(PDO $pdo): void
         'CREATE INDEX idx_login_ip ON login_attempts (ip, at)',
         'CREATE INDEX idx_mail_pending ON mail_queue (sent_at, attempts)',
         'CREATE INDEX idx_reset_token ON password_resets (token_hash)',
+        'CREATE INDEX idx_rshift_date ON roster_shifts (date)',
+        'CREATE INDEX idx_rshift_roster ON roster_shifts (roster_id)',
+        'CREATE INDEX idx_audit_at ON audit_log (at)',
+        'CREATE INDEX idx_notif_user ON notifications (user_id, read_at)',
+        'CREATE UNIQUE INDEX idx_push_hash ON push_subscriptions (endpoint_hash)',
+        'CREATE UNIQUE INDEX idx_passkey_cred ON passkeys (credential_id)',
+        'CREATE UNIQUE INDEX idx_invite_token ON invites (token)',
     ];
     foreach ($indexes as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { /* zaten var */ }
@@ -259,8 +273,33 @@ function nm_migrate(PDO $pdo): void
         $st->execute(['Hemşire Nöbet Listesi', 0, date('Y-m-d H:i:s')]);
         $st->execute(['Personel Nöbet Listesi', 1, date('Y-m-d H:i:s')]);
     }
+    // Sürüm 4: rehber, bildirim türü, belge geçerlilik tarihi, belge metni, liste dönemi
+    $cols = [
+        'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1'],
+        'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
+        'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
+        'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL'],
+    ];
+    foreach ($cols as $t => $list) {
+        foreach ($list as $def) {
+            try { $pdo->exec("ALTER TABLE $t ADD COLUMN $def"); } catch (Throwable $e) { /* zaten var */ }
+        }
+    }
+    try { $pdo->exec("UPDATE users SET notify_mode = 'off' WHERE email_notify = 0"); } catch (Throwable $e) { /* */ }
+    if ((int)$pdo->query('SELECT COUNT(*) FROM templates')->fetchColumn() === 0) {
+        $st = $pdo->prepare('INSERT INTO templates (title, body, required, created_at, sort) VALUES (?, ?, ?, ?, ?)');
+        $tpl = [
+            ['Denetim duyurusu', "Tarih/saat: \nDenetlenecek alanlar: \n• Acil arabası mühür ve sayım formu\n• İlaç buzdolabı ısı takip çizelgesi\n• Atık ayrıştırma\n\nLütfen vardiya teslimlerinde kontrol ediniz.", 1],
+            ['Eğitim duyurusu', "Konu: \nTarih/saat: \nYer: \nEğitimci: \n\nKatılım zorunludur. Katılamayacak olanların sorumlu hemşireye bildirmesi rica olunur.", 1],
+            ['Toplantı duyurusu', "Tarih/saat: \nYer: \nGündem:\n1. \n2. \n\nKatılımınızı rica ederiz.", 0],
+            ['Nöbet değişikliği', "Değişiklik: \nTarih: \nGüncel liste Nöbet listeleri bölümündedir.", 0],
+            ['Malzeme / cihaz bilgilendirmesi', "Malzeme / cihaz: \nDurum: \nAlternatif: \nTahmini çözüm tarihi: ", 0],
+            ['Protokol güncellemesi', "Güncellenen protokol: \nDeğişen maddeler:\n• \n\nEkteki güncel sürümü okuyup onaylayınız.", 1],
+        ];
+        foreach ($tpl as $i => $t) $st->execute([$t[0], $t[1], $t[2], date('Y-m-d H:i:s'), $i]);
+    }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '3')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '4')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

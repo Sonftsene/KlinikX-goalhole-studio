@@ -19,9 +19,18 @@ async function start() {
     history.replaceState(null, '', location.pathname);
     return renderReset(BOOT.reset);
   }
+  if (BOOT.invite && !start.inviteShown) {
+    start.inviteShown = true;
+    if (!S.me) return renderInvite(BOOT.invite);
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
   if (!S.me) return renderAuth('login');
   if (S.me.must_change) return renderForceChange();
   renderShell();
+  if (!window.NM_DEMO_API && typeof registerSW === 'function') {
+    registerSW();
+    if (S.settings.push_ready && S.me.push_on !== false) setTimeout(() => pushSync().catch(() => {}), 3000);
+  }
   // Nöbet listesi görüntüleyicisini arka planda önbelleğe al (ilk açılış hızlı olsun)
   setTimeout(() => {
     if (window.NM_DEMO_API) return;

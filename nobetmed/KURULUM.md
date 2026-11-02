@@ -54,13 +54,13 @@ Sorumlu hemşireye *Yönetici*, yardımcısına ve eğitim hemşiresine *Yayınc
    - Üyelik onaylandığında (başvurana)
 
 E-postalar sayfa yanıtı gönderildikten sonra arka planda yollanır, portal yavaşlamaz. Gönderilemeyenler otomatik olarak tekrar denenir.
-İsterseniz hPanel → **Gelişmiş → Cron Jobs** ile 5 dakikada bir `php /home/KULLANICI/public_html/cron.php` çalıştırarak yedek gönderim ekleyebilirsiniz (zorunlu değildir).
+Zamanlanmış görevlerin (hatırlatmalar, sabah özeti, haftalık yedek) saatinde çalışması için cron görevi kurun (bkz. bölüm 13).
 
 Ek olarak:
 - Zorunlu okumalarda **Okumayanlara e-posta ile hatırlat** düğmesi çıkar.
 - Giriş ekranında **Şifremi unuttum** çalışır (1 saat geçerli, tek kullanımlık bağlantı).
 - Kullanıcı eklerken giriş bilgileri e-postayla gönderilebilir.
-- Her kişi **Hesabım** sayfasından duyuru e-postalarını kapatabilir. Hatırlatma ve hesap e-postaları her zaman gider.
+- Her kişi **Hesabım** sayfasından bildirim tercihini seçer: **Anlık** (her duyuruda e-posta), **Sabah özeti** (günde tek e-posta) veya **Kapalı**. Nöbet hatırlatmaları ve hesap e-postaları her zaman gider.
 
 ## 5. Şifremi unuttum ve geçici şifreler
 
@@ -92,6 +92,9 @@ Google ile gelen yeni kişiler de kayıt ayarınıza (onaylı / açık / kapalı
 - Listeyi güncellemek için **Yeni sürüm yükle** deyin. Son 15 sürüm saklanır. Yanlış dosya yüklenirse **⋯ → Önceki sürümler** bölümünden geri alabilirsiniz.
 - Ekip üyeleri listede arama yapabilir. **Beni bul** düğmesi, kendi adlarının geçtiği hücreleri işaretler.
 - Liste yüklenince ana sayfaya otomatik olarak “… nöbet listesi güncellendi” duyurusu düşer (Ayarlar → Otomatik duyuru; isterseniz zorunlu okuma yapılabilir) ve seçiliyse ekibe e-posta gider.
+- **Nöbetlerim:** Liste yüklendiğinde (yükleyen kişinin tarayıcısında) kişi başı nöbetler okunur. Herkes **Nöbetlerim** sayfasında sıradaki nöbetini, aylık nöbet/saat/fazla mesai özetini görür ve nöbetlerini **telefon takvimine** ekleyebilir. Eşleştirme ad soyada göre yapılır; listedeki ad ile portaldaki ad aynı olmalıdır.
+- Listenin ayı otomatik bulunur. Yanlışsa liste başlığının altındaki **Ayı değiştir** bağlantısıyla düzeltin.
+- **Kim nöbette · Rehber:** Bugün (ve istenen gün) kimin nöbette olduğu, telefonlarıyla tek dokunuşla arama ve WhatsApp.
 
 ## 9. Dosya yükleme
 
@@ -101,12 +104,10 @@ Google ile gelen yeni kişiler de kayıt ayarınıza (onaylı / açık / kapalı
 
 ## 10. Yedekleme
 
-Tüm veriler iki yerdedir:
+- **Ayarlar → Yedekleme:** tek tıkla veritabanı yedeği veya dosyalar dahil tam yedek indirilir.
+- Veritabanı **her hafta otomatik** yedeklenir; son 4 yedek `data/backups` klasöründe saklanır (tarayıcıdan erişilemez).
 
-- `data/` klasörü — veritabanı (`nm-….sqlite`) ve adını tutan `.dbname.php`
-- `uploads/` — yüklenen dosyalar
-
-Bu ikisini düzenli olarak indirmeniz yeterlidir (Hostinger otomatik yedekleri de bunları kapsar).
+Tüm veriler iki yerdedir: `data/` (veritabanı ve yedekler) ve `uploads/` (yüklenen dosyalar). Hostinger'ın otomatik yedekleri de bunları kapsar.
 
 ## 11. Gizlilik ve güvenlik
 
@@ -120,3 +121,40 @@ Bu ikisini düzenli olarak indirmeniz yeterlidir (Hostinger otomatik yedekleri d
 ## 12. Telefonda uygulama gibi kullanma
 
 Siteyi telefonda açın → tarayıcı menüsü → **Ana ekrana ekle**. Portal, kendi simgesiyle uygulama gibi açılır.
+
+- **Telefon bildirimleri:** Hesabım → Bildirimler → **Telefon bildirimleri: Aç**. Android'de tarayıcıdan çalışır; **iPhone'da** önce “Ana Ekrana Ekle” yapılmalı (iOS 16.4 ve üstü), sonra ana ekrandaki simgeden açılıp izin verilmelidir. Yönetici Ayarlar → Telefon bildirimleri bölümünden tamamen kapatabilir. Sunucuda ek bir şey gerekmez (anahtarlar otomatik oluşur, PHP OpenSSL yeterli).
+- **Çevrimdışı görüntüleme:** Bir kez açılan duyurular, nöbet listeleri, Nöbetlerim ve PDF/Excel dosyaları internet yokken de açılır. Çıkış yapınca bu cihazdaki kayıtlar silinir.
+- **Parmak izi / Face ID ile giriş:** Hesabım → **Bu cihaza ekle**. Sonraki girişlerde şifre gerekmez. Site **HTTPS** ile açılmalıdır (Hostinger'da ücretsiz SSL'i açın).
+
+## 13. Zamanlanmış görevler (cron) — önerilir
+
+hPanel → **Gelişmiş → Cron Jobs** → *Özel*: her **10 dakikada** bir şu komut:
+
+```
+/usr/bin/php /home/KULLANICI/public_html/cron.php
+```
+
+(`KULLANICI` ve klasör yolunu hPanel'deki dosya yöneticisinde görürsünüz.) Bu görev şunları saatinde yapar:
+
+- **Nöbet hatırlatması:** nöbetten bir gün önce (varsayılan 18:00) kişiye e-posta ve telefon bildirimi
+- **Sabah özeti:** “Sabah özeti” seçenlere tek e-posta (bugünkü nöbet, yeni duyurular, okunacaklar)
+- **Okuma hatırlatması:** zorunlu okumayı X gün içinde yapmayanlara otomatik hatırlatma
+- **Belge gözden geçirme:** geçerlilik tarihi yaklaşan protokol/formlar için uyarı
+- **Haftalık yedek** ve eski kayıtların temizliği
+
+Cron kurmasanız da bu görevler site ziyaret edildikçe arka planda çalışır; cron yalnızca saatinde çalışmalarını garanti eder. Saatler ve gün sayıları **Ayarlar → Hatırlatmalar ve sabah özeti** bölümünden değiştirilir.
+
+## 14. Ekibi hızlıca eklemek
+
+- **QR ile kayıt:** Kullanıcılar → **QR ile kayıt** → yazdırıp servise asın. Okutan kişi kayıt formuna gider (varsayılan olarak sizin onayınızla aktifleşir).
+- **Listeden davet et:** Nöbet listelerinde adı geçip hesabı olmayan herkes listelenir. E-posta yazdıklarınıza davet e-postası gider; diğerleri için kişiye özel bağlantı oluşur (WhatsApp'tan gönderin). Davetle gelen kişi onay beklemeden girer; bağlantı tek kullanımlıktır ve 60 gün geçerlidir.
+
+## 15. Diğer kolaylıklar
+
+- **Bildirim zili:** sağ üstte; tüm duyuru, liste güncellemesi ve hatırlatmalar burada toplanır.
+- **Duyuru şablonları:** Yeni içerikte “Şablondan başla” (denetim, eğitim, toplantı…); kendi metninizi “Şablon olarak kaydet” ile ekleyin.
+- **Geçerlilik / gözden geçirme tarihi:** Protokol ve formlara tarih girin; yaklaşınca yöneticilere uyarı gider, Okuma raporu sayfasında listelenir.
+- **Okuma raporu:** Zorunlu okumalarda kim, ne zaman okudu; **Excel olarak indir** (denetimlerde kanıt).
+- **İşlem günlüğü:** Kim, ne zaman, ne yaptı (giriş, yayın, silme, liste yükleme, ayar değişikliği…).
+- **Belge içinde arama:** Arama kutusu PDF, Word ve Excel eklerinin içindeki metni de arar.
+- **WhatsApp ile paylaş:** İçerik ekranındaki WhatsApp düğmesi, portal bağlantısını gruba gönderir (içerik yine yalnızca giriş yapanlara açıktır).

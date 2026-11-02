@@ -117,6 +117,7 @@ function renderAuth(mode = 'login') {
       <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
       <h1>Tekrar hoş geldiniz</h1>
       <p class="sub">Devam etmek için hesabınıza giriş yapın.</p>
+      ${passkeyLoginButton()}
       ${googleBlock()}
       <form class="stack" data-form="login">
         <div class="field"><label>E-posta</label><input class="input" type="email" name="email" autocomplete="username" required></div>

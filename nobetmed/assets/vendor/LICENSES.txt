@@ -3,3 +3,4 @@
 - SheetJS xlsx 0.18.5 (Apache-2.0) — .xls/.ods/.csv görüntüleme
 - pdf.js 3.11.174 legacy (Apache-2.0) — PDF görüntüleme
 - mammoth 1.8.0 (BSD-2-Clause) — Word .docx görüntüleme
+- qrcode-generator 1.4.4 (MIT) — davet QR kodu

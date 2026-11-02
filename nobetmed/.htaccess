@@ -46,3 +46,12 @@ DirectoryIndex index.php
         Header set Cache-Control "public, max-age=2592000"
     </IfModule>
 </FilesMatch>
+# Service worker her açılışta denetlenmeli (yeni sürüm hemen gelsin)
+<Files "sw.js">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache"
+    </IfModule>
+    <IfModule mod_expires.c>
+        ExpiresActive Off
+    </IfModule>
+</Files>

@@ -62,6 +62,7 @@ function drawRosterInfo() {
     <div class="grow" style="min-width:0">
       <h1 class="rs-title ellipsis">${r.name}</h1>
       <div class="small muted rs-meta">${f ? html`${icon('clock', 'sm')}<span>${fmtRel(f.updated_at)} güncellendi${f.user_name ? ' · ' + f.user_name : ''}</span><span class="faint ellipsis rs-file">· ${f.name}</span>` : 'Henüz dosya yüklenmedi'}</div>
+      ${f && isPublisher() && r.period && r.parsed_file_id === f.id ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(r.period)}</b> · ${r.parsed_count || 0} nöbet kaydı okundu</span><a href="#" data-act="rs-period">Ayı değiştir</a></div>` : ''}
       <div class="rs-progress hidden" id="rsProgress"><div class="progress"><span style="width:0%"></span></div><span class="tiny muted">Yükleniyor…</span></div>
     </div>
     <div class="row wrap rs-actions">
@@ -94,7 +95,13 @@ function showRoster(id) {
     v = { el, fileId };
     RS.views.set(id, v);
     if (r.file) {
-      mountPreview(el, r.file).then(() => prefetchRosters());
+      mountPreview(el, r.file).then(() => {
+        prefetchRosters();
+        // Yayıncı listeyi ilk kez görünce kişi başı nöbetler okunur (Nöbetlerim, hatırlatmalar, kim nöbette)
+        if (isPublisher() && r.file && r.parsed_file_id !== r.file.id && ['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) {
+          loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {});
+        }
+      });
     } else {
       setHTML(el, isPublisher()
         ? html`<label class="dropzone rs-drop">${icon('upload', 'lg')}<div style="margin-top:8px"><b>Excel dosyasını buraya sürükleyin</b> veya tıklayıp seçin</div><div class="hint">.xlsx, .xls, .ods, .csv — renkler, birleşik hücreler ve sütun genişlikleriyle görünür</div><input type="file" hidden accept="${ROSTER_ACCEPT}" data-change="rs-file"></label>`

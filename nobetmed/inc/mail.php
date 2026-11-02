@@ -24,6 +24,12 @@ function mail_event_on(string $event): bool
     return mail_ready() && setting($event, '1') === '1';
 }
 
+/** Olay bildirimi açık mı (e-posta ve telefon bildirimi için ortak) */
+function event_on(string $event): bool
+{
+    return setting($event, '1') === '1';
+}
+
 /* ---------------- Şablon ---------------- */
 
 function mail_template(string $title, array $lines, ?string $button = null, ?string $url = null): array
@@ -58,7 +64,7 @@ function mail_queue_to(array $users, string $subject, string $title, array $line
     foreach ($users as $u) {
         $email = mb_strtolower((string)$u['email']);
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || isset($seen[$email])) continue;
-        if ($respectOptOut && isset($u['email_notify']) && (int)$u['email_notify'] === 0) continue;
+        if ($respectOptOut && ((isset($u['notify_mode']) && $u['notify_mode'] !== 'instant') || (isset($u['email_notify']) && (int)$u['email_notify'] === 0))) continue;
         $seen[$email] = true;
         q('INSERT INTO mail_queue (to_email, to_name, subject, html, text_body, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$email, (string)$u['name'], $subject, $html, $text, $kind, now()]);
@@ -249,64 +255,69 @@ function smtp_send_one($fp, array $m): void
 }
 
 /* ---------------- Olaylar ---------------- */
+/* Her olay: uygulama içi bildirim + telefon bildirimi + (tercihe göre) e-posta. Bkz. inc/notify.php */
 
 function active_users_sql(string $extra = ''): array
 {
-    return all("SELECT id, name, email, email_notify, role, unit_id FROM users WHERE status = 'active' $extra");
+    return all("SELECT id, name, email, email_notify, notify_mode, push_on, role, unit_id FROM users WHERE status = 'active' $extra");
 }
 
 function notify_post_published(int $postId, int $exceptUserId): int
 {
-    if (!mail_event_on('notify_post')) return 0;
+    if (!event_on('notify_post')) return 0;
     $p = one('SELECT * FROM posts WHERE id = ?', [$postId]);
     if (!$p || $p['status'] !== 'published') return 0;
     $users = array_filter(active_users_sql(), fn($u) => (int)$u['id'] !== $exceptUserId && ($p['unit_id'] === null || (int)$u['unit_id'] === (int)$p['unit_id'] || in_array($u['role'], ['admin', 'editor'], true)));
     $author = one('SELECT name FROM users WHERE id = ?', [$p['author_id']]);
     $excerpt = mb_substr(preg_replace('/\s+/u', ' ', (string)$p['body']), 0, 400);
     $req = (int)$p['required'] === 1;
-    return mail_queue_to($users,
-        ($req ? 'Okumanız gereken: ' : 'Yeni duyuru: ') . $p['title'],
-        $p['title'],
-        array_filter([$req ? 'Bu içerik zorunlu okuma olarak işaretlendi. Okuduktan sonra portalda “Okudum, anladım” ile onaylayın.' : null, $excerpt, ($author['name'] ?? '') !== '' ? 'Paylaşan: ' . $author['name'] : null]),
-        'Portalda aç', base_url() . '#/p/' . $postId, 'post');
+    return notify_users($users, 'post', ($req ? 'Okumanız gereken: ' : 'Yeni duyuru: ') . $p['title'], mb_substr($excerpt, 0, 160), '#/p/' . $postId, [
+        'subject' => ($req ? 'Okumanız gereken: ' : 'Yeni duyuru: ') . $p['title'],
+        'heading' => $p['title'],
+        'lines' => array_values(array_filter([$req ? 'Bu içerik zorunlu okuma olarak işaretlendi. Okuduktan sonra portalda “Okudum, anladım” ile onaylayın.' : null, $excerpt, ($author['name'] ?? '') !== '' ? 'Paylaşan: ' . $author['name'] : null])),
+        'button' => 'Portalda aç',
+    ]);
 }
 
 function notify_roster_updated(array $roster, array $by): int
 {
-    if (!mail_event_on('notify_roster')) return 0;
+    if (!event_on('notify_roster')) return 0;
     $users = array_filter(active_users_sql(), fn($u) => (int)$u['id'] !== (int)$by['id']);
-    return mail_queue_to($users,
-        'Nöbet listesi güncellendi: ' . $roster['name'],
-        '“' . $roster['name'] . '” güncellendi',
-        [$by['name'] . ' yeni nöbet listesini yükledi. Güncel listeyi portaldan görebilirsiniz; “Beni bul” düğmesi kendi nöbetlerinizi işaretler.'],
-        'Nöbet listesini aç', base_url() . '#/nobet/' . (int)$roster['id'], 'roster');
+    return notify_users($users, 'roster', 'Nöbet listesi güncellendi: ' . $roster['name'], $by['name'] . ' yeni listeyi yükledi.', '#/nobet/' . (int)$roster['id'], [
+        'subject' => 'Nöbet listesi güncellendi: ' . $roster['name'],
+        'heading' => '“' . $roster['name'] . '” güncellendi',
+        'lines' => [$by['name'] . ' yeni nöbet listesini yükledi. Güncel listeyi portaldan görebilirsiniz; “Beni bul” düğmesi kendi nöbetlerinizi işaretler.'],
+        'button' => 'Nöbet listesini aç',
+    ]);
 }
 
 function notify_pending_post(int $postId): int
 {
-    if (!mail_event_on('notify_pending_post')) return 0;
+    if (!event_on('notify_pending_post')) return 0;
     $p = one('SELECT p.title, u.name FROM posts p LEFT JOIN users u ON u.id = p.author_id WHERE p.id = ?', [$postId]);
     if (!$p) return 0;
-    return mail_queue_to(active_users_sql("AND role IN ('admin', 'editor')"),
-        'Onay bekleyen içerik: ' . $p['title'],
-        'Onayınızı bekleyen bir içerik var',
-        [($p['name'] ?? 'Bir üye') . ' “' . $p['title'] . '” başlıklı bir içerik gönderdi. Onaylandığında ekibe yayınlanacak.'],
-        'İncele ve onayla', base_url() . '#/yonetim/onaylar', 'pending_post');
+    return notify_users(active_users_sql("AND role IN ('admin', 'editor')"), 'pending_post', 'Onay bekleyen içerik: ' . $p['title'], ($p['name'] ?? 'Bir üye') . ' gönderdi.', '#/yonetim/onaylar', [
+        'subject' => 'Onay bekleyen içerik: ' . $p['title'],
+        'heading' => 'Onayınızı bekleyen bir içerik var',
+        'lines' => [($p['name'] ?? 'Bir üye') . ' “' . $p['title'] . '” başlıklı bir içerik gönderdi. Onaylandığında ekibe yayınlanacak.'],
+        'button' => 'İncele ve onayla',
+    ]);
 }
 
 function notify_pending_user(array $u): int
 {
-    if (!mail_event_on('notify_pending_user')) return 0;
-    return mail_queue_to(active_users_sql("AND role = 'admin'"),
-        'Yeni üyelik başvurusu: ' . $u['name'],
-        'Yeni üyelik başvurusu',
-        [$u['name'] . ' (' . $u['email'] . ') portala katılmak için başvurdu.'],
-        'Başvuruyu incele', base_url() . '#/yonetim/kullanicilar', 'pending_user');
+    if (!event_on('notify_pending_user')) return 0;
+    return notify_users(active_users_sql("AND role = 'admin'"), 'pending_user', 'Yeni üyelik başvurusu: ' . $u['name'], $u['email'], '#/yonetim/kullanicilar', [
+        'subject' => 'Yeni üyelik başvurusu: ' . $u['name'],
+        'heading' => 'Yeni üyelik başvurusu',
+        'lines' => [$u['name'] . ' (' . $u['email'] . ') portala katılmak için başvurdu.'],
+        'button' => 'Başvuruyu incele',
+    ]);
 }
 
 function notify_user_approved(array $u): int
 {
-    if (!mail_event_on('notify_user_approved')) return 0;
+    if (!event_on('notify_user_approved')) return 0;
     return mail_queue_to([$u],
         'Üyeliğiniz onaylandı',
         'Hoş geldiniz, ' . $u['name'],
