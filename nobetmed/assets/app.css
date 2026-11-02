@@ -431,16 +431,24 @@ table.t tr.dim td { opacity: .6; }
 .xv-grid td.xc { border-right: 1px solid #e2e2e2; border-bottom: 1px solid #e2e2e2; padding: 0 3px; overflow: hidden; white-space: nowrap; vertical-align: bottom; line-height: 1.25; text-overflow: clip; }
 .xv-grid.nogrid td.xc { border-color: transparent; }
 .xv-grid th { background: #f3f3f3; color: #5a5a5a; font: 500 11px 'Segoe UI', Arial, sans-serif; border-right: 1px solid #d6d6d6; border-bottom: 1px solid #d6d6d6; text-align: center; position: sticky; padding: 0 2px; overflow: hidden; }
-.xv-grid thead th { top: 0; z-index: 3; }
-.xv-grid th.xv-rn { left: 0; z-index: 2; }
-.xv-grid th.xv-rn.fz { z-index: 4; }
-.xv-grid thead th.fz { z-index: 4; }
-.xv-grid th.xv-corner { left: 0; top: 0; z-index: 6; }
+.xv-grid thead th { top: 0; z-index: 6; }
+.xv-grid th.xv-rn { left: 0; z-index: 5; }
+.xv-grid th.xv-rn.fz { z-index: 7; }
+.xv-grid thead th.fz { z-index: 8; }
+.xv-grid th.xv-corner { left: 0; top: 0; z-index: 9; }
+/* Katmanlar: sabit sütun < sabit satır < ikisi birden < satır/sütun başlıkları */
 .xv-grid td.fz { position: sticky; z-index: 1; background-color: #fff; }
-.xv-grid td.fz2 { z-index: 2; }
+.xv-grid td.fzr { z-index: 3; }
+.xv-grid td.fz2 { z-index: 4; }
 .xv-grid td.ov { overflow: visible; }
-.xv-grid td.ov .ovt { position: relative; z-index: 1; }
-.xv-grid td.fz.ov { z-index: 3; }
+.xv-grid td.ov .ovt { position: relative; z-index: 0; }
+.xv-grid td.fz.ov { z-index: 2; }
+.xv-grid td.fzr.ov { z-index: 4; }
+.xv-grid td.imgc { overflow: visible; }
+.xv-img { position: absolute; max-width: none !important; pointer-events: none; z-index: 1; }
+.xv-grid .rot-up, .xv-grid .rot-down, .xv-grid .rot-stack { display: inline-block; writing-mode: vertical-rl; white-space: pre-wrap; text-align: center; line-height: 1.1; max-height: 100%; }
+.xv-grid .rot-up { transform: rotate(180deg); }
+.xv-grid .rot-stack { text-orientation: upright; }
 .xv-grid td.me { box-shadow: inset 0 0 0 2px #0b7a75; background-image: linear-gradient(rgba(11, 122, 117, .16), rgba(11, 122, 117, .16)); }
 .xv-grid td.hit { background-image: linear-gradient(rgba(255, 196, 0, .5), rgba(255, 196, 0, .5)); }
 .xv-grid td.hit-cur { box-shadow: inset 0 0 0 2px #e8590c; }

@@ -2,8 +2,10 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v3';
+  const KEY = 'nm-demo-v4';
   const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
+  const fsize = (f, def) => { const u = window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]; return u ? Math.round((u.length - u.indexOf(',') - 1) * 0.75) : def; };
+  const ROSTER_FILES = window.NM_DEMO_ROSTERS || [['Yoğun Bakım 3. Basamak', 'ornek-cizelge-kasim-3-basamak.xlsx'], ['Yoğun Bakım 2. Basamak', 'ornek-cizelge-kasim-2-basamak.xlsx']];
   const pad = (n) => String(n).padStart(2, '0');
   const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   const now = () => fmt(new Date());
@@ -91,8 +93,7 @@
       db.attachments.push(att);
       db.roster_files.push({ id: ++db.seq, roster_id: id, attachment_id: att.id, user_id: by, created_at: ago(h) });
     };
-    R(1, 'Hemşire Nöbet Listesi', 'hemsire-nobet-kasim-2026.xlsx', 11790, 30, 1);
-    R(2, 'Personel Nöbet Listesi', 'personel-nobet-kasim-2026.xlsx', 8029, 75, 2);
+    ROSTER_FILES.forEach(([name, file], i) => R(i + 1, name, file, fsize(file, 34000), 30 + i * 45, i + 1));
     return db;
   }
 

@@ -235,6 +235,119 @@ function decodeAddr(a) {
 
 const MAX_CELLS = 250000;
 
+function parseRef(ref) {
+  const m = /^\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/i.exec(String(ref).trim());
+  if (!m) return null;
+  const col = (s) => { let c = 0; for (const ch of s.toUpperCase()) c = c * 26 + (ch.charCodeAt(0) - 64); return c - 1; };
+  return { r1: +m[2] - 1, c1: col(m[1]), r2: +(m[4] || m[2]) - 1, c2: col(m[3] || m[1]) };
+}
+function cfLiteral(f) {
+  const t = String(f == null ? '' : f).trim();
+  const q = /^"(.*)"$/s.exec(t);
+  if (q) return q[1].replace(/""/g, '"');
+  if (t !== '' && !isNaN(+t.replace(',', '.'))) return +t.replace(',', '.');
+  return undefined; // hücre başvurusu veya formül: desteklenmiyor
+}
+/** Bir koşullu biçim kuralının hücreye uyup uymadığı (yaygın kural türleri) */
+function cfMatch(rule, cell) {
+  const text = trLower(cell.text || '');
+  const num = typeof cell.v === 'number' ? cell.v : (cell.text !== '' && !isNaN(+String(cell.text).replace(',', '.')) ? +String(cell.text).replace(',', '.') : NaN);
+  const cmp = (lit) => (typeof lit === 'number' && !isNaN(num) ? num - lit : text.localeCompare(trLower(String(lit)), 'tr'));
+  if (rule.type === 'cellIs') {
+    const a = cfLiteral(rule.formulae && rule.formulae[0]);
+    const b = cfLiteral(rule.formulae && rule.formulae[1]);
+    if (a === undefined) return false;
+    const d = cmp(a);
+    switch (rule.operator) {
+      case 'equal': return d === 0;
+      case 'notEqual': return d !== 0;
+      case 'greaterThan': return d > 0;
+      case 'lessThan': return d < 0;
+      case 'greaterThanOrEqual': return d >= 0;
+      case 'lessThanOrEqual': return d <= 0;
+      case 'between': return b !== undefined && d >= 0 && cmp(b) <= 0;
+      case 'notBetween': return b !== undefined && (d < 0 || cmp(b) > 0);
+      default: return false;
+    }
+  }
+  if (rule.type === 'containsText') {
+    const t = trLower(rule.text || '');
+    if (!t) return false;
+    if (rule.operator === 'notContains') return !text.includes(t);
+    if (rule.operator === 'beginsWith') return text.startsWith(t);
+    if (rule.operator === 'endsWith') return text.endsWith(t);
+    return text.includes(t);
+  }
+  if (rule.type === 'notContainsBlanks') return text.trim() !== '';
+  if (rule.type === 'expression') {
+    const f = String((rule.formulae && rule.formulae[0]) || '');
+    let m;
+    if ((m = /SEARCH\(\s*"([^"]*)"/i.exec(f))) return /^\s*ISERROR/i.test(f) ? !text.includes(trLower(m[1])) : text.includes(trLower(m[1]));
+    if ((m = /^\s*\$?[A-Z]+\$?\d+\s*=\s*"([^"]*)"\s*$/i.exec(f))) return text === trLower(m[1]);
+    if ((m = /^\s*LEFT\(.*\)\s*=\s*"([^"]*)"\s*$/i.exec(f))) return text.startsWith(trLower(m[1]));
+    if ((m = /^\s*RIGHT\(.*\)\s*=\s*"([^"]*)"\s*$/i.exec(f))) return text.endsWith(trLower(m[1]));
+    if (/LEN\(TRIM\(.*\)\)\s*>\s*0/i.test(f)) return text.trim() !== '';
+  }
+  return false;
+}
+function applyConditional(ws, cells, theme) {
+  const list = (ws.conditionalFormattings || []).map((cf) => ({
+    ranges: String(cf.ref || '').split(/\s+/).map(parseRef).filter(Boolean),
+    rules: (cf.rules || []).slice().sort((a, b) => (a.priority || 0) - (b.priority || 0)),
+  })).filter((x) => x.ranges.length && x.rules.length);
+  if (!list.length) return;
+  const all = [];
+  list.forEach((cf) => cf.rules.forEach((rule) => all.push({ ranges: cf.ranges, rule })));
+  all.sort((a, b) => (a.rule.priority || 0) - (b.rule.priority || 0));
+  cells.forEach((cell, key) => {
+    const r = Math.floor(key / 100000), c = key % 100000;
+    for (const { ranges, rule } of all) {
+      if (!ranges.some((g) => r >= g.r1 && r <= g.r2 && c >= g.c1 && c <= g.c2)) continue;
+      if (!cfMatch(rule, cell)) continue;
+      const st = rule.style || {};
+      if (st.fill) {
+        const col = resolveColor(st.fill.bgColor || st.fill.fgColor || (st.fill.stops && st.fill.stops[0] && st.fill.stops[0].color), theme);
+        if (col && !cell.cfFill) cell.cfFill = col;
+      }
+      if (st.font && !cell.cfFont) cell.cfFont = st.font;
+      if (rule.stopIfTrue) break;
+    }
+  });
+}
+function bytesToDataUrl(bytes, ext) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = '';
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  const mime = { jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif', bmp: 'bmp', webp: 'webp' }[String(ext || 'png').toLowerCase()] || 'png';
+  return `data:image/${mime};base64,` + btoa(bin);
+}
+/** Sayfadaki resimleri (logo vb.) hücre konumlarıyla birlikte çıkarır */
+function sheetImages(wb, ws) {
+  if (typeof ws.getImages !== 'function') return [];
+  const out = [];
+  for (const im of ws.getImages()) {
+    try {
+      const media = wb.getImage(+im.imageId);
+      if (!media) continue;
+      let src = null;
+      if (media.buffer) src = bytesToDataUrl(media.buffer, media.extension);
+      else if (media.base64) src = String(media.base64).startsWith('data:') ? media.base64 : `data:image/${media.extension || 'png'};base64,${media.base64}`;
+      if (!src) continue;
+      const rg = im.range || {};
+      const tl = rg.tl || {};
+      const pos = (a) => ({
+        c: a.nativeCol !== undefined ? a.nativeCol : Math.floor(a.col || 0),
+        r: a.nativeRow !== undefined ? a.nativeRow : Math.floor(a.row || 0),
+        dx: a.nativeColOff !== undefined ? a.nativeColOff / 9525 : null,
+        dy: a.nativeRowOff !== undefined ? a.nativeRowOff / 9525 : null,
+        fc: (a.col || 0) % 1, fr: (a.row || 0) % 1,
+      });
+      out.push({ src, tl: pos(tl), br: rg.br ? pos(rg.br) : null, ext: rg.ext || null });
+    } catch (e) { /* resim okunamadı, atla */ }
+  }
+  return out;
+}
+
 /** ExcelJS çalışma kitabını görüntüleme modeline çevirir */
 function modelFromExcelJS(wb) {
   const theme = themePalette(wb);
@@ -275,10 +388,13 @@ function modelFromExcelJS(wb) {
           : st.fill && st.fill.type === 'gradient' && st.fill.stops && st.fill.stops[0] ? resolveColor(st.fill.stops[0].color, theme) : null;
         const hasBorder = st.border && Object.values(st.border).some((b) => b && b.style);
         if (text === '' && !fill && !hasBorder) return;
-        cells.set(r * 100000 + c, { text, rich, isNum, isBool, st, fill });
+        cells.set(r * 100000 + c, { text, rich, isNum, isBool, st, fill, v: typeof v === 'number' ? v : undefined });
         maxR = Math.max(maxR, r); maxC = Math.max(maxC, c);
       });
     });
+    applyConditional(ws, cells, theme);
+    const imgs = sheetImages(wb, ws);
+    imgs.forEach((im) => { maxR = Math.max(maxR, im.tl.r); maxC = Math.max(maxC, im.tl.c); });
     const props = ws.properties || {};
     const defColW = props.defaultColWidth || 8.43;
     const defRowH = props.defaultRowHeight || 15;
@@ -300,11 +416,20 @@ function modelFromExcelJS(wb) {
       frozenC: view.state === 'frozen' ? (view.xSplit || 0) : 0,
       grid: view.showGridLines !== false,
       truncated: maxR + 1 > nRows,
-      images: typeof ws.getImages === 'function' ? ws.getImages().length : 0,
+      imgs,
+      images: 0,
       styled: true,
     });
   });
-  return { sheets };
+  // Dosya en son hangi sekmede kaydedildiyse onunla aç
+  let active = 0;
+  try {
+    const at = wb.views && wb.views[0] && wb.views[0].activeTab;
+    const nm = at !== undefined && wb.worksheets[at] ? wb.worksheets[at].name : null;
+    const i = sheets.findIndex((x) => x.name === nm);
+    if (i >= 0) active = i;
+  } catch (e) { /* */ }
+  return { sheets, active };
 }
 
 /** SheetJS (xls, ods, csv) çalışma kitabını görüntüleme modeline çevirir */
@@ -347,7 +472,13 @@ function modelFromSheetJS(wb) {
     const merges = (ws['!merges'] || []).map((m) => ({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c }));
     sheets.push({ name, nRows, nCols, cells, merges, colW, rowH, hiddenR, hiddenC, frozenR: 0, frozenC: 0, grid: true, truncated: range.e.r + 1 > nRows });
   });
-  return { sheets };
+  let active = 0;
+  try {
+    const at = wb.Workbook && wb.Workbook.WBView && wb.Workbook.WBView[0] && wb.Workbook.WBView[0].activeTab;
+    const i = at !== undefined ? sheets.findIndex((x) => x.name === wb.SheetNames[at]) : -1;
+    if (i >= 0) active = i;
+  } catch (e) { /* */ }
+  return { sheets, active };
 }
 
 const _models = new Map();
@@ -366,7 +497,7 @@ async function loadSheetModel(att) {
         const wb = new ExcelJS.Workbook();
         // Görüntüleme için gerekmeyen kısımları atla: tüm sütuna/sayfaya uygulanmış açılır liste,
         // koşullu biçim veya köprü kuralları okuyucuyu dakikalarca kilitleyebiliyor.
-        await wb.xlsx.load(buf, { ignoreNodes: ['dataValidations', 'conditionalFormatting', 'hyperlinks', 'extLst', 'tableParts', 'autoFilter', 'sheetProtection', 'rowBreaks', 'colBreaks', 'pageSetup', 'printOptions', 'headerFooter', 'picture', 'legacyDrawing'] });
+        await wb.xlsx.load(buf, { ignoreNodes: ['dataValidations', 'hyperlinks', 'extLst', 'tableParts', 'autoFilter', 'sheetProtection', 'rowBreaks', 'colBreaks', 'pageSetup', 'printOptions', 'headerFooter', 'picture', 'legacyDrawing'] });
         return modelFromExcelJS(wb);
       } catch (e) {
         if (/Görüntüleyici yüklenemedi/.test(e.message)) throw e;
@@ -419,26 +550,57 @@ function sheetLayout(sh) {
   return { vr, vc, master, covered };
 }
 
-function sheetHTML(sh, z, lay, maxRows) {
+function sheetHTML(sh, z, lay, maxRows, fz) {
   const { vc, master, covered } = lay;
   const vr = maxRows && lay.vr.length > maxRows ? lay.vr.slice(0, maxRows) : lay.vr;
+  // Sabit (dondurulmuş) satır/sütunlar: ekrana göre daraltılmış küme gelebilir
+  const fzR = fz ? fz.rows : new Set(vr.filter((r) => r < sh.frozenR));
+  const fzC = fz ? fz.cols : new Set(vc.filter((c) => c < sh.frozenC));
   const hdrW = Math.round(44 * z), hdrH = Math.round(22 * z);
   const fs = (11 * 4 / 3 * z).toFixed(1);
   const total = hdrW + vc.reduce((a, c) => a + Math.round(sh.colW[c] * z), 0);
   const leftOf = {}, topOf = {};
   let acc = hdrW;
-  vc.forEach((c) => { leftOf[c] = acc; acc += Math.round(sh.colW[c] * z); });
+  vc.forEach((c) => { if (fzC.has(c)) { leftOf[c] = acc; acc += Math.round(sh.colW[c] * z); } });
   acc = hdrH;
-  vr.forEach((r) => { topOf[r] = acc; acc += Math.round(sh.rowH[r] * z); });
+  vr.forEach((r) => { if (fzR.has(r)) { topOf[r] = acc; acc += Math.round(sh.rowH[r] * z); } });
   const theme = sh.theme || DEFAULT_THEME;
+  const picsAt = new Map();
+  (sh.imgs || []).forEach((im) => {
+    const { r, c } = im.tl;
+    if (sh.hiddenR.has(r) || sh.hiddenC.has(c) || r >= sh.nRows || c >= sh.nCols) return;
+    const cw = (cc) => sh.colW[cc] || 64, rh = (rr) => sh.rowH[rr] || 20;
+    const dx = im.tl.dx !== null ? im.tl.dx : im.tl.fc * cw(c);
+    const dy = im.tl.dy !== null ? im.tl.dy : im.tl.fr * rh(r);
+    let w = 0, hgt = 0;
+    if (im.ext && im.ext.width) { w = im.ext.width; hgt = im.ext.height; }
+    else if (im.br) {
+      for (let cc = c; cc < im.br.c; cc++) w += cw(cc);
+      for (let rr = r; rr < im.br.r; rr++) hgt += rh(rr);
+      w += (im.br.dx !== null ? im.br.dx : im.br.fc * cw(im.br.c)) - dx;
+      hgt += (im.br.dy !== null ? im.br.dy : im.br.fr * rh(im.br.r)) - dy;
+    }
+    if (w <= 0 || hgt <= 0) return;
+    // Resim birleşik bir hücrenin içindeyse, ana hücreye bağla
+    let key = r * 100000 + c, x = dx, y = dy;
+    if (covered.has(key)) {
+      const owner = [...master.values()].find(({ m }) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
+      if (!owner) return;
+      for (let cc = owner.m.c1; cc < c; cc++) if (!sh.hiddenC.has(cc)) x += cw(cc);
+      for (let rr = owner.m.r1; rr < r; rr++) if (!sh.hiddenR.has(rr)) y += rh(rr);
+      key = owner.m.r1 * 100000 + owner.m.c1;
+    }
+    if (!picsAt.has(key)) picsAt.set(key, []);
+    picsAt.get(key).push({ src: im.src, x, y, w, h: hgt });
+  });
   let h = `<table class="xv-grid ${sh.grid ? '' : 'nogrid'}" style="width:${total}px;font-size:${fs}px"><colgroup><col style="width:${hdrW}px">`;
   vc.forEach((c) => { h += `<col style="width:${Math.round(sh.colW[c] * z)}px">`; });
   h += `</colgroup><thead><tr style="height:${hdrH}px"><th class="xv-corner"></th>`;
-  vc.forEach((c) => { h += `<th class="xv-ch${c < sh.frozenC ? ' fz' : ''}"${c < sh.frozenC ? ` style="left:${leftOf[c]}px"` : ''}>${colName(c)}</th>`; });
+  vc.forEach((c) => { h += `<th class="xv-ch${fzC.has(c) ? ' fz' : ''}"${fzC.has(c) ? ` style="left:${leftOf[c]}px"` : ''}>${colName(c)}</th>`; });
   h += '</tr></thead><tbody>';
   vr.forEach((r) => {
-    const fr = r < sh.frozenR;
-    h += `<tr style="height:${Math.round(sh.rowH[r] * z)}px"><th class="xv-rn${fr ? ' fz' : ''}"${fr ? ` style="top:${topOf[r]}px"` : ''}>${r + 1}</th>`;
+    const fr = fzR.has(r);
+    h += `<tr${fr ? ' data-fr="1"' : ''} style="height:${Math.round(sh.rowH[r] * z)}px"><th class="xv-rn${fr ? ' fz' : ''}"${fr ? ` style="top:${topOf[r]}px"` : ''}>${r + 1}</th>`;
     vc.forEach((c, ci) => {
       const key = r * 100000 + c;
       if (covered.has(key)) return;
@@ -446,10 +608,11 @@ function sheetHTML(sh, z, lay, maxRows) {
       const mg = master.get(key);
       const st = (cell && cell.st) || {};
       let css = '';
-      const fc = c < sh.frozenC;
+      const fc = fzC.has(c);
       if (fr || fc) css += `${fr ? `top:${topOf[r]}px;` : ''}${fc ? `left:${leftOf[c]}px;` : ''}`;
-      if (cell && cell.fill) css += `background-color:${cell.fill};`;
-      css += fontCss(st.font, theme, z);
+      const bg = cell && (cell.cfFill || cell.fill);
+      if (bg) css += `background-color:${bg};`;
+      css += fontCss(cell && cell.cfFont ? { ...(st.font || {}), ...cell.cfFont } : st.font, theme, z);
       const al = st.alignment || {};
       const wrap = al.wrapText || al.shrinkToFit === false && al.wrapText;
       const ha = al.horizontal === 'centerContinuous' || al.horizontal === 'distributed' ? 'center' : al.horizontal === 'fill' ? 'left' : al.horizontal;
@@ -459,7 +622,7 @@ function sheetHTML(sh, z, lay, maxRows) {
       if (al.vertical) css += `vertical-align:${al.vertical === 'middle' || al.vertical === 'center' ? 'middle' : al.vertical === 'top' ? 'top' : 'bottom'};`;
       if (al.indent) css += `padding-left:${(3 + al.indent * 9) * z}px;`;
       if (wrap) css += 'white-space:pre-wrap;';
-      if (al.textRotation === 90 || al.textRotation === 255 || al.textRotation === 180) css += 'writing-mode:vertical-rl;transform:rotate(180deg);';
+      const rot = al.textRotation === 90 ? 'up' : (al.textRotation === 180 || al.textRotation === -90) ? 'down' : al.textRotation === 'vertical' || al.textRotation === 255 ? 'stack' : '';
       const bd = st.border || {};
       let right = bd.right, bottom = bd.bottom;
       if (mg) {
@@ -484,8 +647,18 @@ function sheetHTML(sh, z, lay, maxRows) {
           content = cell.rich.map((run) => `<span style="${fontCss(run.font, theme, z)}">${esc(run.text)}</span>`).join('');
         } else content = esc(cell.text);
       }
+      if (rot && content) content = `<span class="rot-${rot}">${content}</span>`;
+      // Bu hücreye bağlı resimler (logo vb.)
+      const pics = picsAt.get(key);
+      let picHtml = '';
+      if (pics) {
+        cls += ' imgc';
+        if (!(fr || fc)) css += 'position:relative;';
+        css += `z-index:${fr && fc ? 4 : fr ? 3 : fc ? 2 : 0};`;
+        picHtml = pics.map((p) => `<img class="xv-img" alt="" src="${esc(p.src)}" style="left:${p.x * z}px;top:${p.y * z}px;width:${p.w * z}px;height:${p.h * z}px">`).join('');
+      }
       const span = mg ? `${mg.rs > 1 ? ` rowspan="${mg.rs}"` : ''}${mg.cs > 1 ? ` colspan="${mg.cs}"` : ''}` : '';
-      h += `<td class="${cls}"${span}${css ? ` style="${css}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}</td>`;
+      h += `<td class="${cls}"${span}${css ? ` style="${css}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}${picHtml}</td>`;
     });
     h += '</tr>';
   });
@@ -511,7 +684,7 @@ async function mountSheet(el, att, opts = {}) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Excel açılıyor…</span></div>`);
   const model = await loadSheetModel(att);
   if (!model.sheets.length) throw new Error('Bu dosyada görüntülenecek sayfa yok.');
-  const state = { limit: {}, sheet: 0, z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 1), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
+  const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
   const meMatch = S.me ? nameMatcher(S.me.name) : () => false;
   setHTML(el, html`<div class="xv">
     <div class="xv-bar">
@@ -536,6 +709,31 @@ async function mountSheet(el, att, opts = {}) {
   const layouts = new Map();
   let width = 0;
 
+  /** Dondurulmuş alan ekranın çoğunu kaplıyorsa (ör. telefonda logo + başlık bloğu),
+   *  yalnızca veriye en yakın başlık satırlarını ve isim sütununu sabit tut. */
+  const frozenFor = (sh, lay) => {
+    const z = state.z;
+    const H = scroll.clientHeight || 600, W = scroll.clientWidth || 1000;
+    let rows = lay.vr.filter((r) => r < sh.frozenR);
+    let cols = lay.vc.filter((c) => c < sh.frozenC);
+    const hOf = (r) => sh.rowH[r] * z, wOf = (c) => sh.colW[c] * z;
+    if (rows.reduce((a, r) => a + hOf(r), 0) > H * 0.3) {
+      const keep = [];
+      let acc = 0;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (keep.length && acc + hOf(rows[i]) > H * 0.22) break;
+        keep.unshift(rows[i]); acc += hOf(rows[i]);
+      }
+      rows = keep;
+    }
+    if (cols.reduce((a, c) => a + wOf(c), 0) > W * 0.5) {
+      // En geniş sütunu (genelde isimler) ve solundaki dar sütunları (sıra no) sabit tut
+      const widest = cols.slice().sort((a, b) => sh.colW[b] - sh.colW[a])[0];
+      const upTo = cols.filter((c) => c <= widest);
+      cols = upTo.reduce((a, c) => a + wOf(c), 0) <= W * 0.5 ? upTo : widest !== undefined && wOf(widest) <= W * 0.5 ? [widest] : [];
+    }
+    return { rows: new Set(rows), cols: new Set(cols) };
+  };
   const draw = () => {
     const sh = model.sheets[state.sheet];
     if (!layouts.has(state.sheet)) layouts.set(state.sheet, sheetLayout(sh));
@@ -543,7 +741,7 @@ async function mountSheet(el, att, opts = {}) {
     const lay = layouts.get(state.sheet);
     if (!state.limit[state.sheet]) state.limit[state.sheet] = Math.max(200, Math.floor(30000 / Math.max(1, lay.vc.length)));
     const limit = state.limit[state.sheet];
-    const out = sheetHTML(sh, state.z, lay, limit);
+    const out = sheetHTML(sh, state.z, lay, limit, frozenFor(sh, lay));
     width = out.width;
     const left = lay.vr.length - limit;
     scroll.innerHTML = out.html
@@ -551,6 +749,14 @@ async function mountSheet(el, att, opts = {}) {
       + (sh.truncated ? '<div class="xv-note">Dosya çok büyük olduğu için ilk satırlar gösteriliyor. Tamamı için dosyayı indirin.</div>' : '')
       + (sh.images ? '<div class="xv-note">Bu sayfada görsel veya şekil var; onlar burada gösterilemiyor. Tam görünüm için dosyayı indirin.</div>' : '')
       + (!sh.nRows ? '<div class="xv-note">Bu sayfada gösterilecek hücre yok.</div>' : '');
+    // Sabit satırların konumunu gerçek (ekranda ölçülen) yüksekliklere göre düzelt
+    const headRow = scroll.querySelector('thead tr');
+    let fTop = headRow ? headRow.getBoundingClientRect().height : 0;
+    scroll.querySelectorAll('tbody tr[data-fr]').forEach((tr) => {
+      const t = Math.floor(fTop * 2) / 2;
+      tr.querySelectorAll('th.fz, td.fzr, td.fz2').forEach((c) => { c.style.top = t + 'px'; });
+      fTop += tr.getBoundingClientRect().height;
+    });
     scroll.scrollLeft = keepL * scroll.scrollWidth; scroll.scrollTop = keepT * scroll.scrollHeight;
     el.querySelector('.xv-zr').textContent = Math.round(state.z * 100) + '%';
     tabs.innerHTML = model.sheets.length > 1 ? model.sheets.map((s, i) => `<button type="button" class="${i === state.sheet ? 'on' : ''}" data-sheet="${i}">${esc(s.name)}</button>`).join('') : '';
@@ -603,6 +809,15 @@ async function mountSheet(el, att, opts = {}) {
     focusCell(state.mine[state.mineIdx], 'hit-cur');
     countEl.textContent = `${state.mineIdx + 1}/${state.mine.length} hücrede adınız geçiyor`;
   });
+  if (!state.z) {
+    // Masaüstü: tüm ayı tek ekranda göstermek için genişliğe sığdır (en az %60, en fazla %100)
+    const sh0 = model.sheets[state.sheet];
+    const lay0 = sheetLayout(sh0);
+    layouts.set(state.sheet, lay0);
+    const w1 = 44 + lay0.vc.reduce((a, c) => a + sh0.colW[c], 0);
+    const avail = (scroll.clientWidth || 1000) - 4;
+    state.z = Math.max(0.6, Math.min(1, Math.floor((avail / w1) * 100) / 100));
+  }
   draw();
   return { model };
 }
@@ -781,7 +996,7 @@ function openFullViewer(att, title) {
   const m = openModal({ title: title || att.name, size: 'full' });
   m.body.classList.add('fv-fullbody');
   setHTML(m.body, html`<div class="fv-fill"></div>`);
-  mountPreview(m.body.querySelector('.fv-fill'), att, { zoom: 1 });
+  mountPreview(m.body.querySelector('.fv-fill'), att);
   return m;
 }
 ACT['fv-full'] = (el) => { const att = ATT_REG.get(String(el.dataset.att)); if (att) openFullViewer(att); };

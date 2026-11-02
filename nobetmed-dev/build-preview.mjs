@@ -5,6 +5,9 @@ import path from 'node:path';
 const here = path.dirname(new URL(import.meta.url).pathname);
 const app = path.join(here, '..', 'nobetmed', 'assets');
 const out = process.argv[2] || path.join(here, 'nobetmed-onizleme.html');
+// İsteğe bağlı: node build-preview.mjs cikti.html <klasör> — o klasördeki .xlsx dosyaları nöbet listesi olarak kullanılır
+// (gerçek kişi isimleri içeren listeler repoya konmaz, önizlemeye buradan verilir)
+const extraDir = process.argv[3] || null;
 const read = (p) => fs.readFileSync(p, 'utf8');
 let css = read(path.join(app, 'app.css'));
 // Koyu tema değişkenlerini sistem tercihine de bağla (tema seçimi yapılmamış görüntüleyiciler için)
@@ -22,10 +25,11 @@ ${css}
 </style>
 <script id="nm-boot" type="application/json">{"csrf":"demo","share":""}</script>
 <script>
-window.NM_DEMO_FILES = ${JSON.stringify(Object.fromEntries(fs.readdirSync(path.join(here, 'fixtures')).map((f) => {
+window.NM_DEMO_FILES = ${JSON.stringify(Object.fromEntries([...fs.readdirSync(path.join(here, 'fixtures')).map((f) => [f, path.join(here, 'fixtures', f)]), ...(extraDir ? fs.readdirSync(extraDir).filter((f) => f.endsWith('.xlsx')).map((f) => [f, path.join(extraDir, f)]) : [])].filter(([f, p]) => fs.statSync(p).isFile() && /\.(xlsx|pdf|docx|png)$/.test(f)).map(([f, full]) => {
   const mime = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }[f.split('.').pop()] || 'application/octet-stream';
-  return [f, 'data:' + mime + ';base64,' + fs.readFileSync(path.join(here, 'fixtures', f)).toString('base64')];
+  return [f, 'data:' + mime + ';base64,' + fs.readFileSync(full).toString('base64')];
 })))};
+${extraDir ? `window.NM_DEMO_ROSTERS = ${JSON.stringify(fs.readdirSync(extraDir).filter((f) => f.endsWith('.xlsx')).sort().reverse().map((f) => [f.replace(/\.xlsx$/, '').replace(/-kasim-(\d)-basamak/, ' $1. Basamak').replace(/^yogun-bakim/, 'Yoğun Bakım').replace(/-/g, ' '), f]))};` : ''}
 </script>
 <script>
 ${safe(read(path.join(app, 'theme.js')))}

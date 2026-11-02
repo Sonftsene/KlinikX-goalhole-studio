@@ -218,12 +218,25 @@ await a.click('#rsTabs button >> nth=1');
 await a.locator('.rs-view:not(.hidden) .xv-grid >> text=DESTEK PERSONELİ').waitFor();
 console.log('  listeler arası geçiş:', t1 + ' ms');
 if (t1 > 600) errors.push('liste geçişi yavaş: ' + t1);
+// Resmi "Aylık Nöbet Ücret Çizelgesi" şablonu: logo, koşullu renkler, dikey başlıklar, gizli satırlar
+await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'ornek-cizelge-kasim-2-basamak.xlsx'));
+await a.locator('.rs-view:not(.hidden) .xv-grid >> text=AYLIK NÖBET ÜCRET ÇİZELGESİ').waitFor({ timeout: 15000 });
+const cz = await a.evaluate(() => {
+  const g = document.querySelector('.rs-view:not(.hidden) .xv-grid');
+  const cells = [...g.querySelectorAll('td')];
+  const bg = (t) => { const td = cells.find((x) => x.textContent.trim() === t); return td ? getComputedStyle(td).backgroundColor : null; };
+  const img = g.querySelector('.xv-img');
+  return { g88: bg('8 8'), g816: bg('8 16'), g168: bg('16 8'), logo: !!(img && img.complete && img.naturalWidth), rot: !!g.querySelector('.rot-up'), hiddenRowsGone: ![...g.querySelectorAll('th.xv-rn')].some((th) => th.textContent === '50'), legend: /KISALTMALAR/.test(g.textContent) };
+});
+console.log('  çizelge şablonu:', JSON.stringify(cz));
+if (cz.g88 !== 'rgb(203, 232, 196)' || cz.g816 !== 'rgb(251, 231, 181)' || cz.g168 !== 'rgb(245, 194, 207)' || !cz.logo || !cz.rot || !cz.hiddenRowsGone || !cz.legend) errors.push('çizelge şablonu eksik görünüyor: ' + JSON.stringify(cz));
+step('resmi çizelge şablonu: logo, kod renkleri, dikey başlık, gizli satırlar');
 // yeni sürüm + sürüm geçmişi
 await a.setInputFiles('.rs-actions input[data-change=rs-file]', path.join(FX, 'personel-nobet-kasim-2026.xlsx'));
 await expectText(a, 'güncellendi');
 await a.click('[data-act=rs-menu]');
 await a.click('.menu >> text=Önceki sürümler');
-await a.locator('.modal [data-ver-restore]').waitFor();
+await a.locator('.modal [data-ver-restore]').first().waitFor().catch(async (e) => { await a.screenshot({ path: path.join(OUT, 'FAIL-ver.png') }); console.log('MODAL:', await a.locator('.modal').last().innerText().catch(() => '-')); throw e; });
 await a.keyboard.press('Escape');
 step('ikinci liste, yeniden adlandırma, anında geçiş ve sürüm geçmişi');
 

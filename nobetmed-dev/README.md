@@ -9,6 +9,9 @@ Bu klasör sunucuya **yüklenmez**; yalnızca test ve önizleme içindir.
   ```
 - `fixtures/` — Örnek nöbet listeleri (.xlsx), PDF protokol ve Word belgesi; testte ve önizlemede kullanılır.
 - `make-fixtures.cjs` — Örnek Excel listelerini üretir (`npm i exceljs` gerekir).
+- `make-cizelge.cjs` — "Aylık Nöbet Ücret Çizelgesi" biçiminde Excel üretir: `node make-cizelge.cjs fixtures/cizelge-ornek.json fixtures`
+  (veri dosyası kişileri ve vardiya kodlarını içerir; repodaki örnek uydurma isimlerle hazırlanmıştır).
 - `demo-api.js` — Sunucusuz canlı önizleme için tarayıcı içi sahte API (api.php ile aynı kurallar, örnek veriler).
-- `build-preview.mjs` — Uygulamayı demo API ile tek HTML dosyasına paketler: `node build-preview.mjs onizleme.html`
+- `build-preview.mjs` — Uygulamayı demo API ile tek HTML dosyasına paketler: `node build-preview.mjs onizleme.html [liste-klasörü]`
+  (ikinci argüman verilirse o klasördeki .xlsx dosyaları önizlemede nöbet listesi olarak kullanılır; gerçek isimli listeler repoya konmaz)
 - `package.sh` — Hostinger'a yüklenecek ZIP'i üretir.

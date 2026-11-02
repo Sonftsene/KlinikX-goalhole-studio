@@ -1,0 +1,203 @@
+{
+ "hospital": "ÖRNEK DEVLET HASTANESİ",
+ "unit": "YOĞUN BAKIM ÜNİTESİ",
+ "year": 2026,
+ "month": 11,
+ "logo": "kurum-logosu.png",
+ "sheets": [
+  {
+   "file": "ornek-cizelge-kasim-3-basamak.xlsx",
+   "sheetName": "KASIM 3.BASAMAK",
+   "rows": 24,
+   "people": [
+    {
+     "name": "ALİ YILDIZ",
+     "title": "SAĞLIK MEMURU",
+     "codes": "G:2-6,9-12 A:13"
+    },
+    {
+     "name": "BERNA KAYA",
+     "title": "HEMŞİRE",
+     "codes": "G:2-6,9-12,23-26,30 A:13,27 Y:16-20"
+    },
+    {
+     "name": "CEM AKSU",
+     "title": "HEMŞİRE",
+     "codes": "A:2,6,9,12,20,27 G:16-19,23-26,30"
+    },
+    {
+     "name": "DİLEK ÖZTÜRK",
+     "title": "HEMŞİRE",
+     "codes": "A:1,3,6,9,12,16,21,25,28 G:23,30"
+    },
+    {
+     "name": "EMİNE ŞEN",
+     "title": "HEMŞİRE",
+     "codes": "A:1,3,6,16,19,22,25,28 Y:9-13"
+    },
+    {
+     "name": "FATİH DEMİR",
+     "title": "HEMŞİRE",
+     "codes": "A:1,4,7,10,13,16,19,23,26 N:30"
+    },
+    {
+     "name": "GÜL ARSLAN",
+     "title": "HEMŞİRE",
+     "codes": "A:3,6,8,11,15,18,21,24,27 G:10,26"
+    },
+    {
+     "name": "HAKAN ÇELİK",
+     "title": "HEMŞİRE",
+     "codes": "A:1,5,8,14,17,22,24,26,29 G:11,19"
+    },
+    {
+     "name": "IŞIL KOÇ",
+     "title": "HEMŞİRE",
+     "codes": "Y:2-6 A:9,12,14,17,19,22,25,27 G:30"
+    },
+    {
+     "name": "KAAN POLAT",
+     "title": "EBE",
+     "codes": "A:2,5,7,10,16,20,25,28 Y:11-13,26-27"
+    },
+    {
+     "name": "LEYLA ERDEM",
+     "title": "HEMŞİRE",
+     "codes": "A:1,5,8,11,13,17,20,24,26 G:29"
+    },
+    {
+     "name": "MERT KURT",
+     "title": "HEMŞİRE",
+     "codes": "A:2,9,12,15,18,21,24,26 Y:3-6 G:30"
+    },
+    {
+     "name": "NUR ŞAHİN",
+     "title": "HEMŞİRE",
+     "codes": "A:2,5,7,12,14,17,20,23 Y:9-11 N:26"
+    },
+    {
+     "name": "OSMAN TEKİN",
+     "title": "HEMŞİRE",
+     "codes": "A:3,6,9,15,18,21,24,27 G:5 N:11,29"
+    },
+    {
+     "name": "PINAR UYSAL",
+     "title": "HEMŞİRE",
+     "codes": "A:1,4,7,12,15,24,27 N:10 Y:16-20 G:29"
+    },
+    {
+     "name": "RECEP AYDIN",
+     "title": "HEMŞİRE",
+     "codes": "A:3,7,11,15,17,19,22,25,28 N:4"
+    },
+    {
+     "name": "SELİN KARA",
+     "title": "HEMŞİRE",
+     "codes": "A:2,6,9,14,16,20,23,27,29 N:11"
+    },
+    {
+     "name": "TOLGA ER",
+     "title": "HEMŞİRE",
+     "codes": "A:3,6,13,16,19,22,24,27,29 G:5,26"
+    },
+    {
+     "name": "UMUT ACAR",
+     "title": "EBE",
+     "codes": "A:2,7,10,13,18,22,28 N:4 Y:23-27"
+    },
+    {
+     "name": "VOLKAN TAŞ",
+     "title": "YAŞLI BAKIM T.",
+     "codes": "G:2-6,9-13,16-20,23-27,30 A:14"
+    }
+   ]
+  },
+  {
+   "file": "ornek-cizelge-kasim-2-basamak.xlsx",
+   "sheetName": "KASIM 2.BASAMAK",
+   "rows": 21,
+   "people": [
+    {
+     "name": "YASİN GÜNEŞ",
+     "title": "HEMŞİRE",
+     "codes": "A:2,4,9,12,15,18,21,29 G:6 Y:24-27"
+    },
+    {
+     "name": "ZEHRA ATEŞ",
+     "title": "HEMŞİRE",
+     "codes": "A:3,6,9,12,14,17,20,24,27 N:30"
+    },
+    {
+     "name": "AYDAN SOYLU",
+     "title": "HEMŞİRE",
+     "codes": "A:2,5,8,11,14,17,19,23,26 G:16,30"
+    },
+    {
+     "name": "BURCU EKER",
+     "title": "HEMŞİRE",
+     "codes": "A:1,5,7,11,15,17,20,23,29 N:25"
+    },
+    {
+     "name": "CANAN ÇAKIR",
+     "title": "HEMŞİRE",
+     "codes": "R:1-4 N:5 Y:9-13 A:15,18,22,24,27,30"
+    },
+    {
+     "name": "DENİZ BULUT",
+     "title": "HEMŞİRE",
+     "codes": "A:1,4,8,11,13,16,19,23,26 N:30"
+    },
+    {
+     "name": "EBRU SARI",
+     "title": "HEMŞİRE",
+     "codes": "A:3,5,9,11,13,16,19,23,26 N:30"
+    },
+    {
+     "name": "FERHAT UÇAR",
+     "title": "HEMŞİRE",
+     "codes": "A:1,3,7,10,21,23,29 Y:13-19 G:26"
+    },
+    {
+     "name": "GAMZE ORAL",
+     "title": "HEMŞİRE",
+     "codes": "A:2,4,7,10,12,16,18,21 Y:24-27 G:30"
+    },
+    {
+     "name": "HÜLYA ÖZ",
+     "title": "HEMŞİRE",
+     "codes": "G:2 A:4,7,10,14,21,24,26,30 Y:16-19"
+    },
+    {
+     "name": "İLKER DAL",
+     "title": "HEMŞİRE",
+     "codes": "A:1,4,8,15,17,20,22,25,28 G:11,30"
+    },
+    {
+     "name": "JALE SEVİM",
+     "title": "HEMŞİRE",
+     "codes": "A:3,7,10,12,15,18,20,24,27 N:30"
+    },
+    {
+     "name": "KEREM TUNA",
+     "title": "HEMŞİRE",
+     "codes": "A:1,4,6,9,16,19,22,27 Y:11-13 N:25"
+    },
+    {
+     "name": "LALE ÇINAR",
+     "title": "HEMŞİRE",
+     "codes": "A:4,8,11,13,23,26,28 N:6 Y:16-20 G:25"
+    },
+    {
+     "name": "MELİS ONUR",
+     "title": "HEMŞİRE",
+     "codes": "A:4,7,10,13,15,18,21,24,27 N:30"
+    },
+    {
+     "name": "NAZLI ERGÜN",
+     "title": "HEMŞİRE",
+     "codes": "N:2,9,16,23,30 A:7,14,21,28"
+    }
+   ]
+  }
+ ]
+}
