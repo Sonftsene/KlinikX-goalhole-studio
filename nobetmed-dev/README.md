@@ -7,6 +7,12 @@ Bu klasör sunucuya **yüklenmez**; yalnızca test ve önizleme içindir.
   cd nobetmed && php -S 127.0.0.1:8088 -t .
   node ../nobetmed-dev/e2e.mjs http://127.0.0.1:8088/ /tmp
   ```
+- `e2e-mail.mjs` + `fake-smtp.py` — E-posta, ilk yönetici, şifre sıfırlama ve gizlilik testleri (sahte SMTP sunucusuyla):
+  ```
+  python3 fake-smtp.py 2525 /tmp/mails bildirim@ornek.com SmtpSifre1 &
+  ADMIN_EMAIL=... ADMIN_PASS=... node e2e-mail.mjs http://127.0.0.1:8097/ /tmp/mails 2525 /tmp
+  ```
+  (sitenin config.php dosyasında INITIAL_ADMIN_* dolu olmalı)
 - `fixtures/` — Örnek nöbet listeleri (.xlsx), PDF protokol ve Word belgesi; testte ve önizlemede kullanılır.
 - `make-fixtures.cjs` — Örnek Excel listelerini üretir (`npm i exceljs` gerekir).
 - `make-cizelge.cjs` — "Aylık Nöbet Ücret Çizelgesi" biçiminde Excel üretir: `node make-cizelge.cjs fixtures/cizelge-ornek.json fixtures`

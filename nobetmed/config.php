@@ -21,6 +21,14 @@ define('DB_PASS', '');
 // "Authorized JavaScript origins" kısmına sitenizin adresini ekleyin.
 define('GOOGLE_CLIENT_ID', '');
 
+// İlk yönetici hesabı (isteğe bağlı). Doldurulursa ilk açılışta bu hesap otomatik oluşturulur
+// ve ilk girişte şifre değiştirilmesi istenir. Boş bırakılırsa kurulum ekranı açılır.
+// Şifre açık yazılmaz; password_hash() ile üretilmiş özet (hash) yazılır.
+define('INITIAL_ADMIN_NAME', '');
+define('INITIAL_ADMIN_EMAIL', '');
+define('INITIAL_ADMIN_PASSWORD_HASH', '');
+define('INITIAL_ORG_NAME', '');
+
 define('APP_TIMEZONE', 'Europe/Istanbul');
 
 // Dosya başına yükleme sınırı (MB). 0 = sınırsız (dosyalar parça parça yüklenir,

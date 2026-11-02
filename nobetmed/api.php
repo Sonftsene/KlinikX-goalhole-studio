@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/inc/bootstrap.php';
+require __DIR__ . '/inc/mail.php';
 
 nm_session();
 
@@ -85,6 +86,8 @@ $routes = [
     'auth.register' => 'a_register',
     'auth.google' => 'a_google',
     'auth.logout' => 'a_logout',
+    'auth.forgot' => 'a_forgot',
+    'auth.reset' => 'a_reset',
     'me.update' => 'a_me_update',
     'me.password' => 'a_me_password',
     'counts' => 'a_counts',
@@ -98,6 +101,7 @@ $routes = [
     'posts.ack' => 'a_posts_ack',
     'posts.bookmark' => 'a_posts_bookmark',
     'posts.share' => 'a_posts_share',
+    'posts.remind' => 'a_posts_remind',
     'upload.init' => 'a_upload_init',
     'upload.chunk' => 'a_upload_chunk',
     'upload.finish' => 'a_upload_finish',
@@ -115,9 +119,13 @@ $routes = [
     'tax.save' => 'a_tax_save',
     'tax.delete' => 'a_tax_delete',
     'settings.save' => 'a_settings_save',
+    'settings.get' => 'a_settings_get',
+    'mail.test' => 'a_mail_test',
+    'mail.log' => 'a_mail_log',
 ];
 
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
+if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 $routes[$action]();
 
 /* ------------------------------------------------------------------ */
@@ -231,6 +239,8 @@ function user_out(array $u): array
         'created_at' => $u['created_at'],
         'last_seen_at' => $u['last_seen_at'],
         'has_password' => !empty($u['password_hash']),
+        'email_notify' => (int)($u['email_notify'] ?? 1) === 1,
+        'must_change' => (int)($u['must_change'] ?? 0) === 1,
     ];
 }
 
@@ -362,6 +372,7 @@ function counts_for(array $me): array
 
 function a_boot(): void
 {
+    ensure_initial_admin();
     $me = current_user();
     $setup = (int)val('SELECT COUNT(*) FROM users') === 0;
     $data = [
@@ -375,12 +386,16 @@ function a_boot(): void
         'google_client_id' => GOOGLE_CLIENT_ID,
         'upload_max_mb' => MAX_UPLOAD_MB,
         'chunk_size' => chunk_size(),
+        'mail_ready' => mail_ready(),
     ] + lists();
     if ($me) {
         $data['settings'] += [
             'banner_on' => setting('banner_on') === '1',
             'banner_text' => setting('banner_text'),
             'banner_tone' => setting('banner_tone', 'danger'),
+            'allow_guest' => setting('allow_guest', '0') === '1',
+            'mail_ready' => mail_ready(),
+            'notify_post' => mail_event_on('notify_post'),
         ];
         $data['counts'] = counts_for($me);
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
@@ -452,6 +467,7 @@ function a_setup(): void
 function a_login(): void
 {
     global $IN;
+    ensure_initial_admin();
     $email = mb_strtolower(s('email', 190));
     $pw = (string)($IN['password'] ?? '');
     $ip = client_ip();
@@ -471,6 +487,43 @@ function a_login(): void
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
     }
     q('DELETE FROM login_attempts WHERE email = ?', [$email]);
+    login_user($u);
+    out(['must_change' => (int)($u['must_change'] ?? 0) === 1]);
+}
+
+function a_forgot(): void
+{
+    $email = mb_strtolower(s('email', 190));
+    if (!mail_ready()) fail('E-posta gönderimi henüz ayarlanmamış. Yöneticinizden geçici şifre isteyin.', 400);
+    $ip = client_ip();
+    $recent = (int)val('SELECT COUNT(*) FROM login_attempts WHERE (ip = ? OR email = ?) AND at > ?', ['reset:' . $ip, 'reset:' . $email, time() - 3600]);
+    if ($recent >= 5) fail('Çok fazla deneme. Lütfen bir saat sonra tekrar deneyin.', 429);
+    q('INSERT INTO login_attempts (ip, email, at) VALUES (?, ?, ?)', ['reset:' . $ip, 'reset:' . $email, time()]);
+    $u = one("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]);
+    if ($u) {
+        $token = bin2hex(random_bytes(24));
+        q('DELETE FROM password_resets WHERE user_id = ? OR expires < ?', [$u['id'], time()]);
+        q('INSERT INTO password_resets (user_id, token_hash, expires) VALUES (?, ?, ?)', [$u['id'], hash('sha256', $token), time() + 3600]);
+        mail_queue_to([$u], 'Şifre sıfırlama', 'Şifrenizi sıfırlayın',
+            ['Portal şifrenizi sıfırlamak için aşağıdaki düğmeye dokunun. Bağlantı 1 saat geçerlidir.', 'Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.'],
+            'Yeni şifre belirle', base_url() . '?reset=' . $token, 'reset', false);
+    }
+    // Hesabın var olup olmadığını belli etmemek için her durumda aynı yanıt
+    out(['message' => 'Bu e-posta ile kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu (ve gereksiz klasörünü) kontrol edin.']);
+}
+
+function a_reset(): void
+{
+    global $IN;
+    $token = s('token', 100);
+    $pw = (string)($IN['password'] ?? '');
+    $r = $token !== '' ? one('SELECT * FROM password_resets WHERE token_hash = ? AND used = 0 AND expires > ?', [hash('sha256', $token), time()]) : null;
+    if (!$r) fail('Bağlantı geçersiz veya süresi dolmuş. Yeniden “Şifremi unuttum” deyin.', 400);
+    validate_password($pw);
+    $u = one("SELECT * FROM users WHERE id = ? AND status = 'active'", [$r['user_id']]);
+    if (!$u) fail('Hesap bulunamadı veya devre dışı.', 404);
+    q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
+    q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$u['id']]);
     login_user($u);
     out();
 }
@@ -493,10 +546,12 @@ function a_register(): void
     $status = $mode === 'open' ? 'active' : 'pending';
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, 'member', $status, now()]);
+    $newId = insert_id();
     if ($status === 'active') {
-        login_user(one('SELECT * FROM users WHERE id = ?', [insert_id()]));
+        login_user(one('SELECT * FROM users WHERE id = ?', [$newId]));
         out(['pending' => false]);
     }
+    notify_pending_user(['name' => $name, 'email' => $email]);
     out(['pending' => true]);
 }
 
@@ -555,6 +610,11 @@ function a_logout(): void
 function a_me_update(): void
 {
     $me = need_user();
+    global $IN;
+    if (array_key_exists('email_notify', $IN)) {
+        q('UPDATE users SET email_notify = ? WHERE id = ?', [b('email_notify') ? 1 : 0, $me['id']]);
+        if (!array_key_exists('name', $IN)) out();
+    }
     $name = s('name', 120);
     if (mb_strlen($name) < 3) fail('Ad soyad en az 3 karakter olmalıdır.');
     q('UPDATE users SET name = ? WHERE id = ?', [$name, $me['id']]);
@@ -567,9 +627,11 @@ function a_me_password(): void
     $me = need_user();
     $cur = (string)($IN['current'] ?? '');
     $new = (string)($IN['password'] ?? '');
-    if (!empty($me['password_hash']) && !password_verify($cur, $me['password_hash'])) fail('Mevcut şifre hatalı.');
+    $forced = (int)($me['must_change'] ?? 0) === 1;
+    if (!$forced && !empty($me['password_hash']) && !password_verify($cur, $me['password_hash'])) fail('Mevcut şifre hatalı.');
     validate_password($new);
-    q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $me['id']]);
+    if (!empty($me['password_hash']) && password_verify($new, $me['password_hash'])) fail('Yeni şifre geçici şifreden farklı olmalıdır.');
+    q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $me['id']]);
     out();
 }
 
@@ -644,7 +706,7 @@ function a_posts_get(): void
     $post['body'] = $r['body'];
     $post['attachments'] = attachments_for($id);
     $canManage = is_publisher($me) || (int)$r['author_id'] === (int)$me['id'];
-    $post['share'] = $canManage && $r['share_token'] && (!$r['share_expires'] || $r['share_expires'] > now())
+    $post['share'] = $canManage && setting('allow_guest', '0') === '1' && $r['share_token'] && (!$r['share_expires'] || $r['share_expires'] > now())
         ? ['token' => $r['share_token'], 'expires' => $r['share_expires']] : null;
     if ($canManage && $r['required'] && $r['status'] === 'published') {
         $readers = all('SELECT u.id, u.name, u.title_id, k.created_at AS at FROM acks k JOIN users u ON u.id = k.user_id WHERE k.post_id = ? ORDER BY k.created_at DESC', [$id]);
@@ -691,6 +753,7 @@ function a_posts_save(): void
         if (!$pub) $pinned = (bool)$post['pinned'];
         q('UPDATE posts SET title = ?, body = ?, category_id = ?, unit_id = ?, required = ?, pinned = ?, status = ?, reject_reason = NULL, published_at = ?, updated_at = ? WHERE id = ?',
             [$title, $body, $catId, $unitId, (int)$required, (int)$pinned, $status, $publishedAt, now(), $id]);
+        if (!$pub && $post['status'] !== 'pending') notify_pending_post((int)$id);
     } else {
         $status = $pub ? 'published' : 'pending';
         q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -698,6 +761,7 @@ function a_posts_save(): void
         $id = insert_id();
         // Yazar kendi içeriğini okumuş sayılır
         q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$id, $me['id']]);
+        $created = true;
     }
 
     foreach (arr('remove_attachment_ids') as $aid) {
@@ -710,7 +774,13 @@ function a_posts_save(): void
     foreach (arr('attachment_ids') as $aid) {
         q('UPDATE attachments SET post_id = ? WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$id, (int)$aid, $me['id']]);
     }
-    out(['id' => $id, 'status' => $status]);
+    $mailed = 0;
+    if (!empty($created)) {
+        global $IN;
+        if ($status === 'published' && (!array_key_exists('notify', $IN) || b('notify'))) $mailed = notify_post_published((int)$id, (int)$me['id']);
+        if ($status === 'pending') notify_pending_post((int)$id);
+    }
+    out(['id' => $id, 'status' => $status, 'mailed' => $mailed]);
 }
 
 function delete_post_files(int $id): void
@@ -742,7 +812,8 @@ function a_posts_approve(): void
     $post = one("SELECT * FROM posts WHERE id = ? AND status = 'pending'", [$id]);
     if (!$post) fail('Onay bekleyen içerik bulunamadı.', 404);
     q("UPDATE posts SET status = 'published', reject_reason = NULL, published_at = ?, updated_at = ? WHERE id = ?", [now(), now(), $id]);
-    out();
+    $mailed = notify_post_published($id, 0);
+    out(['mailed' => $mailed]);
 }
 
 function a_posts_reject(): void
@@ -790,9 +861,33 @@ function a_posts_bookmark(): void
     out();
 }
 
+function a_posts_remind(): void
+{
+    $me = need_user();
+    $id = (int)i('id');
+    $p = one('SELECT * FROM posts WHERE id = ?', [$id]);
+    if (!$p || $p['status'] !== 'published' || !(int)$p['required']) fail('Yalnızca yayınlanmış zorunlu okumalar için hatırlatma gönderilebilir.');
+    if (!is_publisher($me) && (int)$p['author_id'] !== (int)$me['id']) fail('Hatırlatma gönderme yetkiniz yok.', 403);
+    if (!mail_ready()) fail('E-posta gönderimi ayarlanmamış. Yönetim › Ayarlar › E-posta bölümünden ayarlayın.');
+    $last = (int)setting('remind_' . $id, '0');
+    if ($last > time() - 600) fail('Bu içerik için az önce hatırlatma gönderildi. Lütfen birkaç dakika sonra tekrar deneyin.', 429);
+    $params = [':pid' => $id];
+    $unitCond = '';
+    if ($p['unit_id'] !== null) { $unitCond = ' AND u.unit_id = :unit'; $params[':unit'] = (int)$p['unit_id']; }
+    $missing = all("SELECT u.id, u.name, u.email, u.email_notify FROM users u WHERE u.status = 'active'$unitCond AND NOT EXISTS (SELECT 1 FROM acks k WHERE k.post_id = :pid AND k.user_id = u.id)", $params);
+    if (!$missing) fail('Herkes okumuş, hatırlatılacak kimse yok.');
+    $n = mail_queue_to($missing, 'Hatırlatma: ' . $p['title'],
+        'Okumanızı bekleyen bir içerik var',
+        ['“' . $p['title'] . '” zorunlu okuma olarak paylaşıldı ve henüz onayınızı almadık. Lütfen okuyup “Okudum, anladım” ile onaylayın.'],
+        'Şimdi oku', base_url() . '#/p/' . $id, 'remind', false);
+    set_setting('remind_' . $id, (string)time());
+    out(['sent' => $n]);
+}
+
 function a_posts_share(): void
 {
     $me = need_user();
+    if (setting('allow_guest', '0') !== '1') fail('Misafir bağlantıları yönetici tarafından kapatıldı.', 403);
     $id = (int)i('id');
     $post = one('SELECT * FROM posts WHERE id = ?', [$id]);
     if (!$post || $post['status'] !== 'published') fail('Yalnızca yayınlanmış içerikler paylaşılabilir.');
@@ -812,6 +907,7 @@ function a_posts_share(): void
 function a_guest_get(): void
 {
     $token = s('token', 40);
+    if (setting('allow_guest', '0') !== '1') fail('Bu içerik yalnızca üyelere açıktır. Görmek için giriş yapın.', 403);
     $r = $token === '' ? null : one("SELECT p.*, u.name AS author_name, u.title_id AS author_title_id FROM posts p LEFT JOIN users u ON u.id = p.author_id WHERE p.share_token = ? AND p.status = 'published'", [$token]);
     if (!$r || ($r['share_expires'] && $r['share_expires'] < now())) {
         fail('Bu paylaşım bağlantısı geçersiz veya süresi dolmuş.', 404);
@@ -937,7 +1033,7 @@ function serve_file(): void
             $post = one('SELECT * FROM posts WHERE id = ?', [$a['post_id']]);
             if ($post) {
                 if ($me && can_view_post($me, $post)) $allowed = true;
-                elseif ($token !== '' && $post['share_token'] && hash_equals($post['share_token'], $token)
+                elseif ($token !== '' && setting('allow_guest', '0') === '1' && $post['share_token'] && hash_equals($post['share_token'], $token)
                     && $post['status'] === 'published' && (!$post['share_expires'] || $post['share_expires'] > now())) $allowed = true;
             }
         }
@@ -1083,7 +1179,21 @@ function a_rosters_upload(): void
     if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
     if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
     add_roster_version($id, $attId, $me);
-    out(['roster' => roster_out(one('SELECT * FROM rosters WHERE id = ?', [$id]))]);
+    $roster = one('SELECT * FROM rosters WHERE id = ?', [$id]);
+    $postId = null;
+    if (setting('auto_post_roster', '1') === '1') {
+        $file = one('SELECT orig_name FROM attachments WHERE id = ?', [$attId]);
+        $cat = val("SELECT id FROM categories WHERE icon = 'megaphone' ORDER BY sort, id LIMIT 1") ?: val('SELECT id FROM categories ORDER BY sort, id LIMIT 1');
+        $required = setting('auto_post_required', '0') === '1' ? 1 : 0;
+        q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?, ?, ?)',
+            ['“' . $roster['name'] . '” nöbet listesi güncellendi',
+             $me['name'] . ' güncel nöbet listesini yükledi.' . ($file ? "\nDosya: " . $file['orig_name'] : '') . "\n\nListeyi açmak için: " . base_url() . '#/nobet/' . $id,
+             $cat, $me['id'], 'published', $required, now(), now(), now()]);
+        $postId = insert_id();
+        q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$postId, $me['id']]);
+    }
+    $mailed = notify_roster_updated($roster, $me);
+    out(['roster' => roster_out($roster), 'post_id' => $postId, 'mailed' => $mailed]);
 }
 
 function a_rosters_versions(): void
@@ -1147,10 +1257,12 @@ function a_admin_user_save(): void
     if ($id) {
         $u = one('SELECT * FROM users WHERE id = ?', [$id]);
         if (!$u) fail('Kullanıcı bulunamadı.', 404);
+        $approved = $u['status'] === 'pending' && $status === 'active';
         $losingAdmin = $u['role'] === 'admin' && $u['status'] === 'active' && ($role !== 'admin' || $status !== 'active');
         if ($losingAdmin && admin_count() <= 1) fail('Sistemde en az bir aktif yönetici kalmalıdır.');
         q('UPDATE users SET name = ?, email = ?, role = ?, status = ?, title_id = ?, unit_id = ? WHERE id = ?',
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
+        if ($approved) notify_user_approved(['name' => $name, 'email' => $email]);
         out(['id' => $id]);
     }
     $pw = (string)($IN['password'] ?? '');
@@ -1160,9 +1272,21 @@ function a_admin_user_save(): void
         $pw = $generated;
     }
     validate_password($pw);
-    q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now()]);
-    out(['id' => insert_id(), 'password' => $generated]);
+    $newId = insert_id();
+    $mailed = b('send_email') ? send_credentials(['name' => $name, 'email' => $email], $pw, true) : 0;
+    out(['id' => $newId, 'password' => $generated, 'mailed' => $mailed]);
+}
+
+function send_credentials(array $u, string $pw, bool $new): int
+{
+    if (!mail_ready()) return 0;
+    return mail_queue_to([$u], $new ? 'Portal hesabınız oluşturuldu' : 'Geçici şifreniz',
+        $new ? 'Hoş geldiniz, ' . $u['name'] : 'Şifreniz sıfırlandı',
+        [($new ? 'Sizin için bir portal hesabı oluşturuldu.' : 'Yöneticiniz sizin için geçici bir şifre oluşturdu.') . "\n\nE-posta: " . $u['email'] . "\nGeçici şifre: " . $pw,
+         'İlk girişte kendi şifrenizi belirlemeniz istenecek.'],
+        'Giriş yap', base_url(), 'credentials', false);
 }
 
 function a_admin_user_resetpw(): void
@@ -1171,8 +1295,10 @@ function a_admin_user_resetpw(): void
     $id = (int)i('id');
     if (!one('SELECT id FROM users WHERE id = ?', [$id])) fail('Kullanıcı bulunamadı.', 404);
     $pw = random_token(6);
-    q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
-    out(['password' => $pw]);
+    q('UPDATE users SET password_hash = ?, must_change = 1 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
+    $u = one('SELECT name, email FROM users WHERE id = ?', [$id]);
+    $mailed = b('send_email') ? send_credentials($u, $pw, false) : 0;
+    out(['password' => $pw, 'mailed' => $mailed]);
 }
 
 function a_admin_user_delete(): void
@@ -1248,14 +1374,96 @@ function a_tax_delete(): void
 
 function a_settings_save(): void
 {
+    global $IN;
     need_admin();
+    $has = fn($k) => array_key_exists($k, $IN);
     $org = s('org_name', 120);
     if ($org !== '') set_setting('org_name', $org);
     $reg = s('registration', 10);
     if (in_array($reg, ['open', 'approval', 'closed'], true)) set_setting('registration', $reg);
-    set_setting('banner_on', b('banner_on') ? '1' : '0');
-    set_setting('banner_text', s('banner_text', 300));
+    if ($has('banner_on')) set_setting('banner_on', b('banner_on') ? '1' : '0');
+    if ($has('banner_text')) set_setting('banner_text', s('banner_text', 300));
     $tone = s('banner_tone', 10);
-    set_setting('banner_tone', in_array($tone, ['danger', 'info', 'success'], true) ? $tone : 'danger');
-    out();
+    if (in_array($tone, ['danger', 'info', 'success'], true)) set_setting('banner_tone', $tone);
+    foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on'] as $k) {
+        if ($has($k)) set_setting($k, b($k) ? '1' : '0');
+    }
+    foreach (array_keys(MAIL_EVENTS) as $k) {
+        if ($has($k)) set_setting($k, b($k) ? '1' : '0');
+    }
+    if ($has('mail_host')) set_setting('mail_host', preg_replace('/[^A-Za-z0-9.\-]/', '', s('mail_host', 120)));
+    if ($has('mail_port')) set_setting('mail_port', (string)max(1, min(65535, (int)i('mail_port') ?: 465)));
+    if ($has('mail_secure')) set_setting('mail_secure', in_array(s('mail_secure', 5), ['ssl', 'tls', 'none'], true) ? s('mail_secure', 5) : 'ssl');
+    if ($has('mail_user')) set_setting('mail_user', s('mail_user', 190));
+    if ($has('mail_pass') && (string)$IN['mail_pass'] !== '') set_setting('mail_pass', (string)$IN['mail_pass']);
+    if ($has('mail_from')) {
+        $from = mb_strtolower(s('mail_from', 190));
+        if ($from !== '' && !filter_var($from, FILTER_VALIDATE_EMAIL)) fail('Gönderen e-posta adresi geçersiz.');
+        set_setting('mail_from', $from);
+    }
+    if ($has('mail_from_name')) set_setting('mail_from_name', s('mail_from_name', 120));
+    if (setting('mail_on') === '1' && !filter_var(setting('mail_from'), FILTER_VALIDATE_EMAIL)) fail('E-posta bildirimleri için gönderen e-posta adresini girin.');
+    out(['admin' => admin_settings()]);
+}
+
+function admin_settings(): array
+{
+    $events = [];
+    foreach (MAIL_EVENTS as $k => $label) $events[] = ['key' => $k, 'label' => $label, 'on' => setting($k, '1') === '1'];
+    return [
+        'allow_guest' => setting('allow_guest', '0') === '1',
+        'auto_post_roster' => setting('auto_post_roster', '1') === '1',
+        'auto_post_required' => setting('auto_post_required', '0') === '1',
+        'mail_on' => setting('mail_on') === '1',
+        'mail_host' => setting('mail_host'),
+        'mail_port' => (int)setting('mail_port', '465'),
+        'mail_secure' => setting('mail_secure', 'ssl'),
+        'mail_user' => setting('mail_user'),
+        'mail_has_pass' => setting('mail_pass') !== '',
+        'mail_from' => setting('mail_from'),
+        'mail_from_name' => setting('mail_from_name'),
+        'mail_ready' => mail_ready(),
+        'events' => $events,
+        'queue' => [
+            'pending' => (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3'),
+            'failed' => (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts >= 3'),
+            'sent_today' => (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at >= ?', [date('Y-m-d 00:00:00')]),
+        ],
+    ];
+}
+
+function a_settings_get(): void
+{
+    need_admin();
+    out(['admin' => admin_settings()]);
+}
+
+function a_mail_test(): void
+{
+    $me = need_admin();
+    if (!mail_ready()) fail('Önce e-posta bildirimlerini açıp gönderen adresini kaydedin.');
+    [$html, $text] = mail_template('Test e-postası', ['Bu bir deneme e-postasıdır. Bunu görüyorsanız portalın e-posta ayarları doğru çalışıyor.'], 'Portala git', base_url());
+    q('INSERT INTO mail_queue (to_email, to_name, subject, html, text_body, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$me['email'], $me['name'], 'NöbetMed test e-postası', $html, $text, 'test', now()]);
+    $id = insert_id();
+    $row = one('SELECT * FROM mail_queue WHERE id = ?', [$id]);
+    q('UPDATE mail_queue SET locked_at = ? WHERE id = ?', [time(), $id]);
+    $res = mail_send_batch([$row]);
+    if (($res[$id] ?? null) === true) {
+        q('UPDATE mail_queue SET sent_at = ?, locked_at = NULL WHERE id = ?', [now(), $id]);
+        out(['message' => 'Test e-postası ' . $me['email'] . ' adresine gönderildi.']);
+    }
+    q('UPDATE mail_queue SET attempts = 3, error = ?, locked_at = NULL WHERE id = ?', [mb_substr((string)($res[$id] ?? 'Hata'), 0, 250), $id]);
+    fail('Gönderilemedi: ' . ($res[$id] ?? 'bilinmeyen hata'));
+}
+
+function a_mail_log(): void
+{
+    need_admin();
+    $rows = all('SELECT id, to_email, to_name, subject, kind, created_at, sent_at, attempts, error FROM mail_queue ORDER BY id DESC LIMIT 40');
+    out(['log' => array_map(fn($r) => [
+        'id' => (int)$r['id'], 'to' => $r['to_name'] . ' <' . $r['to_email'] . '>', 'subject' => $r['subject'], 'kind' => $r['kind'],
+        'created_at' => $r['created_at'], 'sent_at' => $r['sent_at'],
+        'status' => $r['sent_at'] ? 'sent' : ((int)$r['attempts'] >= 3 ? 'failed' : 'pending'), 'error' => $r['error'],
+    ], $rows)]);
 }

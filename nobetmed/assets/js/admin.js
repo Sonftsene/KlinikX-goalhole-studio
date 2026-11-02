@@ -122,9 +122,13 @@ function showPassword(name, pw) {
 }
 ACT['copy-pw'] = async (el) => toast((await copyText(el.dataset.v)) ? 'Şifre kopyalandı' : 'Kopyalanamadı');
 async function resetPw(u) {
-  const ok = await confirmDialog({ title: 'Geçici şifre oluşturulsun mu?', text: `${u.name} kullanıcısının mevcut şifresi geçersiz olacak ve yeni bir geçici şifre oluşturulacak.`, ok: 'Oluştur' });
+  const ok = await confirmDialog({ title: 'Geçici şifre oluşturulsun mu?', text: `${u.name} kullanıcısının mevcut şifresi geçersiz olacak ve yeni bir geçici şifre oluşturulacak. Kişi ilk girişte kendi şifresini belirleyecek.${S.settings.mail_ready ? ` Geçici şifre ${u.email} adresine de e-postayla gönderilecek.` : ''}`, ok: 'Oluştur' });
   if (!ok) return;
-  try { const r = await api('admin.user.resetpw', { id: u.id }); showPassword(u.name, r.password); } catch (e) { toast(e.message, 'err'); }
+  try {
+    const r = await api('admin.user.resetpw', { id: u.id, send_email: !!S.settings.mail_ready });
+    showPassword(u.name, r.password);
+    if (r.mailed) toast('Geçici şifre e-postayla da gönderiliyor');
+  } catch (e) { toast(e.message, 'err'); }
 }
 ACT['u-new'] = () => userModal(null);
 function userModal(u) {
@@ -141,7 +145,8 @@ function userModal(u) {
         <div class="stack" style="gap:8px">${['member', 'editor', 'admin'].map((r) => html`<label class="pick" style="border:1px solid var(--border);border-radius:10px"><input type="radio" name="role" value="${r}" ${(u ? u.role : 'member') === r ? raw('checked') : ''}><div><div class="small"><b>${ROLE_LABEL[r]}</b></div><div class="tiny faint">${ROLE_HINT[r]}</div></div></label>`)}</div>
       </div>
       ${u ? html`<div class="field"><label>Durum</label><select class="select" name="status">${[['active', 'Aktif'], ['pending', 'Onay bekliyor'], ['disabled', 'Pasif']].map(([k, l]) => html`<option value="${k}" ${u.status === k ? raw('selected') : ''}>${l}</option>`)}</select></div>`
-        : html`<div class="field"><label>Şifre (isteğe bağlı)</label><input class="input" name="password" type="text" minlength="8" placeholder="Boş bırakırsanız geçici şifre oluşturulur" autocomplete="off"></div>`}
+        : html`<div class="field"><label>Geçici şifre (isteğe bağlı)</label><input class="input" name="password" type="text" minlength="8" placeholder="Boş bırakırsanız otomatik oluşturulur" autocomplete="off"><p class="hint">Kişi ilk girişte kendi şifresini belirler.</p></div>
+          ${S.settings.mail_ready ? html`<label class="switch"><input type="checkbox" name="send_email" checked><span class="track"></span><span class="s-text"><b>Giriş bilgilerini e-postayla gönder</b><span>E-posta adresi ve geçici şifre kişiye iletilir.</span></span></label>` : ''}`}
       <div class="form-error hidden" data-err></div>
     </form>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="userForm">Kaydet</button>`,
@@ -155,6 +160,7 @@ FORMS.user = (f) => submitForm(f, async (d) => {
   const r = await api('admin.user.save', payload);
   f._m.close();
   toast(u ? 'Kullanıcı güncellendi' : 'Kullanıcı eklendi');
+  if (!u && r.mailed) toast('Giriş bilgileri e-postayla gönderiliyor');
   if (!u && r.password) showPassword(d.name, r.password);
   if (u && u.id === S.me.id) { const b = await api('boot'); S.me = b.me; renderNav(); }
   afterUserChange();
@@ -236,36 +242,103 @@ ACT['tax-del'] = async (el) => {
 };
 
 /* ---------------- Ayarlar ---------------- */
-function drawSettings(body) {
+const SW = (name, on, title, hint) => html`<label class="switch"><input type="checkbox" name="${name}" ${on ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>${title}</b>${hint ? html`<span>${hint}</span>` : ''}</span></label>`;
+
+async function drawSettings(body) {
+  setHTML(body, html`<div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div>`);
+  let A;
+  try { A = (await api('settings.get')).admin; } catch (e) { toast(e.message, 'err'); return; }
   const st = S.settings;
-  setHTML(body, html`<form class="stack" data-form="settings" style="max-width:680px;gap:16px">
+  setHTML(body, html`<form class="stack" data-form="settings" style="max-width:720px;gap:16px">
     <div class="card card-pad stack">
       <h3 style="font-size:15px">Genel</h3>
       <div class="field"><label>Kurum / klinik adı</label><input class="input" name="org_name" value="${st.org_name}" required></div>
     </div>
+
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('megaphone', 'sm')} Otomatik duyuru</h3><p class="small muted">Nöbet listesi yüklenince ekip ana sayfada görsün.</p></div>
+      ${SW('auto_post_roster', A.auto_post_roster, 'Nöbet listesi güncellenince duyuru yayınla', 'Duyurular bölümüne “… nöbet listesi güncellendi” başlıklı, listeye bağlantı veren bir duyuru eklenir.')}
+      ${SW('auto_post_required', A.auto_post_required, 'Bu duyuruyu zorunlu okuma yap', 'Ekip “Okudum, anladım” ile onaylar; kimin listeye baktığını takip edersiniz.')}
+    </div>
+
+    <div class="card card-pad stack">
+      <div class="row between wrap"><div><h3 style="font-size:15px">${icon('send', 'sm')} E-posta bildirimleri</h3><p class="small muted">Bildirimlerin gönderileceği e-posta hesabı.</p></div>
+        <span class="badge ${A.mail_ready ? 'success' : ''}">${A.mail_ready ? 'Etkin' : 'Kapalı'}</span></div>
+      ${SW('mail_on', A.mail_on, 'E-posta bildirimlerini aç', '')}
+      <div class="form-note" style="font-size:12.5px">Hostinger’da: hPanel › E-postalar bölümünden <b>bildirim@alanadiniz.com</b> gibi bir adres oluşturun ve bilgilerini aşağıya girin (sunucu <b>smtp.hostinger.com</b>, port <b>465</b>, güvenlik <b>SSL</b>). Sunucu alanını boş bırakırsanız PHP’nin kendi gönderimi kullanılır.</div>
+      <div class="grid2">
+        <div class="field"><label>Gönderen adı</label><input class="input" name="mail_from_name" value="${A.mail_from_name}" placeholder="${st.org_name}"></div>
+        <div class="field"><label>Gönderen e-posta</label><input class="input" type="email" name="mail_from" value="${A.mail_from}" placeholder="bildirim@alanadiniz.com"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>SMTP sunucusu</label><input class="input" name="mail_host" value="${A.mail_host}" placeholder="smtp.hostinger.com"></div>
+        <div class="grid2" style="gap:8px">
+          <div class="field"><label>Port</label><input class="input" type="number" name="mail_port" value="${A.mail_port}"></div>
+          <div class="field"><label>Güvenlik</label><select class="select" name="mail_secure">${[['ssl', 'SSL'], ['tls', 'TLS'], ['none', 'Yok']].map(([k, l]) => html`<option value="${k}" ${A.mail_secure === k ? raw('selected') : ''}>${l}</option>`)}</select></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Kullanıcı adı</label><input class="input" name="mail_user" value="${A.mail_user}" placeholder="bildirim@alanadiniz.com" autocomplete="off"></div>
+        <div class="field"><label>Şifre</label><input class="input" type="password" name="mail_pass" placeholder="${A.mail_has_pass ? 'Kayıtlı (değiştirmek için yazın)' : ''}" autocomplete="new-password"></div>
+      </div>
+      <div class="row wrap">
+        <button class="btn" type="button" data-act="mail-test" ${A.mail_ready ? '' : raw('disabled')}>${icon('send', 'sm')}Bana test e-postası gönder</button>
+        <span class="tiny faint">${A.mail_ready ? `Bugün ${A.queue.sent_today} e-posta gönderildi${A.queue.pending ? ` · ${A.queue.pending} sırada` : ''}${A.queue.failed ? ` · ${A.queue.failed} başarısız` : ''}` : 'Önce ayarları kaydedin.'}</span>
+        <button class="btn sm ghost" type="button" data-act="mail-log">${icon('list', 'sm')}Gönderim geçmişi</button>
+      </div>
+    </div>
+
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('bell', 'sm')} Hangi durumlarda e-posta gitsin?</h3><p class="small muted">Seçtiğiniz olaylarda ilgili kişilere otomatik e-posta gönderilir. Kişiler Hesabım sayfasından bildirimleri kapatabilir; hatırlatma ve hesap e-postaları her zaman gider.</p></div>
+      ${A.events.map((ev) => SW(ev.key, ev.on, ev.label, ''))}
+      <p class="tiny faint">Ayrıca zorunlu okumalarda “Okumayanlara e-posta ile hatırlat” düğmesi ve “Şifremi unuttum” e-postası kullanılabilir.</p>
+    </div>
+
+    <div class="card card-pad stack">
+      <div><h3 style="font-size:15px">${icon('lock', 'sm')} Gizlilik</h3><p class="small muted">Giriş yapmayan hiç kimse içerik, nöbet listesi veya dosya göremez.</p></div>
+      ${SW('allow_guest', A.allow_guest, 'Misafir bağlantılarına izin ver', 'Açıksa, yetkililer tek bir içeriği üye olmayan birine süreli bağlantıyla gösterebilir. Kapalıysa tüm bağlantılar çalışmaz.')}
+    </div>
+
     <div class="card card-pad stack">
       <div><h3 style="font-size:15px">Üye kaydı</h3><p class="small muted">Kimlerin portala katılabileceğini belirleyin.</p></div>
       ${[['approval', 'Onaylı kayıt (önerilen)', 'Herkes kayıt olabilir, yönetici onaylayınca giriş yapar.'], ['open', 'Açık kayıt', 'Kayıt olan herkes hemen giriş yapabilir.'], ['closed', 'Kapalı', 'Yalnızca yöneticinin eklediği kullanıcılar.']].map(([k, l, h]) => html`
         <label class="pick" style="border:1px solid var(--border);border-radius:10px"><input type="radio" name="registration" value="${k}" ${st.registration === k ? raw('checked') : ''}><div><div class="small"><b>${l}</b></div><div class="tiny faint">${h}</div></div></label>`)}
     </div>
+
     <div class="card card-pad stack">
       <div><h3 style="font-size:15px">Duyuru bandı</h3><p class="small muted">Tüm üyelerin ekranının en üstünde görünen kısa uyarı.</p></div>
-      <label class="switch"><input type="checkbox" name="banner_on" ${st.banner_on ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Bandı göster</b></span></label>
+      ${SW('banner_on', st.banner_on, 'Bandı göster', '')}
       <div class="field"><label>Metin</label><input class="input" name="banner_text" maxlength="300" value="${st.banner_text || ''}" placeholder="Örn: 6 Kasım Cuma 09:30'da kalite denetimi yapılacaktır."></div>
       <div class="field"><label>Renk</label><select class="select" name="banner_tone">${[['danger', 'Kırmızı — acil'], ['info', 'Mavi — bilgi'], ['success', 'Yeşil — olumlu']].map(([k, l]) => html`<option value="${k}" ${st.banner_tone === k ? raw('selected') : ''}>${l}</option>`)}</select></div>
     </div>
     <div class="form-error hidden" data-err></div>
-    <div><button class="btn primary" type="submit">Ayarları kaydet</button></div>
+    <div class="settings-save"><button class="btn primary" type="submit">Ayarları kaydet</button></div>
   </form>`);
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
-  await api('settings.save', d);
-  Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text, banner_tone: d.banner_tone });
+  const r = await api('settings.save', d);
+  const A = r.admin;
+  Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text, banner_tone: d.banner_tone, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
+  S.mail_ready = A.mail_ready;
   S.bannerHidden = false;
   renderBanner();
   renderNav();
   toast('Ayarlar kaydedildi');
+  drawSettings($('#adminBody'));
 });
+ACT['mail-test'] = (el) => busy(el, async () => {
+  try { toast((await api('mail.test')).message); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['mail-log'] = async () => {
+  const m = openModal({ title: 'E-posta gönderim geçmişi', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  let log;
+  try { log = (await api('mail.log')).log; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
+  const lbl = { sent: ['success', 'Gönderildi'], pending: ['warn', 'Sırada'], failed: ['danger', 'Başarısız'] };
+  m.setBody(log.length ? html`<div class="card"><div class="list">${log.map((x) => html`<div class="list-row">
+      <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${x.subject}</div><div class="lr-s ellipsis">${x.to} · ${fmtDateTime(x.sent_at || x.created_at)}</div>${x.error ? html`<div class="tiny" style="color:var(--danger)">${x.error}</div>` : ''}</div>
+      <span class="badge ${lbl[x.status][0]}">${lbl[x.status][1]}</span></div>`)}</div></div>`
+    : html`<div class="empty"><p>Henüz e-posta gönderilmedi.</p></div>`);
+};
 
 /* ---------------- Profil ---------------- */
 function renderProfile(view) {
@@ -294,6 +367,10 @@ function renderProfile(view) {
           <div class="form-error hidden" data-err></div>
           <button class="btn" type="submit">Şifreyi kaydet</button>
         </form>
+        ${S.settings.mail_ready ? html`<div class="card card-pad stack">
+          <h3 style="font-size:14.5px">E-posta bildirimleri</h3>
+          <label class="switch"><input type="checkbox" data-change="me-notify" ${me.email_notify ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Bildirimleri e-postayla al</b><span>Yeni duyuru, nöbet listesi güncellemesi vb. ${me.email} adresine gelir.</span></span></label>
+        </div>` : ''}
         <div class="card card-pad stack" style="gap:10px">
           <button class="btn block" data-act="theme">${icon('moon', 'sm')}Açık / koyu tema</button>
           <button class="btn block danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button>
@@ -304,6 +381,13 @@ function renderProfile(view) {
   mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
 }
 ACT.logout = () => logout();
+CHANGE['me-notify'] = async (el) => {
+  try {
+    await api('me.update', { email_notify: el.checked });
+    S.me.email_notify = el.checked;
+    toast(el.checked ? 'E-posta bildirimleri açıldı' : 'E-posta bildirimleri kapatıldı');
+  } catch (e) { el.checked = !el.checked; toast(e.message, 'err'); }
+};
 FORMS['me-name'] = (f) => submitForm(f, async (d) => {
   await api('me.update', d);
   S.me.name = d.name;

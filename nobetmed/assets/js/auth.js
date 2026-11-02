@@ -84,6 +84,17 @@ function renderAuth(mode = 'login') {
         <p class="sub">Hesabınız yönetici onayından sonra aktif olacak. Onaylandığında aynı bilgilerle giriş yapabilirsiniz.</p>
         <button class="btn block" data-act="auth-mode" data-mode="login">Giriş ekranına dön</button>
       </div>`;
+  } else if (mode === 'forgot') {
+    inner = html`
+      <h1>Şifremi unuttum</h1>
+      <p class="sub">Hesabınızın e-posta adresini yazın; şifre sıfırlama bağlantısı gönderelim.</p>
+      <form class="stack" data-form="forgot">
+        <div class="field"><label>E-posta</label><input class="input" type="email" name="email" autocomplete="email" required></div>
+        <div class="form-error hidden" data-err></div>
+        <div class="form-note success hidden" data-ok></div>
+        <button class="btn primary block" type="submit">Bağlantı gönder</button>
+      </form>
+      <p class="small muted" style="margin-top:18px;text-align:center"><a href="#" data-act="auth-mode" data-mode="login">Girişe dön</a></p>`;
   } else if (mode === 'register') {
     inner = html`
       <h1>Hesap oluştur</h1>
@@ -116,12 +127,65 @@ function renderAuth(mode = 'login') {
       <p class="small muted" style="margin-top:18px;text-align:center">
         ${reg === 'closed' ? 'Hesabınız yoksa yöneticinizden davet isteyin.' : html`Hesabınız yok mu? <a href="#" data-act="auth-mode" data-mode="register">Kayıt olun</a>`}
       </p>
-      <p class="tiny faint" style="text-align:center;margin-top:8px">Şifrenizi unuttuysanız yöneticiniz geçici şifre oluşturabilir.</p>`;
+      <p class="tiny faint" style="text-align:center;margin-top:8px">${S.mail_ready ? html`<a href="#" data-act="auth-mode" data-mode="forgot">Şifremi unuttum</a>` : 'Şifrenizi unuttuysanız yöneticiniz geçici şifre oluşturabilir.'}</p>`;
   }
   setHTML(APP(), authLayout(inner));
   mountGoogle();
 }
 ACT['auth-mode'] = (el) => renderAuth(el.dataset.mode);
+FORMS.forgot = (f) => submitForm(f, async (d) => {
+  const r = await api('auth.forgot', d);
+  const ok = f.querySelector('[data-ok]');
+  ok.textContent = r.message;
+  ok.classList.remove('hidden');
+  f.querySelector('button[type=submit]').classList.add('hidden');
+});
+
+/* ---------------- Şifre sıfırlama ve zorunlu şifre değişikliği ---------------- */
+function newPasswordForm(formName, button) {
+  return html`<form class="stack" data-form="${formName}">
+    <div class="field"><label>Yeni şifre</label>${pwField('password', 'En az 8 karakter', 'new-password')}</div>
+    <div class="field"><label>Yeni şifre (tekrar)</label>${pwField('password2', 'Aynı şifreyi tekrar yazın', 'new-password')}</div>
+    <p class="hint">İpucu: Harf, rakam ve işaret karışık, en az 8 karakterlik bir şifre seçin.</p>
+    <div class="form-error hidden" data-err></div>
+    <button class="btn primary block" type="submit">${button}</button>
+  </form>`;
+}
+function checkNewPassword(d) {
+  if ((d.password || '').length < 8) throw new Error('Şifre en az 8 karakter olmalıdır.');
+  if (d.password !== d.password2) throw new Error('İki şifre aynı değil.');
+}
+function renderReset(token) {
+  setHTML(APP(), authLayout(html`
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">Nöbet<span>Med</span></b></div>
+    <h1>Yeni şifre belirleyin</h1>
+    <p class="sub">Hesabınız için yeni bir şifre seçin.</p>
+    ${newPasswordForm('reset', 'Şifreyi kaydet ve giriş yap')}`));
+  $('form[data-form=reset]')._token = token;
+}
+FORMS.reset = (f) => submitForm(f, async (d) => {
+  checkNewPassword(d);
+  await api('auth.reset', { token: f._token, password: d.password });
+  await start();
+  toast('Şifreniz değiştirildi. Hoş geldiniz!');
+});
+function renderForceChange() {
+  setHTML(APP(), authLayout(html`
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">Nöbet<span>Med</span></b></div>
+    <h1>Merhaba ${S.me.name.split(' ')[0]}, kendi şifrenizi belirleyin</h1>
+    <p class="sub">Geçici bir şifreyle giriş yaptınız. Güvenliğiniz için devam etmeden önce yalnızca sizin bildiğiniz yeni bir şifre seçin.</p>
+    ${newPasswordForm('force-change', 'Şifremi kaydet ve devam et')}
+    <p class="small muted" style="margin-top:16px;text-align:center"><a href="#" data-act="logout">Çıkış yap</a></p>`));
+}
+FORMS['force-change'] = (f) => submitForm(f, async (d) => {
+  checkNewPassword(d);
+  await api('me.password', { password: d.password });
+  S.me.must_change = false;
+  renderShell();
+  route();
+  toast('Şifreniz kaydedildi');
+});
+
 FORMS.login = (f) => submitForm(f, async (d) => {
   await api('auth.login', d);
   await start();

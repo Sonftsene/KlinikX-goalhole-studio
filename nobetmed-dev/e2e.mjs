@@ -101,6 +101,11 @@ await a.locator('.modal .fv:has-text("arsiv-yedek")').scrollIntoViewIfNeeded();
 if (!(await a.locator('.modal .fv:has-text("arsiv-yedek")').innerText()).includes('indirerek açın')) errors.push('bilinmeyen tür kartı yok');
 step('görsel, 25 MB video (tam boyut) ve bilinmeyen tür doğru gösterildi');
 await a.screenshot({ path: path.join(OUT, 'd-detail-files.png') });
+// Misafir bağlantıları varsayılan olarak kapalı: paylaş penceresinde misafir bölümü olmamalı
+await a.click('[data-act=share]');
+if (await a.locator('[data-share-days]').count()) errors.push('misafir bağlantısı kapalıyken görünüyor');
+await a.keyboard.press('Escape');
+await a.evaluate(async () => { await api('settings.save', { allow_guest: true }); S.settings.allow_guest = true; });
 await a.click('[data-act=share]');
 await a.click('[data-share-days="7"]');
 await expectText(a, 'Misafir bağlantısı oluşturuldu');
@@ -119,6 +124,11 @@ const gImg = await G.p.locator('.mv img').evaluate((i) => new Promise((r) => i.c
 if (!gImg) errors.push('misafir görsel açamadı');
 await G.p.screenshot({ path: path.join(OUT, 'd-guest.png') });
 step('misafir sayfası');
+await a.evaluate(async () => { await api('settings.save', { allow_guest: false }); S.settings.allow_guest = false; });
+const G2 = await ctx('guest2');
+await G2.p.goto(shareLink.replace(/^https?:\/\/[^/]+\//, BASE));
+await expectText(G2.p, 'yalnızca üyelere açıktır');
+step('misafir bağlantısı kapatılınca içerik görünmüyor');
 
 // Kayıt (onaylı)
 const R = await ctx('reg');
@@ -148,6 +158,12 @@ await m.goto(BASE);
 await m.fill('[name=email]', 'elif@test.com');
 await m.fill('[name=password]', tempPw);
 await m.click('button[type=submit]');
+// Geçici şifreyle ilk giriş: kendi şifresini belirlemesi istenir
+await expectText(m, 'kendi şifrenizi belirleyin');
+await m.fill('[data-form=force-change] [name=password]', 'ElifSifre2026');
+await m.fill('[data-form=force-change] [name=password2]', 'ElifSifre2026');
+await m.click('[data-form=force-change] button[type=submit]');
+step('üye ilk girişte kendi şifresini belirledi');
 await expectText(m, 'Elif');
 await m.screenshot({ path: path.join(OUT, 'm-home.png') });
 const todo = await m.locator('.kpi .k-val').first().innerText();
@@ -270,7 +286,7 @@ step('ayarlar + bant');
 
 // Profil şifre değişimi (üye)
 await m.goto(BASE + '#/profil');
-await m.fill('[data-form=me-pw] [name=current]', tempPw);
+await m.fill('[data-form=me-pw] [name=current]', 'ElifSifre2026');
 await m.fill('[data-form=me-pw] [name=password]', 'YeniSifre99');
 await m.click('[data-form=me-pw] button[type=submit]');
 await expectText(m, 'Şifreniz değiştirildi');

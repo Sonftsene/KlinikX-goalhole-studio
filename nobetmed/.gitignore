@@ -1,4 +1,5 @@
 data/*.sqlite*
+data/.dbname.php
 uploads/*
 !uploads/.htaccess
 !uploads/.gitkeep

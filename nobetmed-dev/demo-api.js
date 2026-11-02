@@ -2,7 +2,7 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v4';
+  const KEY = 'nm-demo-v5';
   const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
   const fsize = (f, def) => { const u = window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]; return u ? Math.round((u.length - u.indexOf(',') - 1) * 0.75) : def; };
   const ROSTER_FILES = window.NM_DEMO_ROSTERS || [['Yoğun Bakım 3. Basamak', 'ornek-cizelge-kasim-3-basamak.xlsx'], ['Yoğun Bakım 2. Basamak', 'ornek-cizelge-kasim-2-basamak.xlsx']];
@@ -24,7 +24,7 @@
   function seed() {
     const db = {
       seq: 1000,
-      settings: { org_name: 'Şehir Hastanesi Yoğun Bakım', registration: 'approval', banner_on: true, banner_text: 'Kalite denetimi: 6 Kasım Cuma 09:30 — acil arabası mühürleri ve buzdolabı ısı takip formlarını kontrol edin.', banner_tone: 'danger' },
+      settings: { org_name: 'Şehir Hastanesi Yoğun Bakım', registration: 'approval', banner_on: true, banner_text: 'Kalite denetimi: 6 Kasım Cuma 09:30 — acil arabası mühürleri ve buzdolabı ısı takip formlarını kontrol edin.', banner_tone: 'danger', allow_guest: false, auto_post_roster: true, auto_post_required: false, mail_on: true, mail_host: 'smtp.hostinger.com', mail_port: 465, mail_secure: 'ssl', mail_user: 'bildirim@alanadiniz.com', mail_from: 'bildirim@alanadiniz.com', mail_from_name: 'Yoğun Bakım Portalı', events: { notify_post: true, notify_roster: true, notify_pending_post: true, notify_pending_user: true, notify_user_approved: true } },
       units: [{ id: 1, name: 'Yoğun Bakım' }, { id: 2, name: 'Acil Servis' }, { id: 3, name: 'Dahiliye Servisi' }],
       titles: [{ id: 1, name: 'Sorumlu Hemşire' }, { id: 2, name: 'Sorumlu Hemşire Yardımcısı' }, { id: 3, name: 'Eğitim Hemşiresi' }, { id: 4, name: 'Hemşire' }, { id: 5, name: 'Personel' }],
       categories: [
@@ -35,13 +35,13 @@
         { id: 5, name: 'Toplantı Kararları', icon: 'users', color: 'amber' },
       ],
       users: [
-        [1, 'Ayşe Kaya', 'ayse.kaya@hastane.org', 1, 1, 'admin', 'active', 0.2],
+        [1, (window.NM_DEMO_ADMIN || {}).name || 'Deniz Yönetici', (window.NM_DEMO_ADMIN || {}).email || 'yonetici@hastane.org', 4, 1, 'admin', 'active', 0.2],
         [2, 'Mehmet Öztürk', 'mehmet.ozturk@hastane.org', 2, 2, 'editor', 'active', 3],
         [3, 'Elif Yılmaz', 'elif.yilmaz@hastane.org', 4, 1, 'member', 'active', 1],
         [4, 'Burak Demir', 'burak.demir@hastane.org', 4, 1, 'member', 'active', 20],
         [5, 'Zeynep Koç', 'zeynep.koc@hastane.org', 4, 1, 'member', 'active', 5],
         [6, 'Seda Nur Aydın', 'seda.aydin@hastane.org', 4, 1, 'member', 'active', 30],
-        [7, 'Ceren Aksoy', 'ceren.aksoy@hastane.org', 3, 1, 'editor', 'active', 8],
+        [7, 'Ayşe Kaya', 'ayse.kaya@hastane.org', 1, 1, 'editor', 'active', 8],
         [8, 'Mert Tan', 'mert.tan@hastane.org', 4, 2, 'member', 'active', 50],
         [9, 'Selin Arslan', 'selin.arslan@gmail.com', 5, 3, 'member', 'pending', null],
         [10, 'Kemal Bulut', 'kemal.bulut@hastane.org', 5, 1, 'member', 'active', 70],
@@ -108,7 +108,14 @@
   const isPub = (u) => u && (u.role === 'admin' || u.role === 'editor');
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
-  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true });
+  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, must_change: false });
+  const EVENTS = [['notify_post', 'Yeni duyuru / içerik yayınlandığında (ilgili birimdeki herkese)'], ['notify_roster', 'Nöbet listesi güncellendiğinde (herkese)'], ['notify_pending_post', 'Onay bekleyen içerik gönderildiğinde (yönetici ve yayıncılara)'], ['notify_pending_user', 'Yeni üyelik başvurusu geldiğinde (yöneticilere)'], ['notify_user_approved', 'Üyelik onaylandığında (başvuran kişiye)']];
+  const mailReady = () => !!db.settings.mail_on && !!db.settings.mail_from;
+  const evOn = (k) => mailReady() && db.settings.events[k] !== false;
+  const recipients = (exceptId) => db.users.filter((x) => x.status === 'active' && x.id !== exceptId && x.email_notify !== false).length;
+  db.mailLog = db.mailLog || [];
+  const logMail = (subject, n) => { if (n > 0) db.mailLog.unshift({ id: ++db.seq, to: n + ' alıcı', subject, kind: '', created_at: now(), sent_at: now(), status: 'sent', error: null }); db.mailLog = db.mailLog.slice(0, 40); return n; };
+  const adminSettings = () => ({ allow_guest: !!db.settings.allow_guest, auto_post_roster: db.settings.auto_post_roster !== false, auto_post_required: !!db.settings.auto_post_required, mail_on: !!db.settings.mail_on, mail_host: db.settings.mail_host || '', mail_port: db.settings.mail_port || 465, mail_secure: db.settings.mail_secure || 'ssl', mail_user: db.settings.mail_user || '', mail_has_pass: true, mail_from: db.settings.mail_from || '', mail_from_name: db.settings.mail_from_name || '', mail_ready: mailReady(), events: EVENTS.map(([key, label]) => ({ key, label, on: db.settings.events[key] !== false })), queue: { pending: 0, failed: 0, sent_today: db.mailLog.length } });
   const lists = () => ({ categories: db.categories, units: db.units, titles: db.titles });
   const attOut = (a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl || a.url });
   function rosterOut(r) {
@@ -149,9 +156,9 @@
   const H = {
     boot() {
       const u = me();
-      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, ...lists() };
+      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
       if (u) {
-        Object.assign(out.settings, { banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone });
+        Object.assign(out.settings, { banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
         out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -178,7 +185,8 @@
       return { pending: true };
     },
     'auth.logout'() { db.me = null; return {}; },
-    'me.update'(d) { const u = needUser(); if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
+    'auth.forgot'() { if (!mailReady()) err('E-posta gönderimi ayarlanmamış.'); return { message: 'Bu e-posta ile kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi. (Önizlemede gerçek e-posta gönderilmez.)' }; },
+    'me.update'(d) { const u = needUser(); if ('email_notify' in d) { u.email_notify = !!d.email_notify; if (!('name' in d)) return {}; } if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
     'me.password'(d) { const u = needUser(); if (d.current !== u.pw) err('Mevcut şifre hatalı. (Demo şifresi: demo1234)'); if ((d.password || '').length < 8) err('Şifre en az 8 karakter olmalıdır.'); u.pw = d.password; return {}; },
     counts() { return { counts: counts(needUser()) }; },
     'posts.list'(d) {
@@ -234,7 +242,8 @@
       }
       (d.remove_attachment_ids || []).forEach((id) => { db.attachments = db.attachments.filter((a) => !(a.id === id && a.post_id === p.id)); });
       (d.attachment_ids || []).forEach((id) => { const a = db.attachments.find((x) => x.id === id && x.post_id === null && x.user_id === u.id); if (a) a.post_id = p.id; });
-      return { id: p.id, status: p.status };
+      const mailed = !d.id && p.status === 'published' && d.notify !== false && evOn('notify_post') ? logMail((p.required ? 'Okumanız gereken: ' : 'Yeni duyuru: ') + p.title, recipients(u.id)) : 0;
+      return { id: p.id, status: p.status, mailed };
     },
     'posts.delete'(d) {
       const u = needUser();
@@ -278,7 +287,13 @@
       const a = db.attachments.find((x) => x.id === d.attachment_id && x.user_id === u.id && x.post_id === null) || err('Yüklenen dosya bulunamadı.', 404);
       a.roster_id = r.id;
       db.roster_files.push({ id: ++db.seq, roster_id: r.id, attachment_id: a.id, user_id: u.id, created_at: now() });
-      return { roster: rosterOut(r) };
+      let post_id = null;
+      if (db.settings.auto_post_roster !== false) {
+        const p = { id: ++db.seq, title: `“${r.name}” nöbet listesi güncellendi`, body: `${u.name} güncel nöbet listesini yükledi.\nDosya: ${a.name}\n\nListeyi açmak için: ${location.href.split('#')[0]}#/nobet/${r.id}`, category_id: 1, unit_id: null, author_id: u.id, status: 'published', pinned: false, required: !!db.settings.auto_post_required, reject_reason: null, share_token: null, share_expires: null, created_at: now(), updated_at: now(), published_at: now() };
+        db.posts.push(p); db.views.push({ post_id: p.id, user_id: u.id }); post_id = p.id;
+      }
+      const mailed = evOn('notify_roster') ? logMail('Nöbet listesi güncellendi: ' + r.name, recipients(u.id)) : 0;
+      return { roster: rosterOut(r), post_id, mailed };
     },
     'rosters.versions'(d) {
       needUser();
@@ -346,8 +361,25 @@
     },
     'settings.save'(d) {
       needAdmin();
-      Object.assign(db.settings, { org_name: d.org_name || db.settings.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text || '', banner_tone: d.banner_tone });
-      return {};
+      const st = db.settings;
+      if (d.org_name) st.org_name = d.org_name;
+      if (d.registration) st.registration = d.registration;
+      ['banner_on', 'allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on'].forEach((k) => { if (k in d) st[k] = !!d[k]; });
+      ['banner_text', 'banner_tone', 'mail_host', 'mail_secure', 'mail_user', 'mail_from', 'mail_from_name'].forEach((k) => { if (k in d) st[k] = d[k]; });
+      if ('mail_port' in d) st.mail_port = +d.mail_port || 465;
+      EVENTS.forEach(([k]) => { if (k in d) st.events[k] = !!d[k]; });
+      if (st.mail_on && !st.mail_from) err('E-posta bildirimleri için gönderen e-posta adresini girin.');
+      return { admin: adminSettings() };
+    },
+    'settings.get'() { needAdmin(); return { admin: adminSettings() }; },
+    'mail.test'() { needAdmin(); logMail('NöbetMed test e-postası', 1); return { message: 'Önizlemede gerçek e-posta gönderilmez. Sitenizde test e-postası ' + me().email + ' adresine gider.' }; },
+    'mail.log'() { needAdmin(); return { log: db.mailLog }; },
+    'posts.remind'(d) {
+      needPub();
+      const p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404);
+      const missing = db.users.filter((x) => x.status === 'active' && (p.unit_id === null || x.unit_id === p.unit_id) && !db.acks.some((a) => a.post_id === p.id && a.user_id === x.id)).length;
+      if (!missing) err('Herkes okumuş, hatırlatılacak kimse yok.');
+      return { sent: logMail('Hatırlatma: ' + p.title, missing) };
     },
   };
 

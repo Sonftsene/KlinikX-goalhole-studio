@@ -33,3 +33,16 @@ DirectoryIndex index.php
     ExpiresByType image/svg+xml "access plus 30 days"
     ExpiresByType image/png "access plus 30 days"
 </IfModule>
+
+# Hız: metin dosyalarını sıkıştır (JS kütüphaneleri ~%70 küçülür)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript text/javascript application/json image/svg+xml application/manifest+json
+</IfModule>
+<IfModule mod_expires.c>
+    ExpiresByType application/manifest+json "access plus 7 days"
+</IfModule>
+<FilesMatch "\.(js|css|png|svg|woff2)$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "public, max-age=2592000"
+    </IfModule>
+</FilesMatch>

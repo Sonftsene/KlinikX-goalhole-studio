@@ -57,15 +57,35 @@ function db(): PDO
     if (DB_DRIVER === 'mysql') {
         $pdo = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS, $opts);
     } else {
-        $dir = NM_ROOT . '/data';
-        if (!is_dir($dir)) mkdir($dir, 0755, true);
-        $pdo = new PDO('sqlite:' . $dir . '/nobetmed.sqlite', null, null, $opts);
+        $pdo = new PDO('sqlite:' . sqlite_path(), null, null, $opts);
         $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA foreign_keys = ON');
         $pdo->exec('PRAGMA busy_timeout = 5000');
     }
     nm_migrate($pdo);
     return $pdo;
+}
+
+/**
+ * Veritabanı dosyası tahmin edilemez bir adla saklanır: sunucu .htaccess kuralını
+ * uygulamasa bile dosyanın adresi bilinemez. Eski kurulumlardaki nobetmed.sqlite taşınır.
+ */
+function sqlite_path(): string
+{
+    $dir = NM_ROOT . '/data';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $nameFile = $dir . '/.dbname.php';
+    $name = is_file($nameFile) ? (string)(include $nameFile) : '';
+    if (!preg_match('/^nm-[a-f0-9]{24}\.sqlite$/', $name)) {
+        $name = 'nm-' . bin2hex(random_bytes(12)) . '.sqlite';
+        if (is_file($dir . '/nobetmed.sqlite')) {
+            foreach (['', '-wal', '-shm'] as $sfx) {
+                if (is_file($dir . '/nobetmed.sqlite' . $sfx)) @rename($dir . '/nobetmed.sqlite' . $sfx, $dir . '/' . $name . $sfx);
+            }
+        }
+        file_put_contents($nameFile, "<?php return '$name';\n");
+    }
+    return $dir . '/' . $name;
 }
 
 function q(string $sql, array $params = []): PDOStatement
@@ -109,7 +129,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 2) return;
+    if ($version >= 3) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -127,7 +147,9 @@ function nm_migrate(PDO $pdo): void
             role VARCHAR(10) NOT NULL DEFAULT 'member',
             status VARCHAR(10) NOT NULL DEFAULT 'active',
             created_at VARCHAR(19) NOT NULL,
-            last_seen_at VARCHAR(19) NULL
+            last_seen_at VARCHAR(19) NULL,
+            email_notify INT NOT NULL DEFAULT 1,
+            must_change INT NOT NULL DEFAULT 0
         )$end",
         "CREATE TABLE IF NOT EXISTS posts (
             id $pk,
@@ -162,10 +184,30 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS saves (post_id INT NOT NULL, user_id INT NOT NULL, PRIMARY KEY (post_id, user_id))$end",
         "CREATE TABLE IF NOT EXISTS rosters (id $pk, name VARCHAR(120) NOT NULL, sort INT NOT NULL DEFAULT 0, created_at VARCHAR(19) NOT NULL)$end",
         "CREATE TABLE IF NOT EXISTS roster_files (id $pk, roster_id INT NOT NULL, attachment_id INT NOT NULL, user_id INT NOT NULL, created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS mail_queue (
+            id $pk,
+            to_email VARCHAR(190) NOT NULL,
+            to_name VARCHAR(120) NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            html TEXT NOT NULL,
+            text_body TEXT NOT NULL,
+            kind VARCHAR(30) NOT NULL DEFAULT '',
+            created_at VARCHAR(19) NOT NULL,
+            attempts INT NOT NULL DEFAULT 0,
+            locked_at INT NULL,
+            sent_at VARCHAR(19) NULL,
+            error VARCHAR(255) NULL
+        )$end",
+        "CREATE TABLE IF NOT EXISTS password_resets (id $pk, user_id INT NOT NULL, token_hash VARCHAR(64) NOT NULL, expires INT NOT NULL, used INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
     foreach ($tables as $sql) $pdo->exec($sql);
 
+    // Sürüm 3: e-posta bildirimi tercihi ve ilk girişte şifre değiştirme
+    if ($version >= 1 && $version < 3) {
+        try { $pdo->exec('ALTER TABLE users ADD COLUMN email_notify INT NOT NULL DEFAULT 1'); } catch (Throwable $e) { /* zaten var */ }
+        try { $pdo->exec('ALTER TABLE users ADD COLUMN must_change INT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* zaten var */ }
+    }
     // Sürüm 1'den yükseltme: eklere nöbet listesi bağlantısı
     if ($version === 1) {
         try { $pdo->exec('ALTER TABLE attachments ADD COLUMN roster_id INT NULL'); } catch (Throwable $e) { /* zaten var */ }
@@ -180,6 +222,8 @@ function nm_migrate(PDO $pdo): void
         'CREATE INDEX idx_att_post ON attachments (post_id)',
         'CREATE INDEX idx_roster_files ON roster_files (roster_id, id)',
         'CREATE INDEX idx_login_ip ON login_attempts (ip, at)',
+        'CREATE INDEX idx_mail_pending ON mail_queue (sent_at, attempts)',
+        'CREATE INDEX idx_reset_token ON password_resets (token_hash)',
     ];
     foreach ($indexes as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { /* zaten var */ }
@@ -216,12 +260,13 @@ function nm_migrate(PDO $pdo): void
         $st->execute(['Personel Nöbet Listesi', 1, date('Y-m-d H:i:s')]);
     }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '2')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '3')");
 }
 
-function setting(string $k, string $default = ''): string
+function setting(string $k, string $default = '', bool $reset = false): string
 {
     static $cache = null;
+    if ($reset) { $cache = null; return ''; }
     if ($cache === null) {
         $cache = [];
         foreach (all('SELECT k, v FROM settings') as $r) $cache[$r['k']] = (string)$r['v'];
@@ -236,6 +281,37 @@ function set_setting(string $k, string $v): void
     } else {
         q('INSERT INTO settings (k, v) VALUES (?, ?)', [$k, $v]);
     }
+    setting('', '', true);
+}
+
+/** Sitenin kök adresi (e-postalardaki bağlantılar için) */
+function base_url(): string
+{
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return (nm_is_https() ? 'https' : 'http') . '://' . $host . $dir . '/';
+}
+
+/**
+ * config.php içinde tanımlı ilk yönetici hesabını (bir kez) oluşturur.
+ * Hesap ilk girişte şifresini değiştirmeye zorlanır.
+ */
+function ensure_initial_admin(): void
+{
+    if (!defined('INITIAL_ADMIN_EMAIL') || INITIAL_ADMIN_EMAIL === '' || !defined('INITIAL_ADMIN_PASSWORD_HASH') || INITIAL_ADMIN_PASSWORD_HASH === '') return;
+    if (setting('initial_admin_done') === '1') return;
+    $email = mb_strtolower(trim(INITIAL_ADMIN_EMAIL));
+    if (!one('SELECT id FROM users WHERE email = ?', [$email])) {
+        $name = defined('INITIAL_ADMIN_NAME') && INITIAL_ADMIN_NAME !== '' ? INITIAL_ADMIN_NAME : 'Yönetici';
+        $titleId = val("SELECT id FROM titles WHERE name = 'Hemşire'") ?: val('SELECT id FROM titles ORDER BY sort, id LIMIT 1');
+        $unitId = val('SELECT id FROM units ORDER BY sort, id LIMIT 1');
+        q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
+            [$name, $email, INITIAL_ADMIN_PASSWORD_HASH, $titleId ?: null, $unitId ?: null, 'admin', 'active', now()]);
+    }
+    if (defined('INITIAL_ORG_NAME') && INITIAL_ORG_NAME !== '' && setting('org_name', 'Klinik Portalı') === 'Klinik Portalı') {
+        set_setting('org_name', INITIAL_ORG_NAME);
+    }
+    set_setting('initial_admin_done', '1');
 }
 
 function current_user(): ?array

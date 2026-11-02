@@ -604,3 +604,6 @@ label.btn { cursor: pointer; }
   .print-only { display: block !important; }
 }
 .print-only { display: none; }
+
+.settings-save { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: var(--shadow); }
+@media (max-width: 900px) { .settings-save { bottom: calc(84px + env(safe-area-inset-bottom)); } }

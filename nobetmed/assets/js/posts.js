@@ -441,7 +441,9 @@ function renderDetail() {
           ${list.length ? list.map((u) => html`<div class="list-row">${avatar(u.name, 'sm')}<div class="grow"><div class="lr-t">${u.name}</div><div class="lr-s">${titleName(u.title_id)}</div></div>${u.at ? html`<span class="tiny faint">${fmtRel(u.at)}</span>` : ''}</div>`)
             : html`<div class="list-row muted small">${DETAIL.tab === 'readers' ? 'Henüz kimse onaylamadı.' : 'Herkes okudu.'}</div>`}
         </div>
-        ${DETAIL.tab === 'missing' && p.missing.length ? html`<div style="padding:10px 18px 14px"><button class="btn sm" data-act="copy-missing">${icon('copy', 'sm')}Okumayanların listesini kopyala</button></div>` : ''}
+        ${DETAIL.tab === 'missing' && p.missing.length ? html`<div class="row wrap" style="padding:10px 18px 14px">
+          ${S.settings.mail_ready ? html`<button class="btn sm primary" data-act="remind">${icon('send', 'sm')}Okumayanlara e-posta ile hatırlat</button>` : ''}
+          <button class="btn sm" data-act="copy-missing">${icon('copy', 'sm')}Listeyi kopyala</button></div>` : ''}
       </div>`;
   }
 
@@ -455,6 +457,7 @@ function renderDetail() {
       </div>
       ${ackBox}
       <div class="detail-body">${raw(linkify(p.body))}</div>
+      ${(() => { const m = /#\/nobet\/(\d+)/.exec(p.body); return m ? html`<div><a class="btn primary" href="#/nobet/${m[1]}" data-act="close-and-go">${icon('table', 'sm')}Nöbet listesini aç</a></div>` : ''; })()}
       ${attachmentsBlock(p.attachments)}
       ${readers}
       ${p.updated_at && p.published_at && p.updated_at > p.published_at ? html`<p class="tiny faint">Son düzenleme: ${fmtDateTime(p.updated_at)}</p>` : ''}
@@ -478,6 +481,17 @@ function renderDetail() {
   m.setFoot(foot);
 }
 ACT['readers-tab'] = (el) => { DETAIL.tab = el.dataset.tab; renderDetail(); };
+ACT['close-and-go'] = (el) => {
+  const href = el.getAttribute('href');
+  while (modalStack.length) modalStack[modalStack.length - 1].close();
+  location.hash = href;
+};
+ACT.remind = (el) => busy(el, async () => {
+  try {
+    const r = await api('posts.remind', { id: DETAIL.post.id });
+    toast(`${r.sent} kişiye hatırlatma e-postası gönderiliyor`);
+  } catch (e) { toast(e.message, 'err'); }
+});
 ACT['copy-missing'] = async () => {
   const p = DETAIL.post;
   const txt = `"${p.title}" içeriğini henüz okumayanlar:\n` + p.missing.map((u) => '• ' + u.name).join('\n');
@@ -509,8 +523,8 @@ ACT['detail-save'] = async () => {
 };
 ACT.approve = (el) => busy(el, async () => {
   try {
-    await api('posts.approve', { id: +el.dataset.id });
-    toast('İçerik yayınlandı');
+    const r = await api('posts.approve', { id: +el.dataset.id });
+    toast(r.mailed ? `İçerik yayınlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayınlandı');
     const top = modalStack[modalStack.length - 1];
     if (DETAIL && top === DETAIL.m) DETAIL.m.close();
     reloadCurrent();
@@ -559,7 +573,7 @@ async function deletePost(p) {
 /* ---------------- Paylaşım ---------------- */
 ACT.share = () => {
   const p = DETAIL.post;
-  const canGuest = isPublisher() || p.author_id === S.me.id;
+  const canGuest = S.settings.allow_guest && (isPublisher() || p.author_id === S.me.id);
   const m = openModal({ title: 'Paylaş', size: 'narrow' });
   const render = () => {
     const link = p.share ? appBaseUrl() + '?s=' + encodeURIComponent(p.share.token) : '';
@@ -632,6 +646,7 @@ function openComposer(post) {
         </div>
         <div class="stack" style="gap:12px;padding:14px;border:1px solid var(--border);border-radius:12px">
           <label class="switch"><input type="checkbox" name="required" ${post && post.required ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Okundu onayı iste</b><span>Ekip “Okudum, anladım” ile onaylar; kimin okuduğunu takip edersiniz.</span></span></label>
+          ${isPublisher() && !editing && S.settings.notify_post ? html`<label class="switch"><input type="checkbox" name="notify" checked><span class="track"></span><span class="s-text"><b>E-posta ile bildir</b><span>Yayınlanınca ilgili ekibe e-posta gider.</span></span></label>` : ''}
           ${isPublisher() ? html`<label class="switch"><input type="checkbox" name="pinned" ${post && post.pinned ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>En üste sabitle</b><span>Ana sayfada her zaman ilk sırada görünür.</span></span></label>` : ''}
         </div>
         <div class="form-error hidden" data-err></div>
@@ -693,9 +708,10 @@ FORMS.composer = (f) => submitForm(f, async (d) => {
     attachment_ids: st.atts.filter((a) => a.state === 'done' && !a.existing).map((a) => a.id),
     remove_attachment_ids: st.removed,
   };
+  if ('notify' in d) payload.notify = !!d.notify;
   const r = await api('posts.save', payload);
   f._modal.close();
-  toast(r.status === 'published' ? (f._post ? 'Değişiklikler kaydedildi' : 'İçerik yayınlandı') : 'İçerik onaya gönderildi');
+  toast(r.status === 'published' ? (f._post ? 'Değişiklikler kaydedildi' : r.mailed ? `İçerik yayınlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayınlandı') : 'İçerik onaya gönderildi');
   if (DETAIL && f._post && DETAIL.post && DETAIL.post.id === f._post.id && modalStack.includes(DETAIL.m)) {
     const g = await api('posts.get', { id: f._post.id });
     DETAIL.post = g.post;

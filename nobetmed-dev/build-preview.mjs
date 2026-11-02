@@ -29,6 +29,7 @@ window.NM_DEMO_FILES = ${JSON.stringify(Object.fromEntries([...fs.readdirSync(pa
   const mime = { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }[f.split('.').pop()] || 'application/octet-stream';
   return [f, 'data:' + mime + ';base64,' + fs.readFileSync(full).toString('base64')];
 })))};
+${extraDir && fs.existsSync(path.join(extraDir, 'demo-admin.json')) ? `window.NM_DEMO_ADMIN = ${fs.readFileSync(path.join(extraDir, 'demo-admin.json'), 'utf8').trim()};` : ''}
 ${extraDir ? `window.NM_DEMO_ROSTERS = ${JSON.stringify(fs.readdirSync(extraDir).filter((f) => f.endsWith('.xlsx')).sort().reverse().map((f) => [f.replace(/\.xlsx$/, '').replace(/-kasim-(\d)-basamak/, ' $1. Basamak').replace(/^yogun-bakim/, 'Yoğun Bakım').replace(/-/g, ' '), f]))};` : ''}
 </script>
 <script>

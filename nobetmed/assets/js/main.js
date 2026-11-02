@@ -7,14 +7,26 @@ async function start() {
     return renderGuest(BOOT.share);
   }
   const r = await api('boot');
+  S.mail_ready = !!r.mail_ready;
   S.csrf = r.csrf || S.csrf;
   ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });
   S.people = r.people || [];
   if (r.counts) S.counts = r.counts;
   document.title = 'NöbetMed · ' + (S.settings.org_name || 'Klinik Portalı');
   if (r.setup_needed) return renderSetup();
+  if (BOOT.reset && !start.resetShown) {
+    start.resetShown = true;
+    history.replaceState(null, '', location.pathname);
+    return renderReset(BOOT.reset);
+  }
   if (!S.me) return renderAuth('login');
+  if (S.me.must_change) return renderForceChange();
   renderShell();
+  // Nöbet listesi görüntüleyicisini arka planda önbelleğe al (ilk açılış hızlı olsun)
+  setTimeout(() => {
+    if (window.NM_DEMO_API) return;
+    ['exceljs', 'pdf'].forEach((k) => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = VENDOR[k]; document.head.appendChild(l); });
+  }, 2500);
   route();
 }
 
