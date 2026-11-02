@@ -1,0 +1,402 @@
+/* NöbetMed — canlı önizleme için tarayıcı içi demo API (sunucu gerektirmez).
+   api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
+(function () {
+  'use strict';
+  const KEY = 'nm-demo-v2';
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const now = () => fmt(new Date());
+  const ago = (h) => fmt(new Date(Date.now() - h * 3600000));
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const lower = (s) => String(s || '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr-TR');
+  const err = (message, status = 400) => { const e = new Error(message); e.status = status; throw e; };
+  const token = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8);
+
+  function poster(title, lines, color) {
+    const items = lines.map((l, i) => `<g transform="translate(60 ${190 + i * 62})"><rect width="34" height="34" rx="9" fill="${color}" opacity=".15"/><path d="M9 18l6 6 11-12" stroke="${color}" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="54" y="24" font-family="Inter,Arial" font-size="22" fill="#0f1b21">${l}</text></g>`).join('');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="${250 + lines.length * 62}" viewBox="0 0 960 ${250 + lines.length * 62}"><rect width="100%" height="100%" fill="#f6faf9"/><rect width="100%" height="120" fill="${color}"/><text x="60" y="76" font-family="Inter,Arial" font-weight="700" font-size="34" fill="#fff">${title}</text>${items}</svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  const PDF = 'data:application/pdf;base64,' + btoa('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 595 842]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj 4 0 obj<</Length 66>>stream\nBT /F1 22 Tf 60 760 Td (NobetMed demo belgesi) Tj ET\nendstream endobj 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
+
+  function seed() {
+    const db = {
+      seq: 1000,
+      settings: { org_name: 'Şehir Hastanesi Yoğun Bakım', registration: 'approval', banner_on: true, banner_text: 'Kalite denetimi: 6 Kasım Cuma 09:30 — acil arabası mühürleri ve buzdolabı ısı takip formlarını kontrol edin.', banner_tone: 'danger' },
+      units: [{ id: 1, name: 'Yoğun Bakım' }, { id: 2, name: 'Acil Servis' }, { id: 3, name: 'Dahiliye Servisi' }],
+      titles: [{ id: 1, name: 'Sorumlu Hemşire' }, { id: 2, name: 'Sorumlu Hemşire Yardımcısı' }, { id: 3, name: 'Eğitim Hemşiresi' }, { id: 4, name: 'Hemşire' }, { id: 5, name: 'Personel' }],
+      categories: [
+        { id: 1, name: 'Duyurular', icon: 'megaphone', color: 'rose' },
+        { id: 2, name: 'Eğitim & Video', icon: 'play', color: 'violet' },
+        { id: 3, name: 'Klinik Protokoller', icon: 'stethoscope', color: 'teal' },
+        { id: 4, name: 'Belgeler & Formlar', icon: 'file', color: 'sky' },
+        { id: 5, name: 'Toplantı Kararları', icon: 'users', color: 'amber' },
+      ],
+      shift_types: [{ id: 1, name: 'Gündüz', start: '08:00', end: '16:00', color: 'amber' }, { id: 2, name: 'Gece', start: '16:00', end: '08:00', color: 'indigo' }],
+      users: [
+        [1, 'Ayşe Kaya', 'ayse.kaya@hastane.org', 1, 1, 'admin', 'active', 0.2],
+        [2, 'Mehmet Öztürk', 'mehmet.ozturk@hastane.org', 2, 2, 'editor', 'active', 3],
+        [3, 'Elif Yılmaz', 'elif.yilmaz@hastane.org', 4, 1, 'member', 'active', 1],
+        [4, 'Burak Demir', 'burak.demir@hastane.org', 4, 1, 'member', 'active', 20],
+        [5, 'Zeynep Koç', 'zeynep.koc@hastane.org', 4, 1, 'member', 'active', 5],
+        [6, 'Seda Nur Aydın', 'seda.aydin@hastane.org', 4, 1, 'member', 'active', 30],
+        [7, 'Ceren Aksoy', 'ceren.aksoy@hastane.org', 3, 1, 'editor', 'active', 8],
+        [8, 'Mert Tan', 'mert.tan@hastane.org', 4, 2, 'member', 'active', 50],
+        [9, 'Selin Arslan', 'selin.arslan@gmail.com', 5, 3, 'member', 'pending', null],
+        [10, 'Kemal Bulut', 'kemal.bulut@hastane.org', 5, 1, 'member', 'active', 70],
+      ].map(([id, name, email, title_id, unit_id, role, status, seen]) => ({ id, name, email, title_id, unit_id, role, status, created_at: ago(24 * 40 + id), last_seen_at: seen === null ? null : ago(seen), has_password: true, pw: 'demo1234' })),
+      posts: [], attachments: [], acks: [], views: [], saves: [], shifts: [],
+      me: 1,
+    };
+    const P = (o) => { const p = { id: ++db.seq, unit_id: null, status: 'published', pinned: false, required: false, reject_reason: null, share_token: null, share_expires: null, ...o }; p.created_at = p.created_at || ago(o.h || 1); p.updated_at = p.created_at; p.published_at = p.status === 'published' ? p.created_at : null; delete p.h; db.posts.push(p); return p; };
+    const A = (post, name, mime, size, url) => db.attachments.push({ id: ++db.seq, post_id: post.id, user_id: post.author_id, name, mime, size, url });
+
+    const p1 = P({ title: 'Yüksek riskli ilaçlarda çift kontrol protokolü (güncel)', category_id: 3, author_id: 1, pinned: true, required: true, h: 26,
+      body: 'İnsülin, heparin, potasyum klorür ve narkotik analjeziklerin hazırlanması ve uygulanması sırasında iki hemşirenin bağımsız kontrolü ve imzası zorunludur.\n\nKontrol adımları:\n1. Doğru hasta, doğru ilaç, doğru doz, doğru yol, doğru zaman\n2. İkinci hemşire hesaplamayı bağımsız olarak yapar\n3. Her iki hemşire ilaç uygulama formunu imzalar\n\nEkteki kontrol listesini ilaç odasına asınız.' });
+    A(p1, 'cift-kontrol-kontrol-listesi.png', 'image/svg+xml', 182000, poster('Çift Kontrol Kontrol Listesi', ['Hasta kimliği iki tanımlayıcı ile doğrulandı', 'İlaç adı ve konsantrasyon okundu', 'Doz hesabı ikinci hemşirece yapıldı', 'Pompa hızı birlikte kontrol edildi', 'Uygulama formu iki imzalı'], '#0b7a75'));
+    A(p1, 'Yuksek_Riskli_Ilac_Protokolu_2026.pdf', 'application/pdf', 418000, PDF);
+    const p2 = P({ title: '6 Kasım Cuma kalite denetimi hazırlıkları', category_id: 1, author_id: 1, pinned: true, required: true, h: 5,
+      body: 'Cuma 09:30\'da iç denetim yapılacaktır. Lütfen vardiya teslimlerinde aşağıdakileri kontrol edin:\n\n• Acil arabası mühür ve sayım formu\n• İlaç buzdolabı ısı takip çizelgesi\n• Atık ayrıştırma kutularının doluluk seviyesi\n• Hasta düşme riski değerlendirme formları\n\nSorularınız için Ayşe Hemşire\'ye ulaşabilirsiniz.' });
+    const p3 = P({ title: 'Mavi kod ve yeni defibrilatör kullanımı eğitimi', category_id: 2, author_id: 7, required: true, h: 52,
+      body: 'Yeni bifazik defibrilatörün ped yerleşimi, enerji seçimi ve olay kayıt formu adımlarını içeren uygulamalı eğitim kaydı. Tüm ekibin izlemesi zorunludur. Süre: 14 dk.' });
+    A(p3, 'defibrilator-egitim-ozeti.png', 'image/svg+xml', 96000, poster('Defibrilatör — Hızlı Bakış', ['Pedleri sağ klavikula altı ve sol koltuk altına yerleştirin', 'Erişkin bifazik: 150–200 J', 'Şok öncesi “Herkes uzak!” uyarısı', 'Şok sonrası 2 dk KPR, sonra ritim kontrolü'], '#7b45c4'));
+    const p4 = P({ title: 'Ekim ayı hemşirelik toplantısı kararları', category_id: 5, author_id: 1, h: 24 * 5,
+      body: 'Alınan kararlar:\n- Nöbet teslim süresi 15 dakika olarak sabitlendi.\n- Order kontrol saatleri 10:00 ve 22:00.\n- Yeni başlayan hemşirelerin oryantasyon programı 2 haftaya çıkarıldı.\n- Bir sonraki toplantı: 1 Aralık, 14:00, eğitim salonu.' });
+    A(p4, 'Ekim_2026_Toplanti_Tutanagi.pdf', 'application/pdf', 230000, PDF);
+    const p5 = P({ title: 'SVK pansuman değişimi ve enfeksiyon önleme rehberi', category_id: 4, author_id: 3, unit_id: 1, h: 24 * 7,
+      body: 'Klorheksidinli pansuman 7 günde bir veya kirlendiğinde değiştirilir. Lümen yıkama protokolü ve kateter ilişkili kan dolaşımı enfeksiyonu önleme kontrol listesi ektedir.' });
+    A(p5, 'SVK_Bakim_Rehberi_v4.pdf', 'application/pdf', 512000, PDF);
+    P({ title: 'Kasım ayı nöbet listesi yayınlandı', category_id: 1, author_id: 2, h: 24 * 3,
+      body: 'Kasım ayı nöbet çizelgesi portaldaki “Nöbet çizelgesi” bölümünde yayınlanmıştır. Değişiklik talepleriniz için en geç 3 gün önceden sorumlu hemşirenize başvurunuz.' });
+    P({ title: 'Basınç yarası risk değerlendirmesi (Braden) formu', category_id: 4, author_id: 7, h: 24 * 12,
+      body: 'Yatışta ve her vardiyada Braden skoru hesaplanmalı, 12 ve altı skorlarda önleme protokolü başlatılmalıdır.' });
+    P({ title: 'Nebülizatör temizliği ve hasta yakını bilgilendirme', category_id: 2, author_id: 4, status: 'pending', h: 3,
+      body: 'Çocuk hastalarda maske uyumu ve nebülizatör haznesinin her kullanım sonrası dezenfeksiyonunu anlatan 6 dakikalık eğitim içeriği.' });
+    P({ title: 'Kan transfüzyonu izlem formu doldurma kılavuzu', category_id: 4, author_id: 5, status: 'pending', h: 20,
+      body: 'İlk 15 dakika vital bulgu takibi ve transfüzyon reaksiyonu geliştiğinde doldurulacak bildirim adımları.' });
+
+    // okuma ve görüntüleme kayıtları
+    const ack = (p, ids) => ids.forEach((u, i) => { db.acks.push({ post_id: p.id, user_id: u, created_at: ago(i + 1) }); db.views.push({ post_id: p.id, user_id: u }); });
+    ack(p1, [1, 2, 3, 5, 7, 10]);
+    ack(p2, [1, 7]);
+    ack(p3, [1, 2, 4, 7]);
+    db.posts.filter((p) => p.status === 'published').forEach((p) => [1, 2, 7].forEach((u) => { if (!db.views.some((v) => v.post_id === p.id && v.user_id === u)) db.views.push({ post_id: p.id, user_id: u }); }));
+    db.views = db.views.filter((v) => !(v.user_id === 1 && v.post_id === p3.id));
+    db.saves.push({ post_id: p1.id, user_id: 1 }, { post_id: p4.id, user_id: 3 });
+
+    // nöbet çizelgesi: bu ay ve gelecek ay, Yoğun Bakım
+    const staff = [1, 3, 4, 5, 6, 7];
+    const nameOf = (id) => db.users.find((u) => u.id === id).name;
+    const start = new Date(); start.setDate(1);
+    for (let k = 0; k < 62; k++) {
+      const d = new Date(start); d.setDate(1 + k);
+      const ds = ymd(d);
+      const day = [staff[(2 * k) % 6], staff[(2 * k + 1) % 6]];
+      const night = [staff[(2 * k + 4) % 6], staff[(2 * k + 5) % 6]];
+      day.forEach((u) => db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 1, user_id: u, name: nameOf(u) }));
+      night.forEach((u) => db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 2, user_id: u, name: nameOf(u) }));
+      if (k % 3 === 0) db.shifts.push({ id: ++db.seq, unit_id: 1, date: ds, type_id: 2, user_id: null, name: 'Pers. Kemal B.' });
+      db.shifts.push({ id: ++db.seq, unit_id: 2, date: ds, type_id: k % 2 ? 1 : 2, user_id: 8, name: 'Mert Tan' });
+    }
+    return db;
+  }
+
+  let db;
+  try { db = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { db = null; }
+  if (!db || !db.users) db = seed();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db, (k, v) => (k === 'blobUrl' ? undefined : v))); } catch (e) { /* kota */ } };
+  save();
+
+  const me = () => { const u = db.users.find((x) => x.id === db.me); return u && u.status === 'active' ? u : null; };
+  const needUser = () => me() || err('Bu işlem için giriş yapmalısınız.', 401);
+  const isPub = (u) => u && (u.role === 'admin' || u.role === 'editor');
+  const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
+  const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
+  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true });
+  const lists = () => ({ categories: db.categories, units: db.units, titles: db.titles, shift_types: db.shift_types });
+  const canView = (u, p) => isPub(u) || p.author_id === u.id || (p.status === 'published' && (p.unit_id === null || p.unit_id === u.unit_id));
+  const visible = (u, p) => p.status === 'published' && (isPub(u) || p.unit_id === null || p.unit_id === u.unit_id);
+  const has = (arr, p, u) => arr.some((x) => x.post_id === p.id && x.user_id === u.id);
+  const audience = (p) => db.users.filter((u) => u.status === 'active' && (p.unit_id === null || u.unit_id === p.unit_id)).length;
+  const attsOf = (id) => db.attachments.filter((a) => a.post_id === id).map((a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl || a.url }));
+  function postOut(p, u) {
+    const author = db.users.find((x) => x.id === p.author_id);
+    return {
+      ...p, excerpt: p.body.replace(/\s+/g, ' ').slice(0, 220), author_name: author ? author.name : 'Silinmiş kullanıcı', author_title_id: author ? author.title_id : null,
+      att_count: db.attachments.filter((a) => a.post_id === p.id).length, ack_count: db.acks.filter((a) => a.post_id === p.id).length, audience: audience(p),
+      viewed: has(db.views, p, u), saved: has(db.saves, p, u), acked: has(db.acks, p, u),
+    };
+  }
+  function counts(u) {
+    const vis = db.posts.filter((p) => visible(u, p));
+    const byCat = {};
+    let unread = 0;
+    vis.filter((p) => !has(db.views, p, u)).forEach((p) => { byCat[p.category_id] = (byCat[p.category_id] || 0) + 1; unread++; });
+    return {
+      unread, unread_by_cat: byCat, todo: vis.filter((p) => p.required && !has(db.acks, p, u)).length,
+      saved: db.saves.filter((s) => s.user_id === u.id).length,
+      pending_posts: isPub(u) ? db.posts.filter((p) => p.status === 'pending').length : 0,
+      pending_users: u.role === 'admin' ? db.users.filter((x) => x.status === 'pending').length : 0,
+    };
+  }
+  const sortKey = (p) => p.published_at || p.created_at;
+
+  const H = {
+    boot() {
+      const u = me();
+      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 25, ...lists() };
+      if (u) {
+        Object.assign(out.settings, { banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone });
+        out.counts = counts(u);
+        out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+      }
+      return out;
+    },
+    'auth.login'(d) {
+      const u = db.users.find((x) => x.email === lower(d.email));
+      if (!u || d.password !== u.pw) err('E-posta veya şifre hatalı. (Demo şifresi: demo1234)', 401);
+      if (u.status === 'pending') err('Hesabınız yönetici onayı bekliyor. Onaylandığında giriş yapabilirsiniz.', 403);
+      if (u.status !== 'active') err('Hesabınız devre dışı bırakılmış.', 403);
+      db.me = u.id; u.last_seen_at = now(); return {};
+    },
+    'auth.register'(d) {
+      if (db.settings.registration === 'closed') err('Yeni üye kaydı şu anda kapalı.', 403);
+      if ((d.name || '').trim().length < 3) err('Ad soyad girin.');
+      if ((d.password || '').length < 8) err('Şifre en az 8 karakter olmalıdır.');
+      const email = lower(d.email);
+      if (db.users.some((u) => u.email === email)) err('Bu e-posta ile zaten bir hesap var.', 409);
+      const status = db.settings.registration === 'open' ? 'active' : 'pending';
+      const u = { id: ++db.seq, name: d.name.trim(), email, title_id: d.title_id, unit_id: d.unit_id, role: 'member', status, created_at: now(), last_seen_at: null, pw: d.password };
+      db.users.push(u);
+      if (status === 'active') { db.me = u.id; return { pending: false }; }
+      return { pending: true };
+    },
+    'auth.logout'() { db.me = null; return {}; },
+    'me.update'(d) { const u = needUser(); if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
+    'me.password'(d) { const u = needUser(); if (d.current !== u.pw) err('Mevcut şifre hatalı. (Demo şifresi: demo1234)'); if ((d.password || '').length < 8) err('Şifre en az 8 karakter olmalıdır.'); u.pw = d.password; return {}; },
+    counts() { return { counts: counts(needUser()) }; },
+    'posts.list'(d) {
+      const u = needUser();
+      let list;
+      if (d.filter === 'mine') list = db.posts.filter((p) => p.author_id === u.id);
+      else if (d.filter === 'pending') { if (!isPub(u)) err('Yetkiniz yok.', 403); list = db.posts.filter((p) => p.status === 'pending'); }
+      else {
+        list = db.posts.filter((p) => visible(u, p));
+        if (d.filter === 'unread') list = list.filter((p) => !has(db.views, p, u));
+        if (d.filter === 'todo') list = list.filter((p) => p.required && !has(db.acks, p, u));
+        if (d.filter === 'saved') list = list.filter((p) => has(db.saves, p, u));
+      }
+      if (d.category_id) list = list.filter((p) => p.category_id === d.category_id);
+      if (d.q) { const q = lower(d.q); list = list.filter((p) => lower(p.title + ' ' + p.body).includes(q)); }
+      const pinFirst = (d.filter || 'all') === 'all' && !d.q;
+      list.sort((a, b) => (pinFirst ? (b.pinned - a.pinned) : 0) || sortKey(b).localeCompare(sortKey(a)) || b.id - a.id);
+      const off = d.offset || 0;
+      return { items: list.slice(off, off + 20).map((p) => postOut(p, u)), has_more: list.length > off + 20 };
+    },
+    'posts.get'(d) {
+      const u = needUser();
+      const p = db.posts.find((x) => x.id === d.id);
+      if (!p || !canView(u, p)) err('İçerik bulunamadı veya erişim yetkiniz yok.', 404);
+      if (p.status === 'published' && !has(db.views, p, u)) db.views.push({ post_id: p.id, user_id: u.id });
+      const out = postOut(p, u);
+      out.attachments = attsOf(p.id);
+      const manage = isPub(u) || p.author_id === u.id;
+      out.share = manage && p.share_token && (!p.share_expires || p.share_expires > now()) ? { token: p.share_token, expires: p.share_expires } : null;
+      if (manage && p.required && p.status === 'published') {
+        const aud = db.users.filter((x) => x.status === 'active' && (p.unit_id === null || x.unit_id === p.unit_id));
+        out.readers = db.acks.filter((a) => a.post_id === p.id).sort((a, b) => b.created_at.localeCompare(a.created_at)).map((a) => { const x = db.users.find((y) => y.id === a.user_id); return x ? { id: x.id, name: x.name, title_id: x.title_id, at: a.created_at } : null; }).filter(Boolean);
+        out.missing = aud.filter((x) => !db.acks.some((a) => a.post_id === p.id && a.user_id === x.id)).map((x) => ({ id: x.id, name: x.name, title_id: x.title_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+      }
+      return { post: out };
+    },
+    'posts.save'(d) {
+      const u = needUser();
+      if ((d.title || '').trim().length < 3) err('Başlık en az 3 karakter olmalıdır.');
+      if (!(d.body || '').trim()) err('İçerik metni boş olamaz.');
+      if (!db.categories.some((c) => c.id === d.category_id)) err('Geçerli bir bölüm seçin.');
+      const pub = isPub(u);
+      let p;
+      if (d.id) {
+        p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404);
+        if (!pub && !(p.author_id === u.id && p.status !== 'published')) err('Bu içeriği düzenleme yetkiniz yok.', 403);
+        Object.assign(p, { title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, required: !!d.required, updated_at: now(), reject_reason: null });
+        if (pub) p.pinned = !!d.pinned; else p.status = 'pending';
+      } else {
+        p = { id: ++db.seq, title: d.title.trim(), body: d.body.trim(), category_id: d.category_id, unit_id: d.unit_id, author_id: u.id, status: pub ? 'published' : 'pending', pinned: pub && !!d.pinned, required: !!d.required, reject_reason: null, share_token: null, share_expires: null, created_at: now(), updated_at: now(), published_at: pub ? now() : null };
+        db.posts.push(p);
+        db.views.push({ post_id: p.id, user_id: u.id });
+      }
+      (d.remove_attachment_ids || []).forEach((id) => { db.attachments = db.attachments.filter((a) => !(a.id === id && a.post_id === p.id)); });
+      (d.attachment_ids || []).forEach((id) => { const a = db.attachments.find((x) => x.id === id && x.post_id === null && x.user_id === u.id); if (a) a.post_id = p.id; });
+      return { id: p.id, status: p.status };
+    },
+    'posts.delete'(d) {
+      const u = needUser();
+      const p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404);
+      if (!isPub(u) && !(p.author_id === u.id && p.status !== 'published')) err('Bu içeriği silme yetkiniz yok.', 403);
+      db.posts = db.posts.filter((x) => x !== p);
+      ['attachments', 'acks', 'views', 'saves'].forEach((k) => { db[k] = db[k].filter((x) => x.post_id !== p.id); });
+      return {};
+    },
+    'posts.approve'(d) { needPub(); const p = db.posts.find((x) => x.id === d.id && x.status === 'pending') || err('Onay bekleyen içerik bulunamadı.', 404); Object.assign(p, { status: 'published', published_at: now(), updated_at: now(), reject_reason: null }); return {}; },
+    'posts.reject'(d) { needPub(); const p = db.posts.find((x) => x.id === d.id && x.status === 'pending') || err('Onay bekleyen içerik bulunamadı.', 404); Object.assign(p, { status: 'rejected', reject_reason: d.reason || null, updated_at: now() }); return {}; },
+    'posts.pin'(d) { needPub(); const p = db.posts.find((x) => x.id === d.id); if (p) p.pinned = !!d.pinned; return {}; },
+    'posts.ack'(d) { const u = needUser(); const p = db.posts.find((x) => x.id === d.id); if (!p || !canView(u, p)) err('İçerik bulunamadı.', 404); if (!has(db.acks, p, u)) db.acks.push({ post_id: p.id, user_id: u.id, created_at: now() }); return {}; },
+    'posts.bookmark'(d) { const u = needUser(); const p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404); db.saves = db.saves.filter((s) => !(s.post_id === p.id && s.user_id === u.id)); if (d.saved) db.saves.push({ post_id: p.id, user_id: u.id }); return {}; },
+    'posts.share'(d) {
+      const u = needUser(); const p = db.posts.find((x) => x.id === d.id);
+      if (!p || p.status !== 'published') err('Yalnızca yayınlanmış içerikler paylaşılabilir.');
+      if (!isPub(u) && p.author_id !== u.id) err('Paylaşım bağlantısı oluşturma yetkiniz yok.', 403);
+      if (!d.days) { p.share_token = null; p.share_expires = null; return { share: null }; }
+      p.share_token = token(); p.share_expires = fmt(new Date(Date.now() + Math.min(d.days, 365) * 86400000));
+      return { share: { token: p.share_token, expires: p.share_expires } };
+    },
+    'shifts.month'(d) {
+      needUser();
+      const [y, m] = d.month.split('-').map(Number);
+      const from = ymd(new Date(y, m - 1, 0)), to = ymd(new Date(y, m, 1));
+      return { shifts: db.shifts.filter((s) => s.unit_id === d.unit_id && s.date >= from && s.date <= to) };
+    },
+    'shifts.set'(d) {
+      needPub();
+      db.shifts = db.shifts.filter((s) => !(s.unit_id === d.unit_id && s.date === d.date && s.type_id === d.type_id));
+      (d.people || []).forEach((p) => db.shifts.push({ id: ++db.seq, unit_id: d.unit_id, date: d.date, type_id: d.type_id, user_id: p.user_id || null, name: p.user_id ? db.users.find((u) => u.id === p.user_id).name : p.name }));
+      return {};
+    },
+    'shifts.mine'() {
+      const u = needUser();
+      const from = ymd(new Date(Date.now() - 86400000)), to = ymd(new Date(Date.now() + 60 * 86400000));
+      return { shifts: db.shifts.filter((s) => s.user_id === u.id && s.date >= from && s.date <= to).sort((a, b) => a.date.localeCompare(b.date) || a.type_id - b.type_id) };
+    },
+    'admin.users'() {
+      needAdmin();
+      return { users: db.users.slice().sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || a.name.localeCompare(b.name, 'tr')).map((u) => ({ ...userOut(u), post_count: db.posts.filter((p) => p.author_id === u.id).length })) };
+    },
+    'admin.user.save'(d) {
+      needAdmin();
+      const email = lower(d.email);
+      if ((d.name || '').trim().length < 3) err('Ad soyad girin.');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) err('Geçerli bir e-posta adresi girin.');
+      if (db.users.some((u) => u.email === email && u.id !== d.id)) err('Bu e-posta başka bir hesapta kullanılıyor.', 409);
+      const admins = db.users.filter((u) => u.role === 'admin' && u.status === 'active').length;
+      if (d.id) {
+        const u = db.users.find((x) => x.id === d.id) || err('Kullanıcı bulunamadı.', 404);
+        if (u.role === 'admin' && u.status === 'active' && (d.role !== 'admin' || d.status !== 'active') && admins <= 1) err('Sistemde en az bir aktif yönetici kalmalıdır.');
+        Object.assign(u, { name: d.name.trim(), email, role: d.role, status: d.status, title_id: d.title_id, unit_id: d.unit_id });
+        return { id: u.id };
+      }
+      const pw = d.password || token().slice(0, 8);
+      if (pw.length < 8) err('Şifre en az 8 karakter olmalıdır.');
+      const u = { id: ++db.seq, name: d.name.trim(), email, role: d.role || 'member', status: 'active', title_id: d.title_id, unit_id: d.unit_id, created_at: now(), last_seen_at: null, pw };
+      db.users.push(u);
+      return { id: u.id, password: d.password ? null : pw };
+    },
+    'admin.user.resetpw'(d) { needAdmin(); const u = db.users.find((x) => x.id === d.id) || err('Kullanıcı bulunamadı.', 404); u.pw = token().slice(0, 8); return { password: u.pw }; },
+    'admin.user.delete'(d) {
+      const a = needAdmin();
+      if (d.id === a.id) err('Kendi hesabınızı silemezsiniz.');
+      db.users = db.users.filter((u) => u.id !== d.id);
+      ['acks', 'views', 'saves'].forEach((k) => { db[k] = db[k].filter((x) => x.user_id !== d.id); });
+      db.shifts.forEach((s) => { if (s.user_id === d.id) s.user_id = null; });
+      return {};
+    },
+    'tax.save'(d) {
+      needAdmin();
+      const list = db[d.kind] || err('Geçersiz tür.');
+      if ((d.name || '').trim().length < 2) err('Ad en az 2 karakter olmalıdır.');
+      const vals = { name: d.name.trim() };
+      if (d.kind === 'categories') Object.assign(vals, { icon: d.icon, color: d.color });
+      if (d.kind === 'shift_types') { if (!/^\d{2}:\d{2}$/.test(d.start) || !/^\d{2}:\d{2}$/.test(d.end)) err('Saatleri SS:DD biçiminde girin.'); Object.assign(vals, { start: d.start, end: d.end, color: d.color }); }
+      if (d.id) Object.assign(list.find((x) => x.id === d.id) || err('Kayıt bulunamadı.', 404), vals);
+      else list.push({ id: ++db.seq, ...vals });
+      return { id: d.id, ...lists() };
+    },
+    'tax.delete'(d) {
+      needAdmin();
+      const list = db[d.kind];
+      if (list.length <= 1) err('En az bir kayıt kalmalıdır.');
+      if (d.kind === 'categories') { const n = db.posts.filter((p) => p.category_id === d.id).length; if (n) err(`Bu bölümde ${n} içerik var. Önce içerikleri başka bölüme taşıyın veya silin.`); }
+      if (d.kind === 'units') { const n = db.shifts.filter((s) => s.unit_id === d.id).length; if (n) err(`Bu birimin nöbet çizelgesinde ${n} kayıt var. Önce çizelgeyi temizleyin.`); db.users.forEach((u) => { if (u.unit_id === d.id) u.unit_id = null; }); db.posts.forEach((p) => { if (p.unit_id === d.id) p.unit_id = null; }); }
+      if (d.kind === 'titles') db.users.forEach((u) => { if (u.title_id === d.id) u.title_id = null; });
+      if (d.kind === 'shift_types') { const n = db.shifts.filter((s) => s.type_id === d.id).length; if (n) err(`Bu vardiya türü çizelgede ${n} kez kullanılıyor. Önce o atamaları kaldırın.`); }
+      db[d.kind] = list.filter((x) => x.id !== d.id);
+      return lists();
+    },
+    'settings.save'(d) {
+      needAdmin();
+      Object.assign(db.settings, { org_name: d.org_name || db.settings.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text || '', banner_tone: d.banner_tone });
+      return {};
+    },
+  };
+
+  window.NM_DEMO_API = {
+    async call(action, data) {
+      await new Promise((r) => setTimeout(r, 120 + Math.random() * 120));
+      const fn = H[action];
+      if (!fn) err('Bu işlem önizlemede desteklenmiyor.', 404);
+      const r = fn(JSON.parse(JSON.stringify(data || {})));
+      save();
+      return { ok: true, ...r };
+    },
+    upload(file, onProgress) {
+      return new Promise((resolve, reject) => {
+        const u = me();
+        if (!u) return reject(new Error('Giriş gerekli'));
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'webm', 'mov', 'm4v', 'mp3', 'm4a', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt'];
+        if (!allowed.includes(ext)) return reject(new Error('Bu dosya türü desteklenmiyor: .' + ext));
+        let p = 0;
+        const t = setInterval(() => {
+          p = Math.min(1, p + 0.18 + Math.random() * 0.2);
+          onProgress && onProgress(p);
+          if (p >= 1) {
+            clearInterval(t);
+            const a = { id: ++db.seq, post_id: null, user_id: u.id, name: file.name, mime: file.type || 'application/octet-stream', size: file.size, url: '', blobUrl: URL.createObjectURL(file) };
+            db.attachments.push(a);
+            save();
+            resolve({ id: a.id, name: a.name, mime: a.mime, size: a.size, url: a.blobUrl });
+          }
+        }, 160);
+      });
+    },
+    switchUser(id) { db.me = id; save(); },
+    reset() { try { localStorage.removeItem(KEY); } catch (e) { /* */ } db = seed(); save(); },
+    users() { return db.users.filter((u) => u.status === 'active'); },
+    current() { return db.me; },
+  };
+
+  // Önizleme çubuğu: rol değiştirme ve sıfırlama
+  function bar() {
+    const el = document.createElement('div');
+    el.id = 'demoBar';
+    el.innerHTML = `<style>
+      #demoBar{position:fixed;z-index:50;right:16px;bottom:16px;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:12px;background:#0f1b21;color:#fff;font:600 12px Inter,system-ui,sans-serif;box-shadow:0 12px 30px -10px rgba(0,0,0,.5)}
+      #demoBar select,#demoBar button{height:30px;border-radius:8px;border:0;background:rgba(255,255,255,.12);color:#fff;font:600 12px Inter,system-ui,sans-serif;padding:0 8px}
+      #demoBar select option{color:#0f1b21}
+      @media (max-width:900px){#demoBar{right:8px;left:8px;bottom:calc(74px + env(safe-area-inset-bottom));justify-content:space-between}}
+      @media print{#demoBar{display:none}}
+    </style><span>Önizleme</span><select aria-label="Kullanıcı"></select><button type="button" data-r>Sıfırla</button>`;
+    const sel = el.querySelector('select');
+    const roleTr = { admin: 'Yönetici', editor: 'Yayıncı', member: 'Üye' };
+    const fill = () => {
+      sel.innerHTML = '<option value="0">Çıkış yapmış</option>' + window.NM_DEMO_API.users().map((u) => `<option value="${u.id}">${u.name} — ${roleTr[u.role]}</option>`).join('');
+      sel.value = String(window.NM_DEMO_API.current() || 0);
+    };
+    fill();
+    sel.addEventListener('focus', fill);
+    sel.addEventListener('change', async () => {
+      window.NM_DEMO_API.switchUser(+sel.value || null);
+      history.replaceState(null, '', '#/');
+      if (typeof S !== 'undefined') { S.me = null; S.bannerHidden = false; }
+      await start();
+    });
+    el.querySelector('[data-r]').addEventListener('click', async () => {
+      window.NM_DEMO_API.reset();
+      fill();
+      history.replaceState(null, '', '#/');
+      await start();
+    });
+    document.body.appendChild(el);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
+})();
