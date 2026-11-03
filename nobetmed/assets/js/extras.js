@@ -1316,7 +1316,7 @@ function brandCardHtml() {
     <div class="field"><label>Logo boyutu: <b id="logoHval">${h} px</b></label>
       <input class="range" type="range" min="20" max="96" step="2" value="${h}" data-input="brand-h" aria-label="Logo boyutu"></div>
     <div class="fav-row">
-      <span class="fav-prev"><img src="${b.icon || 'assets/icon.svg'}" alt=""></span>
+      <span class="fav-prev">${b.icon ? html`<img src="${b.icon}" alt="">` : BRAND_MARK}</span>
       <div class="grow" style="min-width:0"><b class="small">Favicon ve uygulama simgesi</b><div class="tiny faint">Tarayıcı sekmesinde ve telefona eklenince ana ekranda görünür. Kare (en az 512×512) PNG veya SVG.</div></div>
       <div class="row" style="gap:6px"><label class="btn sm">${icon('upload', 'sm')}Yükle<input type="file" hidden accept="image/png,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp" data-change="brand-icon"></label>
       ${b.icon ? html`<button type="button" class="btn sm icon" data-act="brand-del" data-k="icon" aria-label="Varsayılana dön" title="Varsayılana dön">${icon('x', 'sm')}</button>` : ''}</div>
