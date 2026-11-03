@@ -101,6 +101,10 @@ ACT['u-menu'] = (el) => {
   const u = AD.users.find((x) => x.id === +el.dataset.id);
   const items = [{ id: 'e', icon: 'edit', label: 'Düzenle', run: () => userModal(u) },
     { id: 'p', icon: 'key', label: 'Geçici şifre oluştur', run: () => resetPw(u) }];
+  if (u.avatar) items.push({ id: 'a', icon: 'user', label: 'Profil fotoğrafını kaldır', run: async () => {
+    if (!(await confirmDialog({ title: 'Fotoğraf kaldırılsın mı?', text: `${u.name} kullanıcısının profil fotoğrafı kaldırılacak.`, ok: 'Kaldır', danger: true }))) return;
+    try { await api('me.avatar', { user_id: u.id, remove: true }); toast('Profil fotoğrafı kaldırıldı'); await refreshPeople(); afterUserChange(); } catch (e) { toast(e.message, 'err'); }
+  } });
   if (u.id !== S.me.id) {
     items.push(u.status === 'disabled'
       ? { id: 's', icon: 'checkCircle', label: 'Etkinleştir', run: () => setStatus(u, 'active') }
@@ -358,57 +362,8 @@ ACT['mail-log'] = async () => {
     : html`<div class="empty"><p>Henüz e-posta gönderilmedi.</p></div>`);
 };
 
-/* ---------------- Profil ---------------- */
-function renderProfile(view) {
-  const me = S.me;
-  setHTML(view, html`
-    <div class="page-head"><div><h1>Hesabım</h1><p>Profil bilgileriniz, şifreniz ve gönderdiğiniz içerikler</p></div></div>
-    <div class="home-grid">
-      <div class="stack" style="gap:16px">
-        <div class="card card-pad">
-          <div class="row" style="gap:14px">${avatar(me.name, 'lg')}<div class="grow"><h2 style="font-size:18px">${me.name}</h2><div class="small muted">${me.email}</div>
-            <div class="row wrap" style="margin-top:8px;gap:6px"><span class="badge ${me.role === 'admin' ? 'brand' : me.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[me.role]}</span>${titleName(me.title_id) ? html`<span class="badge">${titleName(me.title_id)}</span>` : ''}${unitName(me.unit_id) ? html`<span class="badge">${icon('building')}${unitName(me.unit_id)}</span>` : ''}</div></div></div>
-        </div>
-        <div class="card"><div class="card-head"><h3>Gönderilerim</h3></div><div style="padding:14px" id="feedHost"></div></div>
-      </div>
-      <div class="side-col" style="position:static">
-        <form class="card card-pad stack" data-form="me-name">
-          <h3 style="font-size:14.5px">Ad soyad</h3>
-          <input class="input" name="name" value="${me.name}" required minlength="3">
-          <div class="form-error hidden" data-err></div>
-          <button class="btn" type="submit">Güncelle</button>
-        </form>
-        <form class="card card-pad stack" data-form="me-pw">
-          <h3 style="font-size:14.5px">Şifre değiştir</h3>
-          ${me.has_password ? html`<div class="field"><label>Mevcut şifre</label>${pwField('current', '', 'current-password')}</div>` : html`<p class="tiny faint">Google ile giriş yapıyorsunuz. İsterseniz e-posta ile giriş için şifre belirleyebilirsiniz.</p>`}
-          <div class="field"><label>Yeni şifre</label>${pwField('password', 'En az 8 karakter', 'new-password')}</div>
-          <div class="form-error hidden" data-err></div>
-          <button class="btn" type="submit">Şifreyi kaydet</button>
-        </form>
-        ${profileExtrasHtml()}
-        <div class="card card-pad stack" style="gap:10px">
-          <button class="btn block danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button>
-          <p class="tiny faint" style="text-align:center">İpucu: Telefonda tarayıcı menüsünden “Ana ekrana ekle” ile uygulama gibi kullanabilirsiniz.</p>
-        </div>
-      </div>
-    </div>`);
-  mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
-  mountProfileExtras();
-}
+/* ---------------- Profil: extras.js içinde (renderProfile) ---------------- */
 ACT.logout = () => logout();
-CHANGE['me-notify'] = async (el) => {
-  try {
-    await api('me.update', { email_notify: el.checked });
-    S.me.email_notify = el.checked;
-    toast(el.checked ? 'E-posta bildirimleri açıldı' : 'E-posta bildirimleri kapatıldı');
-  } catch (e) { el.checked = !el.checked; toast(e.message, 'err'); }
-};
-FORMS['me-name'] = (f) => submitForm(f, async (d) => {
-  await api('me.update', d);
-  S.me.name = d.name;
-  renderNav();
-  toast('Adınız güncellendi');
-});
 FORMS['me-pw'] = (f) => submitForm(f, async (d) => {
   await api('me.password', d);
   S.me.has_password = true;

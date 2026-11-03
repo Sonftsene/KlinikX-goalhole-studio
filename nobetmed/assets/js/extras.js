@@ -372,9 +372,10 @@ async function renderDirectory(view) {
     <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, ünvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
       <div class="seg"><button class="${DIR.filter === 'all' ? 'on' : ''}" data-act="dir-f" data-f="all">Herkes</button><button class="${DIR.filter === 'today' ? 'on' : ''}" data-act="dir-f" data-f="today">Bugün nöbette</button></div></div>
     <div id="dirList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div></div>`);
-  loadDuty();
   try { DIR.people = (await api('people.list')).people; } catch (e) { DIR.people = DIR.people || []; }
+  syncPeopleAvatars(DIR.people);
   drawDirectory();
+  loadDuty();
 }
 async function loadDuty() {
   const box = $('#dutyCard');
@@ -390,13 +391,21 @@ async function loadDuty() {
 }
 ACT['duty-day'] = (el) => { const d = parseDT(DUTY.day); d.setDate(d.getDate() + +el.dataset.d); DUTY.day = ymd(d); loadDuty(); };
 ACT['duty-today'] = () => { DUTY.day = ymd(new Date()); loadDuty(); };
+/** Rehberden gelen güncel profil fotoğraflarını uygulamanın kişi listesine işle */
+function syncPeopleAvatars(list) {
+  if (!list || !list.length) return;
+  const byId = new Map(list.map((p) => [p.id, p]));
+  let changed = false;
+  const next = (S.people || []).map((p) => { const n = byId.get(p.id); if (n && (n.avatar || null) !== (p.avatar || null)) { changed = true; return { ...p, avatar: n.avatar || null }; } return p; });
+  if (changed) S.people = next;
+}
 function drawDirectory() {
   const box = $('#dirList');
   if (!box || !DIR.people) return;
   const q = trLower(DIR.q);
   const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || trLower([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
   setHTML(box, list.length ? html`<div class="card"><div class="list">${list.map((p) => html`<div class="list-row dir-row">
-      ${avatar(p.name)}
+      ${avatar(p.name, '', p.avatar || null)}
       <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div>
         <div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ')}${p.extension ? html` · Dahili <b>${p.extension}</b>` : ''}${p.phone ? html` · <span class="sel">${p.phone}</span>` : ''}</div></div>
       <div class="row" style="gap:4px">
@@ -410,36 +419,162 @@ ACT['dir-f'] = (el) => { DIR.filter = el.dataset.f; $$('[data-act=dir-f]').forEa
 /* =================================================================== */
 /* Profil ekleri: iletişim, bildirim tercihi, parmak izi                */
 /* =================================================================== */
-function profileExtrasHtml() {
+/* =================================================================== */
+/* Hesabım: profil, bildirimler, güvenlik, görünüm, gönderilerim         */
+/* =================================================================== */
+const PROF_TABS = [['profil', 'Profil', 'user'], ['bildirim', 'Bildirimler', 'bell'], ['guvenlik', 'Güvenlik', 'lock'], ['gorunum', 'Görünüm', 'sun'], ['gonderiler', 'Gönderilerim', 'file']];
+const NMODE_HINT = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' };
+function renderProfile(view) {
   const me = S.me;
-  return html`
-    ${appearanceCardHtml()}
-    <form class="card card-pad stack" data-form="me-contact">
-      <h3 style="font-size:14.5px">Rehber bilgilerim</h3>
-      <div class="grid2"><div class="field"><label>Cep telefonu</label><input class="input" name="phone" type="tel" value="${me.phone || ''}" placeholder="05xx xxx xx xx"></div>
-      <div class="field"><label>Dahili</label><input class="input" name="extension" value="${me.extension || ''}" placeholder="1234"></div></div>
-      <p class="tiny faint">Yalnızca giriş yapmış ekip üyeleri görür.</p>
-      <div class="form-error hidden" data-err></div>
-      <button class="btn" type="submit">Kaydet</button>
-    </form>
-    <div class="card card-pad stack">
-      <h3 style="font-size:14.5px">Bildirimler</h3>
-      <div class="seg seg-block">${[['instant', 'Anlık'], ['digest', 'Sabah özeti'], ['off', 'Kapalı']].map(([k, l]) => html`<button class="${(me.notify_mode || 'instant') === k ? 'on' : ''}" data-act="nmode" data-m="${k}">${l}</button>`)}</div>
-      <p class="tiny faint" id="nmodeHint">${{ instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' }[me.notify_mode || 'instant']}</p>
-      <div id="pushBox"></div>
+  const r = currentRoute()[1];
+  const tab = PROF_TABS.some(([k]) => k === r) ? r : 'profil';
+  setHTML(view, html`
+    <div class="prof-hero">
+      <label class="prof-av" title="Profil fotoğrafını değiştir">${avatar(me.name, 'xl')}<span class="prof-av-edit">${icon('edit', 'sm')}</span><input type="file" accept="image/*" hidden data-change="av-file"></label>
+      <div class="grow" style="min-width:0"><h1 class="ellipsis">${me.name}</h1>
+        <div class="small muted">${[titleName(me.title_id), unitName(me.unit_id)].filter(Boolean).join(' · ') || me.email}</div>
+        <div class="row wrap" style="gap:6px;margin-top:8px"><span class="badge ${me.role === 'admin' ? 'brand' : me.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[me.role]}</span>${me.phone ? html`<span class="badge">${icon('phone')}${me.phone}</span>` : ''}</div></div>
     </div>
-    <div class="card card-pad stack" id="pkBox"><h3 style="font-size:14.5px">Parmak izi / Face ID ile giriş</h3><div class="tiny faint">Yükleniyor…</div></div>`;
+    <nav class="seg prof-tabs" role="tablist">${PROF_TABS.map(([k, l, ic]) => html`<a class="${tab === k ? 'on' : ''}" href="#/profil/${k}" role="tab">${icon(ic, 'sm')}<span>${l}</span></a>`)}</nav>
+    <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
+  if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
+  if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
 }
+function profileTabHtml(tab) {
+  const me = S.me;
+  if (tab === 'profil') return html`
+    <div class="card card-pad stack">
+      <h3 class="ph">Profil fotoğrafı</h3>
+      <div class="row wrap" style="gap:16px">${avatar(me.name, 'xl')}
+        <div class="stack" style="gap:8px;flex:1;min-width:200px">
+          <div class="row wrap" style="gap:8px"><label class="btn primary">${icon('upload', 'sm')}${me.avatar ? 'Fotoğrafı değiştir' : 'Fotoğraf ekle'}<input type="file" accept="image/*" hidden data-change="av-file"></label>
+            ${me.avatar ? html`<button class="btn" data-act="av-remove">${icon('trash', 'sm')}Kaldır</button>` : ''}</div>
+          <p class="tiny faint">Telefonun kamerasından veya galeriden seçebilirsiniz. Kare olarak kırpılır; yalnızca giriş yapmış ekip üyeleri görür.</p>
+        </div></div>
+    </div>
+    <form class="card card-pad stack" data-form="me-profile">
+      <h3 class="ph">Kişisel bilgiler</h3>
+      <div class="field"><label>Ad soyad</label><input class="input" name="name" value="${me.name}" required minlength="3" maxlength="120" autocomplete="name">
+        <p class="hint">Nöbet listesindeki yazılışla aynı olsun; nöbetleriniz adınıza göre eşleşir.</p></div>
+      <div class="grid2">
+        <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, me.title_id, '—')}</select></div>
+        <div class="field"><label>Birim</label><input class="input" value="${unitName(me.unit_id) || '—'}" disabled><p class="hint">Birimi yönetici değiştirir.</p></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Cep telefonu</label><input class="input" name="phone" type="tel" value="${me.phone || ''}" placeholder="05xx xxx xx xx" autocomplete="tel"></div>
+        <div class="field"><label>Dahili</label><input class="input" name="extension" value="${me.extension || ''}" placeholder="1234" maxlength="12"></div>
+      </div>
+      <p class="tiny faint">Telefon ve dahili, ekip rehberinde yalnızca giriş yapmış ekip üyelerine görünür.</p>
+      <div class="form-error hidden" data-err></div>
+      <div><button class="btn primary" type="submit">Kaydet</button></div>
+    </form>
+    <form class="card card-pad stack" data-form="me-email">
+      <h3 class="ph">E-posta adresi</h3>
+      <p class="small muted">Giriş ve bildirimler için kullanılır. Şu anki adres: <b>${me.email}</b></p>
+      ${me.has_password ? html`<div class="grid2"><div class="field"><label>Yeni e-posta</label><input class="input" type="email" name="email" required autocomplete="email"></div>
+        <div class="field"><label>Şifreniz</label>${pwField('current', 'Onay için', 'current-password')}</div></div>
+        <div class="form-error hidden" data-err></div><div><button class="btn" type="submit">E-postayı değiştir</button></div>`
+        : html`<p class="tiny faint">E-postanızı değiştirmek için önce <a href="#/profil/guvenlik">Güvenlik</a> bölümünden bir şifre belirleyin.</p>`}
+    </form>`;
+  if (tab === 'bildirim') return html`
+    <div class="card card-pad stack">
+      <h3 class="ph">E-posta bildirimleri</h3>
+      <div class="seg seg-block">${[['instant', 'Anlık'], ['digest', 'Sabah özeti'], ['off', 'Kapalı']].map(([k, l]) => html`<button class="${(me.notify_mode || 'instant') === k ? 'on' : ''}" data-act="nmode" data-m="${k}">${l}</button>`)}</div>
+      <p class="tiny faint" id="nmodeHint">${NMODE_HINT[me.notify_mode || 'instant']}</p>
+    </div>
+    <div class="card card-pad stack"><h3 class="ph">Telefon bildirimleri</h3><div id="pushBox"><p class="tiny faint">${S.settings.push_ready ? 'Yükleniyor…' : 'Telefon bildirimleri bu sitede kapalı.'}</p></div></div>`;
+  if (tab === 'guvenlik') return html`
+    <form class="card card-pad stack" data-form="me-pw">
+      <h3 class="ph">${me.has_password ? 'Şifre değiştir' : 'Şifre belirle'}</h3>
+      ${me.has_password ? html`<div class="field"><label>Mevcut şifre</label>${pwField('current', '', 'current-password')}</div>` : html`<p class="tiny faint">Google ile giriş yapıyorsunuz. İsterseniz e-posta ile giriş için şifre belirleyebilirsiniz.</p>`}
+      <div class="field"><label>Yeni şifre</label>${pwField('password', 'En az 8 karakter', 'new-password')}</div>
+      <div class="form-error hidden" data-err></div>
+      <div><button class="btn primary" type="submit">Şifreyi kaydet</button></div>
+    </form>
+    <div class="card card-pad stack" id="pkBox"><h3 class="ph">Parmak izi / Face ID ile giriş</h3><div class="tiny faint">Yükleniyor…</div></div>
+    <div class="card card-pad"><button class="btn danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button></div>`;
+  if (tab === 'gorunum') return appearanceCardHtml();
+  return html`<div class="card"><div style="padding:14px" id="feedHost"></div></div>`;
+}
+/** Profil/ad değişince menü, üst çubuk ve listelerde güncel görünsün */
+function refreshMeEverywhere() {
+  const p = (S.people || []).find((x) => x.id === S.me.id);
+  if (p) Object.assign(p, { name: S.me.name, avatar: S.me.avatar || null, title_id: S.me.title_id });
+  S.people = (S.people || []).slice();
+  renderNav();
+  const t = $('#topMe'); if (t) setHTML(t, avatar(S.me.name, 'sm'));
+  if (currentRoute()[0] === 'profil') renderProfile($('#view'));
+}
+FORMS['me-profile'] = (f) => submitForm(f, async (d) => {
+  const before = S.me.name;
+  await api('me.update', { name: d.name.trim(), title_id: d.title_id ? +d.title_id : null, phone: d.phone, extension: d.extension });
+  Object.assign(S.me, { name: d.name.trim(), title_id: d.title_id ? +d.title_id : null, phone: d.phone || null, extension: d.extension || null });
+  if (before !== S.me.name) MY.at = 0;
+  refreshMeEverywhere();
+  toast('Profiliniz kaydedildi');
+});
+FORMS['me-email'] = (f) => submitForm(f, async (d) => {
+  const r = await api('me.email', { email: d.email, current: d.current });
+  S.me.email = r.email;
+  refreshMeEverywhere();
+  toast('E-posta adresiniz değiştirildi. Bundan sonra bu adresle giriş yapın.');
+});
+
+/** Seçilen fotoğrafı kare kırpıp küçültür (en fazla 512 px, ~150 KB JPEG) */
+async function makeAvatarData(file) {
+  if (!file) throw new Error('Fotoğraf seçilmedi.');
+  if (file.size > 40 * 1048576) throw new Error('Fotoğraf çok büyük.');
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) {
+    try { bmp = await createImageBitmap(file); } catch (e2) { throw new Error('Bu fotoğraf açılamadı. JPG veya PNG bir fotoğraf deneyin.'); }
+  }
+  const side = Math.min(bmp.width, bmp.height);
+  const size = Math.min(512, side);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  let q = 0.86;
+  let data = cv.toDataURL('image/jpeg', q);
+  while (data.length > 450000 && q > 0.4) { q -= 0.15; data = cv.toDataURL('image/jpeg', q); }
+  return data;
+}
+CHANGE['av-file'] = async (el) => {
+  const file = el.files && el.files[0];
+  el.value = '';
+  if (!file) return;
+  let data;
+  try { data = await makeAvatarData(file); } catch (e) { toast(e.message, 'err'); return; }
+  const m = openModal({ title: 'Profil fotoğrafı', size: 'narrow', body: html`<div class="av-preview"><img src="${data}" alt="Önizleme"></div><p class="small muted" style="text-align:center;margin-top:10px">Fotoğrafınız böyle görünecek.</p>`,
+    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
+  m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    try {
+      const r = await api('me.avatar', { data });
+      S.me.avatar = r.avatar;
+      m.close();
+      refreshMeEverywhere();
+      toast('Profil fotoğrafınız kaydedildi');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};
+ACT['av-remove'] = async () => {
+  if (!(await confirmDialog({ title: 'Fotoğraf kaldırılsın mı?', text: 'Yerine adınızın baş harfleri görünür.', ok: 'Kaldır', danger: true }))) return;
+  try { await api('me.avatar', { remove: true }); S.me.avatar = null; refreshMeEverywhere(); toast('Profil fotoğrafı kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+};
+
 async function mountProfileExtras() {
   // telefon bildirimi
   const pb = $('#pushBox');
   if (pb) {
-    if (!S.settings.push_ready || typeof pushSupportInfo !== 'function') setHTML(pb, '');
+    if (!S.settings.push_ready || typeof pushSupportInfo !== 'function') setHTML(pb, html`<p class="tiny faint">Telefon bildirimleri bu sitede kapalı.</p>`);
     else {
       const info = pushSupportInfo();
       const st = info.ok ? await pushState() : 'unsupported';
-      setHTML(pb, html`<div class="row between wrap" style="gap:8px;border-top:1px solid var(--border);padding-top:12px">
-        <div><b class="small">Telefon bildirimleri</b><div class="tiny faint">${st === 'on' ? 'Bu cihazda açık.' : st === 'denied' ? 'Tarayıcı ayarlarından bildirim izni verin.' : info.ok ? 'Duyuru ve nöbet hatırlatmaları bu cihaza anında gelir.' : info.reason}</div></div>
+      setHTML(pb, html`<div class="row between wrap" style="gap:8px">
+        <div><div class="small muted">${st === 'on' ? 'Bu cihazda açık.' : st === 'denied' ? 'Tarayıcı ayarlarından bildirim izni verin.' : info.ok ? 'Duyuru ve nöbet hatırlatmaları bu cihaza anında gelir.' : info.reason}</div></div>
         ${st === 'on' ? html`<div class="row" style="gap:6px"><button class="btn sm" data-act="push-test">Dene</button><button class="btn sm" data-act="push-off">Kapat</button></div>` : info.ok && st !== 'denied' ? html`<button class="btn sm primary" data-act="push-on">Aç</button>` : ''}
       </div>`);
     }
@@ -455,11 +590,6 @@ async function mountProfileExtras() {
       <button class="btn" data-act="pk-add">${icon('fingerprint', 'sm')}${items.length ? 'Bu cihazı da ekle' : 'Bu cihaza ekle'}</button>`);
   }
 }
-FORMS['me-contact'] = (f) => submitForm(f, async (d) => {
-  await api('me.update', { phone: d.phone, extension: d.extension });
-  S.me.phone = d.phone; S.me.extension = d.extension;
-  toast('Rehber bilgileriniz kaydedildi');
-});
 ACT.nmode = async (el) => {
   const m = el.dataset.m;
   try {
@@ -467,7 +597,7 @@ ACT.nmode = async (el) => {
     S.me.notify_mode = m;
     $$('[data-act=nmode]').forEach((b) => b.classList.toggle('on', b === el));
     const h = $('#nmodeHint');
-    if (h) h.textContent = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' }[m];
+    if (h) h.textContent = NMODE_HINT[m];
     toast('Bildirim tercihiniz kaydedildi');
   } catch (e) { toast(e.message, 'err'); }
 };

@@ -86,13 +86,13 @@ function a_people_list(): void
     need_user();
     $today = date('Y-m-d');
     $todayShifts = all("SELECT s.name, s.code, s.label, s.kind, s.start_time, s.end_time, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ?", [$today]);
-    $rows = all("SELECT id, name, email, phone, extension, title_id, unit_id, role, last_seen_at FROM users WHERE status = 'active' ORDER BY name");
+    $rows = all("SELECT id, name, email, phone, extension, title_id, unit_id, role, last_seen_at, avatar FROM users WHERE status = 'active' ORDER BY name");
     out(['people' => array_map(function ($u) use ($todayShifts) {
         $on = null;
         foreach ($todayShifts as $s) if (names_match((string)$s['name'], (string)$u['name'])) { $on = ['code' => $s['code'], 'label' => $s['label'], 'kind' => $s['kind'], 'start' => $s['start_time'], 'end' => $s['end_time']]; break; }
         return ['id' => (int)$u['id'], 'name' => $u['name'], 'email' => $u['email'], 'phone' => $u['phone'], 'extension' => $u['extension'],
             'title_id' => $u['title_id'] !== null ? (int)$u['title_id'] : null, 'unit_id' => $u['unit_id'] !== null ? (int)$u['unit_id'] : null,
-            'role' => $u['role'], 'last_seen_at' => $u['last_seen_at'], 'today' => $on];
+            'role' => $u['role'], 'last_seen_at' => $u['last_seen_at'], 'avatar' => avatar_url($u), 'today' => $on];
     }, $rows)]);
 }
 
@@ -615,4 +615,92 @@ function a_setup_status(): void
         'users' => count($users),
         'push' => push_ready(),
     ]]);
+}
+
+
+/* ---------------- Profil fotoğrafı ve e-posta ---------------- */
+
+function avatar_url(array $u): ?string
+{
+    $a = (string)($u['avatar'] ?? '');
+    return $a !== '' ? 'api.php?action=avatar&u=' . (int)$u['id'] . '&v=' . substr($a, 0, 10) : null;
+}
+
+function avatar_dir(): string
+{
+    $d = NM_ROOT . '/uploads/avatars';
+    if (!is_dir($d)) @mkdir($d, 0775, true);
+    return $d;
+}
+
+function avatar_delete_file(array $u): void
+{
+    $a = basename((string)($u['avatar'] ?? ''));
+    if ($a !== '' && is_file(avatar_dir() . '/' . $a)) @unlink(avatar_dir() . '/' . $a);
+}
+
+/** Profil fotoğrafı yükle / kaldır. Tarayıcı fotoğrafı kare olarak kırpıp küçültür (en fazla 512 px). */
+function a_me_avatar(): void
+{
+    $me = need_user();
+    global $IN;
+    $target = $me;
+    // Yönetici, uygunsuz bir fotoğrafı başkası için kaldırabilir
+    if (!empty($IN['user_id']) && (int)$IN['user_id'] !== (int)$me['id']) {
+        if ($me['role'] !== 'admin' || empty($IN['remove'])) fail('Yetkiniz yok.', 403);
+        $target = one('SELECT * FROM users WHERE id = ?', [(int)$IN['user_id']]) ?? fail('Kullanıcı bulunamadı.', 404);
+    }
+    if (!empty($IN['remove'])) {
+        avatar_delete_file($target);
+        q('UPDATE users SET avatar = NULL WHERE id = ?', [$target['id']]);
+        if ((int)$target['id'] !== (int)$me['id']) audit($me, 'user.edit', $target['name'], 'Profil fotoğrafı kaldırıldı');
+        out(['avatar' => null]);
+    }
+    $data = (string)($IN['data'] ?? '');
+    if (!preg_match('#^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$#', $data, $m)) fail('Geçersiz fotoğraf.');
+    $bin = base64_decode($m[2], true);
+    if ($bin === false || strlen($bin) > 600000) fail('Fotoğraf çok büyük.');
+    $info = @getimagesizefromstring($bin);
+    $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    if (!$info || !isset($types[$info[2]]) || $info[0] < 16 || $info[1] < 16 || $info[0] > 1024 || $info[1] > 1024) fail('Fotoğraf okunamadı. JPG veya PNG deneyin.');
+    $name = bin2hex(random_bytes(8)) . '.' . $types[$info[2]];
+    if (@file_put_contents(avatar_dir() . '/' . $name, $bin) === false) fail('Fotoğraf kaydedilemedi (klasör yazma izni).', 500);
+    avatar_delete_file($me);
+    q('UPDATE users SET avatar = ? WHERE id = ?', [$name, $me['id']]);
+    out(['avatar' => avatar_url(['id' => $me['id'], 'avatar' => $name])]);
+}
+
+/** Profil fotoğrafını göster: yalnızca giriş yapmış kişiler görür */
+function a_avatar_get(): void
+{
+    nm_session();
+    if (!current_user()) { http_response_code(404); exit; }
+    $u = one('SELECT id, avatar FROM users WHERE id = ?', [(int)($_GET['u'] ?? 0)]);
+    $a = $u ? basename((string)$u['avatar']) : '';
+    $path = $a !== '' ? avatar_dir() . '/' . $a : '';
+    if ($path === '' || !is_file($path)) { http_response_code(404); exit; }
+    session_write_close();
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    header('Content-Type: ' . (['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][$ext] ?? 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: private, max-age=31536000, immutable');
+    header('X-Content-Type-Options: nosniff');
+    header("Content-Security-Policy: default-src 'none'");
+    readfile($path);
+}
+
+/** E-posta adresini değiştir (giriş adresi). Şifreyle doğrulanır. */
+function a_me_email(): void
+{
+    $me = need_user();
+    global $IN;
+    $email = mb_strtolower(trim(s('email', 190)));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Geçerli bir e-posta adresi girin.');
+    if (empty($me['password_hash'])) fail('Önce Güvenlik bölümünden bir şifre belirleyin.');
+    if (!password_verify((string)($IN['current'] ?? ''), $me['password_hash'])) fail('Şifre hatalı.');
+    if ($email === mb_strtolower((string)$me['email'])) out(['email' => $email]);
+    if (one('SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?', [$email, $me['id']])) fail('Bu e-posta başka bir hesapta kullanılıyor.', 409);
+    q('UPDATE users SET email = ? WHERE id = ?', [$email, $me['id']]);
+    audit($me, 'user.edit', $me['name'], 'E-posta değişti: ' . $me['email'] . ' → ' . $email);
+    out(['email' => $email]);
 }

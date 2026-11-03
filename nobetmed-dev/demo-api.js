@@ -133,7 +133,7 @@
   const isPub = (u) => u && (u.role === 'admin' || u.role === 'editor');
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
-  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, must_change: false });
+  const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, avatar: u.avatar || null, must_change: false });
   const audit = (action, target, detail) => { const u = me(); db.audit.unshift({ id: ++db.seq, user_id: u ? u.id : null, action, target: target || '', detail: detail || '', ip: '10.0.0.1', at: now() }); db.audit = db.audit.slice(0, 300); };
   const notify = (users, kind, title, body, url) => users.forEach((u) => db.notifs.unshift({ id: ++db.seq, user_id: u.id, kind, title, body, url, at: now(), read: false }));
   db.shifts = db.shifts || {};
@@ -209,7 +209,7 @@
         Object.assign(out.settings, { push_ready: false, shift_codes: db.settings.shift_codes || null, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
         out.rosters = rosterList();
-        out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+        out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, avatar: x.avatar || null, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
       }
       return out;
     },
@@ -237,7 +237,8 @@
     'me.update'(d) {
       const u = needUser();
       if ('notify_mode' in d) { u.notify_mode = ['instant', 'digest', 'off'].includes(d.notify_mode) ? d.notify_mode : 'instant'; return {}; }
-      if ('phone' in d || 'extension' in d) { u.phone = String(d.phone || '').replace(/[^0-9+ ()-]/g, '') || null; u.extension = String(d.extension || '').slice(0, 12) || null; return {}; }
+      if ('title_id' in d) u.title_id = db.titles.some((t) => t.id === d.title_id) ? d.title_id : null;
+      if ('phone' in d || 'extension' in d) { u.phone = String(d.phone || '').replace(/[^0-9+ ()-]/g, '') || null; u.extension = String(d.extension || '').slice(0, 12) || null; if (!('name' in d)) return {}; }
       if ('email_notify' in d) { u.email_notify = !!d.email_notify; if (!('name' in d)) return {}; } if ((d.name || '').trim().length < 3) err('Ad soyad en az 3 karakter olmalıdır.'); u.name = d.name.trim(); return {}; },
     'me.password'(d) { const u = needUser(); if (d.current !== u.pw) err('Mevcut şifre hatalı. (Demo şifresi: demo1234)'); if ((d.password || '').length < 8) err('Şifre en az 8 karakter olmalıdır.'); u.pw = d.password; return {}; },
     counts() { return { counts: counts(needUser()) }; },
@@ -494,7 +495,7 @@
       const todays = allShifts().filter((e) => e.date === today);
       return { people: db.users.filter((u) => u.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((u) => {
         const s = todays.find((e) => nameMatch(e.name, u.name));
-        return { id: u.id, name: u.name, email: u.email, phone: u.phone || null, extension: u.extension || null, title_id: u.title_id, unit_id: u.unit_id, role: u.role, last_seen_at: u.last_seen_at, today: s ? { code: s.code, label: s.label, kind: s.kind, start: s.start, end: s.end } : null };
+        return { id: u.id, name: u.name, email: u.email, avatar: u.avatar || null, phone: u.phone || null, extension: u.extension || null, title_id: u.title_id, unit_id: u.unit_id, role: u.role, last_seen_at: u.last_seen_at, today: s ? { code: s.code, label: s.label, kind: s.kind, start: s.start, end: s.end } : null };
       }) };
     },
     /* ---- Raporlar, günlük, yedek ---- */
@@ -556,6 +557,24 @@
       return { invite: { kind: inv.kind, name: inv.name || '', email: inv.email || '', title_id: inv.title_id || null, unit_id: inv.unit_id || null, auto_approve: inv.auto_approve }, org_name: db.settings.org_name };
     },
     'passkey.list'() { needUser(); return { items: [] }; },
+    'me.avatar'(d) {
+      const u = needUser();
+      let t = u;
+      if (d.user_id && d.user_id !== u.id) { if (u.role !== 'admin' || !d.remove) err('Yetkiniz yok.', 403); t = db.users.find((x) => x.id === d.user_id) || err('Kullanıcı bulunamadı.', 404); }
+      if (d.remove) { t.avatar = null; return { avatar: null }; }
+      if (!/^data:image\/(jpeg|png|webp);base64,/.test(d.data || '') || d.data.length > 600000) err('Geçersiz fotoğraf.');
+      u.avatar = d.data;
+      return { avatar: u.avatar };
+    },
+    'me.email'(d) {
+      const u = needUser();
+      const email = lower(d.email).trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) err('Geçerli bir e-posta adresi girin.');
+      if (d.current !== u.pw) err('Şifre hatalı. (Demo şifresi: demo1234)');
+      if (db.users.some((x) => x.email === email && x.id !== u.id)) err('Bu e-posta başka bir hesapta kullanılıyor.', 409);
+      u.email = email;
+      return { email };
+    },
     'shiftcodes.save'(d) {
       needAdmin();
       if (d.reset) { db.settings.shift_codes = null; return { codes: null }; }

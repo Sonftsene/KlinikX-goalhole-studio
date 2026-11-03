@@ -75,17 +75,31 @@ const sw1 = await m.evaluate(() => document.documentElement.scrollWidth);
 if (sw1 > 390) fail('nöbetlerim mobil taşma: ' + sw1);
 step(`nöbetlerim: ${days} gün, ay özeti "${stat.replace(/\s+/g, ' ')}", ICS ${nEv} nöbet`);
 
-// 3) Profil: telefon, bildirim tercihi
+// 3) Profil: fotoğraf, ünvan, telefon, bildirim tercihi
 await m.goto(BASE + '#/profil');
-await m.fill('[data-form=me-contact] [name=phone]', '0532 111 22 33');
-await m.fill('[data-form=me-contact] [name=extension]', '4412');
-await m.click('[data-form=me-contact] button[type=submit]');
-await expectText(m, 'Rehber bilgileriniz kaydedildi');
+await m.setInputFiles('#profBody input[data-change=av-file]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
+await m.locator('.modal .av-preview img').waitFor();
+await m.click('.modal [data-ok]');
+await expectText(m, 'Profil fotoğrafınız kaydedildi');
+await m.locator('#topMe img.av-img').waitFor();
+const avOk = await m.evaluate(async () => { const img = document.querySelector('#topMe img.av-img'); await img.decode().catch(() => {}); const r = await fetch(img.src); return { w: img.naturalWidth, st: r.status, ct: r.headers.get('content-type'), src: img.getAttribute('src') }; });
+if (avOk.w < 16 || avOk.st !== 200 || !/image\//.test(avOk.ct)) fail('profil fotoğrafı: ' + JSON.stringify(avOk));
+const anon = await browser.newContext();
+const anonSt = await (await anon.request.get(BASE + avOk.src)).status();
+await anon.close();
+if (anonSt !== 404) fail('giriş yapmadan profil fotoğrafı açıldı: ' + anonSt);
+await m.fill('[data-form=me-profile] [name=phone]', '0532 111 22 33');
+await m.fill('[data-form=me-profile] [name=extension]', '4412');
+await m.selectOption('[data-form=me-profile] [name=title_id]', { index: 2 });
+await m.click('[data-form=me-profile] button[type=submit]');
+await expectText(m, 'Profiliniz kaydedildi');
+await m.screenshot({ path: path.join(OUT, 'f-profil.png') });
+await m.goto(BASE + '#/profil/bildirim');
 await m.click('[data-act=nmode][data-m=digest]');
 await expectText(m, 'Bildirim tercihiniz kaydedildi');
 const me = (await apiCall(m, 'boot')).me;
-if (me.phone !== '0532 111 22 33' || me.notify_mode !== 'digest') fail('profil kaydedilmedi: ' + JSON.stringify(me));
-step('profil: telefon/dahili ve sabah özeti tercihi');
+if (me.phone !== '0532 111 22 33' || me.notify_mode !== 'digest' || !me.avatar || !me.title_id) fail('profil kaydedilmedi: ' + JSON.stringify(me));
+step('profil: fotoğraf (girişsiz erişim kapalı), ünvan, telefon/dahili, sabah özeti');
 
 // 4) Rehber: kişi, ara düğmesi, bugün filtresi
 await a.goto(BASE + '#/rehber');
@@ -240,6 +254,16 @@ await P.p.screenshot({ path: path.join(OUT, 'f-tour.png') });
 await P.p.click('[data-tour=next]'); await P.p.click('[data-tour=next]');
 await P.p.click('[data-tour=done]');
 await P.p.locator('.tour').waitFor({ state: 'detached' });
+// Davetle gelen kişi e-postasını değiştirir (yanlış şifre reddedilir)
+await P.p.goto(BASE + '#/profil');
+await P.p.fill('[data-form=me-email] [name=email]', 'davetli2@test.com');
+await P.p.fill('[data-form=me-email] [name=current]', 'yanlis-sifre');
+await P.p.click('[data-form=me-email] button[type=submit]');
+await expectText(P.p, 'Şifre hatalı');
+await P.p.fill('[data-form=me-email] [name=current]', 'DavetSifre1');
+await P.p.click('[data-form=me-email] button[type=submit]');
+await expectText(P.p, 'E-posta adresiniz değiştirildi');
+if ((await apiCall(P.p, 'boot')).me.email !== 'davetli2@test.com') fail('e-posta değişmedi');
 await P.p.goto(BASE + '#/nobetim');
 await P.p.locator('.next-shift, .card.empty').first().waitFor();
 const hasNext = await P.p.locator('.next-shift').count();
@@ -251,7 +275,7 @@ step(`listeden davet: ${cand} aday, "${firstName}" davetle doğrudan girdi${hasN
 const cdp = await M.c.newCDPSession(m);
 await cdp.send('WebAuthn.enable');
 await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
-await m.goto(BASE + '#/profil');
+await m.goto(BASE + '#/profil/guvenlik');
 await m.locator('#pkBox [data-act=pk-add]').waitFor();
 await m.click('#pkBox [data-act=pk-add]');
 await expectText(m, 'Parmak izi / Face ID eklendi');
@@ -340,7 +364,7 @@ await a.goto(BASE + '#/');
 await a.locator('#setupBox .setup-row').first().waitFor();
 const su = await a.locator('#setupBox .setup-row').count();
 const suOk = await a.locator('#setupBox .setup-row.ok').count();
-await m.goto(BASE + '#/profil');
+await m.goto(BASE + '#/profil/gorunum');
 await m.click('[data-act=fs][data-v=lg]');
 if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg')))) fail('büyük yazı açılmadı');
 await m.reload();
@@ -348,9 +372,20 @@ if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg'
 await m.goto(BASE + '#/');
 await m.locator('#heroShift .hs-t').waitFor();
 await m.screenshot({ path: path.join(OUT, 'f-home-buyuk.png') });
-await m.goto(BASE + '#/profil');
+await m.goto(BASE + '#/profil/gorunum');
 await m.click('[data-act=fs][data-v=""]');
 step(`kurulum listesi ${suOk}/${su}, büyük yazı seçeneği`);
+
+// 20) Profil fotoğrafı rehberde ve yönetici kaldırabiliyor
+await a.goto(BASE + '#/rehber');
+await a.click('[data-act=dir-f][data-f=all]');
+await a.locator('.dir-row', { hasText: 'Elif Yılmaz' }).locator('img.av-img').waitFor();
+await a.goto(BASE + '#/yonetim/kullanicilar');
+await a.locator('tr', { hasText: 'Elif Yılmaz' }).locator('[data-act=u-menu]').click();
+await a.click('.menu >> text=Profil fotoğrafını kaldır');
+await a.click('.modal [data-ok]');
+await expectText(a, 'Profil fotoğrafı kaldırıldı');
+step('profil fotoğrafı rehberde görünüyor; yönetici kaldırabiliyor');
 
 // Masaüstü ekran görüntüleri
 await a.goto(BASE + '#/');

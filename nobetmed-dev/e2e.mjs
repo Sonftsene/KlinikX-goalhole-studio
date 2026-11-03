@@ -286,7 +286,7 @@ await a.screenshot({ path: path.join(OUT, 'd-home-dark.png') });
 step('ayarlar + bant');
 
 // Profil şifre değişimi (üye)
-await m.goto(BASE + '#/profil');
+await m.goto(BASE + '#/profil/guvenlik');
 await m.fill('[data-form=me-pw] [name=current]', 'ElifSifre2026');
 await m.fill('[data-form=me-pw] [name=password]', 'YeniSifre99');
 await m.click('[data-form=me-pw] button[type=submit]');

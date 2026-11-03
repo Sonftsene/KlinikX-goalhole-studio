@@ -18,6 +18,7 @@ function renderShell() {
         <div class="grow desk-only"></div>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
         ${notifButtonHtml()}
+        <a class="top-me" href="#/profil" id="topMe" aria-label="Hesabım ve profil ayarları" title="Hesabım">${avatar(S.me.name, 'sm')}</a>
         <button class="btn ghost icon" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>
       </header>
       <div class="content" id="view"></div>
@@ -99,7 +100,7 @@ ACT.theme = () => {
 };
 ACT['me-menu'] = (el) => openMenu(el, [
   { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div></div>` },
-  { id: 'p', icon: 'user', label: 'Hesabım ve gönderilerim', run: () => { location.hash = '#/profil'; } },
+  { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
   { id: 't', icon: isDark() ? 'sun' : 'moon', label: isDark() ? 'Açık tema' : 'Koyu tema', run: () => ACT.theme() },
   '-',
   { id: 'o', icon: 'logout', label: 'Çıkış yap', danger: true, run: logout },

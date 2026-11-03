@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.1.1';
+const NM_VERSION = '3.2.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -129,7 +129,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 4) return;
+    if ($version >= 5) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -275,7 +275,7 @@ function nm_migrate(PDO $pdo): void
     }
     // Sürüm 4: rehber, bildirim türü, belge geçerlilik tarihi, belge metni, liste dönemi
     $cols = [
-        'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1'],
+        'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1', 'avatar VARCHAR(80) NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL'],
@@ -299,7 +299,7 @@ function nm_migrate(PDO $pdo): void
         foreach ($tpl as $i => $t) $st->execute([$t[0], $t[1], $t[2], date('Y-m-d H:i:s'), $i]);
     }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '4')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '5')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

@@ -68,6 +68,7 @@ if ($action === 'file') {
     exit;
 }
 if ($action === 'push.pending') { a_push_pending_get(); exit; }
+if ($action === 'avatar') { a_avatar_get(); exit; }
 if ($action === 'backup.download') { a_backup_download_get(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -96,6 +97,8 @@ $routes = [
     'auth.reset' => 'a_reset',
     'me.update' => 'a_me_update',
     'me.password' => 'a_me_password',
+    'me.avatar' => 'a_me_avatar',
+    'me.email' => 'a_me_email',
     'counts' => 'a_counts',
     'posts.list' => 'a_posts_list',
     'posts.get' => 'a_posts_get',
@@ -286,6 +289,7 @@ function user_out(array $u): array
         'push_on' => (int)($u['push_on'] ?? 1) === 1,
         'phone' => $u['phone'] ?? null,
         'extension' => $u['extension'] ?? null,
+        'avatar' => avatar_url($u),
         'must_change' => (int)($u['must_change'] ?? 0) === 1,
     ];
 }
@@ -451,10 +455,10 @@ function a_boot(): void
         $data['counts'] = counts_for($me);
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
         $data['people'] = array_map(fn($r) => [
-            'id' => (int)$r['id'], 'name' => $r['name'],
+            'id' => (int)$r['id'], 'name' => $r['name'], 'avatar' => avatar_url($r),
             'title_id' => $r['title_id'] !== null ? (int)$r['title_id'] : null,
             'unit_id' => $r['unit_id'] !== null ? (int)$r['unit_id'] : null,
-        ], all("SELECT id, name, title_id, unit_id FROM users WHERE status = 'active' ORDER BY name"));
+        ], all("SELECT id, name, title_id, unit_id, avatar FROM users WHERE status = 'active' ORDER BY name"));
     }
     out($data);
 }
@@ -688,6 +692,10 @@ function a_me_update(): void
         $phone = preg_replace('/[^0-9+ ()-]/', '', s('phone', 30));
         $ext = preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12));
         q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [$phone ?: null, $ext ?: null, $me['id']]);
+    }
+    if (array_key_exists('title_id', $IN)) {
+        $tid = (int)i('title_id');
+        q('UPDATE users SET title_id = ? WHERE id = ?', [$tid && valid_id('titles', $tid) ? $tid : null, $me['id']]);
     }
     if ($only) out();
     $name = s('name', 120);
@@ -1431,6 +1439,7 @@ function a_admin_user_delete(): void
     if ($u['role'] === 'admin' && $u['status'] === 'active' && admin_count() <= 1) fail('Son yönetici silinemez.');
     foreach (['acks', 'views', 'saves'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
     foreach (['passkeys', 'push_subscriptions', 'notifications'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
+    avatar_delete_file($u);
     q('DELETE FROM users WHERE id = ?', [$id]);
     audit($me, 'user.delete', $u['name'], $u['email']);
     out();

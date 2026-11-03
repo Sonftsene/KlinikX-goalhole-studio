@@ -282,7 +282,31 @@ function toneFor(str) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return TONES[h % TONES.length];
 }
-function avatar(name, size = '') { return html`<span class="avatar ${size} tone-${toneFor(name)}">${initials(name)}</span>`; }
+/* Profil fotoğrafları: ada göre bulunur (nöbet listesindeki BÜYÜK HARFLİ yazılış da eşleşir) */
+const AVX = { ref: null, me: null, map: new Map() };
+function avKey(n) { return trLower(n).replace(/[çğıöşüâîû]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' }[c])).replace(/\s+/g, ' ').trim(); }
+function avatarUrlFor(name) {
+  if (!name) return null;
+  if (AVX.ref !== S.people || AVX.me !== (S.me && S.me.avatar)) {
+    AVX.ref = S.people; AVX.me = S.me && S.me.avatar;
+    AVX.map = new Map((S.people || []).filter((p) => p.avatar).map((p) => [avKey(p.name), p.avatar]));
+    if (S.me) { if (S.me.avatar) AVX.map.set(avKey(S.me.name), S.me.avatar); else AVX.map.delete(avKey(S.me.name)); }
+  }
+  return AVX.map.get(avKey(name)) || null;
+}
+function avatar(name, size = '', url) {
+  const u = url === undefined ? avatarUrlFor(name) : url;
+  if (u) return html`<span class="avatar ${size} has-img" data-i="${initials(name)}"><img class="av-img" src="${u}" alt="" loading="lazy" decoding="async"></span>`;
+  return html`<span class="avatar ${size} tone-${toneFor(name)}">${initials(name)}</span>`;
+}
+// Fotoğraf yüklenemezse (ör. çevrimdışı) baş harfleri göster
+document.addEventListener('error', (e) => {
+  const t = e.target;
+  if (!t || !t.classList || !t.classList.contains('av-img')) return;
+  const sp = t.parentNode;
+  sp.classList.remove('has-img'); sp.classList.add('tone-slate');
+  sp.textContent = sp.dataset.i || '';
+}, true);
 function trLower(s) { return String(s || '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr-TR'); }
 function linkify(text) {
   return esc(text).replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');

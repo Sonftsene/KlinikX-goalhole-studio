@@ -168,7 +168,7 @@ await a.keyboard.press('Escape');
 step('zorunlu duyuru e-postası ve okumayanlara hatırlatma gitti');
 
 /* 8) Bildirim tercihi: üye kapatınca duyuru e-postası gelmez */
-await m.goto(BASE + '#/profil');
+await m.goto(BASE + '#/profil/bildirim');
 await m.click('[data-act=nmode][data-m=off]');
 await text(m, 'Bildirim tercihiniz kaydedildi');
 const before = mails().length;

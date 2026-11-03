@@ -157,7 +157,12 @@ Cron kurmasanız da bu görevler site ziyaret edildikçe arka planda çalışır
 - **Ana sayfa:** En üstte tek “Bugün” kartı: sıradaki/süren nöbetiniz, okumanız gerekenler, yeni içerik ve (yöneticiye) onay bekleyenler.
 - **Yönetici kurulum listesi:** Ana sayfada; liste, nöbet okuma, ekip daveti, e-posta, zamanlanmış görev ve SSL adımlarını tamamlandıkça işaretler.
 - **İlk açılış tanıtımı:** Yeni gelen herkese 3 adımlık kısa tanıtım; Hesabım › Görünüm’den tekrar açılır.
-- **Görünüm:** Hesabım › Görünüm’den büyük yazı ve açık/koyu tema.
+- **Hesabım (profil ayarları):** Sağ üstteki yuvarlak profil resminize dokunun. Sekmeler:
+  - **Profil:** profil fotoğrafı (telefon kamerası/galeri; kare kırpılır, yalnızca giriş yapanlar görür), ad soyad, ünvan, cep telefonu, dahili ve e-posta adresi (şifreyle onaylanır). Birimi yönetici değiştirir.
+  - **Bildirimler:** e-posta (Anlık / Sabah özeti / Kapalı) ve telefon bildirimleri.
+  - **Güvenlik:** şifre, parmak izi / Face ID, çıkış.
+  - **Görünüm:** büyük yazı ve açık/koyu tema. **Gönderilerim:** gönderdiğiniz içerikler.
+  - Yönetici, uygunsuz bir profil fotoğrafını Kullanıcılar › ⋯ › Profil fotoğrafını kaldır ile silebilir.
 - **Bildirim zili:** sağ üstte; duyurular, liste güncellemeleri ve hatırlatmalar “Bugün / Bu hafta / Daha eski” diye gruplanır.
 - **Duyuru şablonları:** Yeni içerikte “Şablondan başla” (denetim, eğitim, toplantı…); kendi metninizi “Şablon olarak kaydet” ile ekleyin.
 - **Geçerlilik / gözden geçirme tarihi:** Protokol ve formlara tarih girin; yaklaşınca yöneticilere uyarı gider, Okuma raporu sayfasında listelenir.
