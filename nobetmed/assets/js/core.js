@@ -238,7 +238,14 @@ const BRAND_LOCKUP = raw('<span class="brand-lockup">' + BRAND_MARK.s + BRAND_WO
 /** Tek logo: yöneticinin yüklediği logo varsa o, yoksa dupcii logosu. Boyut Ayarlar'dan (--logo-h). */
 function brandLogo(cls = '') {
   const b = (S.settings && S.settings.brand) || {};
-  if (b.logo) return html`<img class="brand-img ${cls}" src="${b.logo}" alt="${S.settings.org_name || 'Logo'}" decoding="async">`;
+  const alt = S.settings.org_name || 'Logo';
+  // Açık ve koyu mod için ayrı logo: tema (veya koyu zemin, .on-dark) hangisini gösterir
+  const light = b.logo || b.logo_dark, dark = b.logo_dark || b.logo;
+  if (light) {
+    return light === dark
+      ? html`<span class="brand-logo ${cls}"><img class="brand-img" src="${light}" alt="${alt}" decoding="async"></span>`
+      : html`<span class="brand-logo ${cls}"><img class="brand-img logo-light" src="${light}" alt="${alt}" decoding="async"><img class="brand-img logo-dark" src="${dark}" alt="${alt}" decoding="async"></span>`;
+  }
   return html`<span class="brand-default ${cls}">${BRAND_LOCKUP}</span>`;
 }
 /** Logo boyutu ve favicon'u uygula (açılışta ve ayar değişince) */

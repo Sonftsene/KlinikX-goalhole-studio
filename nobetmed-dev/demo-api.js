@@ -134,7 +134,7 @@
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
   const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, avatar: u.avatar || null, must_change: false });
-  const brandOut = () => { const b = db.settings.brand || {}; return { logo: b.logo || null, icon: b.icon || null, icon192: b.icon192 || null, logo_h: b.logo_h || 36 }; };
+  const brandOut = () => { const b = db.settings.brand || {}; return { logo: b.logo || null, logo_dark: b.logo_dark || null, icon: b.icon || null, icon192: b.icon192 || null, logo_h: b.logo_h || 36 }; };
   const audit = (action, target, detail) => { const u = me(); db.audit.unshift({ id: ++db.seq, user_id: u ? u.id : null, action, target: target || '', detail: detail || '', ip: '10.0.0.1', at: now() }); db.audit = db.audit.slice(0, 300); };
   const notify = (users, kind, title, body, url) => users.forEach((u) => db.notifs.unshift({ id: ++db.seq, user_id: u.id, kind, title, body, url, at: now(), read: false }));
   db.shifts = db.shifts || {};
@@ -562,7 +562,7 @@
       needAdmin();
       db.settings.brand = db.settings.brand || {};
       if ('logo_h' in d) db.settings.brand.logo_h = Math.max(20, Math.min(96, +d.logo_h || 36));
-      ['logo', 'icon', 'icon192', 'icon512'].forEach((k) => {
+      ['logo', 'logo_dark', 'icon', 'icon192', 'icon512'].forEach((k) => {
         if (!(k in d)) return;
         if (!d[k]) { delete db.settings.brand[k]; return; }
         if (!/^data:image\//.test(d[k]) || d[k].length > 2800000) err('Geçersiz görsel.');

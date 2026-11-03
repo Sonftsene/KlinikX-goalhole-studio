@@ -1301,17 +1301,25 @@ function resetAppState() {
 function brandCardHtml() {
   const b = S.settings.brand || {};
   const h = b.logo_h || 36;
+  const slot = (k, title, hint, darkBg) => html`<div class="logo-slot">
+      <div class="ls-head"><b class="small">${title}</b><span class="tiny faint">${hint}</span></div>
+      <div class="bp-box ${darkBg ? 'bp-dark on-dark' : ''}">${b[k] ? html`<img class="brand-img" src="${b[k]}" alt="">` : html`<span class="tiny ${darkBg ? '' : 'faint'}" style="${darkBg ? 'color:#aab3c8' : ''}">${k === 'logo_dark' && b.logo ? 'Yüklenmedi — açık mod logosu kullanılıyor' : k === 'logo' && b.logo_dark ? 'Yüklenmedi — koyu mod logosu kullanılıyor' : 'Yüklenmedi — dupcii logosu kullanılıyor'}</span>`}</div>
+      <div class="row wrap" style="gap:6px">
+        <label class="btn sm ${b[k] ? '' : 'primary'}">${icon('upload', 'sm')}${b[k] ? 'Değiştir' : 'Yükle'}<input type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml" data-change="brand-logo" data-k="${k}"></label>
+        ${b[k] ? html`<button type="button" class="btn sm" data-act="brand-del" data-k="${k}">${icon('x', 'sm')}Kaldır</button>` : ''}
+      </div>
+    </div>`;
   return html`<div class="card card-pad stack" data-sec="genel" id="brandCard">
     <div><h3 style="font-size:15px">${icon('sun', 'sm')} Logo ve simge</h3>
-      <p class="small muted">Tek logo kullanılır: menünün tepesinde ve telefonda üst çubukta görünür. Şeffaf arka planlı PNG veya SVG önerilir.</p></div>
-    <div class="brand-prev">
-      <div class="bp"><span class="tiny faint">Menüde</span><div class="bp-box">${brandLogo()}</div></div>
-      <div class="bp"><span class="tiny faint">Üst çubukta (telefon)</span><div class="bp-box bp-top top-logo">${brandLogo()}</div></div>
-      <div class="bp"><span class="tiny faint">Koyu zeminde</span><div class="bp-box bp-dark">${brandLogo()}</div></div>
+      <p class="small muted">Tek logo kullanılır: menünün tepesinde ve telefonda üst çubukta görünür. Açık ve koyu mod için ayrı logo yükleyebilirsiniz; yalnızca birini yüklerseniz her iki modda o kullanılır. Şeffaf arka planlı PNG veya SVG önerilir.</p></div>
+    <div class="logo-slots">
+      ${slot('logo', 'Açık mod logosu', 'Açık zemin için (genelde koyu renkli logo)', false)}
+      ${slot('logo_dark', 'Koyu mod logosu', 'Koyu zemin için (genelde beyaz/açık renkli logo)', true)}
     </div>
-    <div class="row wrap" style="gap:8px">
-      <label class="btn primary">${icon('upload', 'sm')}${b.logo ? 'Logoyu değiştir' : 'Logo yükle'}<input type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml" data-change="brand-logo"></label>
-      ${b.logo ? html`<button type="button" class="btn" data-act="brand-del" data-k="logo">${icon('x', 'sm')}Varsayılan logoya dön</button>` : ''}
+    <div class="brand-prev">
+      <div class="bp"><span class="tiny faint">Menüde (şu anki tema)</span><div class="bp-box">${brandLogo()}</div></div>
+      <div class="bp"><span class="tiny faint">Üst çubukta (telefon)</span><div class="bp-box bp-top top-logo">${brandLogo()}</div></div>
+      <div class="bp"><span class="tiny faint">Giriş ekranı (koyu panel)</span><div class="bp-box bp-dark">${brandLogo('on-dark')}</div></div>
     </div>
     <div class="field"><label>Logo boyutu: <b id="logoHval">${h} px</b></label>
       <input class="range" type="range" min="20" max="96" step="2" value="${h}" data-input="brand-h" aria-label="Logo boyutu"></div>
@@ -1375,11 +1383,12 @@ CHANGE['brand-logo'] = async (el) => {
   const file = el.files && el.files[0]; el.value = '';
   if (!file) return;
   try {
+    const k = el.dataset.k === 'logo_dark' ? 'logo_dark' : 'logo';
     const logo = await prepareLogo(file);
-    const r = await api('brand.save', { logo });
+    const r = await api('brand.save', { [k]: logo });
     S.settings.brand = r.brand;
     refreshBrandEverywhere();
-    toast('Logo güncellendi');
+    toast(k === 'logo_dark' ? 'Koyu mod logosu güncellendi' : 'Açık mod logosu güncellendi');
   } catch (e) { toast(e.message, 'err'); }
 };
 CHANGE['brand-icon'] = async (el) => {
@@ -1395,10 +1404,10 @@ CHANGE['brand-icon'] = async (el) => {
 ACT['brand-del'] = async (el) => {
   const k = el.dataset.k;
   try {
-    const r = await api('brand.save', k === 'icon' ? { icon: null, icon192: null, icon512: null } : { logo: null });
+    const r = await api('brand.save', k === 'icon' ? { icon: null, icon192: null, icon512: null } : { [k === 'logo_dark' ? 'logo_dark' : 'logo']: null });
     S.settings.brand = r.brand;
     refreshBrandEverywhere();
-    toast(k === 'icon' ? 'Varsayılan simgeye dönüldü' : 'Varsayılan logoya dönüldü');
+    toast(k === 'icon' ? 'Varsayılan simgeye dönüldü' : k === 'logo_dark' ? 'Koyu mod logosu kaldırıldı' : 'Açık mod logosu kaldırıldı');
   } catch (e) { toast(e.message, 'err'); }
 };
 const saveLogoH = debounce(async (h) => {

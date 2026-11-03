@@ -1126,3 +1126,14 @@ html.fs-lg body { zoom: 1.12; }
 .fav-prev img { width: 32px; height: 32px; object-fit: contain; }
 @media (max-width: 640px) { .brand-prev { grid-template-columns: 1fr; } }
 .fav-prev .brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: none; }
+
+/* Açık / koyu mod logosu */
+.brand-logo { display: inline-flex; align-items: center; min-width: 0; }
+.brand-logo .logo-dark { display: none; }
+[data-theme="dark"] .brand-logo .logo-light, .on-dark .brand-logo .logo-light, .brand-logo.on-dark .logo-light { display: none; }
+[data-theme="dark"] .brand-logo .logo-dark, .on-dark .brand-logo .logo-dark, .brand-logo.on-dark .logo-dark { display: block; }
+.logo-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.logo-slot { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ls-head { display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 640px) { .logo-slots { grid-template-columns: 1fr; } }
+[data-theme="dark"] .bp-box:not(.bp-dark) { background: var(--surface-2); }

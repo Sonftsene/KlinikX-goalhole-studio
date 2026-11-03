@@ -708,7 +708,7 @@ function a_me_email(): void
 
 /* ---------------- Marka: özel logo, favicon ve logo boyutu ---------------- */
 
-const BRAND_KINDS = ['logo', 'icon', 'icon192', 'icon512'];
+const BRAND_KINDS = ['logo', 'logo_dark', 'icon', 'icon192', 'icon512'];
 
 function brand_dir(): string
 {
@@ -728,6 +728,7 @@ function brand_out(): array
 {
     return [
         'logo' => brand_url('logo'),
+        'logo_dark' => brand_url('logo_dark'),
         'icon' => brand_url('icon'),
         'icon192' => brand_url('icon192'),
         'logo_h' => max(20, min(96, (int)setting('brand_logo_h', '36'))),

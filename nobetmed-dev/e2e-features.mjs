@@ -390,8 +390,14 @@ step('profil fotoğrafı rehberde görünüyor; yönetici kaldırabiliyor');
 // 21) Logo ve favicon ayarı + boyut; telefonda üst çubukta logo
 await a.goto(BASE + '#/yonetim/ayarlar/genel');
 await a.locator('#brandCard').waitFor();
-await a.setInputFiles('#brandCard input[data-change=brand-logo]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
-await expectText(a, 'Logo güncellendi');
+await a.setInputFiles('#brandCard input[data-change=brand-logo][data-k=logo]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
+await expectText(a, 'Açık mod logosu güncellendi');
+await a.setInputFiles('#brandCard input[data-change=brand-logo][data-k=logo_dark]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures', 'kurum-logosu.png'));
+await expectText(a, 'Koyu mod logosu güncellendi');
+const themeLogo = async (t) => a.evaluate((th) => { document.documentElement.setAttribute('data-theme', th); const v = [...document.querySelectorAll('.sidebar .brand-img')].filter((i) => getComputedStyle(i).display !== 'none'); return v.length === 1 ? v[0].getAttribute('src') : 'yok:' + v.length; }, t);
+const lightSrc = await themeLogo('light'), darkSrc = await themeLogo('dark');
+await themeLogo('light');
+if (!/f=logo&/.test(lightSrc) || !/f=logo_dark&/.test(darkSrc)) fail(`tema logoları: ${lightSrc} / ${darkSrc}`);
 await a.setInputFiles('#brandCard input[data-change=brand-icon]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
 await expectText(a, 'Favicon ve uygulama simgesi güncellendi');
 await a.locator('#brandCard input[data-input=brand-h]').fill('48');
@@ -400,10 +406,12 @@ const br = await a.evaluate(async () => ({ side: getComputedStyle(document.query
 if (br.side !== '48px' || !/action=brand/.test(br.fav) || br.man !== 2) fail('logo ayarı: ' + JSON.stringify(br));
 await m.goto(BASE + '#/');
 await m.reload();
-await m.locator('.topbar .top-logo img.brand-img').waitFor();
+await m.locator('.topbar .top-logo img.brand-img.logo-light').waitFor();
 await a.click('#brandCard [data-act=brand-del][data-k=logo]');
-await expectText(a, 'Varsayılan logoya dönüldü');
-step('logo + favicon yükleme, boyut ayarı, telefonda üst çubukta logo');
+await expectText(a, 'Açık mod logosu kaldırıldı');
+await a.click('#brandCard [data-act=brand-del][data-k=logo_dark]');
+await expectText(a, 'Koyu mod logosu kaldırıldı');
+step('açık/koyu mod logoları, favicon, boyut ayarı, telefonda üst çubukta logo');
 
 // Masaüstü ekran görüntüleri
 await a.goto(BASE + '#/');
