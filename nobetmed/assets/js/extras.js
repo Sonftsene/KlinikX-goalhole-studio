@@ -252,7 +252,7 @@ async function renderMyShifts(view) {
     : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa Hesabım sayfasından adınızı düzeltin.</p><a class="btn" href="#/nobet" style="margin-top:12px">${icon('table', 'sm')}Excel listeye bak</a></div>`
     : html`
       ${top ? html`<div class="next-shift tone-${shiftTone(top)}"><div class="ns-l">${cur ? 'Şu an nöbettesin' : 'Sıradaki nöbetin'}</div><div class="ns-d">${cur ? `${cur.end}’de bitiyor` : dateLabel(top.date)}</div>
-        <div class="ns-c">${codeChip(top, true)}<span>${shiftDesc(top)}${top.hours ? html` · <b>${top.hours} saat</b>` : ''}</span></div><div class="ns-r">${top.roster || ''}</div></div>` : ''}
+        <div class="ns-c">${codeChip(top, true)}<span>${shiftDesc(top)}${top.hours && !/saat/i.test(top.label || '') ? html` · <b>${top.hours} saat</b>` : ''}</span></div><div class="ns-r">${top.roster || ''}</div></div>` : ''}
       <div class="cal-wrap"><div class="card cal-card" id="calCard"></div><div class="card" id="dayPanel"></div></div>`}`);
   $('#icsBtn').disabled = !entries.some((e) => e.kind === 'shift' && e.date >= ymd(new Date()));
   drawCalendar();
@@ -294,7 +294,7 @@ async function loadDayPanel() {
   if (!box || !CAL.sel) return;
   const mine = (MY.entries || []).filter((e) => e.date === CAL.sel);
   const head = html`<div class="card-head"><h3>${dateLabel(CAL.sel)}</h3></div>`;
-  const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div></div>`)}</div>`
+  const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours && !/saat/i.test(e.label || '') ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div></div>`)}</div>`
     : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
   setHTML(box, html`${head}${mineHtml}<div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
   const want = CAL.sel;
@@ -1119,7 +1119,7 @@ async function mountSetupBox(box) {
   if (done === items.length) { setHTML(box, ''); return; }
   setHTML(box, html`<div class="card setup"><div class="card-head"><div><h3>Kurulumu tamamlayın</h3><div class="tiny faint">${done} / ${items.length} adım tamam</div></div><button class="btn sm icon ghost" data-act="setup-hide" aria-label="Gizle">${icon('x', 'sm')}</button></div>
     <div class="setup-bar"><div class="progress"><span style="width:${Math.round(done / items.length * 100)}%"></span></div></div>
-    <div class="setup-list">${items.map(([ok, t, d, href]) => html`<a class="setup-row ${ok ? 'ok' : ''}" href="${href || '#'}" ${href ? '' : raw('data-act="noop"')}>
+    <div class="setup-list">${items.filter(([ok]) => !ok).map(([ok, t, d, href]) => html`<a class="setup-row ${ok ? 'ok' : ''}" href="${href || '#'}" ${href ? '' : raw('data-act="noop"')}>
       <span class="su-ck">${icon(ok ? 'check' : 'chevR', 'sm')}</span><span class="grow" style="min-width:0"><b>${t}</b>${ok ? '' : html`<span>${d}</span>`}</span></a>`)}</div></div>`);
 }
 ACT['setup-hide'] = (el) => { try { localStorage.setItem('nm-setup-hide', '1'); } catch (e) { /* */ } const c = el.closest('#setupBox'); if (c) setHTML(c, ''); };

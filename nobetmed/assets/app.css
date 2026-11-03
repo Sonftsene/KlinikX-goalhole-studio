@@ -897,3 +897,94 @@ html.fs-lg body { zoom: 1.12; }
   .prof-tabs a { padding: 0 10px; }
   .prof-tabs a svg.i { display: none; }
 }
+
+/* =====================================================================
+   Pastel tema (v3.3): yumuşak yeşil + mavi, belirgin butonlar
+   ===================================================================== */
+:root:not([data-theme="dark"]) {
+  --bg: #f2f7f6;
+  --brand: #1f8f80;
+  --brand-strong: #187468;
+  --brand-soft: #dcf2ea;
+  --brand-text: #136a5e;
+  --focus: 0 0 0 3px rgba(80, 160, 220, .28);
+}
+:root {
+  --mint: #dff4ea; --mint-2: #c9ecdb; --mint-text: #17694f;
+  --sky: #e3effb; --sky-2: #cfe2f6; --sky-text: #22598f;
+  --grad-brand: linear-gradient(135deg, #2aa38c 0%, #2f8fc4 100%);
+  --grad-soft: linear-gradient(135deg, #e3f5ec 0%, #e3eefb 100%);
+}
+[data-theme="dark"] {
+  --mint: rgba(95, 209, 160, .14); --mint-2: rgba(95, 209, 160, .24); --mint-text: #8fe0bd;
+  --sky: rgba(110, 170, 240, .14); --sky-2: rgba(110, 170, 240, .26); --sky-text: #a9cdf5;
+  --grad-brand: linear-gradient(135deg, #34b89f 0%, #4a9fd8 100%);
+  --grad-soft: linear-gradient(135deg, rgba(95, 209, 160, .10) 0%, rgba(110, 170, 240, .10) 100%);
+}
+
+/* Butonlar: varsayılan buton pastel mavi, ana buton yeşil-mavi geçişli */
+.btn { background: var(--sky); border-color: var(--sky-2); color: var(--sky-text); box-shadow: 0 1px 0 rgba(34, 89, 143, .06); }
+.btn:hover { background: var(--sky-2); border-color: var(--sky-2); color: var(--sky-text); }
+.btn.primary { background: var(--grad-brand); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -8px rgba(31, 143, 128, .75); }
+.btn.primary:hover { background: var(--grad-brand); filter: brightness(1.06) saturate(1.05); border-color: transparent; }
+[data-theme="dark"] .btn.primary { color: #062420; }
+.btn.danger { background: #fdecef; border-color: #f6d0d7; color: #b0364b; }
+.btn.danger:hover { background: #fbdde3; border-color: #f2bcc6; }
+[data-theme="dark"] .btn.danger { background: var(--danger-soft); border-color: transparent; color: var(--danger); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); box-shadow: none; }
+.btn.ghost:hover { background: var(--mint); color: var(--mint-text); }
+.btn.ghost.danger { color: var(--danger); }
+.btn.ghost.danger:hover { background: var(--danger-soft); color: var(--danger); }
+.btn.active { background: var(--mint); border-color: var(--mint-2); color: var(--mint-text); }
+.btn:focus-visible, .nav-item:focus-visible, .hchip:focus-visible { outline: none; box-shadow: var(--focus); }
+.topbar .btn.ghost.icon, .notif-btn { color: var(--text-2); }
+
+/* Marka ve yan menü */
+.brand-mark { background: var(--grad-brand); box-shadow: 0 6px 14px -6px rgba(47, 143, 196, .6); }
+.sidebar { background: linear-gradient(180deg, #eef8f3 0%, #edf4fb 100%); }
+[data-theme="dark"] .sidebar { background: var(--surface); }
+.nav-item:hover { background: rgba(255, 255, 255, .7); }
+[data-theme="dark"] .nav-item:hover { background: var(--surface-3); }
+.nav-item.active { background: #fff; color: var(--brand-text); box-shadow: 0 1px 3px rgba(15, 27, 33, .08); position: relative; }
+.nav-item.active::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--grad-brand); }
+[data-theme="dark"] .nav-item.active { background: var(--brand-soft); box-shadow: none; }
+.me-card:hover { background: rgba(255, 255, 255, .7); }
+[data-theme="dark"] .me-card:hover { background: var(--surface-3); }
+
+/* Sekmeler ve segmentler */
+.seg { background: var(--sky); }
+.seg button.on, .hub-tabs a.on, .prof-tabs a.on { color: var(--brand-text); }
+.hub-tabs { background: var(--grad-soft); border: 1px solid var(--border); }
+.hub-tabs a.on { background: var(--surface); box-shadow: 0 2px 6px -2px rgba(31, 143, 128, .35); }
+.tabs button.on { color: var(--brand-text); border-bottom-color: #2f9cb0; }
+
+/* Kartlar ve ana sayfa */
+.card { border-color: #e2ebe9; }
+[data-theme="dark"] .card { border-color: var(--border); }
+.hero { background: var(--grad-soft); border-color: #d7e9e4; }
+[data-theme="dark"] .hero { border-color: var(--border); }
+.hero-shift { border-color: #d9e8f2; }
+.hchip { background: var(--surface); border-color: var(--sky-2); color: var(--sky-text); }
+.hchip.brand { background: var(--mint); color: var(--mint-text); border-color: var(--mint-2); }
+.hchip.ok { color: var(--mint-text); border-color: var(--mint-2); }
+.kpi:hover, .post:hover { border-color: #b9dccf; }
+.post { border-color: #e2ebe9; }
+[data-theme="dark"] .post { border-color: var(--border); }
+.post.unread { box-shadow: inset 3px 0 0 #2aa38c; }
+.cal-d.today { box-shadow: inset 0 0 0 2px #2f9cb0; }
+.cal-d.today .cd-n::after { background: #2f9cb0; }
+
+/* Formlar */
+.input:focus, .select:focus, .textarea:focus { border-color: #7fb6e2; box-shadow: var(--focus); outline: none; }
+.switch input:checked + .track { background: var(--grad-brand); }
+.progress > span { background: var(--grad-brand); }
+.dropzone { border-color: var(--sky-2); background: var(--sky); color: var(--sky-text); }
+.dropzone:hover, .dropzone.over { border-color: #7fb6e2; }
+
+/* Alt menü (telefon) */
+@media (max-width: 900px) {
+  .bottom-nav button.on { color: var(--brand-text); }
+  .bottom-nav button.on svg.i { background: var(--mint); border-radius: 10px; box-shadow: 0 0 0 6px var(--mint); }
+  .bottom-nav .plus span.pl { background: var(--grad-brand); box-shadow: 0 8px 18px -8px rgba(47, 143, 196, .8); }
+  [data-theme="dark"] .bottom-nav button.on svg.i { background: var(--brand-soft); box-shadow: 0 0 0 6px var(--brand-soft); }
+}
