@@ -1,4 +1,4 @@
-/* NöbetMed — nöbet listesi çözümleyici: Excel görüntüleme modelinden kişi başı nöbetleri çıkarır.
+/* dupcii — nöbet listesi çözümleyici: Excel görüntüleme modelinden kişi başı nöbetleri çıkarır.
  * Saf fonksiyonlar; DOM kullanmaz. core.js'teki trLower ve TR_MONTHS globallerine dayanır.
  *
  *   classifyCode(text, dict?)            -> sözlük kaydı (+raw) | null

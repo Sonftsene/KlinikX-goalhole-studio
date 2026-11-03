@@ -1,6 +1,6 @@
 <?php
 /**
- * NöbetMed — bağımsız WebAuthn (passkey) sunucu kitaplığı.
+ * dupcii — bağımsız WebAuthn (passkey) sunucu kitaplığı.
  *
  * Yalnızca PHP 8.0+ yerleşik eklentileri: openssl, hash, json, mbstring.
  * Desteklenen anahtarlar: ES256 (EC2 P-256, alg -7) ve RS256 (RSA, alg -257).

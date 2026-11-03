@@ -1,4 +1,4 @@
-/* NöbetMed — PWA: service worker kaydı ve push bildirimleri */
+/* dupcii — PWA: service worker kaydı ve push bildirimleri */
 'use strict';
 
 let _nmSwReg = null;
@@ -132,7 +132,7 @@ async function pushEnable() {
       if (p && p.then) p.then(resolve, () => resolve('default'));
     });
   }
-  if (perm === 'denied') throw new Error('Bildirim izni reddedildi. Tarayıcı ya da telefon ayarlarından NöbetMed için bildirimlere izin verin.');
+  if (perm === 'denied') throw new Error('Bildirim izni reddedildi. Tarayıcı ya da telefon ayarlarından dupcii için bildirimlere izin verin.');
   if (perm !== 'granted') return false;
 
   const reg = await _nmPushReg();
@@ -145,7 +145,7 @@ async function pushEnable() {
     try {
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
     } catch (e) {
-      if (Notification.permission === 'denied') throw new Error('Bildirim izni reddedildi. Tarayıcı ya da telefon ayarlarından NöbetMed için bildirimlere izin verin.');
+      if (Notification.permission === 'denied') throw new Error('Bildirim izni reddedildi. Tarayıcı ya da telefon ayarlarından dupcii için bildirimlere izin verin.');
       throw new Error('Bildirim aboneliği oluşturulamadı: ' + (e && e.message ? e.message : 'bilinmeyen hata'));
     }
   }

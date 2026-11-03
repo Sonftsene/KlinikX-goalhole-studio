@@ -49,7 +49,7 @@ if ($a !== '') {
                 $_SESSION['user_id'] ??= wa_b64u_enc(random_bytes(16));
                 out(['ok' => true, 'publicKey' => [
                     'challenge' => wa_b64u_enc($challenge),
-                    'rp' => ['name' => 'NöbetMed Test', 'id' => $rpId],
+                    'rp' => ['name' => 'dupcii Test', 'id' => $rpId],
                     'user' => ['id' => $_SESSION['user_id'], 'name' => 'test@nobetmed.local', 'displayName' => 'Test Kullanıcı'],
                     'pubKeyCredParams' => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
                     'authenticatorSelection' => ['residentKey' => 'preferred', 'userVerification' => 'preferred'],

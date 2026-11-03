@@ -1,6 +1,6 @@
 <?php
 /**
- * NöbetMed — Web Push (yalnızca VAPID, yüksüz/boş mesaj)
+ * dupcii — Web Push (yalnızca VAPID, yüksüz/boş mesaj)
  *
  * Boş push mesajı gönderilir (RFC 8291 şifrelemesi gerekmez). Service worker 'push'
  * olayında bekleyen bildirimleri çerezle sunucudan çeker (api.php?action=push.pending).

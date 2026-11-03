@@ -1,6 +1,6 @@
 <?php
 /**
- * NöbetMed — Yapılandırma
+ * dupcii — Yapılandırma
  *
  * Varsayılan ayarlarla hiçbir şeyi değiştirmeden çalışır (SQLite).
  * MySQL kullanmak isterseniz DB_DRIVER değerini 'mysql' yapıp bilgileri doldurun;

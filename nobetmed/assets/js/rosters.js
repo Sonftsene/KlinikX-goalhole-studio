@@ -1,4 +1,4 @@
-/* NöbetMed — Excel nöbet listeleri */
+/* dupcii — Excel nöbet listeleri */
 'use strict';
 
 const RS = { active: null, stage: null, views: new Map(), busy: false };

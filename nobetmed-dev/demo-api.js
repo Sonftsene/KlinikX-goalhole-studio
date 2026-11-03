@@ -1,4 +1,4 @@
-/* NöbetMed — canlı önizleme için tarayıcı içi demo API (sunucu gerektirmez).
+/* dupcii — canlı önizleme için tarayıcı içi demo API (sunucu gerektirmez).
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
@@ -434,7 +434,7 @@
       return { admin: adminSettings() };
     },
     'settings.get'() { needAdmin(); return { admin: adminSettings() }; },
-    'mail.test'() { needAdmin(); logMail('NöbetMed test e-postası', 1); return { message: 'Önizlemede gerçek e-posta gönderilmez. Sitenizde test e-postası ' + me().email + ' adresine gider.' }; },
+    'mail.test'() { needAdmin(); logMail('dupcii test e-postası', 1); return { message: 'Önizlemede gerçek e-posta gönderilmez. Sitenizde test e-postası ' + me().email + ' adresine gider.' }; },
     'mail.log'() { needAdmin(); return { log: db.mailLog }; },
     'posts.remind'(d) {
       needPub();

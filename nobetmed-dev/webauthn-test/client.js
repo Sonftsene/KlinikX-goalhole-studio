@@ -1,5 +1,5 @@
 /*
- * NöbetMed — passkey (WebAuthn) istemci yardımcıları.
+ * dupcii — passkey (WebAuthn) istemci yardımcıları.
  * Sunucu tarafı: nobetmed/inc/webauthn.php
  *
  *   await passkeyRegister();            // kayıt (parmak izi / Face ID oluştur)

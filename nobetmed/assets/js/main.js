@@ -1,4 +1,4 @@
-/* NöbetMed — açılış */
+/* dupcii — açılış */
 'use strict';
 
 async function start() {
@@ -18,7 +18,7 @@ async function start() {
   ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });
   S.people = r.people || [];
   if (r.counts) S.counts = r.counts;
-  document.title = 'NöbetMed · ' + (S.settings.org_name || 'Klinik Portalı');
+  document.title = 'dupcii · ' + (S.settings.org_name || 'Klinik Portalı');
   if (r.setup_needed) return renderSetup();
   if (BOOT.reset && !start.resetShown) {
     start.resetShown = true;

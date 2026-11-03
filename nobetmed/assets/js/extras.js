@@ -1,4 +1,4 @@
-/* NöbetMed — ek özellikler: bildirim merkezi, nöbetlerim, bugün nöbette, rehber, parmak izi girişi,
+/* dupcii — ek özellikler: bildirim merkezi, nöbetlerim, bugün nöbette, rehber, parmak izi girişi,
    şablonlar, davetler/QR, okuma raporu, işlem günlüğü, yedekleme, belge metni çıkarma */
 'use strict';
 
@@ -333,7 +333,7 @@ ACT.ics = () => {
       `SUMMARY:${icsText(`${s.code} nöbet${s.label && s.label !== s.code ? ' – ' + s.label : ''}`)}`, `DESCRIPTION:${icsText(s.roster || '')}`,
       'BEGIN:VALARM', 'TRIGGER:-PT12H', 'ACTION:DISPLAY', 'DESCRIPTION:Yarın nöbetiniz var', 'END:VALARM', 'END:VEVENT'].join('\r\n');
   });
-  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NobetMed//TR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nöbetlerim', ...ev, 'END:VCALENDAR'].join('\r\n');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//dupcii//TR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nöbetlerim', ...ev, 'END:VCALENDAR'].join('\r\n');
   if (downloadBlob(new Blob([ics], { type: 'text/calendar;charset=utf-8' }), 'nobetlerim.ics') !== false) toast('Takvim dosyası indirildi. Açınca telefonunuzun takvimine eklenir.');
 };
 
@@ -888,7 +888,7 @@ async function renderInvite(token) {
   const inv = r.invite;
   const personal = inv.kind === 'personal';
   setHTML(APP(), authLayout(html`
-    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${r.org_name}</div></div></div>
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">dupc<span>ii</span></b><div class="brand-org">${r.org_name}</div></div></div>
     <h1>${personal ? `Hoş geldin, ${inv.name.split(' ')[0]}` : 'Portala katıl'}</h1>
     <p class="sub">${personal ? 'Hesabın hazırlandı. E-postanı ve şifreni belirleyip hemen giriş yap.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsin.' : 'Kaydın yönetici onayından sonra aktifleşir.'}</p>
     <form class="stack" data-form="invite-reg">

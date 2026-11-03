@@ -1,4 +1,4 @@
-/* NöbetMed — yönetim paneli ve profil */
+/* dupcii — yönetim paneli ve profil */
 'use strict';
 
 const AD = { tab: 'onaylar', users: null, userFilter: 'all', userQ: '' };

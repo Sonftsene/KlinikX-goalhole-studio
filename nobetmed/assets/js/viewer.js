@@ -1,4 +1,4 @@
-/* NöbetMed — dosya görüntüleyici: Excel, PDF, Word, görsel, video, ses, metin */
+/* dupcii — dosya görüntüleyici: Excel, PDF, Word, görsel, video, ses, metin */
 'use strict';
 
 const VENDOR = Object.assign({
@@ -988,7 +988,7 @@ async function mountPreview(el, att, opts = {}) {
     if (kind === 'image' || kind === 'video' || kind === 'audio') return mountMedia(el, att, kind);
     return unsupported(el, att);
   } catch (e) {
-    console.error('[NöbetMed] Önizleme hatası:', att.name, e);
+    console.error('[dupcii] Önizleme hatası:', att.name, e);
     const known = e && e.message && /yüklenemedi|bulunamadı|alınamadı|sayfa yok/.test(e.message);
     unsupported(el, att, known ? e.message : 'Dosya açılamadı. Bozuk veya desteklenmeyen bir biçimde olabilir.', known ? '' : String((e && e.message) || e).slice(0, 160));
   }

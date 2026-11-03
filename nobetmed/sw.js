@@ -1,4 +1,4 @@
-/* NöbetMed — service worker (çevrimdışı kabuk + boş push bildirimleri) */
+/* dupcii — service worker (çevrimdışı kabuk + boş push bildirimleri) */
 'use strict';
 
 // Sürüm, index.php'nin kayıtta verdiği ?v= değerinden gelir: yeni sürümde eski önbellekler silinir, kabuk yeniden indirilir
@@ -104,7 +104,7 @@ async function navigationStrategy(event) {
   } catch (e) {
     const cached = await caches.match(ROOT_URL, { cacheName: SHELL_CACHE }) || await caches.match(ROOT_URL);
     if (cached) return cached;
-    return new Response('<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>NöbetMed</title><p style="font:16px system-ui;padding:24px">Çevrimdışısınız. İnternet bağlantısı gelince sayfayı yenileyin.</p>',
+    return new Response('<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>dupcii</title><p style="font:16px system-ui;padding:24px">Çevrimdışısınız. İnternet bağlantısı gelince sayfayı yenileyin.</p>',
       { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
 }
@@ -234,7 +234,7 @@ async function handlePush() {
       const n = shown[shown.length - 1];
       return self.registration.showNotification(n.title, { body: n.body, tag: n.tag || 'nm-generic', icon: n.icon, badge: n.badge, data: n.data, renotify: false });
     }
-    return self.registration.showNotification('NöbetMed', opts({ body: 'Yeni bildirim', tag: 'nm-generic', data: { url: ROOT_URL } }));
+    return self.registration.showNotification('dupcii', opts({ body: 'Yeni bildirim', tag: 'nm-generic', data: { url: ROOT_URL } }));
   }
 
   if (items.length > 3) {
@@ -246,7 +246,7 @@ async function handlePush() {
     }));
   }
 
-  await Promise.all(items.map((it) => self.registration.showNotification(String(it.title || 'NöbetMed'), opts({
+  await Promise.all(items.map((it) => self.registration.showNotification(String(it.title || 'dupcii'), opts({
     body: String(it.body || ''),
     tag: String(it.tag || ('nm-' + (it.id != null ? it.id : Date.now()))),
     data: { url: safeUrl(it.url) },

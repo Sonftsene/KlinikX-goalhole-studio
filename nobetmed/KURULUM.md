@@ -1,4 +1,4 @@
-# NöbetMed — Hostinger Kurulum Rehberi
+# dupcii — Hostinger Kurulum Rehberi
 
 Klinik ekibiniz için duyuru, protokol, eğitim ve nöbet çizelgesi portalı.
 PHP 8.0+ olan her paylaşımlı sunucuda (Hostinger dahil) ek kurulum gerektirmeden çalışır.

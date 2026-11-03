@@ -42,7 +42,7 @@ async function build(sheetSpec) {
   const mesai = workdays * 8;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'NöbetMed';
+  wb.creator = 'dupcii';
   const ws = wb.addWorksheet(sheetSpec.sheetName, { views: [{ state: 'frozen', xSplit: 3, ySplit: 10, showGridLines: true }], properties: { defaultRowHeight: 15 } });
   const D = 4; // ilk gün sütunu (D)
   const L = D + days - 1; // son gün sütunu

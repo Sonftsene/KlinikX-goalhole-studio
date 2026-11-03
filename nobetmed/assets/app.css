@@ -1,4 +1,4 @@
-/* NöbetMed — arayüz stilleri */
+/* dupcii — arayüz stilleri */
 :root {
   --bg: #f5f7f8;
   --surface: #ffffff;
@@ -1048,3 +1048,11 @@ html.fs-lg body { zoom: 1.12; }
   .toolbar .search { width: 100% !important; max-width: none !important; flex: 1 1 100%; }
   .toolbar > .row { width: 100%; }
 }
+
+/* ================= dupcii marka ================= */
+.brand-mark { background: none !important; padding: 0; overflow: hidden; border-radius: 10px; }
+.brand-mark svg { width: 100% !important; height: 100% !important; stroke: none !important; fill: none; display: block; }
+.brand-name { font-weight: 800; font-size: 19px; letter-spacing: -0.045em; line-height: 1.1; }
+.brand-name span { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Giriş ekranı sol paneli: marka renkleri */
+.auth-art { background: radial-gradient(900px 520px at 8% 6%, #34b89f 0%, transparent 60%), radial-gradient(800px 520px at 100% 100%, #3b8fd0 0%, transparent 60%), linear-gradient(135deg, #1d8a7a 0%, #23709f 100%); }

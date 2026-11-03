@@ -11,7 +11,7 @@ if (is_file(__DIR__ . '/inc/webauthn.php')) require __DIR__ . '/inc/webauthn.php
 nm_session();
 
 set_exception_handler(function (Throwable $e) {
-    error_log('[NobetMed] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    error_log('[dupcii] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: application/json; charset=utf-8');
@@ -1638,7 +1638,7 @@ function a_mail_test(): void
     if (!mail_ready()) fail('Önce e-posta bildirimlerini açıp gönderen adresini kaydedin.');
     [$html, $text] = mail_template('Test e-postası', ['Bu bir deneme e-postasıdır. Bunu görüyorsanız portalın e-posta ayarları doğru çalışıyor.'], 'Portala git', base_url());
     q('INSERT INTO mail_queue (to_email, to_name, subject, html, text_body, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [$me['email'], $me['name'], 'NöbetMed test e-postası', $html, $text, 'test', now()]);
+        [$me['email'], $me['name'], 'dupcii test e-postası', $html, $text, 'test', now()]);
     $id = insert_id();
     $row = one('SELECT * FROM mail_queue WHERE id = ?', [$id]);
     q('UPDATE mail_queue SET locked_at = ? WHERE id = ?', [time(), $id]);

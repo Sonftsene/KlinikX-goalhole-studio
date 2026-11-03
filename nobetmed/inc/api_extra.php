@@ -1,6 +1,6 @@
 <?php
 /**
- * NöbetMed — ek API işlemleri: bildirim merkezi, telefon bildirimi, rehber, nöbetlerim,
+ * dupcii — ek API işlemleri: bildirim merkezi, telefon bildirimi, rehber, nöbetlerim,
  * okuma raporu, yedekleme, işlem günlüğü, şablonlar, davetler, belge metni.
  * (api.php içindeki yardımcılar: s(), i(), b(), arr(), out(), fail(), need_user() …)
  */
@@ -228,7 +228,7 @@ function a_backup_delete(): void
 {
     $me = need_admin();
     $name = basename(s('name', 120));
-    if (!preg_match('/^nobetmed-yedek-[\w-]+\.zip$/', $name)) fail('Geçersiz dosya.');
+    if (!preg_match('/^(dupcii|nobetmed)-yedek-[\w-]+\.zip$/', $name)) fail('Geçersiz dosya.');
     @unlink(backup_dir() . '/' . $name);
     audit($me, 'backup.delete', $name);
     out(['items' => backup_list()]);
@@ -247,7 +247,7 @@ function a_backup_download_get(): void
     if (function_exists('set_time_limit')) @set_time_limit(0);
     $name = basename((string)($_GET['name'] ?? ''));
     $temp = false;
-    if ($name !== '' && preg_match('/^nobetmed-yedek-[\w-]+\.zip$/', $name)) {
+    if ($name !== '' && preg_match('/^(dupcii|nobetmed)-yedek-[\w-]+\.zip$/', $name)) {
         $path = backup_dir() . '/' . $name;
     } else {
         try {
@@ -461,7 +461,7 @@ function a_passkey_reg_begin(): void
     $exclude = array_map(fn($r) => ['type' => 'public-key', 'id' => $r['credential_id']], all('SELECT credential_id FROM passkeys WHERE user_id = ?', [$me['id']]));
     out(['publicKey' => [
         'challenge' => wa_b64u_enc($challenge),
-        'rp' => ['name' => setting('org_name', 'NöbetMed'), 'id' => wa_rp_id_from_server()],
+        'rp' => ['name' => setting('org_name', 'dupcii'), 'id' => wa_rp_id_from_server()],
         'user' => ['id' => wa_b64u_enc('u' . $me['id']), 'name' => $me['email'], 'displayName' => $me['name']],
         'pubKeyCredParams' => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
         'authenticatorSelection' => ['residentKey' => 'required', 'requireResidentKey' => true, 'userVerification' => 'required'],

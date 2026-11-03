@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.3.0';
+const NM_VERSION = '3.4.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');

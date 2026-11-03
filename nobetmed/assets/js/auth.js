@@ -1,4 +1,4 @@
-/* NöbetMed — kurulum, giriş, kayıt ve misafir görünümü */
+/* dupcii — kurulum, giriş, kayıt ve misafir görünümü */
 'use strict';
 
 const APP = () => document.getElementById('app');
@@ -8,7 +8,7 @@ function authLayout(inner) {
   return html`
   <div class="auth">
     <aside class="auth-art">
-      <div class="row" style="gap:12px">${BRAND_MARK}<div><div class="brand-name" style="color:#fff">Nöbet<span style="color:#8ff0e6">Med</span></div><div class="tiny" style="opacity:.75">${org}</div></div></div>
+      <div class="row" style="gap:12px">${BRAND_MARK}<div><div class="brand-name" style="color:#fff">dupc<span style="color:#c9f3e6">ii</span></div><div class="tiny" style="opacity:.75">${org}</div></div></div>
       <div>
         <h2>Ekibinizin duyuruları, protokolleri ve nöbetleri tek yerde.</h2>
         <p>WhatsApp gruplarında kaybolan bilgiler yerine düzenli, aranabilir ve kimin okuduğu belli olan bir klinik portalı.</p>
@@ -18,7 +18,7 @@ function authLayout(inner) {
           <div class="auth-feat"><span class="fi">${icon('lock')}</span><div><b>Kapalı ve güvenli</b><span>Arama motorlarına kapalı, yalnızca onaylı üyeler erişir.</span></div></div>
         </div>
       </div>
-      <div class="tiny" style="opacity:.6">© ${new Date().getFullYear()} NöbetMed</div>
+      <div class="tiny" style="opacity:.6">© ${new Date().getFullYear()} dupcii</div>
     </aside>
     <main class="auth-form"><div class="auth-box">${inner}</div></main>
   </div>`;
@@ -26,7 +26,7 @@ function authLayout(inner) {
 
 function renderSetup() {
   setHTML(APP(), authLayout(html`
-    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">Nöbet<span>Med</span></b></div>
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">dupc<span>ii</span></b></div>
     <h1>Kuruluma hoş geldiniz</h1>
     <p class="sub">İlk yönetici hesabını oluşturun. Bu işlem yalnızca bir kez yapılır.</p>
     <form class="stack" data-form="setup">
@@ -97,7 +97,7 @@ function renderAuth(mode = 'login') {
       <p class="small muted" style="margin-top:18px;text-align:center"><a href="#" data-act="auth-mode" data-mode="login">Girişe dön</a></p>`;
   } else if (mode === 'register') {
     inner = html`
-      <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
+      <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">dupc<span>ii</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
       <h1>Hesap oluştur</h1>
       <p class="sub">${reg === 'approval' ? 'Kaydınız yönetici onayından sonra aktifleşir.' : 'Kayıt olduktan sonra hemen giriş yapabilirsiniz.'}</p>
       ${googleBlock()}
@@ -115,7 +115,7 @@ function renderAuth(mode = 'login') {
       <p class="small muted" style="margin-top:18px;text-align:center">Zaten hesabınız var mı? <a href="#" data-act="auth-mode" data-mode="login">Giriş yapın</a></p>`;
   } else {
     inner = html`
-      <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
+      <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">dupc<span>ii</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
       <h1>Tekrar hoş geldiniz</h1>
       <p class="sub">Devam etmek için hesabınıza giriş yapın.</p>
       ${passkeyLoginButton()}
@@ -159,7 +159,7 @@ function checkNewPassword(d) {
 }
 function renderReset(token) {
   setHTML(APP(), authLayout(html`
-    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">Nöbet<span>Med</span></b></div>
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">dupc<span>ii</span></b></div>
     <h1>Yeni şifre belirleyin</h1>
     <p class="sub">Hesabınız için yeni bir şifre seçin.</p>
     ${newPasswordForm('reset', 'Şifreyi kaydet ve giriş yap')}`));
@@ -173,7 +173,7 @@ FORMS.reset = (f) => submitForm(f, async (d) => {
 });
 function renderForceChange() {
   setHTML(APP(), authLayout(html`
-    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">Nöbet<span>Med</span></b></div>
+    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<b class="brand-name">dupc<span>ii</span></b></div>
     <h1>Merhaba ${S.me.name.split(' ')[0]}, kendi şifrenizi belirleyin</h1>
     <p class="sub">Geçici bir şifreyle giriş yaptınız. Güvenliğiniz için devam etmeden önce yalnızca sizin bildiğiniz yeni bir şifre seçin.</p>
     ${newPasswordForm('force-change', 'Şifremi kaydet ve devam et')}
@@ -215,10 +215,10 @@ async function renderGuest(token) {
   }
   const p = r.post;
   const cat = r.category || { name: '', icon: 'folder', color: 'slate' };
-  document.title = p.title + ' · NöbetMed';
+  document.title = p.title + ' · dupcii';
   setHTML(APP(), html`
     <div class="guest-top">
-      <div class="row">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${r.org_name}</div></div></div>
+      <div class="row">${BRAND_MARK}<div><b class="brand-name">dupc<span>ii</span></b><div class="brand-org">${r.org_name}</div></div></div>
       <a class="btn sm" href="./">${icon('user', 'sm')}Üye girişi</a>
     </div>
     <div class="guest-wrap">

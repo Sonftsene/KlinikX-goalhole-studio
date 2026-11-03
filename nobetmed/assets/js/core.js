@@ -1,4 +1,4 @@
-/* NöbetMed — çekirdek yardımcılar */
+/* dupcii — çekirdek yardımcılar */
 'use strict';
 
 const BOOT = (() => {
@@ -230,7 +230,8 @@ function icon(name, cls = '') {
   const d = ICON_PATHS[name] || ICON_PATHS.folder;
   return raw(`<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`);
 }
-const BRAND_MARK = raw('<span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M3 12.5h3.5l2-4.5 3.5 9 2.5-6 1.5 2h5"/></svg></span>');
+/* dupcii logosu: kalpli "d" + "ii" noktaları, pastel yeşil-mavi */
+const BRAND_MARK = raw('<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><defs><linearGradient id="dupG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2aa38c"/><stop offset="1" stop-color="#2f8fc4"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#dupG)"/><circle cx="26" cy="37" r="12.5" fill="none" stroke="#fff" stroke-width="6.5"/><path d="M38.5 12v37.5" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/><path d="M26 31.5c-2.2-3.4-7-1.6-5.6 2.1 1 2.6 5.6 6 5.6 6s4.6-3.4 5.6-6c1.4-3.7-3.4-5.5-5.6-2.1z" fill="#fff"/><circle cx="49" cy="14.5" r="3.4" fill="#d6f5e8"/><circle cx="49" cy="25" r="3.4" fill="#d9ebfb"/></svg></span>');
 
 /* ---------------- Biçimlendirme ---------------- */
 const TR_MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];

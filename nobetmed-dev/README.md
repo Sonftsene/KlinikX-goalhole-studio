@@ -1,4 +1,4 @@
-# NöbetMed geliştirme araçları
+# dupcii geliştirme araçları
 
 Bu klasör sunucuya **yüklenmez**; yalnızca test ve önizleme içindir.
 

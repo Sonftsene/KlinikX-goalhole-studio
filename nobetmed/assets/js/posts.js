@@ -1,4 +1,4 @@
-/* NöbetMed — kabuk, içerik akışı, içerik detayı ve editör */
+/* dupcii — kabuk, içerik akışı, içerik detayı ve editör */
 'use strict';
 
 /* ================= Kabuk ================= */
@@ -54,7 +54,7 @@ function renderNav() {
   const me = S.me;
   const pendingAdmin = (c.pending_posts || 0) + (c.pending_users || 0);
   setHTML($('#sidebar'), html`
-    <div class="brand">${BRAND_MARK}<div class="grow"><div class="brand-name">Nöbet<span>Med</span></div><div class="brand-org ellipsis">${S.settings.org_name}</div></div></div>
+    <div class="brand">${BRAND_MARK}<div class="grow"><div class="brand-name">dupc<span>ii</span></div><div class="brand-org ellipsis">${S.settings.org_name}</div></div></div>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}

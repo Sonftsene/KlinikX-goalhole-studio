@@ -200,7 +200,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   pendingMode = 'fail';
   await deliver();
   n = await notifs();
-  check(n.length === 1 && n[0].title === 'NöbetMed' && n[0].tag === 'nm-generic', 'sunucu hatasında genel bildirim gösterildi');
+  check(n.length === 1 && n[0].title === 'dupcii' && n[0].tag === 'nm-generic', 'sunucu hatasında genel bildirim gösterildi');
   await deliver();
   n = await notifs();
   check(n.length === 1, 'boş yanıtta mevcut bildirim sessizce yenilendi (yığılma yok)');
@@ -242,7 +242,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
     core: typeof api === 'function' && typeof S === 'object',
     title: document.title,
   }));
-  check(off.app && off.title === 'NöbetMed', 'çevrimdışı: HTML kabuğu önbellekten (#app var)');
+  check(off.app && off.title === 'dupcii', 'çevrimdışı: HTML kabuğu önbellekten (#app var)');
   check(off.css, 'çevrimdışı: app.css yüklendi');
   check(off.core, 'çevrimdışı: core.js yüklendi');
   check(fromSW.has('/') && fromSW.has('/assets/js/core.js'), 'çevrimdışı yanıtlar SW kaynaklı');

@@ -1,6 +1,6 @@
 <?php
 /**
- * NöbetMed — bildirim merkezi, işlem günlüğü, nöbet eşleştirme, zamanlanmış görevler ve yedekleme
+ * dupcii — bildirim merkezi, işlem günlüğü, nöbet eşleştirme, zamanlanmış görevler ve yedekleme
  */
 declare(strict_types=1);
 
@@ -48,7 +48,7 @@ function push_keys(): ?array
     $pub = setting('vapid_public');
     $priv = setting('vapid_private');
     if ($pub === '' || $priv === '') {
-        try { $k = push_generate_vapid(); } catch (Throwable $e) { error_log('[NobetMed] VAPID: ' . $e->getMessage()); return null; }
+        try { $k = push_generate_vapid(); } catch (Throwable $e) { error_log('[dupcii] VAPID: ' . $e->getMessage()); return null; }
         set_setting('vapid_public', $k['public']);
         set_setting('vapid_private', $k['private_pem']);
         return $k;
@@ -66,7 +66,7 @@ function push_after_response(array $userIds): void
     $registered = true;
     register_shutdown_function(function () use (&$pending) {
         nm_after_response();
-        try { push_dispatch(array_keys($pending)); } catch (Throwable $e) { error_log('[NobetMed] push: ' . $e->getMessage()); }
+        try { push_dispatch(array_keys($pending)); } catch (Throwable $e) { error_log('[dupcii] push: ' . $e->getMessage()); }
     });
 }
 
@@ -158,7 +158,7 @@ function jobs_after_response(): void
     $registered = true;
     register_shutdown_function(function () {
         nm_after_response();
-        try { run_jobs(); } catch (Throwable $e) { error_log('[NobetMed] görev: ' . $e->getMessage()); }
+        try { run_jobs(); } catch (Throwable $e) { error_log('[dupcii] görev: ' . $e->getMessage()); }
     });
 }
 
@@ -193,7 +193,7 @@ function run_jobs(bool $force = false): array
     }
     if (setting('backup_weekly', '1') === '1' && (int)setting('backup_last', '0') < time() - 7 * 86400) {
         set_setting('backup_last', (string)time());
-        try { $done['backup'] = basename(backup_create(false, true)); } catch (Throwable $e) { error_log('[NobetMed] yedek: ' . $e->getMessage()); }
+        try { $done['backup'] = basename(backup_create(false, true)); } catch (Throwable $e) { error_log('[dupcii] yedek: ' . $e->getMessage()); }
     }
     if (mail_ready()) $done['mail'] = mail_flush(60);
     return $done;
@@ -339,9 +339,9 @@ function backup_dir(): string
 function backup_database_file(string $tmpDir): string
 {
     if (DB_DRIVER === 'mysql') {
-        $path = $tmpDir . '/nobetmed-veritabani.sql';
+        $path = $tmpDir . '/dupcii-veritabani.sql';
         $fh = fopen($path, 'w');
-        fwrite($fh, "-- NöbetMed MySQL yedeği " . now() . "\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+        fwrite($fh, "-- dupcii MySQL yedeği " . now() . "\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n");
         foreach (db()->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $t) {
             $create = db()->query("SHOW CREATE TABLE `$t`")->fetch(PDO::FETCH_NUM)[1];
             fwrite($fh, "DROP TABLE IF EXISTS `$t`;\n$create;\n");
@@ -359,7 +359,7 @@ function backup_database_file(string $tmpDir): string
         fclose($fh);
         return $path;
     }
-    $path = $tmpDir . '/nobetmed-veritabani.sqlite';
+    $path = $tmpDir . '/dupcii-veritabani.sqlite';
     @unlink($path);
     try {
         db()->exec('VACUUM INTO ' . db()->quote($path));
@@ -380,12 +380,12 @@ function backup_create(bool $withFiles, bool $keep): string
     mkdir($tmp);
     $dbFile = backup_database_file($tmp);
     // Ad tahmin edilemesin (sunucu .htaccess'i yok sayarsa bile yedek indirilemesin)
-    $name = 'nobetmed-yedek-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(6)) . ($withFiles ? '-tam' : '') . '.zip';
+    $name = 'dupcii-yedek-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(6)) . ($withFiles ? '-tam' : '') . '.zip';
     $zipPath = ($keep ? $dir : $tmp) . '/' . $name;
     $zip = new ZipArchive();
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Yedek dosyası oluşturulamadı.');
     $zip->addFile($dbFile, basename($dbFile));
-    $zip->addFromString('BENIOKU.txt', "NöbetMed yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: dosyayı data/ klasörüne koyun ve data/.dbname.php içindeki adı bu dosyanın adıyla değiştirin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
+    $zip->addFromString('BENIOKU.txt', "dupcii yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: dosyayı data/ klasörüne koyun ve data/.dbname.php içindeki adı bu dosyanın adıyla değiştirin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
     if ($withFiles) {
         foreach (glob(NM_ROOT . '/uploads/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
         foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
@@ -396,8 +396,9 @@ function backup_create(bool $withFiles, bool $keep): string
     if ($keep) {
         @rmdir($tmp);
         // En fazla 4 otomatik yedek sakla
-        $all = glob($dir . '/nobetmed-yedek-*.zip') ?: [];
-        rsort($all);
+        $all = array_merge(glob($dir . '/dupcii-yedek-*.zip') ?: [], glob($dir . '/nobetmed-yedek-*.zip') ?: []);
+        usort($all, fn($a, $b) => filemtime($a) <=> filemtime($b));
+        $all = array_reverse($all);
         foreach (array_slice($all, 4) as $old) @unlink($old);
     }
     return $zipPath;
@@ -406,7 +407,7 @@ function backup_create(bool $withFiles, bool $keep): string
 function backup_list(): array
 {
     $out = [];
-    foreach (glob(backup_dir() . '/nobetmed-yedek-*.zip') ?: [] as $f) {
+    foreach (array_merge(glob(backup_dir() . '/dupcii-yedek-*.zip') ?: [], glob(backup_dir() . '/nobetmed-yedek-*.zip') ?: []) as $f) {
         $out[] = ['name' => basename($f), 'size' => filesize($f), 'at' => date('Y-m-d H:i:s', filemtime($f))];
     }
     usort($out, fn($a, $b) => strcmp($b['name'], $a['name']));
