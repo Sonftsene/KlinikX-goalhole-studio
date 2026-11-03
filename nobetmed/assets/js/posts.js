@@ -54,7 +54,7 @@ function renderNav() {
   const me = S.me;
   const pendingAdmin = (c.pending_posts || 0) + (c.pending_users || 0);
   setHTML($('#sidebar'), html`
-    <div class="brand">${BRAND_MARK}<div class="grow"><div class="brand-name">dupc<span>ii</span></div><div class="brand-org ellipsis">${S.settings.org_name}</div></div></div>
+    <a class="brand" href="#/" aria-label="Ana sayfa">${BRAND_MARK}<div class="grow" style="min-width:0">${BRAND_WORD}<div class="brand-org ellipsis">${S.settings.org_name}</div></div></a>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}

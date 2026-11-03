@@ -888,7 +888,7 @@ async function renderInvite(token) {
   const inv = r.invite;
   const personal = inv.kind === 'personal';
   setHTML(APP(), authLayout(html`
-    <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">dupc<span>ii</span></b><div class="brand-org">${r.org_name}</div></div></div>
+    <div class="auth-brand">${BRAND_LOCKUP}<div class="brand-org">${r.org_name}</div></div>
     <h1>${personal ? `Hoş geldin, ${inv.name.split(' ')[0]}` : 'Portala katıl'}</h1>
     <p class="sub">${personal ? 'Hesabın hazırlandı. E-postanı ve şifreni belirleyip hemen giriş yap.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsin.' : 'Kaydın yönetici onayından sonra aktifleşir.'}</p>
     <form class="stack" data-form="invite-reg">

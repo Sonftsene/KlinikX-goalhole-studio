@@ -1056,3 +1056,37 @@ html.fs-lg body { zoom: 1.12; }
 .brand-name span { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
 /* Giriş ekranı sol paneli: marka renkleri */
 .auth-art { background: radial-gradient(900px 520px at 8% 6%, #34b89f 0%, transparent 60%), radial-gradient(800px 520px at 100% 100%, #3b8fd0 0%, transparent 60%), linear-gradient(135deg, #1d8a7a 0%, #23709f 100%); }
+
+/* ================= dupcii logo v2: koyu zemin, beyaz "dupc", mor "ii" + mor vurgu ================= */
+:root {
+  --grad-brand: linear-gradient(135deg, #2aa38c 0%, #2f8fc4 55%, #8b6cf0 100%);
+  --grad-soft: linear-gradient(135deg, #e3f5ec 0%, #e3eefb 55%, #efe8ff 100%);
+  --ink: #1a1f3d; --ink-2: #2b2056;
+  --violet: #7c5cff; --violet-soft: #efe9ff; --violet-text: #5b3fd6;
+}
+[data-theme="dark"] {
+  --grad-brand: linear-gradient(135deg, #34b89f 0%, #4a9fd8 55%, #a58bff 100%);
+  --grad-soft: linear-gradient(135deg, rgba(95, 209, 160, .10) 0%, rgba(110, 170, 240, .10) 55%, rgba(167, 139, 250, .12) 100%);
+  --violet: #a58bff; --violet-soft: rgba(165, 139, 255, .14); --violet-text: #c4b1ff;
+}
+.brand-mark { width: 36px; height: 36px; border-radius: 11px; box-shadow: 0 6px 14px -6px rgba(43, 32, 86, .55); }
+.brand-word { display: block; height: 20px; width: auto; }
+.sidebar .brand { display: flex; align-items: center; gap: 11px; padding: 11px 12px; margin: 0 0 12px; border-radius: 14px; background: linear-gradient(135deg, var(--ink), var(--ink-2)); color: #fff; text-decoration: none; box-shadow: 0 8px 20px -12px rgba(43, 32, 86, .8); }
+.sidebar .brand:hover { text-decoration: none; filter: brightness(1.06); }
+.sidebar .brand .brand-org { color: rgba(255, 255, 255, .68); margin-top: 4px; font-size: 11.5px; }
+.brand-lockup { display: inline-flex; align-items: center; gap: 10px; padding: 7px 16px 7px 7px; border-radius: 15px; background: linear-gradient(135deg, var(--ink), var(--ink-2)); box-shadow: 0 10px 24px -14px rgba(43, 32, 86, .9); }
+.brand-lockup .brand-mark { width: 34px; height: 34px; box-shadow: none; }
+.brand-lockup .brand-word { height: 19px; }
+.auth-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 22px; }
+.auth-side-brand { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.auth-side-brand .brand-mark { width: 44px; height: 44px; }
+.auth-side-brand .brand-word { height: 26px; }
+.auth-side-brand .tiny { width: 100%; }
+.auth-art { background: radial-gradient(900px 520px at 8% 6%, #2f9c8f 0%, transparent 60%), radial-gradient(800px 520px at 100% 100%, #6d4fd6 0%, transparent 62%), linear-gradient(135deg, var(--ink) 0%, var(--ink-2) 100%); }
+/* Mor vurgular */
+.hchip:not(.warn):not(.ok):not(.brand):not(.danger) { border-color: #ddd3ff; color: var(--violet-text); }
+[data-theme="dark"] .hchip:not(.warn):not(.ok):not(.brand):not(.danger) { border-color: rgba(165, 139, 255, .35); }
+.hub-tabs a.on, .prof-tabs a.on, .seg button.on { color: var(--violet-text); }
+.notif-btn .notif-count { background: linear-gradient(135deg, #e0466b, #8b6cf0); }
+.post.unread { box-shadow: inset 3px 0 0 var(--violet); }
+.tour-dots span.on { background: var(--grad-brand); }
