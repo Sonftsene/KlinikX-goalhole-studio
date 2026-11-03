@@ -4,7 +4,7 @@
  * belge gözden geçirme uyarıları ve haftalık yedek.
  * Bu görevler site ziyaret edildikçe de arka planda çalışır; cron saatinde çalışmalarını garanti eder.
  * Hostinger hPanel › Gelişmiş › Cron Jobs: her 10 dakikada bir
- *   /usr/bin/php /home/KULLANICI/public_html/cron.php
+ *   /usr/bin/php /home/u123456789/domains/alanadiniz.com/public_html/cron.php
  */
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }

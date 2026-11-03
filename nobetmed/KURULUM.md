@@ -134,10 +134,10 @@ Siteyi telefonda açın → tarayıcı menüsü → **Ana ekrana ekle**. Portal,
 hPanel → **Gelişmiş → Cron Jobs** → *Özel*: her **10 dakikada** bir şu komut:
 
 ```
-/usr/bin/php /home/KULLANICI/public_html/cron.php
+/usr/bin/php /home/u123456789/domains/alanadiniz.com/public_html/cron.php
 ```
 
-(`KULLANICI` ve klasör yolunu hPanel'deki dosya yöneticisinde görürsünüz.) Bu görev şunları saatinde yapar:
+(`u123456789` ve `alanadiniz.com` kısmını kendi hesabınıza göre yazın; tam yolu Dosya Yöneticisi’nde `public_html` klasörünün üstünde görürsünüz.) Bu görev şunları saatinde yapar:
 
 - **Nöbet hatırlatması:** nöbetten bir gün önce (varsayılan 18:00) kişiye e-posta ve telefon bildirimi
 - **Sabah özeti:** “Sabah özeti” seçenlere tek e-posta (bugünkü nöbet, yeni duyurular, okunacaklar)
