@@ -19,6 +19,7 @@ async function start() {
   S.people = r.people || [];
   if (r.counts) S.counts = r.counts;
   document.title = 'dupcii · ' + (S.settings.org_name || 'Klinik Portalı');
+  applyBrand();
   if (r.setup_needed) return renderSetup();
   if (BOOT.reset && !start.resetShown) {
     start.resetShown = true;

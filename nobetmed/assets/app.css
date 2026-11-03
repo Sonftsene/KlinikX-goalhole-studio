@@ -1090,3 +1090,38 @@ html.fs-lg body { zoom: 1.12; }
 .notif-btn .notif-count { background: linear-gradient(135deg, #e0466b, #8b6cf0); }
 .post.unread { box-shadow: inset 3px 0 0 var(--violet); }
 .tour-dots span.on { background: var(--grad-brand); }
+
+/* ================= Tek logo: menüde, üst çubukta; boyut ayarlanabilir ================= */
+:root { --logo-h: 36px; --logo-h-top: 32px; }
+.brand-img { display: block; height: var(--logo-h); width: auto; max-width: 100%; object-fit: contain; }
+.brand-default { display: inline-flex; }
+.brand-default .brand-lockup { gap: calc(var(--logo-h) * .28); padding: calc(var(--logo-h) * .18) calc(var(--logo-h) * .42) calc(var(--logo-h) * .18) calc(var(--logo-h) * .18); border-radius: calc(var(--logo-h) * .42); }
+.brand-default .brand-mark { width: var(--logo-h); height: var(--logo-h); border-radius: calc(var(--logo-h) * .3); box-shadow: none; }
+.brand-default .brand-word { height: calc(var(--logo-h) * .56); }
+/* Yan menü: logo + kurum adı */
+.sidebar .brand { flex-direction: column; align-items: flex-start; gap: 6px; padding: 4px 6px 14px; margin: 0; background: none; box-shadow: none; color: inherit; }
+.sidebar .brand:hover { filter: none; }
+.sidebar .brand .brand-org { color: var(--text-3); margin-top: 0; font-size: 12px; max-width: 100%; }
+/* Üst çubuk (telefon): menü kapalıyken logo burada */
+.top-logo { --logo-h: var(--logo-h-top); align-items: center; text-decoration: none; min-width: 0; }
+.top-logo:hover { text-decoration: none; }
+.topbar .top-logo .brand-img { max-width: 46vw; }
+@media (max-width: 900px) {
+  .topbar .search { display: none; }
+  .topbar.searching .search { display: block; position: absolute; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); max-width: none; z-index: 2; }
+  .topbar.searching > :not(.search) { visibility: hidden; }
+  .topbar .top-logo { display: inline-flex; }
+}
+.auth-brand .brand-img, .auth-side-brand .brand-img { height: calc(var(--logo-h) * 1.15); }
+.auth-side-brand .brand-default .brand-lockup { box-shadow: none; }
+/* Ayarlar: logo önizleme */
+.brand-prev { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.bp { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bp-box { min-height: 84px; display: flex; align-items: center; justify-content: flex-start; padding: 12px; border-radius: 12px; border: 1px dashed var(--border-strong); background: linear-gradient(180deg, #eef8f3 0%, #edf4fb 100%); overflow: hidden; }
+.bp-box.bp-top { background: var(--surface); }
+.bp-box.bp-dark { background: #121629; border-style: solid; border-color: #121629; }
+.range { width: 100%; accent-color: #7c5cff; }
+.fav-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
+.fav-prev { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); display: grid; place-items: center; background: var(--surface-2); flex: none; overflow: hidden; }
+.fav-prev img { width: 32px; height: 32px; object-fit: contain; }
+@media (max-width: 640px) { .brand-prev { grid-template-columns: 1fr; } }

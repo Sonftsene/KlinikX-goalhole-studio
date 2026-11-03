@@ -704,3 +704,84 @@ function a_me_email(): void
     audit($me, 'user.edit', $me['name'], 'E-posta değişti: ' . $me['email'] . ' → ' . $email);
     out(['email' => $email]);
 }
+
+
+/* ---------------- Marka: özel logo, favicon ve logo boyutu ---------------- */
+
+const BRAND_KINDS = ['logo', 'icon', 'icon192', 'icon512'];
+
+function brand_dir(): string
+{
+    $d = NM_ROOT . '/uploads/brand';
+    if (!is_dir($d)) @mkdir($d, 0775, true);
+    return $d;
+}
+
+function brand_url(string $kind): ?string
+{
+    $f = (string)setting('brand_' . $kind, '');
+    return $f !== '' ? 'api.php?action=brand&f=' . $kind . '&v=' . substr(md5($f), 0, 10) : null;
+}
+
+/** Herkese açık marka bilgisi (giriş ekranında da gerekir) */
+function brand_out(): array
+{
+    return [
+        'logo' => brand_url('logo'),
+        'icon' => brand_url('icon'),
+        'icon192' => brand_url('icon192'),
+        'logo_h' => max(20, min(96, (int)setting('brand_logo_h', '36'))),
+    ];
+}
+
+/** Yönetici: logo/favicon yükle, kaldır veya logo boyutunu değiştir */
+function a_brand_save(): void
+{
+    $me = need_admin();
+    global $IN;
+    if (array_key_exists('logo_h', $IN)) set_setting('brand_logo_h', (string)max(20, min(96, (int)$IN['logo_h'])));
+    foreach (BRAND_KINDS as $kind) {
+        if (!array_key_exists($kind, $IN)) continue;
+        $old = (string)setting('brand_' . $kind, '');
+        $data = $IN[$kind];
+        if ($data === null || $data === '' || $data === false) {
+            if ($old !== '') @unlink(brand_dir() . '/' . basename($old));
+            set_setting('brand_' . $kind, '');
+            continue;
+        }
+        if (!is_string($data) || !preg_match('#^data:image/(png|jpeg|webp|svg\+xml|x-icon|vnd\.microsoft\.icon);base64,([A-Za-z0-9+/=]+)$#', $data, $m)) fail('Geçersiz görsel. PNG, JPG, WebP, SVG veya ICO yükleyin.');
+        $bin = base64_decode($m[2], true);
+        if ($bin === false || strlen($bin) > 2 * 1048576) fail('Görsel en fazla 2 MB olabilir.');
+        $ext = ['png' => 'png', 'jpeg' => 'jpg', 'webp' => 'webp', 'svg+xml' => 'svg', 'x-icon' => 'ico', 'vnd.microsoft.icon' => 'ico'][$m[1]];
+        if ($ext === 'svg') {
+            // SVG: yalnızca görsel olarak gösterilir; betik/olay içeren dosya kabul edilmez
+            if (!preg_match('/<svg[\s>]/i', $bin) || preg_match('/<script|\son[a-z]+\s*=|javascript:|<foreignObject/i', $bin)) fail('Bu SVG dosyası kullanılamıyor (betik içeriyor).');
+        } elseif ($ext !== 'ico') {
+            $info = @getimagesizefromstring($bin);
+            if (!$info || $info[0] < 8 || $info[1] < 8 || $info[0] > 4096 || $info[1] > 4096) fail('Görsel okunamadı.');
+        }
+        $name = $kind . '-' . bin2hex(random_bytes(6)) . '.' . $ext;
+        if (@file_put_contents(brand_dir() . '/' . $name, $bin) === false) fail('Görsel kaydedilemedi (klasör yazma izni).', 500);
+        if ($old !== '') @unlink(brand_dir() . '/' . basename($old));
+        set_setting('brand_' . $kind, $name);
+    }
+    audit($me, 'settings.save', 'Logo ve simge');
+    out(['brand' => brand_out()]);
+}
+
+/** Logo/simge dosyasını göster (giriş ekranında da göründüğü için herkese açık) */
+function a_brand_get(): void
+{
+    $kind = (string)($_GET['f'] ?? '');
+    if (!in_array($kind, BRAND_KINDS, true)) { http_response_code(404); exit; }
+    $f = basename((string)setting('brand_' . $kind, ''));
+    $path = $f !== '' ? brand_dir() . '/' . $f : '';
+    if ($path === '' || !is_file($path)) { http_response_code(404); exit; }
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    header('Content-Type: ' . (['png' => 'image/png', 'jpg' => 'image/jpeg', 'webp' => 'image/webp', 'svg' => 'image/svg+xml', 'ico' => 'image/x-icon'][$ext] ?? 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('X-Content-Type-Options: nosniff');
+    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    readfile($path);
+}

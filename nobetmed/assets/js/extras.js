@@ -888,7 +888,7 @@ async function renderInvite(token) {
   const inv = r.invite;
   const personal = inv.kind === 'personal';
   setHTML(APP(), authLayout(html`
-    <div class="auth-brand">${BRAND_LOCKUP}<div class="brand-org">${r.org_name}</div></div>
+    <div class="auth-brand">${brandLogo()}<div class="brand-org">${r.org_name}</div></div>
     <h1>${personal ? `Hoş geldin, ${inv.name.split(' ')[0]}` : 'Portala katıl'}</h1>
     <p class="sub">${personal ? 'Hesabın hazırlandı. E-postanı ve şifreni belirleyip hemen giriş yap.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsin.' : 'Kaydın yönetici onayından sonra aktifleşir.'}</p>
     <form class="stack" data-form="invite-reg">
@@ -1016,6 +1016,7 @@ function settingsExtrasHtml(A) {
   const SWX = (name, on, title, hint) => html`<label class="switch"><input type="checkbox" name="${name}" ${on ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>${title}</b>${hint ? html`<span>${hint}</span>` : ''}</span></label>`;
   const hours = (name, v) => html`<select class="select" name="${name}" style="width:auto">${Array.from({ length: 24 }, (_, h) => html`<option value="${h}" ${h === v ? raw('selected') : ''}>${pad(h)}:00</option>`)}</select>`;
   return html`
+    ${brandCardHtml()}
     <div class="card card-pad stack" data-sec="bildirim">
       <div><h3 style="font-size:15px">${icon('clock', 'sm')} Hatırlatmalar ve sabah özeti</h3><p class="small muted">Kendiliğinden çalışır. Tam saatinde gitmesi için hPanel’de zamanlanmış görev (Cron Jobs) kurun — Kurulum rehberi, 13. bölüm.</p></div>
       ${SWX('shift_remind_on', A.shift_remind_on, 'Nöbetten bir gün önce hatırlat', 'Excel listesinde adı geçen kişiye e-posta ve telefon bildirimi.')}
@@ -1293,3 +1294,120 @@ function resetAppState() {
   if (typeof _models !== 'undefined') _models.clear();
   if (typeof _buf !== 'undefined') _buf.clear();
 }
+
+/* =================================================================== */
+/* Ayarlar › Genel: logo, favicon ve logo boyutu                        */
+/* =================================================================== */
+function brandCardHtml() {
+  const b = S.settings.brand || {};
+  const h = b.logo_h || 36;
+  return html`<div class="card card-pad stack" data-sec="genel" id="brandCard">
+    <div><h3 style="font-size:15px">${icon('sun', 'sm')} Logo ve simge</h3>
+      <p class="small muted">Tek logo kullanılır: menünün tepesinde ve telefonda üst çubukta görünür. Şeffaf arka planlı PNG veya SVG önerilir.</p></div>
+    <div class="brand-prev">
+      <div class="bp"><span class="tiny faint">Menüde</span><div class="bp-box">${brandLogo()}</div></div>
+      <div class="bp"><span class="tiny faint">Üst çubukta (telefon)</span><div class="bp-box bp-top top-logo">${brandLogo()}</div></div>
+      <div class="bp"><span class="tiny faint">Koyu zeminde</span><div class="bp-box bp-dark">${brandLogo()}</div></div>
+    </div>
+    <div class="row wrap" style="gap:8px">
+      <label class="btn primary">${icon('upload', 'sm')}${b.logo ? 'Logoyu değiştir' : 'Logo yükle'}<input type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml" data-change="brand-logo"></label>
+      ${b.logo ? html`<button type="button" class="btn" data-act="brand-del" data-k="logo">${icon('x', 'sm')}Varsayılan logoya dön</button>` : ''}
+    </div>
+    <div class="field"><label>Logo boyutu: <b id="logoHval">${h} px</b></label>
+      <input class="range" type="range" min="20" max="96" step="2" value="${h}" data-input="brand-h" aria-label="Logo boyutu"></div>
+    <div class="fav-row">
+      <span class="fav-prev"><img src="${b.icon || 'assets/icon.svg'}" alt=""></span>
+      <div class="grow" style="min-width:0"><b class="small">Favicon ve uygulama simgesi</b><div class="tiny faint">Tarayıcı sekmesinde ve telefona eklenince ana ekranda görünür. Kare (en az 512×512) PNG veya SVG.</div></div>
+      <div class="row" style="gap:6px"><label class="btn sm">${icon('upload', 'sm')}Yükle<input type="file" hidden accept="image/png,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp" data-change="brand-icon"></label>
+      ${b.icon ? html`<button type="button" class="btn sm icon" data-act="brand-del" data-k="icon" aria-label="Varsayılana dön" title="Varsayılana dön">${icon('x', 'sm')}</button>` : ''}</div>
+    </div>
+  </div>`;
+}
+function readAsDataURL(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('Dosya okunamadı.')); r.readAsDataURL(file); });
+}
+function loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Görsel açılamadı. PNG veya SVG deneyin.')); i.src = src; });
+}
+const svgB64 = (d) => d.replace(/^data:image\/svg\+xml;[^,]*,/, 'data:image/svg+xml;base64,');
+/** Logo: SVG olduğu gibi; büyük resim en fazla 320 px yüksekliğe küçültülür (şeffaflık korunur) */
+async function prepareLogo(file) {
+  const data = await readAsDataURL(file);
+  if (/^data:image\/svg\+xml/.test(data)) return svgB64(data);
+  const img = await loadImg(data);
+  if (img.naturalHeight <= 320 && data.length < 1500000) return data;
+  const sc = Math.min(1, 320 / img.naturalHeight);
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(img.naturalWidth * sc)); cv.height = Math.max(1, Math.round(img.naturalHeight * sc));
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/png');
+}
+/** Simge: favicon + telefon için 192/512 PNG (kare değilse beyaz zeminde ortalanır) */
+async function prepareIcon(file) {
+  const data = await readAsDataURL(file);
+  const isSvg = /^data:image\/svg\+xml/.test(data);
+  const isIco = /^data:image\/(x-icon|vnd\.microsoft\.icon)/.test(data);
+  const img = await loadImg(data);
+  const w = img.naturalWidth || 512, h = img.naturalHeight || 512;
+  const square = Math.abs(w - h) / Math.max(w, h) < 0.06;
+  const make = (size) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = size;
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    if (square) ctx.drawImage(img, 0, 0, size, size);
+    else {
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+      const sc = (size * 0.82) / Math.max(w, h);
+      ctx.drawImage(img, (size - w * sc) / 2, (size - h * sc) / 2, w * sc, h * sc);
+    }
+    return cv.toDataURL('image/png');
+  };
+  const icon = isSvg ? svgB64(data) : isIco ? data : make(256);
+  return { icon, icon192: make(192), icon512: make(512) };
+}
+function refreshBrandEverywhere() {
+  applyBrand();
+  renderNav();
+  const t = $('.topbar .top-logo'); if (t) setHTML(t, brandLogo());
+  const c = $('#brandCard'); if (c) { c.outerHTML = fmtVal(brandCardHtml()); applySettingsSec(settingsSecNow()); }
+}
+CHANGE['brand-logo'] = async (el) => {
+  const file = el.files && el.files[0]; el.value = '';
+  if (!file) return;
+  try {
+    const logo = await prepareLogo(file);
+    const r = await api('brand.save', { logo });
+    S.settings.brand = r.brand;
+    refreshBrandEverywhere();
+    toast('Logo güncellendi');
+  } catch (e) { toast(e.message, 'err'); }
+};
+CHANGE['brand-icon'] = async (el) => {
+  const file = el.files && el.files[0]; el.value = '';
+  if (!file) return;
+  try {
+    const r = await api('brand.save', await prepareIcon(file));
+    S.settings.brand = r.brand;
+    refreshBrandEverywhere();
+    toast('Favicon ve uygulama simgesi güncellendi');
+  } catch (e) { toast(e.message, 'err'); }
+};
+ACT['brand-del'] = async (el) => {
+  const k = el.dataset.k;
+  try {
+    const r = await api('brand.save', k === 'icon' ? { icon: null, icon192: null, icon512: null } : { logo: null });
+    S.settings.brand = r.brand;
+    refreshBrandEverywhere();
+    toast(k === 'icon' ? 'Varsayılan simgeye dönüldü' : 'Varsayılan logoya dönüldü');
+  } catch (e) { toast(e.message, 'err'); }
+};
+const saveLogoH = debounce(async (h) => {
+  try { const r = await api('brand.save', { logo_h: h }); S.settings.brand = r.brand; toast('Logo boyutu kaydedildi'); } catch (e) { toast(e.message, 'err'); }
+}, 700);
+CHANGE['brand-h'] = (el) => {
+  const h = +el.value;
+  S.settings.brand = { ...(S.settings.brand || {}), logo_h: h };
+  applyBrand();
+  const v = $('#logoHval'); if (v) v.textContent = h + ' px';
+  saveLogoH(h);
+};

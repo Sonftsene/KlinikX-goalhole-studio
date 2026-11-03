@@ -69,6 +69,7 @@ if ($action === 'file') {
 }
 if ($action === 'push.pending') { a_push_pending_get(); exit; }
 if ($action === 'avatar') { a_avatar_get(); exit; }
+if ($action === 'brand') { a_brand_get(); exit; }
 if ($action === 'backup.download') { a_backup_download_get(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -147,6 +148,7 @@ $routes = [
     'backup.delete' => 'a_backup_delete',
     'audit.list' => 'a_audit_list',
     'shiftcodes.save' => 'a_shiftcodes_save',
+    'brand.save' => 'a_brand_save',
     'setup.status' => 'a_setup_status',
     'templates.list' => 'a_templates_list',
     'templates.save' => 'a_templates_save',
@@ -451,6 +453,7 @@ function a_boot(): void
         'settings' => [
             'org_name' => setting('org_name', 'Klinik Portalı'),
             'registration' => setting('registration', 'approval'),
+            'brand' => brand_out(),
         ],
         'google_client_id' => GOOGLE_CLIENT_ID,
         'upload_max_mb' => MAX_UPLOAD_MB,

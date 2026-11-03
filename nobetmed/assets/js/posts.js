@@ -10,16 +10,18 @@ function renderShell() {
       <div id="bannerSlot"></div>
       <header class="topbar">
         <button class="btn ghost icon mobile-only" data-act="nav-open" aria-label="Menü">${icon('menu')}</button>
+        <a class="top-logo mobile-only" href="#/" aria-label="Ana sayfa">${brandLogo()}</a>
         <form class="search" data-form="search" role="search">
           ${icon('search')}
           <input class="input" id="searchInput" name="q" type="search" placeholder="İçeriklerde ara…" autocomplete="off">
           <kbd>/</kbd>
         </form>
-        <div class="grow desk-only"></div>
+        <div class="grow"></div>
+        <button class="btn ghost icon mobile-only" data-act="search-open" aria-label="Ara">${icon('search')}</button>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
         ${notifButtonHtml()}
         <a class="top-me" href="#/profil" id="topMe" aria-label="Hesabım ve profil ayarları" title="Hesabım">${avatar(S.me.name, 'sm')}</a>
-        <button class="btn ghost icon" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>
+        <button class="btn ghost icon desk-only" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>
       </header>
       <div class="content" id="view"></div>
     </div>
@@ -54,7 +56,7 @@ function renderNav() {
   const me = S.me;
   const pendingAdmin = (c.pending_posts || 0) + (c.pending_users || 0);
   setHTML($('#sidebar'), html`
-    <a class="brand" href="#/" aria-label="Ana sayfa">${BRAND_MARK}<div class="grow" style="min-width:0">${BRAND_WORD}<div class="brand-org ellipsis">${S.settings.org_name}</div></div></a>
+    <a class="brand ${(S.settings.brand || {}).logo ? 'custom' : ''}" href="#/" aria-label="Ana sayfa">${brandLogo()}<div class="brand-org ellipsis">${S.settings.org_name}</div></a>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
@@ -116,6 +118,16 @@ async function logout() {
   location.hash = '';
   await start();
 }
+// Telefonda arama kutusu üst çubuğu kaplayarak açılır
+ACT['search-open'] = () => {
+  const tb = $('.topbar');
+  if (!tb) return;
+  tb.classList.add('searching');
+  const i = $('#searchInput'); if (i) i.focus();
+};
+document.addEventListener('focusout', (e) => {
+  if (e.target && e.target.id === 'searchInput') setTimeout(() => { const tb = $('.topbar'); if (tb && document.activeElement !== $('#searchInput')) tb.classList.remove('searching'); }, 150);
+});
 FORMS.search = (f) => {
   const q = f.q.value.trim();
   if (q) location.hash = '#/ara/' + encodeURIComponent(q);

@@ -390,6 +390,7 @@ function backup_create(bool $withFiles, bool $keep): string
         foreach (glob(NM_ROOT . '/uploads/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
         foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
         foreach (glob(NM_ROOT . '/uploads/avatars/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/avatars/' . basename($f));
+        foreach (glob(NM_ROOT . '/uploads/brand/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/brand/' . basename($f));
     }
     $zip->close();
     @unlink($dbFile);

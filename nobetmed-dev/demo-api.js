@@ -134,6 +134,7 @@
   const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
   const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, avatar: u.avatar || null, must_change: false });
+  const brandOut = () => { const b = db.settings.brand || {}; return { logo: b.logo || null, icon: b.icon || null, icon192: b.icon192 || null, logo_h: b.logo_h || 36 }; };
   const audit = (action, target, detail) => { const u = me(); db.audit.unshift({ id: ++db.seq, user_id: u ? u.id : null, action, target: target || '', detail: detail || '', ip: '10.0.0.1', at: now() }); db.audit = db.audit.slice(0, 300); };
   const notify = (users, kind, title, body, url) => users.forEach((u) => db.notifs.unshift({ id: ++db.seq, user_id: u.id, kind, title, body, url, at: now(), read: false }));
   db.shifts = db.shifts || {};
@@ -204,7 +205,7 @@
   const H = {
     boot() {
       const u = me();
-      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
+      const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration, brand: brandOut() }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
       if (u) {
         Object.assign(out.settings, { push_ready: false, shift_codes: db.settings.shift_codes || null, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
@@ -557,6 +558,18 @@
       return { invite: { kind: inv.kind, name: inv.name || '', email: inv.email || '', title_id: inv.title_id || null, unit_id: inv.unit_id || null, auto_approve: inv.auto_approve }, org_name: db.settings.org_name };
     },
     'passkey.list'() { needUser(); return { items: [] }; },
+    'brand.save'(d) {
+      needAdmin();
+      db.settings.brand = db.settings.brand || {};
+      if ('logo_h' in d) db.settings.brand.logo_h = Math.max(20, Math.min(96, +d.logo_h || 36));
+      ['logo', 'icon', 'icon192', 'icon512'].forEach((k) => {
+        if (!(k in d)) return;
+        if (!d[k]) { delete db.settings.brand[k]; return; }
+        if (!/^data:image\//.test(d[k]) || d[k].length > 2800000) err('Geçersiz görsel.');
+        db.settings.brand[k] = d[k];
+      });
+      return { brand: brandOut() };
+    },
     'me.avatar'(d) {
       const u = needUser();
       let t = u;

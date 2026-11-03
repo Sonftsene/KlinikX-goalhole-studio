@@ -387,6 +387,24 @@ await a.click('.modal [data-ok]');
 await expectText(a, 'Profil fotoğrafı kaldırıldı');
 step('profil fotoğrafı rehberde görünüyor; yönetici kaldırabiliyor');
 
+// 21) Logo ve favicon ayarı + boyut; telefonda üst çubukta logo
+await a.goto(BASE + '#/yonetim/ayarlar/genel');
+await a.locator('#brandCard').waitFor();
+await a.setInputFiles('#brandCard input[data-change=brand-logo]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
+await expectText(a, 'Logo güncellendi');
+await a.setInputFiles('#brandCard input[data-change=brand-icon]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
+await expectText(a, 'Favicon ve uygulama simgesi güncellendi');
+await a.locator('#brandCard input[data-input=brand-h]').fill('48');
+await expectText(a, 'Logo boyutu kaydedildi');
+const br = await a.evaluate(async () => ({ side: getComputedStyle(document.querySelector('.sidebar .brand-img')).height, fav: document.getElementById('favicon').getAttribute('href'), man: (await (await fetch('manifest.php')).json()).icons.length }));
+if (br.side !== '48px' || !/action=brand/.test(br.fav) || br.man !== 2) fail('logo ayarı: ' + JSON.stringify(br));
+await m.goto(BASE + '#/');
+await m.reload();
+await m.locator('.topbar .top-logo img.brand-img').waitFor();
+await a.click('#brandCard [data-act=brand-del][data-k=logo]');
+await expectText(a, 'Varsayılan logoya dönüldü');
+step('logo + favicon yükleme, boyut ayarı, telefonda üst çubukta logo');
+
 // Masaüstü ekran görüntüleri
 await a.goto(BASE + '#/');
 await a.locator('#todayCard .duty-g, #todayCard .list-row').first().waitFor();
