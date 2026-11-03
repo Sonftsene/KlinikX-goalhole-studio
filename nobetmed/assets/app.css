@@ -869,3 +869,5 @@ html.fs-lg body { zoom: 1.12; }
   #feedHost { order: 0; }
   #todayCard, #rosterCard { order: 1; }
 }
+.duty-carry { background: var(--surface-2); }
+.duty-carry .duty-chip { opacity: .85; }

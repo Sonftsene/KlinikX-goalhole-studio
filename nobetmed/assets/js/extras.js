@@ -186,11 +186,16 @@ function dutyPerson(p) {
 function dutyListHtml(day, compact) {
   if (!day.has_data) return html`<div class="list-row small muted">Nöbet listesi yüklendiğinde burada görünür.</div>`;
   const shifts = day.groups.filter((g) => g.kind === 'shift' || g.kind === 'role');
-  if (!shifts.length && !(day.carry || []).length) return html`<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
+  // Önceki günün gece / 24 saat nöbetçileri yalnızca BUGÜN ve nöbetleri henüz bitmemişse gösterilir
+  // (başka günlere bakarken önceki günün kişileri o güne kaymış gibi görünmesin)
+  const nowHm = hm(new Date());
+  const carry = !compact && day.date === ymd(new Date()) ? (day.carry || []).filter((p) => p.end && nowHm < p.end) : [];
+  if (!shifts.length && !carry.length) return html`<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
+  const ends = [...new Set(carry.map((p) => p.end))].sort();
   return html`<div class="duty">
-    ${(day.carry || []).length && !compact ? html`<div class="duty-g"><div class="duty-h"><span class="code-chip tone-indigo">Dün</span><b>Dünden devam eden</b></div><div class="duty-p">${day.carry.map(dutyPerson)}</div></div>` : ''}
     ${shifts.map((g) => html`<div class="duty-g"><div class="duty-h">${codeChip(g)}<b>${shiftDesc(g)}</b><span class="tiny faint">${g.people.length} kişi</span></div>
       <div class="duty-p">${g.people.map(dutyPerson)}</div></div>`)}
+    ${carry.length ? html`<div class="duty-g duty-carry"><div class="duty-h"><span class="code-chip tone-slate">Dün</span><b>Dünkü nöbetten çıkıyor</b><span class="tiny faint">${ends.join(', ')}’e kadar</span></div><div class="duty-p">${carry.map(dutyPerson)}</div></div>` : ''}
   </div>`;
 }
 function todayCardHtml(day, compact) {
