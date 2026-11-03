@@ -215,7 +215,7 @@ svg.i.lg { width: 22px; height: 22px; }
   background: var(--surface); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 14px 12px;
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px; }
+.sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px; }
 .brand-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #14a39b, #0b6a66); display: grid; place-items: center; box-shadow: 0 4px 10px -3px rgba(11, 122, 117, .5); flex: none; }
 .brand-mark svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .brand-name { font-weight: 700; font-size: 15.5px; letter-spacing: -0.02em; }
@@ -684,7 +684,7 @@ label.btn { cursor: pointer; }
 .chip-btn.ghost { background: transparent; padding: 0 8px; }
 
 /* Arama: belge içinde eşleşme */
-.post .p-match { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; margin-top: 6px; }
+.post .p-match { display: block; font-size: 12.5px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; margin-top: 6px; }
 .post .p-match svg.i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--text-3); }
 mark { background: #ffe58a; color: inherit; border-radius: 3px; padding: 0 1px; }
 [data-theme="dark"] mark { background: rgba(255, 214, 90, .3); }
@@ -997,4 +997,54 @@ html.fs-lg body { zoom: 1.12; }
   .offline-bar { bottom: calc(140px + env(safe-area-inset-bottom)); }
   /* iOS, 16 px altındaki kutulara dokununca sayfayı yakınlaştırır */
   .input, .select, .textarea, .search .input, .xv-search .input { font-size: 16px; }
+}
+
+/* Tarayıcı testi düzeltmeleri */
+.post .p-match svg.i { display: inline-block; vertical-align: -2px; margin: 0 4px 0 0; }
+@media (max-width: 900px) { .desk-only { display: none !important; } }
+/* Kaydırılabilir tablolarda sağda gölge: devamı olduğu belli olsun */
+.table-wrap { background:
+  linear-gradient(90deg, var(--surface) 30%, transparent) left / 24px 100% no-repeat local,
+  linear-gradient(270deg, var(--surface) 30%, transparent) right / 24px 100% no-repeat local,
+  radial-gradient(farthest-side at 0 50%, rgba(15, 27, 33, .14), transparent) left / 12px 100% no-repeat scroll,
+  radial-gradient(farthest-side at 100% 50%, rgba(15, 27, 33, .14), transparent) right / 12px 100% no-repeat scroll; }
+.inv-t .select { min-width: 150px; }
+.inv-t .input { min-width: 200px; }
+@media (max-width: 640px) {
+  .ack-box { flex-wrap: wrap; }
+  .ack-box .grow { flex: 1 1 calc(100% - 50px); }
+  .ack-box .btn { width: 100%; }
+  .tpl-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .tpl-row::-webkit-scrollbar { display: none; }
+  .tpl-row > * { flex: none; }
+  .xv-only span { display: inline; }
+  /* Kullanıcılar tablosu telefonda kart görünümünde */
+  .users-t thead { display: none; }
+  .users-t, .users-t tbody { display: block; }
+  .users-t tr { display: grid; grid-template-columns: 44px auto auto minmax(0, 1fr) auto; align-items: center; gap: 6px 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  table.t.users-t td { display: block; padding: 0; border: 0; min-width: 0; }
+  table.t.users-t td:nth-child(6) { display: flex; gap: 4px; justify-content: flex-end; }
+  table.t.users-t td:nth-child(6) .btn.primary span, table.t.users-t td:nth-child(6) .btn.primary { padding: 0 10px; }
+  .users-t td:nth-child(1) { grid-column: 1 / 5; grid-row: 1; }
+  .users-t td:nth-child(6) { grid-column: 5; grid-row: 1; }
+  .users-t td:nth-child(2) { grid-column: 2 / 6; grid-row: 2; }
+  .users-t td:nth-child(3) { grid-column: 2; grid-row: 3; }
+  .users-t td:nth-child(4) { grid-column: 3; grid-row: 3; }
+  .users-t td:nth-child(5) { grid-column: 4 / 6; grid-row: 3; text-align: right; }
+  .users-t td[colspan] { grid-column: 1 / -1; }
+  /* Nöbet kodları tablosu telefonda alt alta */
+  .codes-t thead { display: none; }
+  .codes-t, .codes-t tbody { display: block; }
+  .codes-t tr { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; padding: 10px; border-bottom: 1px solid var(--border); }
+  table.t.codes-t td { display: block; padding: 0; border: 0; }
+  .codes-t td:nth-child(1) { grid-column: 1 / 3; }
+  .codes-t td:nth-child(6) { grid-column: 3; grid-row: 1; }
+  .codes-t td:nth-child(2) { grid-column: 1 / -1; }
+  .codes-t td:nth-child(5) { grid-column: 1 / -1; }
+  .codes-t input[type=time] { width: 100%; }
+  .codes-wrap { background: none; }
+}
+@media (max-width: 640px) {
+  .toolbar .search { width: 100% !important; max-width: none !important; flex: 1 1 100%; }
+  .toolbar > .row { width: 100%; }
 }

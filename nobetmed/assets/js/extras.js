@@ -289,7 +289,7 @@ function drawCalendar() {
       <div><b class="${sm.overtime > 0 ? 'pos' : ''}">${sm.overtime > 0 ? '+' : ''}${Math.abs(sm.overtime)}</b><span>${sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div><div><b>${sm.leaveDays}</b><span>izin günü</span></div></div>`
       : html`<p class="tiny faint cal-none">Bu ay için listede nöbetiniz yok.</p>`}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
-    ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || e.code}</span></span>`)}</div>` : ''}`);
+    ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || (e.kind === 'role' ? 'Görev' : e.kind === 'leave' ? 'İzin' : 'Nöbet')}</span></span>`)}</div>` : ''}`);
 }
 ACT['cal-day'] = (el) => { CAL.sel = el.dataset.d; drawCalendar(); loadDayPanel(); if (window.innerWidth < 900) { const p = $('#dayPanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
 ACT['cal-mv'] = (el) => {
@@ -419,8 +419,8 @@ function syncPeopleAvatars(list) {
 function drawDirectory() {
   const box = $('#dirList');
   if (!box || !DIR.people) return;
-  const q = trLower(DIR.q);
-  const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || trLower([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
+  const q = avKey(DIR.q);
+  const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || avKey([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
   setHTML(box, list.length ? html`<div class="card"><div class="list">${list.map((p) => html`<div class="list-row dir-row">
       ${avatar(p.name, '', p.avatar || null)}
       <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div>
@@ -701,8 +701,10 @@ async function composerExtras(form, post) {
       if (b) {
         const t = TPL.find((x) => x.id === +b.dataset.tpl);
         if (!t) return;
+        if (form.body.value.trim() && form.body.value !== t.body && !(await confirmDialog({ title: 'Şablon uygulansın mı?', text: 'Yazdığınız metin şablonla değiştirilecek.', ok: 'Şablonu uygula' }))) return;
         if (!form.title.value) form.title.value = t.title;
         form.body.value = t.body;
+        form.dispatchEvent(new Event('input'));
         if (t.category_id) form.category_id.value = t.category_id;
         const rq = form.querySelector('[name=required]'); if (rq) rq.checked = t.required;
         form.body.focus();
@@ -806,10 +808,10 @@ ACT['inv-qr'] = async () => {
       <label class="switch"><input type="checkbox" name="auto_approve"><span class="track"></span><span class="s-text"><b>Onay beklemeden giriş yapabilsin</b><span>Kapalıysa her başvuruyu siz onaylarsınız (önerilir).</span></span></label>
     </form><div id="qrOut"></div>`,
   foot: html`<button class="btn" data-act="close-modal">Kapat</button><button class="btn primary" data-qr-make>QR kod oluştur</button>` });
-  m.el.querySelector('[data-qr-make]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+  m.el.querySelector('[data-qr-make]').addEventListener('click', async (e) => { const btn = e.currentTarget; let made = false; await busy(btn, async () => {
     const f = m.el.querySelector('#qrForm');
     try {
-      await loadVendor('qrcode');
+      try { await loadVendor('qrcode'); } catch (err) { throw new Error('QR kod hazırlanamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.'); }
       const r = await api('invites.general', { unit_id: +f.unit_id.value || null, auto_approve: f.auto_approve.checked, days: 30 });
       const url = r.invite.url;
       setHTML(m.el.querySelector('#qrOut'), html`<div class="qr-card" id="qrPrint">
@@ -818,8 +820,10 @@ ACT['inv-qr'] = async () => {
         <div class="row wrap" style="margin-top:10px"><input class="input" readonly value="${url}"><button class="btn icon" data-copy="${url}" aria-label="Kopyala">${icon('copy')}</button>
         <button class="btn" data-act="qr-print">${icon('printer', 'sm')}Yazdır</button>
         <a class="btn" href="https://wa.me/?text=${encodeURIComponent('Portala katılmak için: ' + url)}" target="_blank" rel="noopener">${icon('chat', 'sm')}WhatsApp</a></div>`);
+      made = true;
+      m.el.querySelector('#qrOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) { toast(err.message, 'err'); }
-  }));
+  }); if (made) btn.textContent = 'Yeni kod oluştur'; });
   m.el.addEventListener('click', async (e) => { const c = e.target.closest('[data-copy]'); if (c) toast((await copyText(c.dataset.copy)) ? 'Bağlantı kopyalandı' : 'Kopyalanamadı'); });
 };
 ACT['qr-print'] = () => {
@@ -842,7 +846,7 @@ ACT['inv-roster'] = async () => {
   m.setBody(html`<p class="small muted" style="margin-bottom:12px">Nöbet listelerinde adı geçen ama hesabı olmayan <b>${items.length}</b> kişi. E-posta yazdıklarınıza davet e-postası gider; boş bıraktıklarınız için kişiye özel bağlantı oluşur (WhatsApp’tan gönderebilirsiniz). Davetle gelenler onay beklemeden girer.</p>
     <div class="row wrap" style="margin-bottom:10px"><label class="small"><input type="checkbox" id="invAll" checked> Tümünü seç</label><span class="grow"></span>
       <span class="tiny faint">Birim:</span><select class="select" id="invUnit" style="width:auto;height:34px">${options(S.units, (S.units[0] || {}).id)}</select></div>
-    <div class="table-wrap"><table class="t"><thead><tr><th></th><th>Ad soyad</th><th>Ünvan</th><th>E-posta (isteğe bağlı)</th></tr></thead>
+    <div class="table-wrap"><table class="t inv-t"><thead><tr><th></th><th>Ad soyad</th><th>Ünvan</th><th>E-posta (isteğe bağlı)</th></tr></thead>
     <tbody>${items.map((p, i) => html`<tr class="${p.invited ? 'dim' : ''}"><td><input type="checkbox" data-i="${i}" ${p.invited ? '' : raw('checked')}></td><td><b>${p.name}</b>${p.invited ? html` <span class="badge">davet edildi</span>` : ''}</td>
       <td><select class="select" data-ti="${i}" style="height:34px">${options(S.titles, p.title_id, '—')}</select></td><td><input class="input" type="email" data-em="${i}" placeholder="ornek@gmail.com" style="height:34px"></td></tr>`)}</tbody></table></div>`);
   m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-inv-go>${icon('send', 'sm')}Davetleri oluştur</button>`);
@@ -1051,15 +1055,15 @@ async function mountBackupBox() {
 ACT['bk-create'] = (el) => busy(el, async () => { try { await api('backup.create'); toast('Yedek alındı'); mountBackupBox(); } catch (e) { toast(e.message, 'err'); } });
 ACT['bk-del'] = async (el) => {
   if (!(await confirmDialog({ title: 'Yedek silinsin mi?', text: el.dataset.n, ok: 'Sil', danger: true }))) return;
-  try { await api('backup.delete', { name: el.dataset.n }); mountBackupBox(); } catch (e) { toast(e.message, 'err'); }
+  try { await api('backup.delete', { name: el.dataset.n }); mountBackupBox(); toast('Yedek silindi'); } catch (e) { toast(e.message, 'err'); }
 };
 
 /* Arama sonucunda eşleşen kelimeyi vurgula (Türkçe büyük/küçük harf duyarsız) */
 function hiText(text, q) {
   text = String(text || '');
-  q = trLower(String(q || '').trim());
+  q = avKey(String(q || ''));
   if (!q) return text;
-  const low = text.split('').map((c) => { const l = trLower(c); return l.length === 1 ? l : c.toLowerCase().charAt(0); }).join('');
+  const low = text.split('').map((c) => { const l = avKey(c) || c; return l.length === 1 ? l : c.toLowerCase().charAt(0); }).join('');
   const out = [];
   let i = 0;
   for (;;) {
@@ -1094,7 +1098,7 @@ function maybeShowTour() {
 }
 function showTour() {
   const steps = [
-    ['calendar', 'tone-indigo', 'Nöbetin burada', 'Alttaki <b>Nöbet</b> sekmesinde takvimini, hangi gün kimin nöbette olduğunu ve Excel listenin kendisini bulursun. Renkler her yerde aynı: <span class="code-chip tone-amber">G</span> gündüz, <span class="code-chip tone-indigo">N</span> gece, <span class="code-chip tone-emerald">24</span> 24 saat, <span class="code-chip tone-slate">İ</span> izin.'],
+    ['calendar', 'tone-indigo', 'Nöbetin burada', (window.innerWidth > 900 ? 'Soldaki menüde <b>Nöbet</b> bölümünde' : 'Alttaki <b>Nöbet</b> sekmesinde') + ' takvimini, hangi gün kimin nöbette olduğunu ve Excel listenin kendisini bulursun. Takvimde renkler: <span class="code-chip tone-amber">G</span> gündüz, <span class="code-chip tone-indigo">N</span> gece, <span class="code-chip tone-emerald">24</span> 24 saat, <span class="code-chip tone-slate">İ</span> izin.'],
     ['checkCircle', 'tone-amber', 'Okuman gerekenler', 'Zorunlu duyuru ve protokolleri açıp <b>“Okudum, anladım”</b> demen yeterli. Kaç tane kaldığı ana sayfanın en üstünde yazar.'],
     ['bell', 'tone-teal', 'Hiçbir şeyi kaçırma', 'Yeni duyurular ve nöbet hatırlatmaları sağ üstteki zilde toplanır. Telefon bildirimlerini açarsan nöbetinden bir gün önce de haber verilir.'],
   ];
@@ -1172,7 +1176,7 @@ function applySettingsSec(sec) {
 }
 ACT['set-sec'] = (el) => { applySettingsSec(el.dataset.s); history.replaceState(null, '', '#/yonetim/ayarlar/' + el.dataset.s); };
 
-const CODES = { list: [] };
+const CODES = { list: [], dirty: false };
 function shiftCodesCardHtml() {
   return html`<div class="card card-pad stack" data-sec="nobet">
     <div><h3 style="font-size:15px">${icon('table', 'sm')} Nöbet kodları</h3><p class="small muted">Excel listedeki kısaltmaların anlamı. Takvimde, hatırlatmalarda, renklerde ve saat/fazla mesai hesabında kullanılır. Değiştirince listeler yeniden okunur.</p></div>
@@ -1180,6 +1184,7 @@ function shiftCodesCardHtml() {
 }
 function mountCodesBox() {
   CODES.list = JSON.parse(JSON.stringify(shiftDict()));
+  CODES.dirty = false;
   drawCodes();
   const box = $('#codesBox');
   if (!box) return;
@@ -1187,12 +1192,13 @@ function mountCodesBox() {
     const i = e.target.closest('[data-i]');
     if (!i) return;
     const row = CODES.list[+i.dataset.i];
-    if (row) row[i.dataset.k] = e.target.value;
+    if (row) { row[i.dataset.k] = e.target.value; CODES.dirty = true; }
   });
   box.addEventListener('change', (e) => {
     const i = e.target.closest('select[data-i]');
     if (!i) return;
     CODES.list[+i.dataset.i].kind = i.value;
+    CODES.dirty = true;
     drawCodes();
   });
 }
@@ -1213,19 +1219,25 @@ function drawCodes() {
     <button type="button" class="btn ghost" data-act="code-reset">Varsayılana dön</button><button type="button" class="btn primary" data-act="code-save">Kodları kaydet</button></div>
   <p class="tiny faint">Örnek: “8 16” = Gündüz 08:00–16:00. Bitiş başlangıçtan önceyse ertesi güne geçen nöbet sayılır (gece, 24 saat).</p>`);
 }
-ACT['code-add'] = () => { CODES.list.push({ code: '', label: '', start: '08:00', end: '16:00', kind: 'shift' }); drawCodes(); const ins = $$('#codesBox input[data-k=code]'); if (ins.length) ins[ins.length - 1].focus(); };
-ACT['code-del'] = (el) => { CODES.list.splice(+el.dataset.i, 1); drawCodes(); };
+ACT['code-add'] = () => { CODES.dirty = true; CODES.list.push({ code: '', label: '', start: '08:00', end: '16:00', kind: 'shift' }); drawCodes(); const ins = $$('#codesBox input[data-k=code]'); if (ins.length) ins[ins.length - 1].focus(); };
+ACT['code-del'] = (el) => { CODES.dirty = true; CODES.list.splice(+el.dataset.i, 1); drawCodes(); };
 ACT['code-reset'] = async (el) => {
   if (!(await confirmDialog({ title: 'Varsayılan kodlara dönülsün mü?', text: 'Yaptığınız değişiklikler silinir ve listeler varsayılan kodlarla yeniden okunur.', ok: 'Varsayılana dön' }))) return;
   try { await api('shiftcodes.save', { reset: true }); S.settings.shift_codes = null; CODES.list = JSON.parse(JSON.stringify(SHIFT_CODES_DEFAULT)); drawCodes(); reparseAllRosters(); toast('Varsayılan kodlar geri yüklendi'); } catch (e) { toast(e.message, 'err'); }
 };
+async function saveCodes() {
+  const r = await api('shiftcodes.save', { codes: CODES.list.filter((c) => String(c.code || '').trim()) });
+  S.settings.shift_codes = r.codes;
+  CODES.list = JSON.parse(JSON.stringify(r.codes));
+  CODES.dirty = false;
+  drawCodes();
+  return reparseAllRosters();
+}
+/** "Ayarları kaydet" ile birlikte, değişmişse nöbet kodlarını da kaydet */
+async function saveCodesIfDirty() { return CODES.dirty && $('#codesBox') ? saveCodes() : null; }
 ACT['code-save'] = (el) => busy(el, async () => {
   try {
-    const r = await api('shiftcodes.save', { codes: CODES.list.filter((c) => String(c.code || '').trim()) });
-    S.settings.shift_codes = r.codes;
-    CODES.list = JSON.parse(JSON.stringify(r.codes));
-    drawCodes();
-    const n = reparseAllRosters();
+    const n = await saveCodes();
     toast(n ? `Kodlar kaydedildi · ${n} liste yeniden okunuyor` : 'Kodlar kaydedildi');
   } catch (e) { toast(e.message, 'err'); }
 });

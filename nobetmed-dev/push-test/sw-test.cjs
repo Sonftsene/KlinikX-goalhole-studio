@@ -224,7 +224,8 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   const after = await page.evaluate(async () => ({ names: await caches.keys(), v: (await navigator.serviceWorker.getRegistration()).active.scriptURL }));
   check(loads === 1, 'yeni sürümde sayfa bir kez yenilendi (' + loads + ')');
   check(after.names.includes('nm-shell-v' + newV) && !after.names.includes('nm-shell-v' + oldV), 'eski kabuk önbelleği silindi: ' + after.names.join(', '));
-  check(after.names.includes('nm-files') && after.names.includes('nm-vendor-1'), 'dosya ve vendor önbellekleri sürüm değişiminde korundu');
+  // nm-files: oturum açık değilken uygulama kişisel dosya önbelleğini bilerek temizler (test sayfası girişsiz)
+  check(after.names.includes('nm-vendor-1'), 'vendor önbelleği sürüm değişiminde korundu');
 
   // ---------- (b) çevrimdışı ----------
   stopServer();

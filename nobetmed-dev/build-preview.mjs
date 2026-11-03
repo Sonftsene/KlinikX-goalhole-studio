@@ -15,7 +15,9 @@ const dark = css.match(/\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
 css += `\n@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {${dark}\n} }\n`;
 const safe = (s) => s.replace(/<\/script/gi, '<\\/script');
 const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'pwa', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
-const html = `<meta charset="utf-8">
+const html = `<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NöbetMed Klinik Portalı</title>
 <meta name="robots" content="noindex, nofollow">

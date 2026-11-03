@@ -258,13 +258,18 @@ function tr_lower(string $s): string
 {
     return mb_strtolower(str_replace(['İ', 'I'], ['i', 'ı'], $s), 'UTF-8');
 }
+/** Aramada Türkçe harf farkı yok sayılır: "insulin" → "İnsülin" (karakter sayısı korunur) */
+function tr_fold(string $s): string
+{
+    return strtr(tr_lower($s), ['ı' => 'i', 'ç' => 'c', 'ğ' => 'g', 'ö' => 'o', 'ş' => 's', 'ü' => 'u', 'â' => 'a', 'î' => 'i', 'û' => 'u']);
+}
 
 function like_expr(string $col): string
 {
     static $registered = false;
     if (DB_DRIVER !== 'mysql') {
         if (!$registered) {
-            db()->sqliteCreateFunction('nm_lower', fn($v) => tr_lower((string)$v), 1);
+            db()->sqliteCreateFunction('nm_lower', fn($v) => tr_fold((string)$v), 1);
             $registered = true;
         }
         return "nm_lower($col)";
@@ -274,9 +279,7 @@ function like_expr(string $col): string
 }
 function like_pattern(string $term): string
 {
-    $t = tr_lower($term);
-    if (DB_DRIVER === 'mysql') $t = str_replace('ı', 'i', $t);
-    return '%' . $t . '%';
+    return '%' . tr_fold($term) . '%';
 }
 
 function user_out(array $u): array
@@ -710,7 +713,9 @@ function a_me_update(): void
     }
     if (array_key_exists('push_on', $IN)) q('UPDATE users SET push_on = ? WHERE id = ?', [b('push_on') ? 1 : 0, $me['id']]);
     if (array_key_exists('phone', $IN) || array_key_exists('extension', $IN)) {
-        $phone = preg_replace('/[^0-9+ ()-]/', '', s('phone', 30));
+        $rawPhone = trim(s('phone', 30));
+        $phone = trim((string)preg_replace('/[^0-9+ ()-]/', '', $rawPhone));
+        if ($rawPhone !== '' && (preg_match('/\p{L}/u', $rawPhone) || strlen((string)preg_replace('/\D/', '', $phone)) < 7)) fail('Telefon numarası geçersiz. Örnek: 0532 123 45 67');
         $ext = preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12));
         q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [$phone ?: null, $ext ?: null, $me['id']]);
     }
@@ -793,16 +798,16 @@ function a_posts_list(): void
 /** Arama sonucunda kelimenin geçtiği yer: içerik metni veya ekli belge */
 function search_snippet(int $postId, string $term): ?array
 {
-    $t = tr_lower($term);
+    $t = tr_fold($term);
     $cut = function (string $text) use ($t): ?string {
-        $low = tr_lower($text);
+        $low = tr_fold($text);
         $pos = mb_strpos($low, $t);
         if ($pos === false) return null;
         $start = max(0, $pos - 70);
         return ($start > 0 ? '…' : '') . trim(mb_substr(preg_replace('/\s+/u', ' ', $text), $start, 170)) . '…';
     };
     $body = (string)val('SELECT body FROM posts WHERE id = ?', [$postId]);
-    if (($x = $cut($body)) !== null && mb_stripos(tr_lower((string)val('SELECT title FROM posts WHERE id = ?', [$postId])), $t) === false) return ['where' => 'body', 'text' => $x];
+    if (($x = $cut($body)) !== null && mb_stripos(tr_fold((string)val('SELECT title FROM posts WHERE id = ?', [$postId])), $t) === false) return ['where' => 'body', 'text' => $x];
     foreach (all('SELECT orig_name, text_content FROM attachments WHERE post_id = ? AND text_content IS NOT NULL', [$postId]) as $a) {
         if (($x = $cut((string)$a['text_content'])) !== null) return ['where' => 'file', 'file' => $a['orig_name'], 'text' => $x];
     }
@@ -1321,6 +1326,18 @@ function a_rosters_upload(): void
     $attId = (int)i('attachment_id');
     if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
     if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
+    // Aynı dosya tekrar yüklendiyse yeni sürüm, duyuru ve bildirim oluşturma
+    $new = one('SELECT stored_name, size FROM attachments WHERE id = ?', [$attId]);
+    $cur = one('SELECT a.id, a.stored_name, a.size FROM roster_files f JOIN attachments a ON a.id = f.attachment_id WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$id]);
+    if ($cur && $new && (int)$cur['size'] === (int)$new['size']) {
+        $pa = NM_ROOT . '/uploads/' . $new['stored_name'];
+        $pb = NM_ROOT . '/uploads/' . $cur['stored_name'];
+        if (is_file($pa) && is_file($pb) && hash_file('sha256', $pa) === hash_file('sha256', $pb)) {
+            @unlink($pa);
+            q('DELETE FROM attachments WHERE id = ?', [$attId]);
+            fail('Bu dosya listenin zaten güncel sürümü; değişiklik yok.', 409);
+        }
+    }
     add_roster_version($id, $attId, $me);
     $roster = one('SELECT * FROM rosters WHERE id = ?', [$id]);
     audit($me, 'roster.upload', $roster['name'], (string)val('SELECT orig_name FROM attachments WHERE id = ?', [$attId]));
@@ -1526,7 +1543,7 @@ function a_tax_delete(): void
             q('UPDATE users SET title_id = NULL WHERE title_id = ?', [$id]);
             break;
     }
-    audit($me, 'structure.delete', (string)val("SELECT name FROM $kind WHERE id = ?", [$id]), $kind);
+    audit($me, 'structure.delete', (string)val("SELECT name FROM $kind WHERE id = ?", [$id]), ['categories' => 'Bölüm', 'units' => 'Birim', 'titles' => 'Ünvan'][$kind] ?? '');
     q("DELETE FROM $kind WHERE id = ?", [$id]);
     out(lists());
 }

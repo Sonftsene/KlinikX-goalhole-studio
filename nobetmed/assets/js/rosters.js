@@ -25,7 +25,7 @@ function renderRosters(view, id) {
     ${hubTabs('list')}
     <div class="rs-top">
       <div class="seg rs-tabs" role="tablist" id="rsTabs"></div>
-      ${isPublisher() ? html`<button class="btn sm ghost" data-act="rs-new">${icon('plus', 'sm')}Yeni liste</button>` : ''}
+      ${isPublisher() ? html`<button class="btn sm" data-act="rs-new">${icon('plus', 'sm')}Yeni liste</button>` : ''}
     </div>
     <div class="rs-info" id="rsInfo"></div>
     <div class="rs-stage" id="rsStage"></div>`);
@@ -205,7 +205,7 @@ async function rosterVersions(r) {
   const m = openModal({ title: `${r.name} — sürümler`, body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
   let list;
   try { list = (await api('rosters.versions', { id: r.id })).versions; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
-  m.setBody(html`<p class="small muted" style="margin-bottom:12px">Son ${list.length} yükleme saklanır. Yanlış dosya yüklendiyse önceki sürümü geri yükleyebilirsiniz.</p>
+  m.setBody(html`<p class="small muted" style="margin-bottom:12px">Son 15 yükleme saklanır. Yanlış dosya yüklendiyse önceki sürümü geri yükleyebilirsiniz.</p>
     <div class="card"><div class="list">${list.map((v, i) => html`<div class="list-row">
       <span class="a-ico tone-${fileKind(v.mime, v.name).tone}" style="width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:10px;font-weight:700">${fileKind(v.mime, v.name).label}</span>
       <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${v.name}</div><div class="lr-s">${fmtDateTime(v.updated_at)}${v.user_name ? ' · ' + v.user_name : ''} · ${fmtSize(v.size)}</div></div>

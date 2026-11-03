@@ -59,7 +59,7 @@ async function drawUsers(body) {
         <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
       </div>
     </div>
-    <div class="card"><div class="table-wrap"><table class="t">
+    <div class="card"><div class="table-wrap"><table class="t users-t">
       <thead><tr><th>Kişi</th><th>Ünvan / Birim</th><th>Yetki</th><th>Durum</th><th>Son giriş</th><th></th></tr></thead>
       <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}">
         <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
@@ -338,6 +338,7 @@ async function drawSettings(body) {
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);
+  if (typeof saveCodesIfDirty === 'function') await saveCodesIfDirty();
   const A = r.admin;
   Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text, banner_tone: d.banner_tone, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
   S.mail_ready = A.mail_ready;

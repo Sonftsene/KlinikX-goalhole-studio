@@ -817,10 +817,10 @@ async function mountSheet(el, att, opts = {}) {
     applySearch(false);
   };
   const applySearch = (jump) => {
-    const q = trLower(state.q.trim());
+    const q = foldName(state.q.trim());
     scroll.querySelectorAll('td.hit').forEach((td) => td.classList.remove('hit', 'hit-cur'));
     state.hits = [];
-    if (q) scroll.querySelectorAll('td.xc').forEach((td) => { if (td.textContent && trLower(td.textContent).includes(q)) { td.classList.add('hit'); state.hits.push(td); } });
+    if (q) scroll.querySelectorAll('td.xc').forEach((td) => { if (td.textContent && foldName(td.textContent).includes(q)) { td.classList.add('hit'); state.hits.push(td); } });
     countEl.textContent = q ? (state.hits.length ? `${state.hits.length} sonuç` : 'Sonuç yok') : '';
     if (jump && state.hits.length) { state.hitIdx = 0; focusCell(state.hits[0], 'hit-cur'); }
   };

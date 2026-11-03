@@ -97,6 +97,7 @@ function renderAuth(mode = 'login') {
       <p class="small muted" style="margin-top:18px;text-align:center"><a href="#" data-act="auth-mode" data-mode="login">Girişe dön</a></p>`;
   } else if (mode === 'register') {
     inner = html`
+      <div class="row" style="margin-bottom:22px">${BRAND_MARK}<div><b class="brand-name">Nöbet<span>Med</span></b><div class="brand-org">${S.settings.org_name}</div></div></div>
       <h1>Hesap oluştur</h1>
       <p class="sub">${reg === 'approval' ? 'Kaydınız yönetici onayından sonra aktifleşir.' : 'Kayıt olduktan sonra hemen giriş yapabilirsiniz.'}</p>
       ${googleBlock()}

@@ -143,6 +143,9 @@ async function refreshCounts() {
 function route() {
   if (!S.me || !$('#view')) return;
   closeMenu();
+  if (typeof closeNotifPop === 'function') closeNotifPop();
+  // Geri tuşu / sayfa değişimi: açık pencereler kapanır (yeni içerik taslağı zaten saklanıyor)
+  while (modalStack.length) modalStack[modalStack.length - 1].close();
   const sh = $('#shell');
   if (sh) sh.classList.remove('nav-open');
   const r = currentRoute();
@@ -151,7 +154,9 @@ function route() {
   if (si && r[0] !== 'ara') si.value = '';
   switch (r[0]) {
     case undefined: renderHome(view); break;
-    case 'b': renderFeedPage(view, { cat: +r[1] }); break;
+    case 'b':
+      if (!S.categories.some((c) => c.id === +r[1])) { toast('Bu bölüm bulunamadı', 'err'); location.hash = '#/'; return; }
+      renderFeedPage(view, { cat: +r[1] }); break;
     case 'okunacak': renderFeedPage(view, { filter: 'todo', fixed: true }); break;
     case 'kaydedilenler': renderFeedPage(view, { filter: 'saved', fixed: true }); break;
     case 'ara': if (si) si.value = r[1] || ''; renderFeedPage(view, { q: r[1] || '' }); break;
@@ -299,9 +304,9 @@ ACT['feed-filter'] = (el) => {
 ACT['feed-more'] = () => loadFeed(false);
 
 function reloadCurrent() {
-  refreshCounts();
   if (FEED && document.body.contains(FEED.host)) loadFeed(true);
-  if (typeof onAdminChanged === 'function') onAdminChanged();
+  // Sekmelerdeki sayılar güncel gelsin diye önce sayıları al, sonra yönetim sayfasını çiz
+  refreshCounts().then(() => { if (typeof onAdminChanged === 'function') onAdminChanged(); });
 }
 
 function postBadges(p, full) {
@@ -416,6 +421,27 @@ function renderDetail() {
     ? html`<div class="form-note warn">${isPublisher() ? 'Bu içerik onayınızı bekliyor. Onayladığınızda tüm ilgili üyelere yayınlanır.' : 'İçeriğiniz yönetici onayı bekliyor. Onaylanınca yayınlanacak.'}</div>`
     : p.status === 'rejected' ? html`<div class="form-note" style="background:var(--danger-soft);color:var(--danger)"><b>Reddedildi.</b> ${p.reject_reason || 'Gerekçe belirtilmedi.'} ${p.author_id === S.me.id ? 'Düzenleyip tekrar gönderebilirsiniz.' : ''}</div>` : '';
 
+  m.setBody(html`
+    <div class="stack" style="gap:18px">
+      ${statusNote}
+      <div class="stack" style="gap:10px">
+        ${(() => { const b = postBadges(p, true); if (p.review_at && isPublisher()) b.push(reviewBadge(p.review_at)); return b.length ? html`<div class="row wrap" style="gap:6px">${b}</div>` : ''; })()}
+        <h1 class="detail-title">${p.title}</h1>
+        <div class="row small muted" style="gap:10px">${avatar(p.author_name, 'sm')}<span><b style="color:var(--text)">${p.author_name}</b>${p.author_title_id ? ' · ' + titleName(p.author_title_id) : ''}</span><span class="faint">·</span><span title="${fmtDateTime(p.published_at || p.created_at)}">${fmtDate(p.published_at || p.created_at, true)}</span></div>
+      </div>
+      ${ackBox}
+      <div class="detail-body">${raw(linkify(p.body))}</div>
+      ${(() => { const m = /#\/nobet\/(\d+)/.exec(p.body); return m ? html`<div><a class="btn primary" href="#/nobet/${m[1]}" data-act="close-and-go">${icon('table', 'sm')}Nöbet listesini aç</a></div>` : ''; })()}
+      ${attachmentsBlock(p.attachments)}
+      <div id="detReaders">${detailReadersHtml(p)}</div>
+      ${p.updated_at && p.published_at && p.updated_at > p.published_at ? html`<p class="tiny faint">Son düzenleme: ${fmtDateTime(p.updated_at)}</p>` : ''}
+    </div>`);
+  hydrateViewers(m.body);
+  m.setFoot(detailFoot(p));
+}
+
+/** Okuma durumu kartı (sekme değişince yalnızca bu bölüm yenilenir; ekler yeniden yüklenmez) */
+function detailReadersHtml(p) {
   let readers = '';
   if (p.readers) {
     const total = p.readers.length + p.missing.length;
@@ -438,24 +464,11 @@ function renderDetail() {
           <button class="btn sm" data-act="copy-missing">${icon('copy', 'sm')}Listeyi kopyala</button></div>` : ''}
       </div>`;
   }
+  return readers;
+}
 
-  m.setBody(html`
-    <div class="stack" style="gap:18px">
-      ${statusNote}
-      <div class="stack" style="gap:10px">
-        ${(() => { const b = postBadges(p, true); if (p.review_at && isPublisher()) b.push(reviewBadge(p.review_at)); return b.length ? html`<div class="row wrap" style="gap:6px">${b}</div>` : ''; })()}
-        <h1 class="detail-title">${p.title}</h1>
-        <div class="row small muted" style="gap:10px">${avatar(p.author_name, 'sm')}<span><b style="color:var(--text)">${p.author_name}</b>${p.author_title_id ? ' · ' + titleName(p.author_title_id) : ''}</span><span class="faint">·</span><span title="${fmtDateTime(p.published_at || p.created_at)}">${fmtDate(p.published_at || p.created_at, true)}</span></div>
-      </div>
-      ${ackBox}
-      <div class="detail-body">${raw(linkify(p.body))}</div>
-      ${(() => { const m = /#\/nobet\/(\d+)/.exec(p.body); return m ? html`<div><a class="btn primary" href="#/nobet/${m[1]}" data-act="close-and-go">${icon('table', 'sm')}Nöbet listesini aç</a></div>` : ''; })()}
-      ${attachmentsBlock(p.attachments)}
-      ${readers}
-      ${p.updated_at && p.published_at && p.updated_at > p.published_at ? html`<p class="tiny faint">Son düzenleme: ${fmtDateTime(p.updated_at)}</p>` : ''}
-    </div>`);
-  hydrateViewers(m.body);
-
+/** Detay alt çubuğu (Kaydet/Paylaş/Onayla) */
+function detailFoot(p) {
   const foot = [];
   if (p.status === 'pending' && isPublisher()) {
     foot.push(html`<button class="btn danger" data-act="reject" data-id="${p.id}">${icon('x')}Reddet</button>`);
@@ -471,9 +484,9 @@ function renderDetail() {
     foot.push(html`<div class="grow"></div>`);
     if (canEdit(p)) foot.push(html`<button class="btn icon" data-act="post-menu" aria-label="Diğer">${icon('more')}</button>`);
   }
-  m.setFoot(foot);
+  return foot;
 }
-ACT['readers-tab'] = (el) => { DETAIL.tab = el.dataset.tab; renderDetail(); };
+ACT['readers-tab'] = (el) => { DETAIL.tab = el.dataset.tab; const box = $('#detReaders'); if (box) setHTML(box, detailReadersHtml(DETAIL.post)); else renderDetail(); };
 ACT['close-and-go'] = (el) => {
   const href = el.getAttribute('href');
   while (modalStack.length) modalStack[modalStack.length - 1].close();
@@ -508,7 +521,7 @@ ACT['detail-save'] = async () => {
     await api('posts.bookmark', { id: p.id, saved: !p.saved });
     p.saved = !p.saved;
     S.counts.saved += p.saved ? 1 : -1;
-    renderDetail();
+    DETAIL.m.setFoot(detailFoot(p));
     const it = FEED && FEED.items.find((x) => x.id === p.id);
     if (it) { it.saved = p.saved; renderFeed(); }
     toast(p.saved ? 'Kaydedilenlere eklendi' : 'Kaydedilenlerden çıkarıldı');
@@ -646,12 +659,39 @@ function openComposer(post) {
         ${composerExtraFields(post)}
         <div class="form-error hidden" data-err></div>
       </form>`,
-    foot: html`${isPublisher() ? html`<button class="btn ghost desk-only" type="button" data-act="tpl-save" title="Bu metni sonra tekrar kullanmak için saklar">${icon('bookmark', 'sm')}Şablon olarak kaydet</button><div class="grow"></div>` : ''}<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayınla' : 'Onaya gönder'}</button>`,
+    foot: html`${isPublisher() ? html`<button class="btn desk-only" type="button" data-act="tpl-save" title="Bu metni sonra tekrar kullanmak için saklar">${icon('bookmark', 'sm')}Şablon olarak kaydet</button><div class="grow"></div>` : ''}<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayınla' : 'Onaya gönder'}</button>`,
   });
   const form = m.el.querySelector('#composer');
   form._st = st;
   form._post = post;
   form._modal = m;
+  // Taslak: yeni içerik yazılırken otomatik saklanır, pencere kapanınca/geri tuşunda kaybolmaz
+  const dkey = 'nm-draft-' + S.me.id;
+  const initial = { title: form.title.value, body: form.body.value };
+  if (!editing) {
+    let dr = null;
+    try { dr = JSON.parse(localStorage.getItem(dkey) || 'null'); } catch (e) { /* */ }
+    if (dr && (dr.title || dr.body)) {
+      form.title.value = dr.title || ''; form.body.value = dr.body || '';
+      if (dr.category_id && S.categories.some((c) => c.id === dr.category_id)) form.category_id.value = dr.category_id;
+      const note = document.createElement('div');
+      note.className = 'form-note';
+      note.innerHTML = fmtVal(html`${icon('info', 'sm')} Kaydedilmemiş taslağınız geri yüklendi. <a href="#" data-draft-clear>Temizle</a>`);
+      form.prepend(note);
+      note.querySelector('[data-draft-clear]').addEventListener('click', (e) => { e.preventDefault(); form.title.value = ''; form.body.value = ''; try { localStorage.removeItem(dkey); } catch (err) { /* */ } note.remove(); });
+    }
+    form.addEventListener('input', debounce(() => {
+      try {
+        if (form.title.value.trim() || form.body.value.trim()) localStorage.setItem(dkey, JSON.stringify({ title: form.title.value, body: form.body.value, category_id: +form.category_id.value || null }));
+        else localStorage.removeItem(dkey);
+      } catch (e) { /* */ }
+    }, 400));
+  }
+  m.guard = () => form.title.value !== initial.title || form.body.value !== initial.body || st.atts.some((a) => !a.existing) || st.removed.length > 0;
+  const _close = m.close;
+  m.close = () => { _close(); if (!editing && !(form.title.value.trim() || form.body.value.trim())) { try { localStorage.removeItem(dkey); } catch (e) { /* */ } } };
+  form._dkey = dkey;
+  if (!editing) m.onDiscard = () => { try { localStorage.removeItem(dkey); } catch (e) { /* */ } };
   composerExtras(form, post);
   const list = m.el.querySelector('#attList');
   const renderAtts = () => setHTML(list, st.atts.map((a, i) => {
@@ -707,6 +747,8 @@ FORMS.composer = (f) => submitForm(f, async (d) => {
   };
   if ('notify' in d) payload.notify = !!d.notify;
   const r = await api('posts.save', payload);
+  if (!f._post) { try { localStorage.removeItem(f._dkey); } catch (e) { /* */ } }
+  f._modal.guard = null;
   f._modal.close();
   toast(r.status === 'published' ? (f._post ? 'Değişiklikler kaydedildi' : r.mailed ? `İçerik yayınlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayınlandı') : 'İçerik onaya gönderildi');
   if (DETAIL && f._post && DETAIL.post && DETAIL.post.id === f._post.id && modalStack.includes(DETAIL.m)) {

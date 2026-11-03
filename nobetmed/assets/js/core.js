@@ -395,6 +395,8 @@ async function submitForm(form, fn) {
 function toast(msg, type = 'ok') {
   let box = $('.toasts');
   if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+  // Aynı mesaj üst üste yığılmasın
+  [...box.children].forEach((c) => { if (c.textContent === String(msg)) c.remove(); });
   const el = document.createElement('div');
   el.className = 'toast ' + type;
   el.innerHTML = fmtVal(html`${icon(type === 'err' ? 'alert' : 'checkCircle')}<span>${msg}</span>`);
@@ -432,9 +434,15 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
       if (onClose) onClose();
     },
   };
+  // guard(): true dönerse kapatmadan önce onay sorulur (ör. yazılmış metin kaybolmasın)
+  m.requestClose = async () => {
+    if (m.guard && m.guard() && !(await confirmDialog({ title: 'Yazdıklarınız silinsin mi?', text: 'Kaydetmeden kapatırsanız bu penceredeki değişiklikler kaybolur.', ok: 'Sil ve kapat', danger: true }))) return;
+    if (m.guard && m.onDiscard) m.onDiscard();
+    m.close();
+  };
   let downOnOverlay = false;
   ov.addEventListener('mousedown', (e) => { downOnOverlay = e.target === ov; });
-  ov.addEventListener('click', (e) => { if (e.target === ov && downOnOverlay) m.close(); });
+  ov.addEventListener('click', (e) => { if (e.target === ov && downOnOverlay) m.requestClose(); });
   modalStack.push(m);
   // Klavye odağı pencerede kalsın; kapanınca açan öğeye dönsün
   const opener = document.activeElement;
@@ -456,13 +464,14 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
 ACT['close-modal'] = (el) => {
   const ov = el.closest('.overlay');
   const m = modalStack.find((x) => x.el === ov);
-  if (m) m.close();
+  if (m) m.requestClose();
 };
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if ($('.menu')) return closeMenu();
+    if ($('.notif-pop') && typeof closeNotifPop === 'function') return closeNotifPop();
     const m = modalStack[modalStack.length - 1];
-    if (m) m.close();
+    if (m) m.requestClose();
   }
 });
 
