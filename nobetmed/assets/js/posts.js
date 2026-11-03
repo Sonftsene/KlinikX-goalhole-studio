@@ -111,6 +111,7 @@ async function logout() {
   try { await api('auth.logout'); } catch (e) { /* */ }
   S.me = null;
   offlineCacheClear();
+  if (typeof resetAppState === 'function') resetAppState();
   if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
   location.hash = '';
   await start();
@@ -383,15 +384,19 @@ let DETAIL = null;
 
 async function openPost(id) {
   const m = openModal({ title: 'İçerik', drawer: true, body: html`<div style="display:grid;place-items:center;padding:60px"><div class="spinner"></div></div>` });
-  DETAIL = { m, id, post: null, tab: 'readers' };
+  const d = { m, id, post: null, tab: 'readers' };
+  DETAIL = d;
+  const stale = () => DETAIL !== d || !modalStack.includes(m);
   try {
     const r = await api('posts.get', { id });
+    if (stale()) return;
     DETAIL.post = r.post;
     renderDetail();
     // okunmamış göstergesini güncelle
     const it = FEED && FEED.items.find((x) => x.id === id);
     if (it && !it.viewed) { it.viewed = true; renderFeed(); refreshCounts(); }
   } catch (e) {
+    if (stale()) return;
     m.setBody(html`<div class="empty"><div class="e-ico">${icon('lock', 'lg')}</div><h3>Açılamadı</h3><p>${e.message}</p></div>`);
   }
 }

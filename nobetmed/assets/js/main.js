@@ -7,6 +7,12 @@ async function start() {
     return renderGuest(BOOT.share);
   }
   const r = await api('boot');
+  // Sunucu oturum yok diyorsa (çıkış, süre dolması) bu cihazdaki eski kişisel önbelleği temizle
+  if (!r.me && !OFFLINE.on) {
+    offlineCacheClear();
+    if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
+    if (typeof resetAppState === 'function') resetAppState();
+  }
   S.mail_ready = !!r.mail_ready;
   S.csrf = r.csrf || S.csrf;
   ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });

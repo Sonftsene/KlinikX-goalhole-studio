@@ -3,3 +3,5 @@ data/.dbname.php
 uploads/*
 !uploads/.htaccess
 !uploads/.gitkeep
+data/sessions/
+data/backups/

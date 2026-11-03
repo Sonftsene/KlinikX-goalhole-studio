@@ -65,9 +65,7 @@ function push_after_response(array $userIds): void
     if ($registered) return;
     $registered = true;
     register_shutdown_function(function () use (&$pending) {
-        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-        elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
-        @ignore_user_abort(true);
+        nm_after_response();
         try { push_dispatch(array_keys($pending)); } catch (Throwable $e) { error_log('[NobetMed] push: ' . $e->getMessage()); }
     });
 }
@@ -159,10 +157,7 @@ function jobs_after_response(): void
     if ((int)setting('jobs_last', '0') > time() - 300) return;
     $registered = true;
     register_shutdown_function(function () {
-        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-        elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
-        @ignore_user_abort(true);
-        @set_time_limit(120);
+        nm_after_response();
         try { run_jobs(); } catch (Throwable $e) { error_log('[NobetMed] görev: ' . $e->getMessage()); }
     });
 }
@@ -170,9 +165,14 @@ function jobs_after_response(): void
 function run_jobs(bool $force = false): array
 {
     // Aynı anda iki kez çalışmasın
-    $last = (int)setting('jobs_last', '0');
-    if (!$force && $last > time() - 280) return [];
-    set_setting('jobs_last', (string)time());
+    $lastRaw = (string)setting('jobs_last', '0');
+    if (!$force && (int)$lastRaw > time() - 280) return [];
+    // Aynı anda iki istek görevleri başlatmasın: zamanı yalnızca biri güncelleyebilir
+    if (!one("SELECT k FROM settings WHERE k = 'jobs_last'")) set_setting('jobs_last', '0');
+    $claimed = q("UPDATE settings SET v = ? WHERE k = 'jobs_last' AND v = ?", [(string)time(), $lastRaw === '' ? '0' : $lastRaw])->rowCount();
+    setting('', '', true);
+    if (!$force && $claimed !== 1) return [];
+    if ($force && $claimed !== 1) set_setting('jobs_last', (string)time());
     $done = [];
     $today = date('Y-m-d');
     $hour = (int)date('G');
@@ -345,11 +345,15 @@ function backup_database_file(string $tmpDir): string
         foreach (db()->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $t) {
             $create = db()->query("SHOW CREATE TABLE `$t`")->fetch(PDO::FETCH_NUM)[1];
             fwrite($fh, "DROP TABLE IF EXISTS `$t`;\n$create;\n");
+            // Büyük tablolar belleği doldurmasın: satırları tamponlamadan oku
+            db()->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
             $st = db()->query("SELECT * FROM `$t`");
             while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
                 $vals = array_map(fn($v) => $v === null ? 'NULL' : db()->quote((string)$v), $row);
                 fwrite($fh, "INSERT INTO `$t` (`" . implode('`,`', array_keys($row)) . '`) VALUES (' . implode(',', $vals) . ");\n");
             }
+            $st->closeCursor();
+            db()->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
             fwrite($fh, "\n");
         }
         fclose($fh);
@@ -370,12 +374,13 @@ function backup_database_file(string $tmpDir): string
 function backup_create(bool $withFiles, bool $keep): string
 {
     if (!class_exists('ZipArchive')) throw new RuntimeException('Sunucuda ZIP desteği yok; yalnızca veritabanı indirilebilir.');
-    @set_time_limit(0);
+    if (function_exists('set_time_limit')) @set_time_limit(0);
     $dir = backup_dir();
     $tmp = $dir . '/tmp-' . bin2hex(random_bytes(4));
     mkdir($tmp);
     $dbFile = backup_database_file($tmp);
-    $name = 'nobetmed-yedek-' . date('Y-m-d-His') . ($withFiles ? '-tam' : '') . '.zip';
+    // Ad tahmin edilemesin (sunucu .htaccess'i yok sayarsa bile yedek indirilemesin)
+    $name = 'nobetmed-yedek-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(6)) . ($withFiles ? '-tam' : '') . '.zip';
     $zipPath = ($keep ? $dir : $tmp) . '/' . $name;
     $zip = new ZipArchive();
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Yedek dosyası oluşturulamadı.');
@@ -383,7 +388,8 @@ function backup_create(bool $withFiles, bool $keep): string
     $zip->addFromString('BENIOKU.txt', "NöbetMed yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: dosyayı data/ klasörüne koyun ve data/.dbname.php içindeki adı bu dosyanın adıyla değiştirin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
     if ($withFiles) {
         foreach (glob(NM_ROOT . '/uploads/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
-        foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (!str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
+        foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
+        foreach (glob(NM_ROOT . '/uploads/avatars/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/avatars/' . basename($f));
     }
     $zip->close();
     @unlink($dbFile);

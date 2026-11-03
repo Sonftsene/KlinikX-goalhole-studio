@@ -101,7 +101,7 @@ function a_shifts_day(): void
 {
     need_user();
     $date = s('date', 10) ?: date('Y-m-d');
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) fail('Geçersiz tarih.');
+    if (!valid_ymd($date)) fail('Geçersiz tarih.');
     $rows = all("SELECT s.*, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? ORDER BY s.start_time, s.name", [$date]);
     // Dünden devam eden gece / 24 saat nöbetleri (bitiş saati başlangıçtan önce)
     $prev = date('Y-m-d', strtotime($date . ' -1 day'));
@@ -124,7 +124,7 @@ function a_shifts_day(): void
 function a_shifts_mine2(): void
 {
     $me = need_user();
-    $from = date('Y-m-01', strtotime('-1 month'));
+    $from = date('Y-m-d', strtotime('first day of last month'));
     $to = date('Y-m-d', strtotime('+70 days'));
     $rows = shifts_for_user($me, $from, $to);
     out(['entries' => array_map('shift_row_out', $rows), 'has_data' => (bool)val('SELECT COUNT(*) FROM roster_shifts'), 'name' => $me['name']]);
@@ -150,7 +150,7 @@ function a_rosters_shifts_save(): void
         $name = mb_substr(trim((string)($e['name'] ?? '')), 0, 120);
         $date = (string)($e['date'] ?? '');
         $code = mb_substr(trim((string)($e['code'] ?? '')), 0, 20);
-        if ($name === '' || $code === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+        if ($name === '' || $code === '' || !valid_ymd($date)) continue;
         $kind = in_array($e['kind'] ?? '', ['shift', 'leave', 'off', 'role'], true) ? $e['kind'] : 'shift';
         $hm = fn($v) => is_string($v) && preg_match('/^\d{2}:\d{2}$/', $v) ? $v : null;
         $st->execute([$rid, $fid, $name, mb_substr((string)($e['title'] ?? ''), 0, 80) ?: null, $date, $code, mb_substr((string)($e['label'] ?? ''), 0, 60) ?: null, $kind,
@@ -244,7 +244,7 @@ function a_backup_download_get(): void
         echo 'Yetkiniz yok veya oturum süresi doldu.';
         return;
     }
-    @set_time_limit(0);
+    if (function_exists('set_time_limit')) @set_time_limit(0);
     $name = basename((string)($_GET['name'] ?? ''));
     $temp = false;
     if ($name !== '' && preg_match('/^nobetmed-yedek-[\w-]+\.zip$/', $name)) {
@@ -283,7 +283,7 @@ function a_audit_list(): void
     $p = [];
     $where = '1=1';
     if ($q !== '') {
-        $p[':q1'] = '%' . tr_lower($q) . '%'; $p[':q2'] = $p[':q1']; $p[':q3'] = $p[':q1']; $p[':q4'] = $p[':q1'];
+        $p[':q1'] = like_pattern($q); $p[':q2'] = $p[':q1']; $p[':q3'] = $p[':q1']; $p[':q4'] = $p[':q1'];
         $where = '(' . like_expr('user_name') . ' LIKE :q1 OR ' . like_expr('action') . ' LIKE :q2 OR ' . like_expr('target') . ' LIKE :q3 OR ' . like_expr('detail') . ' LIKE :q4)';
     }
     $rows = all("SELECT * FROM audit_log WHERE $where ORDER BY id DESC LIMIT 51 OFFSET $offset", $p);
@@ -386,7 +386,7 @@ function a_invites_personal(): void
         if (!is_array($p)) continue;
         $name = mb_substr(trim((string)($p['name'] ?? '')), 0, 120);
         if (mb_strlen($name) < 3) continue;
-        $email = mb_strtolower(trim((string)($p['email'] ?? '')));
+        $email = mb_substr(mb_strtolower(trim((string)($p['email'] ?? ''))), 0, 190);
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $email = '';
         if ($email !== '' && one('SELECT id FROM users WHERE email = ?', [$email])) continue;
         $tid = isset($p['title_id']) && valid_id('titles', (int)$p['title_id']) ? (int)$p['title_id'] : null;

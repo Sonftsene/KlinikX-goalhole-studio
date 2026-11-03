@@ -43,7 +43,11 @@ function updateNotifBadge() {
   el.textContent = n > 99 ? '99+' : n;
   el.classList.toggle('hidden', !n);
 }
-function closeNotifPop() { const p = $('.notif-pop'); if (p) p.remove(); }
+let NOTIF_OFF = null;
+function closeNotifPop() {
+  const p = $('.notif-pop'); if (p) p.remove();
+  if (NOTIF_OFF) { document.removeEventListener('click', NOTIF_OFF, true); NOTIF_OFF = null; }
+}
 ACT.notifs = async (el) => {
   if ($('.notif-pop')) return closeNotifPop();
   const pop = document.createElement('div');
@@ -52,9 +56,9 @@ ACT.notifs = async (el) => {
   document.body.appendChild(pop);
   const r = el.getBoundingClientRect();
   if (window.innerWidth > 900) { pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; }
-  setTimeout(() => document.addEventListener('click', function off(e) {
-    if (!pop.contains(e.target) && !e.target.closest('[data-act=notifs]')) { closeNotifPop(); document.removeEventListener('click', off, true); }
-  }, true), 0);
+  const off = (e) => { if (!pop.contains(e.target) && !e.target.closest('[data-act=notifs]')) closeNotifPop(); };
+  NOTIF_OFF = off;
+  setTimeout(() => { if (NOTIF_OFF === off) document.addEventListener('click', off, true); }, 0);
   let items = [];
   try { items = (await api('notif.list')).items; } catch (e) { /* çevrimdışı */ }
   const list = pop.querySelector('.np-list');
@@ -164,7 +168,7 @@ function heroShiftHtml(my) {
   return box(shiftTone(n), 'calendar', t, html`${codeChip(n)} ${dateLabel(n.date).replace(/^(Bugün|Yarın) · /, '')} · ${shiftDesc(n)}${monthTxt}`);
 }
 async function loadHomeExtras() {
-  const [my, day] = await Promise.all([loadMyShifts(true), api('shifts.day').catch(() => null)]);
+  const [my, day] = await Promise.all([loadMyShifts(true), api('shifts.day', { date: ymd(new Date()) }).catch(() => null)]);
   const k = $('#heroShift');
   if (k) setHTML(k, heroShiftHtml(my));
   const tc = $('#todayCard');
@@ -189,7 +193,7 @@ function dutyListHtml(day, compact) {
   // Önceki günün gece / 24 saat nöbetçileri yalnızca BUGÜN ve nöbetleri henüz bitmemişse gösterilir
   // (başka günlere bakarken önceki günün kişileri o güne kaymış gibi görünmesin)
   const nowHm = hm(new Date());
-  const carry = !compact && day.date === ymd(new Date()) ? (day.carry || []).filter((p) => p.end && nowHm < p.end) : [];
+  const carry = day.date === ymd(new Date()) ? (day.carry || []).filter((p) => p.end && nowHm < p.end) : [];
   if (!shifts.length && !carry.length) return html`<div class="list-row small muted">Bu gün için nöbet kaydı yok.</div>`;
   const ends = [...new Set(carry.map((p) => p.end))].sort();
   return html`<div class="duty">
@@ -288,7 +292,17 @@ function drawCalendar() {
     ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || e.code}</span></span>`)}</div>` : ''}`);
 }
 ACT['cal-day'] = (el) => { CAL.sel = el.dataset.d; drawCalendar(); loadDayPanel(); if (window.innerWidth < 900) { const p = $('#dayPanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
-ACT['cal-mv'] = (el) => { const d = new Date(CAL.y, CAL.m - 1 + +el.dataset.d, 1); CAL.y = d.getFullYear(); CAL.m = d.getMonth() + 1; drawCalendar(); };
+ACT['cal-mv'] = (el) => {
+  const d = new Date(CAL.y, CAL.m - 1 + +el.dataset.d, 1);
+  CAL.y = d.getFullYear(); CAL.m = d.getMonth() + 1;
+  // Seçili gün de yeni aya geçsin (bu aysa bugün, değilse ilk nöbet günü ya da ayın 1'i)
+  const pre = `${CAL.y}-${pad(CAL.m)}`;
+  const today = ymd(new Date());
+  const first = (MY.entries || []).filter((e) => e.date.startsWith(pre)).map((e) => e.date).sort()[0];
+  CAL.sel = today.startsWith(pre) ? today : first || `${pre}-01`;
+  drawCalendar();
+  loadDayPanel();
+};
 async function loadDayPanel() {
   const box = $('#dayPanel');
   if (!box || !CAL.sel) return;
@@ -308,12 +322,15 @@ ACT.ics = () => {
   const list = (MY.entries || []).filter((s) => s.date >= today && s.kind === 'shift');
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   const addDay = (d) => { const x = parseDT(d); x.setDate(x.getDate() + 1); return ymd(x); };
-  const ev = list.map((s, i) => {
+  // RFC 5545: virgül, noktalı virgül, ters bölü ve satır sonu kaçışlı
+  const icsText = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => '\\' + c).replace(/\r?\n/g, '\\n');
+  const ev = list.map((s) => {
     const st = s.start || '08:00', en = s.end || '16:00';
     const endDate = en <= st ? addDay(s.date) : s.date;
-    return ['BEGIN:VEVENT', `UID:nobetmed-${S.me.id}-${s.date}-${i}@nobetmed`, `DTSTAMP:${stamp}`,
+    const uid = `nobetmed-${S.me.id}-${s.roster_id || 0}-${s.date}-${String(s.code).replace(/[^\w]/g, '')}@nobetmed`;
+    return ['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${stamp}`,
       `DTSTART:${s.date.replace(/-/g, '')}T${st.replace(':', '')}00`, `DTEND:${endDate.replace(/-/g, '')}T${en.replace(':', '')}00`,
-      `SUMMARY:${s.code} nöbet${s.label ? ' – ' + s.label : ''}`, `DESCRIPTION:${s.roster || ''}`,
+      `SUMMARY:${icsText(`${s.code} nöbet${s.label && s.label !== s.code ? ' – ' + s.label : ''}`)}`, `DESCRIPTION:${icsText(s.roster || '')}`,
       'BEGIN:VALARM', 'TRIGGER:-PT12H', 'ACTION:DISPLAY', 'DESCRIPTION:Yarın nöbetiniz var', 'END:VALARM', 'END:VEVENT'].join('\r\n');
   });
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NobetMed//TR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nöbetlerim', ...ev, 'END:VCALENDAR'].join('\r\n');
@@ -811,8 +828,11 @@ ACT['qr-print'] = () => {
   if (!card) return;
   const w = window.open('', '_blank', 'width=600,height=800');
   if (!w) return toast('Açılır pencere engellendi', 'err');
-  w.document.write(`<!doctype html><meta charset="utf-8"><title>QR</title><style>body{font-family:Inter,Arial,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0}.qr-card{text-align:center;border:2px solid #0b7a75;border-radius:24px;padding:40px 48px}.qr-org{font-weight:700;font-size:22px;margin-bottom:16px}.qr-svg svg{width:340px;height:340px}.qr-t{font-weight:700;font-size:24px;margin-top:16px}.qr-s{color:#555;margin-top:6px}</style>${card.outerHTML}<script>setTimeout(()=>print(),300)<\/script>`);
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>QR</title><style>body{font-family:Inter,Arial,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0}.qr-card{text-align:center;border:2px solid #0b7a75;border-radius:24px;padding:40px 48px}.qr-org{font-weight:700;font-size:22px;margin-bottom:16px}.qr-svg svg{width:340px;height:340px}.qr-t{font-weight:700;font-size:24px;margin-top:16px}.qr-s{color:#555;margin-top:6px}</style>${card.outerHTML}`);
   w.document.close();
+  // Açılan pencere sayfanın güvenlik kuralını devralır; yazdırmayı buradan başlat
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch (e) { /* */ } }, 350);
 };
 ACT['inv-roster'] = async () => {
   const m = openModal({ title: 'Nöbet listesinden hesap aç', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
@@ -964,16 +984,18 @@ const AUDIT_LABEL = {
   'backup.create': 'Yedek aldı', 'backup.download': 'Yedek indirdi', 'backup.delete': 'Yedek sildi', 'invite.general': 'QR davet oluşturdu', 'invite.personal': 'Davet oluşturdu', 'invite.use': 'Davetle katıldı', 'invite.revoke': 'Davet iptal etti',
   'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
 };
-async function drawAudit(body, more) {
+async function drawAudit(body, more, keepInput) {
   if (!more) {
-    setHTML(body, html`<div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="Kişi, işlem veya içerik ara" data-input="aud-q" value="${AUD.q}"></div><span class="tiny faint">Son 1 yılın kayıtları</span></div><div id="audList"></div>`);
+    if (!keepInput || !$('#audList')) setHTML(body, html`<div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="Kişi, işlem veya içerik ara" data-input="aud-q" value="${AUD.q}"></div><span class="tiny faint">Son 1 yılın kayıtları</span></div><div id="audList"></div>`);
     AUD.items = [];
   }
+  const tok = AUD.tok = (AUD.tok || 0) + 1;
   try {
     const r = await api('audit.list', { q: AUD.q, offset: AUD.items.length });
+    if (tok !== AUD.tok) return;
     AUD.items = AUD.items.concat(r.items);
     AUD.more = r.has_more;
-  } catch (e) { toast(e.message, 'err'); }
+  } catch (e) { if (tok !== AUD.tok) return; toast(e.message, 'err'); }
   const box = $('#audList');
   if (!box) return;
   setHTML(box, AUD.items.length ? html`<div class="card"><div class="list">${AUD.items.map((x) => html`<div class="list-row audit-row">
@@ -982,8 +1004,8 @@ async function drawAudit(body, more) {
       <span class="tiny faint desk-only">${x.ip || ''}</span></div>`)}</div></div>
     ${AUD.more ? html`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="aud-more">Daha fazla</button></div>` : ''}` : html`<div class="card empty"><p class="small">Kayıt bulunamadı.</p></div>`);
 }
-CHANGE['aud-q'] = debounce((el) => { AUD.q = el.value; drawAudit($('#adminBody')).then(() => { const i = $('[data-input="aud-q"]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 300);
-ACT['aud-more'] = () => drawAudit($('#adminBody'), true);
+CHANGE['aud-q'] = debounce((el) => { AUD.q = el.value; drawAudit($('#adminBody'), false, true); }, 300);
+ACT['aud-more'] = (el) => busy(el, () => drawAudit($('#adminBody'), true));
 
 /* Ayarlar sayfası ek kartları */
 function settingsExtrasHtml(A) {
@@ -1062,8 +1084,13 @@ function reviewBadge(d) {
 function maybeShowTour() {
   if (!S.me) return;
   const k = 'nm-tour-' + S.me.id;
-  try { if (localStorage.getItem('nm-tour') || localStorage.getItem(k)) return; localStorage.setItem(k, '1'); } catch (e) { return; }
-  setTimeout(showTour, 500);
+  try { if (localStorage.getItem('nm-tour') || localStorage.getItem(k)) return; } catch (e) { return; }
+  setTimeout(() => {
+    // Kullanıcı bu arada başka sayfaya geçtiyse tanıtımı bir sonraki ana sayfa açılışına bırak
+    if (currentRoute()[0] !== undefined || modalStack.length) return;
+    try { localStorage.setItem(k, '1'); } catch (e) { /* */ }
+    showTour();
+  }, 500);
 }
 function showTour() {
   const steps = [
@@ -1238,3 +1265,19 @@ ACT['theme-set'] = (el) => {
   $$('[data-act=theme-set]').forEach((b) => b.classList.toggle('on', b === el));
   const b = $('#themeBtn'); if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
 };
+
+/* Çıkışta / hesap değişince önceki kişinin bilgileri ekranda kalmasın */
+function resetAppState() {
+  Object.assign(MY, { entries: null, at: 0, has_data: false });
+  Object.assign(DIR, { people: null, q: '', filter: 'all' });
+  Object.assign(CAL, { y: 0, m: 0, sel: null });
+  DUTY.day = null;
+  Object.assign(AUD, { q: '', items: [], more: false });
+  TPL = null;
+  FEED = null;
+  DETAIL = null;
+  if (typeof AD !== 'undefined') Object.assign(AD, { users: null, userQ: '', userFilter: 'all' });
+  S.people = [];
+  if (typeof _models !== 'undefined') _models.clear();
+  if (typeof _buf !== 'undefined') _buf.clear();
+}

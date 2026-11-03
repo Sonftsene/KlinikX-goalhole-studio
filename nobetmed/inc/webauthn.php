@@ -247,6 +247,7 @@ function wa_check_rp(array $ad, string $rpId): void
 {
     if (!hash_equals(hash('sha256', $rpId, true), $ad['rpIdHash'])) throw wa_err('alan adı (rpId) uyuşmuyor.');
     if (!$ad['up']) throw wa_err('kullanıcı onayı (UP) yok.');
+    if (!$ad['uv']) throw wa_err('kullanıcı doğrulaması (parmak izi / yüz / PIN) yapılmadı.');
 }
 
 // ---------------------------------------------------------------- kayıt (navigator.credentials.create)

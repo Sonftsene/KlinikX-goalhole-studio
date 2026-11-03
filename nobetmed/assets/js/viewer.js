@@ -137,7 +137,8 @@ function resolveColor(c, theme) {
   if (c.argb) hex = String(c.argb).slice(-6);
   else if (c.theme !== undefined) hex = theme[c.theme] || null;
   else if (c.indexed !== undefined) hex = c.indexed >= 64 ? null : INDEXED[c.indexed];
-  if (!hex) return null;
+  // Dosyadan gelen renk yalnızca 6 haneli onaltılık olabilir (stil özniteliğine kaçış olmasın)
+  if (!hex || !/^[0-9a-f]{6}$/i.test(String(hex))) return null;
   return '#' + applyTint(hex, c.tint);
 }
 
@@ -453,7 +454,8 @@ function modelFromSheetJS(wb) {
         let text = cell.w !== undefined ? cell.w : cell.v !== undefined && cell.v !== null ? String(cell.v) : '';
         if (cell.t === 'b' && cell.w === undefined) text = cell.v ? 'DOĞRU' : 'YANLIŞ';
         const s = cell.s || {};
-        const fill = s.patternType && s.patternType !== 'none' && s.fgColor && s.fgColor.rgb ? '#' + String(s.fgColor.rgb).slice(-6) : null;
+        const rgb = s.fgColor ? String(s.fgColor.rgb || '').slice(-6) : '';
+        const fill = s.patternType && s.patternType !== 'none' && /^[0-9a-f]{6}$/i.test(rgb) ? '#' + rgb : null;
         if (text === '' && !fill) continue;
         cells.set(r * 100000 + c, { text, isNum: cell.t === 'n' || cell.t === 'd', isBool: cell.t === 'b', st: {}, fill });
       }
@@ -905,7 +907,7 @@ async function mountPdf(el, att) {
     for (let i = 1; i <= doc.numPages; i++) h += `<div class="pv-page" data-p="${i}" style="width:${w}px;height:${(w * vp1.height / vp1.width).toFixed(0)}px"></div>`;
     pagesEl.innerHTML = h;
     el.querySelector('.pv-zr').textContent = Math.round(state.z * 100) + '%';
-    io = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting) renderPage(+en.target.dataset.p, en.target, w); }), { root: pagesEl, rootMargin: '800px 0px' });
+    io = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting) Promise.resolve(renderPage(+en.target.dataset.p, en.target, w)).catch(() => rendered.delete(+en.target.dataset.p)); }), { root: pagesEl, rootMargin: '800px 0px' });
     pagesEl.querySelectorAll('.pv-page').forEach((p) => io.observe(p));
   };
   const renderPage = async (n, box, w) => {
@@ -940,7 +942,8 @@ function sanitizeHTML(htmlStr) {
   doc.querySelectorAll('*').forEach((n) => {
     [...n.attributes].forEach((a) => {
       if (/^on/i.test(a.name)) n.removeAttribute(a.name);
-      if ((a.name === 'href' || a.name === 'src') && /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name);
+      if (/^(href|xlink:href|formaction|action)$/i.test(a.name) && !/^(https?:|mailto:|tel:|#)/i.test(a.value.trim())) n.removeAttribute(a.name);
+      if (a.name === 'src' && !/^(data:image\/|blob:|https?:)/i.test(a.value.trim())) n.removeAttribute(a.name);
     });
     if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); }
   });

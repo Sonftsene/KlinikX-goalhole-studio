@@ -16,6 +16,10 @@ define('DB_NAME', 'u000000000_nobetmed');
 define('DB_USER', 'u000000000_nobetmed');
 define('DB_PASS', '');
 
+// Sitenin tam adresi (isteğe bağlı), ör. 'https://portal.hastaneniz.com'. E-postalardaki bağlantılar için kullanılır.
+// Boş bırakılırsa yöneticinin siteyi açtığı adres otomatik kaydedilir.
+define('APP_URL', '');
+
 // Google ile giriş (isteğe bağlı). Boş bırakılırsa buton görünmez.
 // Google Cloud Console > APIs & Services > Credentials > OAuth client ID (Web)
 // "Authorized JavaScript origins" kısmına sitenizin adresini ekleyin.

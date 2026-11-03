@@ -122,7 +122,7 @@ function spFindMonth(text) {
 }
 /** Tarih parçası olmayan 4 haneli yıl (2020–2099) */
 function spFindYear(text) {
-  const m = /(?<![\d./-])(20[2-9]\d)(?![\d]|[./-]\d)/.exec(String(text || ''));
+  const m = /(?:^|[^\d./-])(20[2-9]\d)(?![\d]|[./-]\d)/.exec(String(text || ''));
   return m ? +m[1] : 0;
 }
 /** 'gg.aa.yyyy', 'g.a.yy', 'yyyy-aa-gg' -> [a, b, y, iso] (a/b sırası belirsiz olabilir) */
@@ -454,8 +454,15 @@ function spDetectFromSheet(V, skipRows) {
     }
     if (y && !found.yearText) found.yearText = y;
     if (!found.mmYYYY) {
-      const mm = /(?<![\d][./-])(?<!\d)(0?[1-9]|1[0-2])[./-](20[2-9]\d)(?!\d)/.exec(t);
-      if (mm) found.mmYYYY = { mo: +mm[1], y: +mm[2] };
+      // "11.2026" (önünde gün olmayan ay.yıl); eski Safari'de çalışsın diye geriye bakışsız
+      const re = /(^|[^\d])(0?[1-9]|1[0-2])[./-](20[2-9]\d)(?!\d)/g;
+      let mm;
+      while ((mm = re.exec(t))) {
+        const at = mm.index + mm[1].length;
+        if (/[./-]/.test(mm[1]) && at >= 2 && /\d/.test(t[at - 2])) { re.lastIndex = mm.index + 1; continue; }
+        found.mmYYYY = { mo: +mm[2], y: +mm[3] };
+        break;
+      }
     }
   }
   return found;
@@ -464,10 +471,10 @@ function spDetectFromSheet(V, skipRows) {
 function spNameInfo(name) {
   const s = String(name || '');
   let mo = spFindMonth(s), y = spFindYear(s.replace(/[_]/g, ' '));
-  if (!y) { const m = /(?<!\d)(20[2-9]\d)(?!\d)/.exec(s); if (m) y = +m[1]; }
+  if (!y) { const m = /(?:^|\D)(20[2-9]\d)(?!\d)/.exec(s); if (m) y = +m[1]; }
   if (!mo) {
-    const m = /(?<!\d)(20[2-9]\d)[-_.](0?[1-9]|1[0-2])(?!\d)/.exec(s) || null;
-    const m2 = /(?<!\d)(0?[1-9]|1[0-2])[-_.](20[2-9]\d)(?!\d)/.exec(s) || null;
+    const m = /(?:^|\D)(20[2-9]\d)[-_.](0?[1-9]|1[0-2])(?!\d)/.exec(s) || null;
+    const m2 = /(?:^|\D)(0?[1-9]|1[0-2])[-_.](20[2-9]\d)(?!\d)/.exec(s) || null;
     if (m) { mo = +m[2]; y = +m[1]; } else if (m2) { mo = +m2[1]; y = +m2[2]; }
   }
   return { mo, y };
@@ -621,8 +628,9 @@ function summarizeMonth(entries, year, month) {
   list.forEach((e) => {
     if (e.kind === 'shift') { shifts++; hours += Number(e.hours) || 0; }
     else if (e.kind === 'leave') {
-      const w = spDow(year, month, e.day);
-      if (w !== 0 && w !== 6) leave.add(e.day);
+      const day = e.day || +String(e.date || '').slice(8, 10);
+      const w = spDow(year, month, day);
+      if (day && w !== 0 && w !== 6) leave.add(day);
     }
   });
   const requiredHours = weekdays * 8 - leave.size * 8;

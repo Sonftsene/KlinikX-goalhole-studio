@@ -33,6 +33,15 @@ function nm_session(): void
     ]);
     ini_set('session.gc_maxlifetime', (string)(60 * 60 * 24 * 30));
     ini_set('session.use_strict_mode', '1');
+    // Paylaşımlı sunucuda sistem temizleyicisi oturumları ~24 dakikada silebilir: oturumları kendi klasörümüzde tut
+    $sd = NM_ROOT . '/data/sessions';
+    if (is_dir($sd) || @mkdir($sd, 0700, true)) {
+        if (is_writable($sd)) {
+            session_save_path($sd);
+            ini_set('session.gc_probability', '1');
+            ini_set('session.gc_divisor', '200');
+        }
+    }
     session_start();
     if (empty($_SESSION['csrf'])) {
         $_SESSION['csrf'] = bin2hex(random_bytes(24));
@@ -285,8 +294,11 @@ function nm_migrate(PDO $pdo): void
             try { $pdo->exec("ALTER TABLE $t ADD COLUMN $def"); } catch (Throwable $e) { /* zaten var */ }
         }
     }
-    try { $pdo->exec("UPDATE users SET notify_mode = 'off' WHERE email_notify = 0"); } catch (Throwable $e) { /* */ }
-    if ((int)$pdo->query('SELECT COUNT(*) FROM templates')->fetchColumn() === 0) {
+    if ($version < 4) {
+        try { $pdo->exec("UPDATE users SET notify_mode = 'off' WHERE email_notify = 0"); } catch (Throwable $e) { /* */ }
+    }
+    // Örnek şablonlar yalnızca ilk kez eklenir (yönetici hepsini sildiyse güncellemede geri gelmez)
+    if ($version < 4 && (int)$pdo->query('SELECT COUNT(*) FROM templates')->fetchColumn() === 0) {
         $st = $pdo->prepare('INSERT INTO templates (title, body, required, created_at, sort) VALUES (?, ?, ?, ?, ?)');
         $tpl = [
             ['Denetim duyurusu', "Tarih/saat: \nDenetlenecek alanlar: \n• Acil arabası mühür ve sayım formu\n• İlaç buzdolabı ısı takip çizelgesi\n• Atık ayrıştırma\n\nLütfen vardiya teslimlerinde kontrol ediniz.", 1],
@@ -318,17 +330,47 @@ function set_setting(string $k, string $v): void
     if (one('SELECT k FROM settings WHERE k = ?', [$k])) {
         q('UPDATE settings SET v = ? WHERE k = ?', [$v, $k]);
     } else {
-        q('INSERT INTO settings (k, v) VALUES (?, ?)', [$k, $v]);
+        // Aynı anda iki istek eklemeye çalışırsa ikincisi güncellesin
+        try { q('INSERT INTO settings (k, v) VALUES (?, ?)', [$k, $v]); } catch (Throwable $e) { q('UPDATE settings SET v = ? WHERE k = ?', [$v, $k]); }
     }
     setting('', '', true);
 }
 
-/** Sitenin kök adresi (e-postalardaki bağlantılar için) */
+/**
+ * Sitenin kök adresi (e-postalardaki bağlantılar için).
+ * Sıra: config.php APP_URL → yöneticinin son ziyaretinden kaydedilen adres → isteğin adresi.
+ * (İstek başlığındaki Host'a güvenilmez: şifre sıfırlama bağlantıları sahte alan adına gitmesin.)
+ */
 function base_url(): string
 {
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (defined('APP_URL') && APP_URL !== '') return rtrim((string)APP_URL, '/') . '/';
+    $s = (string)setting('site_url', '');
+    if ($s !== '') return $s;
+    if (PHP_SAPI === 'cli') return 'http://localhost/';
+    return request_base_url();
+}
+function request_base_url(): string
+{
+    $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-    return (nm_is_https() ? 'https' : 'http') . '://' . $host . $dir . '/';
+    return (nm_is_https() ? 'https' : 'http') . '://' . ($host ?: 'localhost') . $dir . '/';
+}
+
+/** "YYYY-MM-DD" biçiminde ve takvimde var olan bir gün mü? */
+function valid_ymd(string $v): bool
+{
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m)) return false;
+    return checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
+}
+
+/** Sayfa yanıtı gönderildikten sonra arka plan işi: oturum kilidini bırak, bağlantıyı kapat */
+function nm_after_response(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) @session_write_close();
+    if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+    elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
+    if (function_exists('ignore_user_abort')) @ignore_user_abort(true);
+    if (function_exists('set_time_limit')) @set_time_limit(120);
 }
 
 /**

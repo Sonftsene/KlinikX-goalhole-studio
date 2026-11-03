@@ -81,10 +81,7 @@ function mail_flush_after_response(): void
     $registered = true;
     register_shutdown_function(function () {
         // Kullanıcı beklemesin: yanıtı tamamla, e-postaları sonra gönder
-        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-        elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
-        @ignore_user_abort(true);
-        @set_time_limit(120);
+        nm_after_response();
         try { mail_flush(40); } catch (Throwable $e) { error_log('[NobetMed] e-posta: ' . $e->getMessage()); }
     });
 }
@@ -119,9 +116,20 @@ function mail_flush(int $limit = 40): int
 
 /* ---------------- Gönderim ---------------- */
 
-function mail_encode_header(string $s): string
+function mail_encode_header(string $s, int $indent = 9): string
 {
-    return preg_match('/[^\x20-\x7e]/', $s) ? '=?UTF-8?B?' . base64_encode($s) . '?=' : $s;
+    $s = str_replace(["\r", "\n"], ' ', $s);
+    if (!preg_match('/[^\x20-\x7e]/', $s)) return $s;
+    // Uzun Türkçe başlıklar RFC 2047'ye göre satırlara bölünür
+    return mb_encode_mimeheader($s, 'UTF-8', 'B', "\r\n", $indent);
+}
+/** Gönderen/alıcı adı: ASCII ise tırnak içinde (virgül vb. adresi bozmasın), değilse kodlanmış */
+function mail_phrase(string $n, int $indent): string
+{
+    $n = trim(str_replace(["\r", "\n", '<', '>'], ' ', $n));
+    if ($n === '') return '';
+    // Ad bütünüyle tek kodlanmış sözcük olur (içindeki virgül adres listesini bölmesin)
+    return preg_match('/[^\x20-\x7e]/', $n) ? '=?UTF-8?B?' . base64_encode(mb_substr($n, 0, 40)) . '?=' : '"' . addcslashes($n, '"\\') . '"';
 }
 
 /** RFC 5322 ileti metni (başlıklar + gövde) */
@@ -133,9 +141,9 @@ function mail_build(array $m): array
     $domain = substr(strrchr($from, '@') ?: '@nobetmed.local', 1);
     $headers = [
         'Date: ' . date('r'),
-        'From: ' . mail_encode_header($fromName) . ' <' . $from . '>',
-        'To: ' . mail_encode_header((string)$m['to_name']) . ' <' . $m['to_email'] . '>',
-        'Subject: ' . mail_encode_header((string)$m['subject']),
+        'From: ' . mail_phrase($fromName, 6) . ' <' . $from . '>',
+        'To: ' . mail_phrase((string)$m['to_name'], 4) . ' <' . $m['to_email'] . '>',
+        'Subject: ' . mail_encode_header((string)$m['subject'], 9),
         'Message-ID: <' . bin2hex(random_bytes(10)) . '@' . $domain . '>',
         'MIME-Version: 1.0',
         'Content-Type: multipart/alternative; boundary="' . $boundary . '"',

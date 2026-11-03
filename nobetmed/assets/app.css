@@ -241,6 +241,7 @@ svg.i.lg { width: 22px; height: 22px; }
 .topbar {
   position: sticky; top: 0; z-index: 20; height: var(--topbar);
   display: flex; align-items: center; gap: 10px; padding: 0 24px;
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: saturate(1.6) blur(12px); -webkit-backdrop-filter: saturate(1.6) blur(12px);
   border-bottom: 1px solid var(--border);
@@ -559,7 +560,7 @@ label.btn { cursor: pointer; }
   .banner { padding: 10px 14px; }
   .bottom-nav {
     display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); background: color-mix(in srgb, var(--surface) 92%, transparent);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border);
   }
   .bottom-nav button { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; color: var(--text-3); font-size: 10.5px; font-weight: 600; position: relative; border-radius: 10px; }
@@ -569,7 +570,7 @@ label.btn { cursor: pointer; }
   [data-theme="dark"] .bottom-nav .plus span.pl { color: #04201e; }
   .page-head h1 { font-size: 20px; }
   .overlay { padding: 0; align-items: flex-end; }
-  .modal { max-width: none !important; border-radius: 18px 18px 0 0; max-height: 94vh; animation: up .22s ease; }
+  .modal { max-width: none !important; border-radius: 18px 18px 0 0; max-height: 94vh; max-height: 94dvh; animation: up .22s ease; }
   @keyframes up { from { transform: translateY(40px); opacity: 0; } }
   .modal-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
   .drawer .modal { height: 100%; max-height: 100%; border-radius: 0; }
@@ -605,7 +606,7 @@ label.btn { cursor: pointer; }
 }
 .print-only { display: none; }
 
-.settings-save { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.settings-save { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 10px; border-radius: 14px; background: var(--surface); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: var(--shadow); }
 @media (max-width: 900px) { .settings-save { bottom: calc(84px + env(safe-area-inset-bottom)); } }
 
 /* ================= Ek özellikler ================= */
@@ -987,4 +988,13 @@ html.fs-lg body { zoom: 1.12; }
   .bottom-nav button.on svg.i { background: var(--mint); border-radius: 10px; box-shadow: 0 0 0 6px var(--mint); }
   .bottom-nav .plus span.pl { background: var(--grad-brand); box-shadow: 0 8px 18px -8px rgba(47, 143, 196, .8); }
   [data-theme="dark"] .bottom-nav button.on svg.i { background: var(--brand-soft); box-shadow: 0 0 0 6px var(--brand-soft); }
+}
+
+/* Denetim düzeltmeleri */
+.menu, .notif-pop { z-index: 86; }
+@media (max-width: 900px) {
+  .toasts { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .offline-bar { bottom: calc(140px + env(safe-area-inset-bottom)); }
+  /* iOS, 16 px altındaki kutulara dokununca sayfayı yakınlaştırır */
+  .input, .select, .textarea, .search .input, .xv-search .input { font-size: 16px; }
 }

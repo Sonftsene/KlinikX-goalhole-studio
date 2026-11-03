@@ -31,7 +31,8 @@ async function api(action, data = {}) {
     try { return await window.NM_DEMO_API.call(action, data); } catch (e) { throw new ApiError(e.message, e.status || 400); }
   }
   let res;
-  const ck = OFFLINE_READ.has(action) ? 'nm-off:' + action + ':' + JSON.stringify(data) : null;
+  // Çevrimdışı önbellek kişiye özeldir (boot hariç: çevrimdışı açılışta hangi hesabın açık olduğunu o söyler)
+  const ck = OFFLINE_READ.has(action) ? 'nm-off:' + action + ':' + (action === 'boot' ? '' : (S.me ? S.me.id : 0) + ':') + JSON.stringify(data) : null;
   try {
     res = await fetch('api.php?action=' + encodeURIComponent(action), {
       method: 'POST',
@@ -435,8 +436,21 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
   ov.addEventListener('mousedown', (e) => { downOnOverlay = e.target === ov; });
   ov.addEventListener('click', (e) => { if (e.target === ov && downOnOverlay) m.close(); });
   modalStack.push(m);
+  // Klavye odağı pencerede kalsın; kapanınca açan öğeye dönsün
+  const opener = document.activeElement;
+  const _close = m.close;
+  m.close = () => { _close(); if (opener && opener.focus && document.body.contains(opener)) { try { opener.focus({ preventScroll: true }); } catch (e) { /* */ } } };
+  ov.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const f = [...ov.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((x) => x.offsetParent !== null);
+    if (!f.length) return;
+    const a = f[0], z = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+    else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+  });
   const first = ov.querySelector('input:not([type=hidden]):not([type=checkbox]), textarea, select');
   if (first && window.innerWidth > 900) first.focus({ preventScroll: true });
+  else { const c = ov.querySelector('[data-act=close-modal]'); if (c) c.focus({ preventScroll: true }); }
   return m;
 }
 ACT['close-modal'] = (el) => {

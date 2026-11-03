@@ -136,10 +136,12 @@ async function uploadRosterFile(file) {
   try {
     const att = await uploadFile(file, (p) => { if (bar) bar.style.width = Math.round(p * 100) + '%'; if (label) label.textContent = `Yükleniyor… %${Math.round(p * 100)}`; });
     const res = await api('rosters.upload', { id: r.id, attachment_id: att.id });
-    Object.assign(r, res.roster);
-    toast(`“${r.name}” güncellendi` + (res.post_id ? ' · duyuru yayınlandı' : '') + (res.mailed ? ` · ${res.mailed} kişiye e-posta` : ''));
+    // Yükleme sırasında liste yenilenmiş olabilir: güncel nesneyi güncelle
+    const cur = rosterById(r.id) || r;
+    Object.assign(cur, res.roster);
+    toast(`“${cur.name}” güncellendi` + (res.post_id ? ' · duyuru yayınlandı' : '') + (res.mailed ? ` · ${res.mailed} kişiye e-posta` : ''));
     if (res.post_id) refreshCounts();
-    if (RS.active === r.id) showRoster(r.id);
+    if (RS.active === cur.id) showRoster(cur.id);
   } catch (e) {
     toast(e.message, 'err');
     drawRosterInfo();

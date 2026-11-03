@@ -82,6 +82,7 @@ if (!hash_equals((string)$_SESSION['csrf'], (string)($_SERVER['HTTP_X_CSRF'] ?? 
 $IN = [];
 if (stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') !== false) {
     $IN = json_decode((string)file_get_contents('php://input'), true) ?: [];
+    if (!is_array($IN)) $IN = [];
 } else {
     $IN = $_POST;
 }
@@ -268,7 +269,14 @@ function like_expr(string $col): string
         }
         return "nm_lower($col)";
     }
-    return $col;
+    // MySQL'de I/ı sorunu: hem sütunda hem aranan metinde ı → i
+    return "REPLACE($col, 'ı', 'i')";
+}
+function like_pattern(string $term): string
+{
+    $t = tr_lower($term);
+    if (DB_DRIVER === 'mysql') $t = str_replace('ı', 'i', $t);
+    return '%' . $t . '%';
 }
 
 function user_out(array $u): array
@@ -427,6 +435,11 @@ function a_boot(): void
 {
     ensure_initial_admin();
     $me = current_user();
+    // Cron e-postalarındaki bağlantılar için sitenin adresini yöneticinin kendi isteğinden öğren
+    if ($me && $me['role'] === 'admin' && PHP_SAPI !== 'cli') {
+        $u = request_base_url();
+        if ($u !== setting('site_url')) set_setting('site_url', $u);
+    }
     $setup = (int)val('SELECT COUNT(*) FROM users') === 0;
     $data = [
         'csrf' => $_SESSION['csrf'],
@@ -528,8 +541,10 @@ function a_login(): void
     $ip = client_ip();
     $since = time() - 900;
     q('DELETE FROM login_attempts WHERE at < ?', [time() - 86400]);
-    $fails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE (ip = ? OR email = ?) AND at > ?', [$ip, $email, $since]);
-    if ($fails >= 8) fail('Çok fazla hatalı deneme. Lütfen 15 dakika sonra tekrar deneyin.', 429);
+    // Kilit kişi+cihaz bazında: aynı ağdaki (hastane NAT) başkaları etkilenmesin
+    $fails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND email = ? AND at > ?', [$ip, $email, $since]);
+    $ipFails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at > ?', [$ip, $since]);
+    if ($fails >= 8 || $ipFails >= 60) fail('Çok fazla hatalı deneme. Lütfen 15 dakika sonra tekrar deneyin.', 429);
 
     $u = one('SELECT * FROM users WHERE email = ?', [$email]);
     if (!$u || empty($u['password_hash']) || !password_verify($pw, $u['password_hash'])) {
@@ -541,7 +556,7 @@ function a_login(): void
     if (password_needs_rehash($u['password_hash'], PASSWORD_DEFAULT)) {
         q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
     }
-    q('DELETE FROM login_attempts WHERE email = ?', [$email]);
+    q('DELETE FROM login_attempts WHERE email = ? AND ip = ?', [$email, $ip]);
     login_user($u);
     audit($u, 'login', 'Şifre ile giriş');
     out(['must_change' => (int)($u['must_change'] ?? 0) === 1]);
@@ -549,7 +564,7 @@ function a_login(): void
 
 function a_forgot(): void
 {
-    $email = mb_strtolower(s('email', 190));
+    $email = mb_strtolower(s('email', 180));
     if (!mail_ready()) fail('E-posta gönderimi henüz ayarlanmamış. Yöneticinizden geçici şifre isteyin.', 400);
     $ip = client_ip();
     $recent = (int)val('SELECT COUNT(*) FROM login_attempts WHERE (ip = ? OR email = ?) AND at > ?', ['reset:' . $ip, 'reset:' . $email, time() - 3600]);
@@ -649,7 +664,12 @@ function a_google(): void
     }
     $sub = (string)$info['sub'];
     $email = mb_strtolower((string)$info['email']);
-    $u = one('SELECT * FROM users WHERE google_sub = ?', [$sub]) ?? one('SELECT * FROM users WHERE email = ?', [$email]);
+    $u = one('SELECT * FROM users WHERE google_sub = ?', [$sub]);
+    if (!$u && ($byMail = one('SELECT * FROM users WHERE email = ?', [$email]))) {
+        // Şifreli hesap Google'a kendiliğinden bağlanmasın (başkası o e-postayla önceden hesap açmış olabilir)
+        if (!empty($byMail['password_hash'])) fail('Bu e-postayla şifreli bir hesap var. Lütfen e-posta ve şifrenizle giriş yapın.', 409);
+        $u = $byMail;
+    }
     if (!$u) {
         $mode = setting('registration', 'approval');
         if ($mode === 'closed') fail('Bu Google hesabıyla kayıtlı bir üye yok ve yeni kayıt kapalı.', 403);
@@ -658,6 +678,7 @@ function a_google(): void
         q('INSERT INTO users (name, email, google_sub, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
             [$name, $email, $sub, 'member', $status, now()]);
         $u = one('SELECT * FROM users WHERE id = ?', [insert_id()]);
+        if ($status === 'pending') notify_pending_user(['name' => $name, 'email' => $email]);
     } elseif (empty($u['google_sub'])) {
         q('UPDATE users SET google_sub = ? WHERE id = ?', [$sub, $u['id']]);
     }
@@ -715,6 +736,7 @@ function a_me_password(): void
     validate_password($new);
     if (!empty($me['password_hash']) && password_verify($new, $me['password_hash'])) fail('Yeni şifre geçici şifreden farklı olmalıdır.');
     q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $me['id']]);
+    q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$me['id']]);
     out();
 }
 
@@ -751,7 +773,7 @@ function a_posts_list(): void
         $where[] = 'p.category_id = :cat';
     }
     if ($term !== '') {
-        $p[':q1'] = '%' . tr_lower($term) . '%';
+        $p[':q1'] = like_pattern($term);
         $p[':q2'] = $p[':q1'];
         $p[':q3'] = $p[':q1'];
         $where[] = '(' . like_expr('p.title') . ' LIKE :q1 OR ' . like_expr('p.body') . ' LIKE :q2 OR EXISTS (SELECT 1 FROM attachments ax WHERE ax.post_id = p.id AND ' . like_expr('ax.text_content') . ' LIKE :q3))';
@@ -838,7 +860,7 @@ function a_posts_save(): void
     $required = b('required');
     $pinned = b('pinned');
     $review = s('review_at', 10);
-    if ($review !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $review)) fail('Geçerlilik tarihi hatalı.');
+    if ($review !== '' && !valid_ymd($review)) fail('Geçerlilik tarihi hatalı.');
     $review = $review !== '' ? $review : null;
     if (mb_strlen($title) < 3) fail('Başlık en az 3 karakter olmalıdır.');
     if ($body === '') fail('İçerik metni boş olamaz.');
@@ -1065,7 +1087,7 @@ function a_upload_init(): void
     if ($name === '' || $size < 0) fail('Dosya bilgisi eksik.');
     if (MAX_UPLOAD_MB > 0 && $size > MAX_UPLOAD_MB * 1048576) fail('Dosya çok büyük. En fazla ' . MAX_UPLOAD_MB . ' MB yükleyebilirsiniz.');
     $dir = upload_dir();
-    $free = @disk_free_space($dir);
+    $free = function_exists('disk_free_space') ? @disk_free_space($dir) : false;
     if ($free !== false && $size > $free) fail('Sunucuda yeterli disk alanı yok.', 507);
     // Yarım kalmış eski yüklemeleri temizle
     foreach (glob($dir . '/*.part') ?: [] as $old) {
@@ -1091,6 +1113,7 @@ function a_upload_chunk(): void
     need_user();
     [, $path, $meta] = upload_meta();
     $offset = (int)i('offset');
+    if ($offset < 0) fail('Geçersiz yükleme konumu.');
     $f = $_FILES['chunk'] ?? null;
     if (!$f || !is_array($f) || is_array($f['error']) || $f['error'] !== UPLOAD_ERR_OK) fail('Dosya parçası alınamadı (kod ' . (int)($f['error'] ?? -1) . ').');
     clearstatcache(true, $path);
@@ -1493,8 +1516,11 @@ function a_tax_delete(): void
             if ($n > 0) fail("Bu bölümde $n içerik var. Önce içerikleri başka bölüme taşıyın veya silin.");
             break;
         case 'units':
+            // Birime özel içerikler herkese açılmasın
+            $n = (int)val('SELECT COUNT(*) FROM posts WHERE unit_id = ?', [$id]);
+            if ($n > 0) fail("Bu birime özel $n içerik var. Önce içerikleri başka birime taşıyın veya silin.");
             q('UPDATE users SET unit_id = NULL WHERE unit_id = ?', [$id]);
-            q('UPDATE posts SET unit_id = NULL WHERE unit_id = ?', [$id]);
+            q('UPDATE invites SET unit_id = NULL WHERE unit_id = ?', [$id]);
             break;
         case 'titles':
             q('UPDATE users SET title_id = NULL WHERE title_id = ?', [$id]);
