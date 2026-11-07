@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Atomik</string>
+    <string name="widget_name">Atomik · Bugünün Sahneleri</string>
+    <string name="widget_description">Bugünün alışkanlıklarını tek dokunuşla tamamla</string>
+</resources>
