@@ -51,7 +51,11 @@ export interface Repo {
   sendMagicLink(email: string): Promise<void>
   resetPassword(email: string): Promise<void>
   signOut(): Promise<void>
+  /** Activates a pending account with an invite code (used after Google sign-in). */
+  redeemInvite?(code: string): Promise<AppUser>
   onAuthChange(cb: AuthListener): () => void
+  /** Server-side fan-out to all admins/editors (members cannot list them). */
+  notifyManagers?(title: string, body?: string, link?: string): Promise<void>
 
   // ── data ──
   /** Loads everything the signed-in user is allowed to read. */

@@ -9,8 +9,10 @@ function initialLang(): Lang {
   } catch {
     /* ignore */
   }
-  return typeof navigator !== 'undefined' && navigator.language?.startsWith('en') ? 'en' : 'tr'
+  return 'tr'
 }
+
+if (typeof document !== 'undefined') document.documentElement.lang = initialLang()
 
 export const useLang = create<{ lang: Lang; setLang: (l: Lang) => void }>((set) => ({
   lang: initialLang(),

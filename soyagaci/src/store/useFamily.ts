@@ -59,6 +59,7 @@ interface FamilyState {
   resetPassword(email: string): Promise<void>
   signOut(): Promise<void>
   claimPerson(personId: string | undefined, note: string): Promise<void>
+  redeemInvite(code: string): Promise<void>
   giveConsent(): Promise<void>
 
   // persons & relations
@@ -179,13 +180,28 @@ export const useFamily = create<FamilyState>((set, get) => {
 
   const managers = () => get().data.users.filter((u) => canManage(u)).map((u) => u.id)
 
+  /** Notify every admin/editor. Members can't list them, so the backend fans out when possible. */
+  const notifyManagers = async (title: string, body?: string, link?: string) => {
+    const r = repoRef
+    if (r?.notifyManagers && !canManage(get().user)) {
+      try {
+        await r.notifyManagers(title, body, link)
+        await get().reload()
+      } catch {
+        /* best-effort */
+      }
+      return
+    }
+    await notify(managers(), title, body, link)
+  }
+
   const personName = (id?: string) => (id ? fullName(get().graph.persons.get(id)) || 'Bilinmeyen kişi' : '')
 
   const createRequest = async (req: Omit<ChangeRequest, 'id' | 'userId' | 'status' | 'createdAt'>) => {
     const user = me()
     const full: ChangeRequest = { ...req, id: uid('cr'), userId: user.id, status: 'pending', createdAt: nowIso() }
     await write('changeRequests', full)
-    await notify(managers(), 'Yeni değişiklik talebi', `${user.displayName}: ${personName(req.personId) || 'yeni kişi'}`, '/admin/onaylar')
+    await notifyManagers('Yeni değişiklik talebi', `${user.displayName}: ${personName(req.personId) || 'yeni kişi'}`, '/admin/onaylar')
     return 'requested' as const
   }
 
@@ -351,7 +367,7 @@ export const useFamily = create<FamilyState>((set, get) => {
       const r = await repo().signUp(input)
       if (r !== 'check-email') {
         await get().reload()
-        await notify(managers(), 'Yeni üye kaydı', `${r.displayName} (${r.email}) onay bekliyor.`, '/admin/kullanicilar')
+        await notifyManagers('Yeni üye kaydı', `${r.displayName} (${r.email}) onay bekliyor.`, '/admin/kullanicilar')
       }
       return r
     },
@@ -370,7 +386,18 @@ export const useFamily = create<FamilyState>((set, get) => {
       const next = { ...u, claimedPersonId: personId, claimNote: note }
       await write('users', next)
       set({ user: next })
-      await notify(managers(), 'Kimlik eşleştirme talebi', `${u.displayName}: ${personName(personId) || note}`, '/admin/kullanicilar')
+      await notifyManagers('Kimlik eşleştirme talebi', `${u.displayName}: ${personName(personId) || note}`, '/admin/kullanicilar')
+    },
+    async redeemInvite(code) {
+      const r = repo()
+      if (!r.redeemInvite) throw new Error('Davet kodu bu sürümde desteklenmiyor.')
+      await r.redeemInvite(code)
+      try {
+        localStorage.removeItem('soyagaci-invite')
+      } catch {
+        /* ignore */
+      }
+      await get().reload()
     },
     async giveConsent() {
       const u = me()
@@ -554,7 +581,7 @@ export const useFamily = create<FamilyState>((set, get) => {
       const user = me()
       const req: AccessRequest = { id: uid('ar'), userId: user.id, scope, personId, message, status: 'pending', createdAt: nowIso() }
       await write('accessRequests', req)
-      await notify(managers(), 'Yeni erişim talebi', `${user.displayName}: ${scope === 'all' ? 'tüm ağaç' : personName(personId) + ' dalı'}`, '/admin/onaylar')
+      await notifyManagers('Yeni erişim talebi', `${user.displayName}: ${scope === 'all' ? 'tüm ağaç' : personName(personId) + ' dalı'}`, '/admin/onaylar')
     },
 
     async reviewAccess(id, approve, note, expiresAt) {

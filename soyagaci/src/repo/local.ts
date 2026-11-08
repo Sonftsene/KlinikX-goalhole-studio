@@ -127,6 +127,24 @@ export class LocalRepo implements Repo {
     return this.loginAs(user)
   }
 
+  async redeemInvite(code: string): Promise<AppUser> {
+    const db = await this.db()
+    const user = db.users.find((u) => u.id === this.sessionId())
+    if (!user) throw new Error('Önce giriş yapın.')
+    const invite = db.invites.find(
+      (i) => i.code.toUpperCase() === code.trim().toUpperCase() && !i.usedBy && (!i.expiresAt || new Date(i.expiresAt) > new Date()),
+    )
+    if (!invite) throw new Error('Davet kodu geçersiz, süresi dolmuş veya kullanılmış.')
+    user.role = invite.role
+    user.status = 'active'
+    if (invite.personId) user.personId = invite.personId
+    invite.usedBy = user.id
+    invite.usedAt = nowIso()
+    await this.persist()
+    this.emit(user)
+    return user
+  }
+
   async sendMagicLink(): Promise<void> {
     throw new Error('Demo modunda e-posta gönderilemez. Demo hesaplarından biriyle giriş yapın.')
   }
