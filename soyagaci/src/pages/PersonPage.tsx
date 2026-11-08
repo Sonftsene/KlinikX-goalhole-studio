@@ -219,7 +219,7 @@ export default function PersonPage() {
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {isMe && <Badge color="amber">{t('Bu sizsiniz', 'This is you')}</Badge>}
-            {relation && <Badge color="brand">{t('Sizin', 'Your')} {relation.term}</Badge>}
+            {relation && <Badge color="brand">{lang === 'en' ? `Your ${relation.term}` : `Sizin ${relation.termYour}`}</Badge>}
             <Badge color={p.gender === 'male' ? 'blue' : p.gender === 'female' ? 'pink' : 'slate'}>
               {p.gender === 'male' ? t('Erkek', 'Male') : p.gender === 'female' ? t('Kadın', 'Female') : t('Diğer', 'Other')}
             </Badge>

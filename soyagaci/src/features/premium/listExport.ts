@@ -1,6 +1,6 @@
 import type { Person } from '../../types'
 import { type FamilyGraph, father, mother, partnerIds } from '../../lib/graph'
-import { ageOf, displayName, formatDate, fullName, lifeSpan } from '../../lib/format'
+import { ageOf, displayName, fullName } from '../../lib/format'
 import { personPalette } from '../../lib/colors'
 import { downloadBlob, downloadText, slug } from './download'
 
@@ -72,6 +72,12 @@ const ROW_H = 52
 const GROUP_H = 60
 const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif"
 
+/** Compact date for tables: 12.03.1905, 03.1905 or 1905. */
+function shortDate(d?: string) {
+  if (!d) return ''
+  return d.split('-').reverse().join('.')
+}
+
 type Item = { kind: 'group'; title: string } | { kind: 'row'; p: Person; n: number }
 
 function fit(ctx: CanvasRenderingContext2D, text: string, width: number) {
@@ -102,7 +108,7 @@ export async function exportPdf(groups: ListGroup[], familyName: string, subtitl
   const pages: Item[][] = []
   let cur: Item[] = []
   let y = 0
-  const firstTop = M + 120
+  const firstTop = M + 150
   const top = M + 50
   const bottom = PAGE_H - M - 40
   let limit = bottom - firstTop
@@ -174,9 +180,9 @@ export async function exportPdf(groups: ListGroup[], familyName: string, subtitl
       const cells = [
         String(it.n),
         displayName(p) + (p.isDeceased ? ' 🕊' : ''),
-        p.birthDate ? formatDate(p.birthDate, lang) : '',
+        shortDate(p.birthDate),
         p.birthPlace ?? '',
-        p.isDeceased ? (p.deathDate ? formatDate(p.deathDate, lang) : lifeSpan(p).split('–')[1]?.trim() ?? '') : '',
+        p.isDeceased ? (p.deathDate ? shortDate(p.deathDate) : '?') : '',
         p.occupation ?? '',
       ]
       x = M
