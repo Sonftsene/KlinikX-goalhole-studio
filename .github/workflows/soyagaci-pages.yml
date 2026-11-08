@@ -1,0 +1,64 @@
+name: Soyağacı web (GitHub Pages)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, ccr-3307c36c-beayk5]
+    paths:
+      - 'soyagaci/**'
+      - '.github/workflows/soyagaci-pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: soyagaci-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: soyagaci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: soyagaci/package-lock.json
+      - run: npm ci
+      - name: Test
+        run: npm test -- --passWithNoTests
+      - name: Build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+          # Boş bırakılırsa uygulama demo modunda çalışır.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ADMIN_EMAIL: sonft1249@gmail.com
+        run: npm run build
+      - name: SPA fallback for deep links
+        run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soyagaci-web
+          path: soyagaci/dist
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: soyagaci/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        # GitHub Pages henüz açılmadıysa çalışma kırmızıya düşmesin.
+        continue-on-error: true
