@@ -4,19 +4,8 @@ import type { Person } from '../../types'
 import type { TreeLayout } from '../tree/layout'
 import { Button, Segmented, Sheet, Switch, toast } from '../../components/ui'
 import { useLang, useT } from '../../lib/i18n'
-import {
-  type ExportInput,
-  type Orientation,
-  type Paper,
-  downloadBlob,
-  exportTreePdf,
-  exportTreePng,
-  exportTreeSvg,
-  printTree,
-  safeFileName,
-  shareBlob,
-  tilePlan,
-} from './exportTree'
+import type { ExportInput } from './exportTree'
+import { type Orientation, type Paper, tilePlan } from './plan'
 
 type Format = 'png' | 'pdf' | 'svg' | 'print'
 
@@ -70,13 +59,13 @@ export function ExportSheet(props: ExportSheetProps) {
     blood: withBlood ? props.blood : undefined,
   })
 
-  const baseName = safeFileName(`${props.title}-soyagaci`)
-
   const run = async () => {
     setBusy(true)
     setResult(null)
     setProgress('')
     try {
+      const { downloadBlob, exportTreePdf, exportTreePng, exportTreeSvg, printTree, safeFileName } = await import('./exportTree')
+      const baseName = safeFileName(`${props.title}-soyagaci`)
       if (format === 'print') {
         await printTree(input(), orientation)
         return
@@ -124,6 +113,7 @@ export function ExportSheet(props: ExportSheetProps) {
               variant="outline"
               icon={<Share2 size={18} />}
               onClick={async () => {
+                const { downloadBlob, shareBlob } = await import('./exportTree')
                 const ok = await shareBlob(result.blob, result.name, props.title)
                 if (!ok) downloadBlob(result.blob, result.name)
               }}

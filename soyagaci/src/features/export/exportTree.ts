@@ -7,8 +7,8 @@ import type { Person } from '../../types'
 import type { TreeLayout } from '../tree/layout'
 import { TreeDefs, TreeSvgContent } from '../tree/TreeSvg'
 
-export type Paper = 'A4' | 'A3'
-export type Orientation = 'portrait' | 'landscape'
+import { type Orientation, type Paper, tilePlan } from './plan'
+export { tilePlan, type Orientation, type Paper } from './plan'
 
 export interface ExportInput {
   layout: TreeLayout
@@ -24,7 +24,6 @@ export interface ExportInput {
 }
 
 const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif"
-const PAPER_MM: Record<Paper, [number, number]> = { A4: [210, 297], A3: [297, 420] }
 const MAX_PIXELS = 16_000_000
 const MAX_SIDE = 16_000
 
@@ -78,9 +77,10 @@ function legendItems(lang: 'tr' | 'en') {
 
 /** Markup of the tree only, in layout coordinates. */
 function treeMarkup(input: ExportInput, photos: Map<string, string | null>) {
-  return renderToStaticMarkup(
+  // Rendered inside an <svg> so React keeps the SVG namespace, then unwrapped.
+  const html = renderToStaticMarkup(
     createElement(
-      'g',
+      'svg',
       null,
       createElement(TreeDefs),
       createElement(TreeSvgContent, {
@@ -95,6 +95,7 @@ function treeMarkup(input: ExportInput, photos: Map<string, string | null>) {
       }),
     ),
   )
+  return '<g>' + html.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') + '</g>'
 }
 
 export interface BuiltSvg {
@@ -262,25 +263,6 @@ export interface PdfOptions {
 const DPI = 180
 const PX_PER_MM = DPI / 25.4
 
-/** How many pages a tiled print would need. */
-export function tilePlan(layout: TreeLayout, opts: Pick<PdfOptions, 'paper' | 'orientation' | 'cardMm'>) {
-  const [a, b] = PAPER_MM[opts.paper]
-  const [pw, ph] = opts.orientation === 'portrait' ? [a, b] : [b, a]
-  const margin = 10
-  const footer = 9
-  const overlap = 8
-  const printW = pw - margin * 2
-  const printH = ph - margin * 2 - footer
-  const mmPerUnit = (opts.cardMm ?? 38) / 172
-  const treeWmm = layout.bounds.width * mmPerUnit
-  const treeHmm = layout.bounds.height * mmPerUnit
-  const stepW = printW - overlap
-  const stepH = printH - overlap
-  const cols = Math.max(1, Math.ceil((treeWmm - overlap) / stepW))
-  const rows = Math.max(1, Math.ceil((treeHmm - overlap) / stepH))
-  return { pw, ph, margin, footer, overlap, printW, printH, mmPerUnit, cols, rows, stepW, stepH, treeWmm, treeHmm }
-}
-
 function drawFooter(ctx: CanvasRenderingContext2D, pw: number, ph: number, margin: number, left: string, right: string) {
   const px = PX_PER_MM
   ctx.fillStyle = '#64748b'
@@ -375,7 +357,7 @@ export async function exportTreePdf(input: ExportInput, opts: PdfOptions): Promi
     const wMm = vb.w * k
     const hMm = vb.h * k
     const img = await svgToImage(windowSvg(markup, vb.x, vb.y, vb.w, vb.h, wMm * px, hMm * px))
-    ctx.drawImage(img, (margin + (areaW - wMm) / 2) * px, (top + 2) * px, wMm * px, hMm * px)
+    ctx.drawImage(img, (margin + (areaW - wMm) / 2) * px, (top + 2 + (areaH - hMm) / 2) * px, wMm * px, hMm * px)
     drawFooter(ctx, pw, ph, margin, titleLine, lang === 'en' ? 'Family tree' : 'Soyağacı')
     pdf.addImage(c.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, pw, ph, undefined, 'FAST')
     opts.onProgress?.(1, 1)

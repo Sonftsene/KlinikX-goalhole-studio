@@ -123,10 +123,12 @@ export const TreeCanvas = forwardRef<TreeCanvasHandle, TreeCanvasProps>(function
   // Re-focus when the root or mode changes.
   useLayoutEffect(() => {
     const fit = fitTransform()
-    if (fit.k >= 0.55 || !focusPersonId) setT(fit, false)
+    const { w } = size()
+    const comfy = w < 640 ? 0.62 : 0.8
+    if (fit.k >= comfy * 0.75 || !focusPersonId) setT(fit, false)
     else {
-      t.current = { ...t.current, k: 0.85 }
-      if (!centerOn(focusPersonId, false, 0.85)) setT(fit, false)
+      t.current = { ...t.current, k: comfy }
+      if (!centerOn(focusPersonId, false, comfy)) setT(fit, false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey])

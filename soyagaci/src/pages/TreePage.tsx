@@ -155,7 +155,7 @@ export default function TreePage() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={t('Ağaçta kişi bul…', 'Find in tree…')}
+              placeholder={t('Kişi bul…', 'Find…')}
               className="input h-10 py-0 pr-9 pl-9 text-sm"
               aria-label={t('Ağaçta ara', 'Search tree')}
             />
@@ -179,6 +179,18 @@ export default function TreePage() {
               </div>
             )}
           </div>
+          <select
+            value={depth}
+            onChange={(e) => update({ derinlik: e.target.value })}
+            className="h-10 w-[96px] shrink-0 rounded-xl border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            aria-label={t('Kuşak sayısı', 'Generations')}
+          >
+            {DEPTHS.map((d) => (
+              <option key={d} value={d}>
+                {d === 99 ? t('Tümü', 'All') : t(`${d} kuşak`, `${d} gen.`)}
+              </option>
+            ))}
+          </select>
           <Button variant="secondary" size="icon" onClick={() => setShowLegend((v) => !v)} aria-label={t('Renk açıklaması', 'Legend')} className="md:hidden">
             <Info size={19} />
           </Button>
@@ -186,26 +198,12 @@ export default function TreePage() {
             <span className="hidden sm:inline">{t('Dışa aktar', 'Export')}</span>
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Segmented
-            className="min-w-0 flex-1"
-            value={mode}
-            onChange={(m) => update({ mod: m, derinlik: undefined })}
-            options={MODES.map((m) => ({ value: m, label: modeLabel[m] }))}
-          />
-          <select
-            value={depth}
-            onChange={(e) => update({ derinlik: e.target.value })}
-            className="h-9 shrink-0 rounded-xl border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-            aria-label={t('Kuşak sayısı', 'Generations')}
-          >
-            {DEPTHS.map((d) => (
-              <option key={d} value={d}>
-                {d === 99 ? t('Tüm kuşaklar', 'All generations') : t(`${d} kuşak`, `${d} gen.`)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Segmented
+          className="w-full [&>button]:flex-1"
+          value={mode}
+          onChange={(m) => update({ mod: m, derinlik: undefined })}
+          options={MODES.map((m) => ({ value: m, label: modeLabel[m] }))}
+        />
         {mode === 'family' && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-slate-500">{t('Kök:', 'Root:')}</span>
