@@ -246,7 +246,7 @@ function UserCard({ user, open, onToggle }: { user: AppUser; open: boolean; onTo
               </Button>
             )}
             {user.status !== 'blocked' && !superAdmin && (
-              <Button size="sm" variant="outline" icon={<Ban size={16} />} disabled={!canEditUser} onClick={() => confirmAction(t('Bu hesap engellensin mi?', 'Block this account?')) && attempt(() => updateUser(user.id, { status: 'blocked' }), t('Hesap engellendi', 'Account blocked'))}>
+              <Button size="sm" variant="outline" icon={<Ban size={16} />} disabled={!canEditUser} onClick={() => confirmAction(t('Bu hesap engellensin mi?', 'Block this account?')).then((ok): unknown => ok && attempt(() => updateUser(user.id, { status: 'blocked' }), t('Hesap engellendi', 'Account blocked')))}>
                 {t('Engelle', 'Block')}
               </Button>
             )}
@@ -255,7 +255,7 @@ function UserCard({ user, open, onToggle }: { user: AppUser; open: boolean; onTo
                 size="sm"
                 variant="danger"
                 icon={<Trash2 size={16} />}
-                onClick={() => confirmAction(t(`${user.displayName} hesabı kalıcı olarak silinsin mi? Ağaçtaki kişi silinmez.`, `Delete account ${user.displayName}? The tree person is kept.`)) && attempt(() => deleteUser(user.id), t('Hesap silindi', 'Account deleted'))}
+                onClick={() => confirmAction(t(`${user.displayName} hesabı kalıcı olarak silinsin mi? Ağaçtaki kişi silinmez.`, `Delete account ${user.displayName}? The tree person is kept.`)).then((ok): unknown => ok && attempt(() => deleteUser(user.id), t('Hesap silindi', 'Account deleted')))}
               >
                 {t('Hesabı sil', 'Delete account')}
               </Button>

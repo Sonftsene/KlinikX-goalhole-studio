@@ -140,7 +140,8 @@ export function ExportSheet(props: ExportSheetProps) {
                 { v: 'pdf', icon: FileText, label: 'PDF' },
                 { v: 'png', icon: FileImage, label: t('Görsel', 'Image') },
                 { v: 'svg', icon: FileImage, label: 'SVG' },
-                { v: 'print', icon: Printer, label: t('Yazdır', 'Print') },
+                // Printing is blocked when the app runs inside a frame.
+                ...(window.self === window.top ? [{ v: 'print' as const, icon: Printer, label: t('Yazdır', 'Print') }] : []),
               ] as const
             ).map((o) => (
               <button

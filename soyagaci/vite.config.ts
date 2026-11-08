@@ -12,6 +12,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // No service worker for embedded preview builds.
+      disable: process.env.VITE_ROUTER === 'memory',
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'icon-180.png'],
       manifest: {

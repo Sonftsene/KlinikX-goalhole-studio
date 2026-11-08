@@ -165,7 +165,7 @@ export default function PersonPage() {
   }
 
   const unlink = async (relId?: string) => {
-    if (!relId || !confirmAction(t('Bu bağlantı kaldırılsın mı?', 'Remove this link?'))) return
+    if (!relId || !(await confirmAction(t('Bu bağlantı kaldırılsın mı?', 'Remove this link?')))) return
     const r = await attempt(() => s.removeRelation(relId))
     if (r === 'requested') toast.info(t('Talep onaya gönderildi', 'Sent for approval'))
   }
@@ -383,7 +383,7 @@ export default function PersonPage() {
             className="text-red-600"
             icon={<Trash2 size={16} />}
             onClick={async () => {
-              if (!confirmAction(t(`${fullName(p)} ve tüm bağlantıları silinsin mi? Bu işlem geri alınamaz.`, `Delete ${fullName(p)} and all links?`))) return
+              if (!(await confirmAction(t(`${fullName(p)} ve tüm bağlantıları silinsin mi? Bu işlem geri alınamaz.`, `Delete ${fullName(p)} and all links?`)))) return
               const r = await attempt(() => s.deletePerson(p.id), t('Kişi silindi', 'Person deleted'))
               if (r) nav('/liste')
             }}
@@ -475,7 +475,7 @@ export default function PersonPage() {
                 variant="danger"
                 icon={<Trash2 size={16} />}
                 onClick={async () => {
-                  if (!confirmAction(t('Fotoğraf silinsin mi?', 'Delete photo?'))) return
+                  if (!(await confirmAction(t('Fotoğraf silinsin mi?', 'Delete photo?')))) return
                   await attempt(() => s.removePhoto(p.id, photos[viewer].id))
                   setViewer(null)
                 }}

@@ -74,7 +74,7 @@ export default function Settings() {
             <Button
               variant="outline"
               icon={<RotateCcw size={16} />}
-              onClick={() => confirmAction(t('Demo verisi sıfırlansın mı? Bu tarayıcıdaki tüm değişiklikler silinir.', 'Reset demo data? All changes in this browser are lost.')) && attempt(() => resetDemo(), t('Demo verisi sıfırlandı', 'Demo data reset'))}
+              onClick={() => confirmAction(t('Demo verisi sıfırlansın mı? Bu tarayıcıdaki tüm değişiklikler silinir.', 'Reset demo data? All changes in this browser are lost.')).then((ok): unknown => ok && attempt(() => resetDemo(), t('Demo verisi sıfırlandı', 'Demo data reset')))}
             >
               {t('Demo verisini sıfırla', 'Reset demo data')}
             </Button>

@@ -111,7 +111,7 @@ function PersonList({ persons }: { persons: Person[] }) {
   const allSelected = list.length > 0 && list.every((p) => selected.has(p.id))
 
   const bulkDelete = async () => {
-    if (!confirmAction(t(`${selected.size} kişi ve tüm bağlantıları silinsin mi? Bu işlem geri alınamaz.`, `Delete ${selected.size} people and all their links? This cannot be undone.`))) return
+    if (!(await confirmAction(t(`${selected.size} kişi ve tüm bağlantıları silinsin mi? Bu işlem geri alınamaz.`, `Delete ${selected.size} people and all their links? This cannot be undone.`)))) return
     setBusy(true)
     let ok = 0
     for (const id of selected) if (await attempt(() => deletePerson(id))) ok++
@@ -230,7 +230,7 @@ function Duplicates({ persons }: { persons: Person[] }) {
   }
 
   const merge = async (keep: Person, drop: Person) => {
-    if (!confirmAction(t(`"${displayName(drop)}" kaydı "${displayName(keep)}" ile birleştirilsin mi? Boş alanlar, fotoğraflar ve bağlantılar aktarılır.`, `Merge "${displayName(drop)}" into "${displayName(keep)}"? Empty fields, photos and links are transferred.`))) return
+    if (!(await confirmAction(t(`"${displayName(drop)}" kaydı "${displayName(keep)}" ile birleştirilsin mi? Boş alanlar, fotoğraflar ve bağlantılar aktarılır.`, `Merge "${displayName(drop)}" into "${displayName(keep)}"? Empty fields, photos and links are transferred.`)))) return
     setBusy(keep.id + drop.id)
     await attempt(() => mergePersons(keep.id, drop.id), t('Kayıtlar birleştirildi', 'Records merged'))
     setBusy(null)

@@ -78,7 +78,7 @@ export default function AccountPage() {
   }
 
   const requestDeletion = async () => {
-    if (!confirmAction(t('Hesabınızın ve kişisel verilerinizin silinmesi için yöneticiye talep gönderilsin mi?', 'Send a request to delete your account and data?'))) return
+    if (!(await confirmAction(t('Hesabınızın ve kişisel verilerinizin silinmesi için yöneticiye talep gönderilsin mi?', 'Send a request to delete your account and data?')))) return
     if (me) await attempt(() => s.deletePerson(me.id, t('KVKK kapsamında verilerimin silinmesini talep ediyorum.', 'I request deletion of my data.')), t('Silme talebiniz yöneticiye iletildi', 'Deletion request sent'))
     else await attempt(() => s.requestAccess('branch', undefined, t('KVKK: hesabımın silinmesini talep ediyorum.', 'Please delete my account.')), t('Talebiniz iletildi', 'Request sent'))
   }

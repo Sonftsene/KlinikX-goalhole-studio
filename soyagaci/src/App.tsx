@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useFamily } from './store/useFamily'
 import { canManage, isActive } from './lib/permissions'
 import { AppShell } from './components/layout/AppShell'
@@ -45,6 +45,9 @@ function RequireManager({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+// Embedded builds (no real URL bar) keep routes in memory.
+const Router = import.meta.env.VITE_ROUTER === 'memory' ? MemoryRouter : BrowserRouter
+
 export default function App() {
   const ready = useFamily((s) => s.ready)
   const init = useFamily((s) => s.init)
@@ -53,7 +56,7 @@ export default function App() {
   }, [init])
   if (!ready) return <Splash />
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
+    <Router basename={import.meta.env.VITE_ROUTER === 'memory' ? undefined : import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
       <Toaster />
       <Suspense fallback={<Splash />}>
         <Routes>
@@ -93,6 +96,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </BrowserRouter>
+    </Router>
   )
 }

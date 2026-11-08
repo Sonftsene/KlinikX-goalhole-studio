@@ -150,6 +150,8 @@ export function Toaster() {
   const list = useToasts((s) => s.list)
   const drop = useToasts((s) => s.drop)
   return (
+    <>
+    <ConfirmDialog />
     <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--safe-top)+0.75rem)] z-[60] flex flex-col items-center gap-2 px-4">
       {list.map((t) => (
         <button
@@ -166,6 +168,7 @@ export function Toaster() {
         </button>
       ))}
     </div>
+    </>
   )
 }
 
@@ -246,6 +249,38 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
   )
 }
 
-export function confirmAction(text: string): boolean {
-  return window.confirm(text)
+// ── in-app confirmation dialog (native confirm() is blocked in embedded views) ──
+const useConfirm = create<{ text: string | null; resolve?: (v: boolean) => void }>(() => ({ text: null }))
+
+export function confirmAction(text: string): Promise<boolean> {
+  useConfirm.getState().resolve?.(false)
+  return new Promise((resolve) => useConfirm.setState({ text, resolve }))
+}
+
+function ConfirmDialog() {
+  const { text, resolve } = useConfirm()
+  const close = (v: boolean) => {
+    resolve?.(v)
+    useConfirm.setState({ text: null, resolve: undefined })
+  }
+  const en = typeof document !== 'undefined' && document.documentElement.lang === 'en'
+  return (
+    <Sheet
+      open={!!text}
+      onClose={() => close(false)}
+      title={en ? 'Are you sure?' : 'Emin misiniz?'}
+      footer={
+        <>
+          <Button variant="secondary" className="flex-1" onClick={() => close(false)}>
+            {en ? 'Cancel' : 'Vazgeç'}
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={() => close(true)} autoFocus>
+            {en ? 'Yes, continue' : 'Evet, devam et'}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-700 dark:text-slate-300">{text}</p>
+    </Sheet>
+  )
 }

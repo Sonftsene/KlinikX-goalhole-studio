@@ -98,7 +98,7 @@ export default function Invites() {
       {active.length ? (
         <div className="mb-6 space-y-3">
           {active.map((i) => (
-            <InviteCard key={i.id} invite={i} onDelete={() => confirmAction(t('Davet silinsin mi?', 'Delete invite?')) && attempt(() => deleteInvite(i.id), t('Davet silindi', 'Invite deleted'))} />
+            <InviteCard key={i.id} invite={i} onDelete={() => confirmAction(t('Davet silinsin mi?', 'Delete invite?')).then((ok): unknown => ok && attempt(() => deleteInvite(i.id), t('Davet silindi', 'Invite deleted')))} />
           ))}
         </div>
       ) : (

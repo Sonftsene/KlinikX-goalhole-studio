@@ -144,7 +144,7 @@ export default function ImportExport() {
 
   const runImport = async () => {
     if (!preview) return
-    if (mode === 'replace' && !confirmAction(t('Mevcut tüm kişiler ve bağlantılar silinip dosyadakilerle değiştirilecek. Emin misiniz?', 'All current persons and links will be replaced. Are you sure?'))) return
+    if (mode === 'replace' && !(await confirmAction(t('Mevcut tüm kişiler ve bağlantılar silinip dosyadakilerle değiştirilecek. Emin misiniz?', 'All current persons and links will be replaced. Are you sure?')))) return
     setBusy(true)
     const ok = await attempt(async () => {
       await importData(preview.persons, preview.relations, mode)
