@@ -205,8 +205,8 @@ language sql stable security definer set search_path = public as $$
   ) v
 $$;
 
--- Yöneticilere bildirim gönder (tetikleyicilerden çağrılır).
-create or replace function public.notify_managers(p_title text, p_body text, p_link text) returns void
+-- Yöneticilere bildirim gönder (yalnızca tetikleyiciler kullanır; istemciye kapalı).
+create or replace function public._notify_managers(p_title text, p_body text, p_link text) returns void
 language plpgsql security definer set search_path = public as $$
 declare
   m record;
@@ -221,6 +221,38 @@ begin
     values (nid, m.id, false, jsonb_build_object(
       'id', nid, 'userId', m.id, 'title', p_title, 'body', p_body, 'link', p_link,
       'read', false, 'createdAt', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  end loop;
+end $$;
+
+-- İstemcinin çağırdığı bildirim RPC'si: aktif kullanıcı, tüm aktif yönetici/editörlere bildirim bırakır.
+-- Kötüye kullanıma karşı: aktif olmayanlar yok sayılır, metinler kısaltılır, dakikada en fazla 20 çağrı.
+create or replace function public.notify_managers(p_title text, p_body text default null, p_link text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  m record;
+  nid text;
+  v_recent int;
+begin
+  if auth.uid() is null or not public.is_active() then
+    return;
+  end if;
+  select count(*) into v_recent from public.notifications n
+  where n.data ->> 'fromUserId' = auth.uid()::text
+    and (n.data ->> 'createdAt')::timestamptz > now() - interval '1 minute';
+  if v_recent >= 20 * greatest(1, (select count(*) from public.profiles where status = 'active' and role in ('admin', 'editor'))) then
+    return;
+  end if;
+  for m in
+    select id from public.profiles
+    where ((status = 'active' and role in ('admin', 'editor')) or public.is_super_admin_uid(id))
+      and id <> auth.uid()
+  loop
+    nid := 'n_' || gen_random_uuid()::text;
+    insert into public.notifications (id, user_id, read, data)
+    values (nid, m.id, false, jsonb_strip_nulls(jsonb_build_object(
+      'id', nid, 'userId', m.id, 'title', left(coalesce(p_title, ''), 120), 'body', left(p_body, 500),
+      'link', case when p_link like '/%' then left(p_link, 200) end, 'read', false, 'fromUserId', auth.uid(),
+      'createdAt', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))));
   end loop;
 end $$;
 
@@ -308,7 +340,8 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Profil güvenliği: rol/durum/kişi eşleşmesini yalnızca yönetici (veya redeem_invite) değiştirebilir;
+-- Profil güvenliği: rolü yalnızca yönetici değiştirir; editör yönetici olmayan diğer üyelerin durum/kişi
+-- eşleşmesini değiştirebilir; redeem_invite güvenli yoldur;
 -- süper yönetici her zaman yönetici ve aktif kalır. data jsonb kolonlarla senkron tutulur.
 create or replace function public.profiles_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -321,10 +354,14 @@ begin
       new.person_id := null;
       new.email := coalesce(auth.jwt() ->> 'email', new.email);
     else
+      -- Rolü ve e-postayı yalnızca yönetici değiştirir.
       new.role := old.role;
-      new.status := old.status;
-      new.person_id := old.person_id;
       new.email := old.email;
+      -- Editör, yönetici olmayan BAŞKA bir üyenin durumunu (onay/engel) ve kişi eşleşmesini değiştirebilir.
+      if not (public.is_manager() and old.role <> 'admin' and old.id <> auth.uid()) then
+        new.status := old.status;
+        new.person_id := old.person_id;
+      end if;
     end if;
   end if;
   if public.is_super_admin_uid(new.id) then
@@ -347,14 +384,14 @@ create or replace function public.profiles_notify() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' and new.status = 'pending' then
-    perform public.notify_managers('Yeni üye kaydı',
+    perform public._notify_managers('Yeni üye kaydı',
       coalesce(new.data ->> 'displayName', new.email) || ' (' || new.email || ') onay bekliyor.', '/admin/kullanicilar');
   elsif tg_op = 'UPDATE' then
     if (new.data ->> 'claimedPersonId') is not distinct from (old.data ->> 'claimedPersonId')
        and (new.data ->> 'claimNote') is not distinct from (old.data ->> 'claimNote') then
       return new;
     end if;
-    perform public.notify_managers('Kimlik eşleştirme talebi',
+    perform public._notify_managers('Kimlik eşleştirme talebi',
       coalesce(new.data ->> 'displayName', new.email) || ': ' ||
       coalesce((select trim(coalesce(p.data ->> 'firstName', '') || ' ' || coalesce(p.data ->> 'lastName', ''))
                 from public.persons p where p.id = new.data ->> 'claimedPersonId'),
@@ -369,37 +406,11 @@ create trigger profiles_notify
   after insert or update on public.profiles
   for each row execute function public.profiles_notify();
 
--- Değişiklik / erişim talebi gelince yöneticilere bildirim.
-create or replace function public.requests_notify() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare
-  v_user text;
-  v_target text;
-begin
-  select coalesce(p.data ->> 'displayName', p.email) into v_user from public.profiles p where p.id = new.user_id;
-  select trim(coalesce(x.data ->> 'firstName', '') || ' ' || coalesce(x.data ->> 'lastName', ''))
-    into v_target from public.persons x where x.id = coalesce(new.data ->> 'personId', '');
-  if tg_table_name = 'change_requests' then
-    perform public.notify_managers('Yeni değişiklik talebi',
-      coalesce(v_user, '?') || ': ' || coalesce(nullif(v_target, ''), 'yeni kişi'), '/admin/onaylar');
-  else
-    perform public.notify_managers('Yeni erişim talebi',
-      coalesce(v_user, '?') || ': ' ||
-      case when new.data ->> 'scope' = 'all' then 'tüm ağaç' else coalesce(nullif(v_target, ''), '?') || ' dalı' end,
-      '/admin/onaylar');
-  end if;
-  return new;
-end $$;
-
+-- Değişiklik/erişim talepleri için bildirimi uygulama notify_managers() RPC'si ile gönderir
+-- (eski kurulumlardaki tetikleyicileri temizle, çift bildirim olmasın).
 drop trigger if exists change_requests_notify on public.change_requests;
-create trigger change_requests_notify
-  after insert on public.change_requests
-  for each row execute function public.requests_notify();
-
 drop trigger if exists access_requests_notify on public.access_requests;
-create trigger access_requests_notify
-  after insert on public.access_requests
-  for each row execute function public.requests_notify();
+drop function if exists public.requests_notify();
 
 -- ───────────────────────────── RPC ─────────────────────────────
 
@@ -531,8 +542,8 @@ create policy profiles_insert on public.profiles for insert to authenticated
   with check (id = (select auth.uid()) or (select public.is_admin()));
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles for update to authenticated
-  using (id = (select auth.uid()) or (select public.is_manager()))
-  with check (id = (select auth.uid()) or (select public.is_manager()));
+  using (id = (select auth.uid()) or (select public.is_admin()) or ((select public.is_manager()) and role <> 'admin'))
+  with check (id = (select auth.uid()) or (select public.is_admin()) or ((select public.is_manager()) and role <> 'admin'));
 drop policy if exists profiles_delete on public.profiles;
 create policy profiles_delete on public.profiles for delete to authenticated
   using ((select public.is_admin()) and lower(email) <> public.super_admin_email());
@@ -612,6 +623,12 @@ grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 revoke all on all tables in schema public from anon;
 grant execute on function public.check_invite(text) to anon, authenticated;
+grant execute on function public.notify_managers(text, text, text) to authenticated;
+-- Yalnızca diğer güvenli fonksiyonların içinden çağrılan yardımcılar istemciye kapalı.
+revoke execute on function public._notify_managers(text, text, text) from public, anon, authenticated;
+revoke execute on function public.direct_line(text) from public, anon, authenticated;
+revoke execute on function public.branch_ids(text) from public, anon, authenticated;
+revoke execute on function public.is_super_admin_uid(uuid) from public, anon, authenticated;
 grant execute on function public.redeem_invite(text) to authenticated;
 grant execute on function public.search_claim_candidates(text) to authenticated;
 

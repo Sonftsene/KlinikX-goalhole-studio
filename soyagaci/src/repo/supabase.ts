@@ -275,6 +275,12 @@ export class SupabaseRepo implements Repo {
     return user
   }
 
+  /** Leaves a notification for every active admin/editor (members can't read their profiles). */
+  async notifyManagers(title: string, body?: string, link?: string): Promise<void> {
+    const res = await this.client.rpc('notify_managers', { p_title: title, p_body: body ?? null, p_link: link ?? null })
+    if (res.error) throw friendly(res.error)
+  }
+
   /** Limited search a pending user can run to say "this is me" (min. 3 letters, max. 10 results). */
   async searchClaimCandidates(q: string): Promise<{ id: string; firstName: string; lastName: string; maidenName?: string; birthYear?: string }[]> {
     const res = check(await this.client.rpc('search_claim_candidates', { q }))
