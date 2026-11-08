@@ -367,7 +367,8 @@ export const useFamily = create<FamilyState>((set, get) => {
       const r = await repo().signUp(input)
       if (r !== 'check-email') {
         await get().reload()
-        await notifyManagers('Yeni üye kaydı', `${r.displayName} (${r.email}) onay bekliyor.`, '/admin/kullanicilar')
+        // The server notifies admins about sign-ups itself; demo mode does it here.
+        if (get().mode === 'demo') await notifyManagers('Yeni üye kaydı', `${r.displayName} (${r.email}) onay bekliyor.`, '/admin/kullanicilar')
       }
       return r
     },
@@ -386,7 +387,7 @@ export const useFamily = create<FamilyState>((set, get) => {
       const next = { ...u, claimedPersonId: personId, claimNote: note }
       await write('users', next)
       set({ user: next })
-      await notifyManagers('Kimlik eşleştirme talebi', `${u.displayName}: ${personName(personId) || note}`, '/admin/kullanicilar')
+      if (get().mode === 'demo') await notifyManagers('Kimlik eşleştirme talebi', `${u.displayName}: ${personName(personId) || note}`, '/admin/kullanicilar')
     },
     async redeemInvite(code) {
       const r = repo()
