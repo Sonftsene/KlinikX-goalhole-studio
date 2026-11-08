@@ -641,8 +641,11 @@ export const useFamily = create<FamilyState>((set, get) => {
       // Only admins may change roles; nobody can demote the super admin.
       let safe: Partial<AppUser> = patch
       if (!isAdmin(admin)) {
-        const { role: _r, status: _s, personId: _p, ...rest } = patch
-        safe = self ? { displayName: rest.displayName, avatarUrl: rest.avatarUrl } : rest
+        const { role: _r, status, personId, ...rest } = patch
+        if (self) safe = { displayName: rest.displayName, avatarUrl: rest.avatarUrl }
+        // Editors may approve and link regular members, but never touch admins or roles.
+        else if (cur.role === 'admin') throw new Error('Yöneticiler yalnızca yönetici tarafından düzenlenebilir.')
+        else safe = { ...rest, ...(status !== undefined && { status }), ...('personId' in patch && { personId }) }
       }
       if (isSuperAdminEmail(cur.email)) safe = { ...safe, role: 'admin', status: 'active' }
       const next = { ...cur, ...safe }
