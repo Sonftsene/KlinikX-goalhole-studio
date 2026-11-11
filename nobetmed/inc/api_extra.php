@@ -786,3 +786,111 @@ function a_brand_get(): void
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
     readfile($path);
 }
+
+
+/* ---------------- Dahili telefon rehberi ---------------- */
+
+/** Numara alanını temizler: rakam, boşluk ve + ( ) - / . , dışında karakter kabul etmez. Geçersizse ''. */
+function pb_number(string $v): string
+{
+    $v = trim(preg_replace('/\s+/u', ' ', $v));
+    if ($v === '' || mb_strlen($v) > 40 || !preg_match('/\d/', $v) || !preg_match('/^[0-9+()\/\-., ]+$/', $v)) return '';
+    return $v;
+}
+
+function pb_out(array $r): array
+{
+    return ['id' => (int)$r['id'], 'name' => $r['name'], 'number' => $r['number'], 'category' => (string)$r['category'],
+        'note' => (string)$r['note'], 'pinned' => (bool)$r['pinned']];
+}
+
+function a_phonebook_list(): void
+{
+    need_user();
+    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', '')]);
+}
+
+function a_phonebook_save(): void
+{
+    $me = need_publisher();
+    $id = i('id');
+    $name = s('name', 120);
+    $num = pb_number(s('number', 60));
+    if (mb_strlen($name) < 2) fail('Ad en az 2 karakter olmalı.');
+    if ($num === '') fail('Numara yalnızca rakam ve + ( ) - / işaretleri içerebilir.');
+    $row = [$name, $num, s('category', 60), s('note', 200), b('pinned') ? 1 : 0, $me['id'], now()];
+    if ($id) {
+        if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Kayıt bulunamadı.', 404);
+        q('UPDATE phonebook SET name = ?, number = ?, category = ?, note = ?, pinned = ?, updated_by = ?, updated_at = ? WHERE id = ?', [...$row, $id]);
+        audit($me, 'phonebook.save', $name, $num);
+    } else {
+        q('INSERT INTO phonebook (name, number, category, note, pinned, updated_by, updated_at, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [...$row, (int)val('SELECT COALESCE(MAX(sort), 0) + 1 FROM phonebook')]);
+        audit($me, 'phonebook.create', $name, $num);
+    }
+    a_phonebook_list();
+}
+
+function a_phonebook_delete(): void
+{
+    $me = need_publisher();
+    $r = one('SELECT name, number FROM phonebook WHERE id = ?', [(int)i('id')]);
+    if (!$r) fail('Kayıt bulunamadı.', 404);
+    q('DELETE FROM phonebook WHERE id = ?', [(int)i('id')]);
+    audit($me, 'phonebook.delete', $r['name'], $r['number']);
+    a_phonebook_list();
+}
+
+/** Toplu ekleme: istemci yapıştırılan metni satırlara ayırır; burada her satır yeniden doğrulanır. */
+function a_phonebook_import(): void
+{
+    $me = need_publisher();
+    $items = arr('items');
+    if (!$items) fail('Eklenecek satır yok.');
+    if (count($items) > 2000) fail('Tek seferde en fazla 2000 satır eklenebilir.');
+    $clean = [];
+    foreach ($items as $it) {
+        if (!is_array($it)) continue;
+        $str = fn($k, $max) => is_scalar($it[$k] ?? null) ? mb_substr(trim((string)$it[$k]), 0, $max) : '';
+        $name = $str('name', 120);
+        $num = pb_number($str('number', 60));
+        if (mb_strlen($name) < 2 || $num === '') continue;
+        $clean[] = [$name, $num, $str('category', 60), $str('note', 200)];
+    }
+    if (!$clean) fail('Satırlarda ad ve numara bulunamadı.');
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        if (b('replace')) q('DELETE FROM phonebook');
+        $seen = [];
+        foreach (all('SELECT name, number FROM phonebook') as $r) $seen[tr_lower($r['name']) . '|' . $r['number']] = 1;
+        $sort = (int)val('SELECT COALESCE(MAX(sort), 0) FROM phonebook');
+        $added = 0;
+        foreach ($clean as [$name, $num, $cat, $note]) {
+            $k = tr_lower($name) . '|' . $num;
+            if (isset($seen[$k])) continue;
+            $seen[$k] = 1;
+            q('INSERT INTO phonebook (name, number, category, note, pinned, updated_by, updated_at, sort) VALUES (?, ?, ?, ?, 0, ?, ?, ?)', [$name, $num, $cat, $note, $me['id'], now(), ++$sort]);
+            $added++;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    audit($me, 'phonebook.import', 'Telefon rehberi', $added . ' kayıt' . (b('replace') ? ' (liste yenilendi)' : ''));
+    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'added' => $added, 'skipped' => count($clean) - $added]);
+}
+
+/** Santral numarası: cep telefonundan dahiliyi aramak için önce santral aranır, sonra dahili tuşlanır. */
+function a_phonebook_santral(): void
+{
+    $me = need_publisher();
+    $v = s('santral', 60);
+    $num = $v === '' ? '' : pb_number($v);
+    if ($v !== '' && $num === '') fail('Santral numarası yalnızca rakam ve + ( ) - işaretleri içerebilir.');
+    set_setting('pb_santral', $num);
+    audit($me, 'settings.save', 'Santral numarası', $num ?: 'silindi');
+    a_phonebook_list();
+}
+

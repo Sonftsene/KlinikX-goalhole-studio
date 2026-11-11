@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.5.1';
+const NM_VERSION = '3.6.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -138,7 +138,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 5) return;
+    if ($version >= 6) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -215,6 +215,7 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS invites (id $pk, token VARCHAR(40) NOT NULL, kind VARCHAR(10) NOT NULL, name VARCHAR(120) NULL, email VARCHAR(190) NULL, title_id INT NULL, unit_id INT NULL, role VARCHAR(10) NOT NULL DEFAULT 'member', auto_approve INT NOT NULL DEFAULT 0, max_uses INT NOT NULL DEFAULT 1, uses INT NOT NULL DEFAULT 0, expires VARCHAR(19) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, revoked INT NOT NULL DEFAULT 0, used_by INT NULL)$end",
         "CREATE TABLE IF NOT EXISTS templates (id $pk, title VARCHAR(200) NOT NULL, body TEXT NOT NULL, category_id INT NULL, required INT NOT NULL DEFAULT 0, created_by INT NULL, created_at VARCHAR(19) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS password_resets (id $pk, user_id INT NOT NULL, token_hash VARCHAR(64) NOT NULL, expires INT NOT NULL, used INT NOT NULL DEFAULT 0)$end",
+        "CREATE TABLE IF NOT EXISTS phonebook (id $pk, name VARCHAR(120) NOT NULL, number VARCHAR(40) NOT NULL, category VARCHAR(60) NOT NULL DEFAULT '', note VARCHAR(200) NOT NULL DEFAULT '', pinned INT NOT NULL DEFAULT 0, sort INT NOT NULL DEFAULT 0, updated_by INT NULL, updated_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
     foreach ($tables as $sql) $pdo->exec($sql);
@@ -311,7 +312,7 @@ function nm_migrate(PDO $pdo): void
         foreach ($tpl as $i => $t) $st->execute([$t[0], $t[1], $t[2], date('Y-m-d H:i:s'), $i]);
     }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '5')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '6')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

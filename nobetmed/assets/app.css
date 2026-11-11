@@ -1137,3 +1137,33 @@ html.fs-lg body { zoom: 1.12; }
 .ls-head { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 640px) { .logo-slots { grid-template-columns: 1fr; } }
 [data-theme="dark"] .bp-box:not(.bp-dark) { background: var(--surface-2); }
+
+/* ---------------- Telefon rehberi ---------------- */
+.pb-search { max-width: none; margin-bottom: 6px; }
+.pb-search .input { height: 46px; font-size: 16px; border-radius: 12px; }
+.pb-search svg.i { left: 14px; }
+.pb-search .input { padding-left: 42px; }
+.pb-row { gap: 10px; padding: 10px 12px 10px 18px; }
+.pb-row .lr-s { white-space: normal; }
+.pb-nums { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 55%; }
+.pb-num { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font: 700 16px/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: .01em; text-decoration: none; white-space: nowrap; cursor: pointer; }
+a.pb-num { background: var(--c-emerald-bg); border-color: transparent; color: var(--c-emerald); }
+a.pb-num svg.i { width: 15px; height: 15px; }
+.pb-num:hover { filter: brightness(.97); }
+.pb-num:active { transform: translateY(1px); }
+.pb-fav { color: var(--text-3); }
+.pb-fav.on { color: #e3a008; }
+.pb-fav.on svg.i { fill: currentColor; }
+.pb-pinned { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.pb-pinned .lr-t { color: var(--danger); font-weight: 650; }
+.pb-tip { margin: 8px 0 0; border-radius: 12px; }
+.pb-tip .btn { margin-left: auto; }
+.pb-prev .t { font-size: 13px; }
+@media (max-width: 600px) {
+  .pb-row { padding: 10px 6px 10px 14px; gap: 6px; }
+  .pb-row .lr-t { white-space: normal; line-height: 1.25; }
+  .pb-nums { flex-direction: column; align-items: flex-end; max-width: 62%; flex-shrink: 0; }
+  .pb-num { font-size: 17px; min-height: 42px; padding: 6px 10px; }
+  .pb-row .btn.icon.sm { width: 32px; padding: 0; }
+}

@@ -2,7 +2,7 @@
    api.php ile aynı işlemleri ve yetki kurallarını taklit eder; veriler bu tarayıcıda saklanır. */
 (function () {
   'use strict';
-  const KEY = 'nm-demo-v7';
+  const KEY = 'nm-demo-v8';
   const fx = (f) => (window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]) || 'fixtures/' + f;
   const fsize = (f, def) => { const u = window.NM_DEMO_FILES && window.NM_DEMO_FILES[f]; return u ? Math.round((u.length - u.indexOf(',') - 1) * 0.75) : def; };
   const ROSTER_FILES = window.NM_DEMO_ROSTERS || [['Yoğun Bakım 3. Basamak', 'ornek-cizelge-kasim-3-basamak.xlsx'], ['Yoğun Bakım 2. Basamak', 'ornek-cizelge-kasim-2-basamak.xlsx']];
@@ -105,6 +105,15 @@
       ['Malzeme / cihaz bilgilendirmesi', 'Malzeme / cihaz: \nDurum: \nAlternatif: \nTahmini çözüm tarihi: ', false],
       ['Protokol güncellemesi', 'Güncellenen protokol: \nDeğişen maddeler:\n• \n\nEkteki güncel sürümü okuyup onaylayınız.', true],
     ].map(([title, body, required], i) => ({ id: i + 1, title, body, required, category_id: 1 }));
+    db.phonebook = [
+      ['Beyaz kod (şiddet)', '1111', '', 'Güvenlik ve idare aynı anda aranır', true], ['Mavi kod', '2222', '', '', true], ['Güvenlik amirliği', '2100', '', '', true],
+      ['Acil triaj', '2201', 'Acil servis', ''], ['Acil sorumlu hemşire', '2205 / 2206', 'Acil servis', ''],
+      ['Biyokimya', '2310', 'Laboratuvar', ''], ['Kan merkezi', '2315', 'Laboratuvar', 'Gece 16:00 sonrası 2316'], ['Mikrobiyoloji', '2320', 'Laboratuvar', ''],
+      ['Röntgen', '2401', 'Görüntüleme', ''], ['Tomografi', '2405', 'Görüntüleme', ''],
+      ['Eczane', '2501', 'Destek birimleri', ''], ['Sterilizasyon', '2520', 'Destek birimleri', ''], ['Biyomedikal', '2530', 'Destek birimleri', ''], ['Bilgi işlem', '2600', 'Destek birimleri', ''],
+      ['Hasta hakları', '0312 000 00 00', 'İdari', 'Dış hat'],
+    ].map(([name, number, category, note, pinned], i) => ({ id: 900 + i, name, number, category, note, pinned: !!pinned }));
+    db.settings.pb_santral = '';
     db.notifs = [];
     const N = (uid, kind, title, body, url, h) => db.notifs.push({ id: ++db.seq, user_id: uid, kind, title, body, url, at: ago(h), read: false });
     db.users.filter((u) => u.status === 'active').forEach((u) => {
@@ -522,6 +531,27 @@
     'backup.list'() { needAdmin(); return { items: db.backups, zip: true, weekly: db.settings.backup_weekly !== false, last: db.backups[0] ? db.backups[0].at : null }; },
     'backup.create'() { needAdmin(); db.backups.unshift({ name: 'nobetmed-yedek-' + now().replace(/[: ]/g, '-') + '.zip', size: 380000 + Math.round(Math.random() * 60000), at: now() }); db.backups = db.backups.slice(0, 4); audit('backup.create', 'Elle yedek'); return { items: db.backups }; },
     'backup.delete'(d) { needAdmin(); db.backups = db.backups.filter((b) => b.name !== d.name); return { items: db.backups }; },
+    /* ---- Telefon rehberi ---- */
+    'phonebook.list'() { needUser(); return { items: db.phonebook || [], santral: db.settings.pb_santral || '' }; },
+    'phonebook.save'(d) {
+      needPub(); db.phonebook = db.phonebook || [];
+      const name = String(d.name || '').trim(), number = String(d.number || '').trim().replace(/\s+/g, ' ');
+      if (name.length < 2) err('Ad en az 2 karakter olmalı.');
+      if (!/\d/.test(number) || !/^[0-9+()/\-., ]{1,40}$/.test(number)) err('Numara yalnızca rakam ve + ( ) - / işaretleri içerebilir.');
+      const row = { name, number, category: String(d.category || '').trim(), note: String(d.note || '').trim(), pinned: !!d.pinned };
+      if (d.id) { const it = db.phonebook.find((x) => x.id === d.id); if (!it) err('Kayıt bulunamadı.', 404); Object.assign(it, row); audit('phonebook.save', name, number); }
+      else { db.phonebook.push({ id: ++db.seq, ...row }); audit('phonebook.create', name, number); }
+      return this['phonebook.list']();
+    },
+    'phonebook.delete'(d) { needPub(); db.phonebook = (db.phonebook || []).filter((x) => x.id !== d.id); return this['phonebook.list'](); },
+    'phonebook.import'(d) {
+      needPub(); if (d.replace) db.phonebook = []; db.phonebook = db.phonebook || [];
+      const seen = new Set(db.phonebook.map((x) => x.name.toLocaleLowerCase('tr') + '|' + x.number)); let added = 0;
+      (d.items || []).forEach((it) => { const k = String(it.name).toLocaleLowerCase('tr') + '|' + it.number; if (String(it.name).trim().length < 2 || !/\d/.test(it.number) || seen.has(k)) return; seen.add(k); db.phonebook.push({ id: ++db.seq, name: it.name, number: it.number, category: it.category || '', note: it.note || '', pinned: false }); added++; });
+      audit('phonebook.import', 'Telefon rehberi', added + ' kayıt');
+      return { ...this['phonebook.list'](), added, skipped: (d.items || []).length - added };
+    },
+    'phonebook.santral'(d) { needPub(); const v = String(d.santral || '').trim(); if (v && !/^[0-9+()/\-., ]{1,40}$/.test(v)) err('Santral numarası geçersiz.'); db.settings.pb_santral = v; return this['phonebook.list'](); },
     /* ---- Şablonlar ---- */
     'templates.list'() { needUser(); return { items: db.templates }; },
     'templates.save'(d) { needPub(); if ((d.title || '').trim().length < 2 || !(d.body || '').trim()) err('Başlık ve metin gerekli.'); db.templates.push({ id: ++db.seq, title: d.title.trim().slice(0, 80), body: d.body, category_id: d.category_id || null, required: !!d.required }); audit('template.create', d.title); return { items: db.templates }; },

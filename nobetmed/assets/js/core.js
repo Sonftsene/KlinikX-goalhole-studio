@@ -64,7 +64,7 @@ async function api(action, data = {}) {
 /* ---------------- Çevrimdışı görüntüleme ----------------
    Okuma isteklerinin son yanıtı bu cihazda saklanır; internet yokken bunlar gösterilir.
    Dosyalar (PDF/Excel) service worker önbelleğinden gelir. Çıkışta tümü silinir. */
-const OFFLINE_READ = new Set(['boot', 'counts', 'posts.list', 'posts.get', 'rosters.list', 'shifts.my', 'shifts.day', 'people.list', 'notif.list']);
+const OFFLINE_READ = new Set(['boot', 'counts', 'posts.list', 'posts.get', 'rosters.list', 'shifts.my', 'shifts.day', 'people.list', 'notif.list', 'phonebook.list']);
 const OFFLINE = { on: false };
 function offlineGet(k) {
   try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; }
@@ -224,6 +224,7 @@ const ICON_PATHS = {
   fingerprint: 'M12 11v3a8 8 0 0 1-1 4 M8.5 7.5A5 5 0 0 1 17 11v1.5 M7 11a5 5 0 0 1 .3-1.7 M5 19.5c1-2 1.5-4 1.5-6.5V11 M17 16c-.2 1.7-.6 3.3-1.3 4.7 M2 12a10 10 0 0 1 18-6 M21.8 10a10 10 0 0 1 .2 2c0 1.4-.1 2.7-.3 4 M9 21.5c.9-1.8 1.5-4 1.5-6.5V11a1.5 1.5 0 0 1 3 0v1',
   wifiOff: 'M1 1l22 22 M16.72 11.06A10.94 10.94 0 0 1 19 12.55 M5 12.55a10.94 10.94 0 0 1 5.17-2.39 M10.71 5.05A16 16 0 0 1 22.58 9 M1.42 9a15.91 15.91 0 0 1 4.7-2.88 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01',
   qr: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h3v3h-3z M20 14v.01 M14 20h.01 M17 17h4v4h-4',
+  star: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
   history: 'M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2',
 };
 function icon(name, cls = '') {

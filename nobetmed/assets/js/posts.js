@@ -17,6 +17,7 @@ function renderShell() {
           <kbd>/</kbd>
         </form>
         <div class="grow"></div>
+        <a class="btn ghost icon mobile-only" href="#/telefon" aria-label="Telefon rehberi" title="Telefon rehberi">${icon('phone')}</a>
         <button class="btn ghost icon mobile-only" data-act="search-open" aria-label="Ara">${icon('search')}</button>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
         ${notifButtonHtml()}
@@ -60,6 +61,7 @@ function renderNav() {
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
+    ${navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon')}
     <div class="nav-sec">Nöbet</div>
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
@@ -180,6 +182,7 @@ function route() {
     case 'profil': renderProfile(view); break;
     case 'nobetim': renderMyShifts(view); break;
     case 'rehber': renderDirectory(view); break;
+    case 'telefon': renderPhonebook(view); break;
     case 'p':
       history.replaceState(null, '', '#/');
       renderHome(view);

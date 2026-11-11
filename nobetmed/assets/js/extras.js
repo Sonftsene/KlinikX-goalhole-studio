@@ -147,6 +147,7 @@ function heroHtml() {
       <button class="hchip ${c.unread ? 'brand' : ''}" data-act="feed-filter" data-filter="unread">${icon('bell', 'sm')}<span>Yeni <b data-count="unread">${c.unread}</b></span></button>
       ${isPublisher() && pend ? html`<a class="hchip danger" href="${c.pending_posts ? '#/yonetim/onaylar' : '#/yonetim/kullanicilar'}">${icon('inbox', 'sm')}<span>Onay bekleyen <b>${pend}</b></span></a>` : ''}
       <a class="hchip" href="#/rehber">${icon('users', 'sm')}<span>Kim nöbette</span></a>
+      <a class="hchip" href="#/telefon">${icon('phone', 'sm')}<span>Telefon rehberi</span></a>
     </div>
   </section>`;
 }
@@ -986,7 +987,7 @@ const AUDIT_LABEL = {
   'roster.create': 'Liste oluşturdu', 'roster.delete': 'Liste sildi', 'roster.parse': 'Listeden nöbetler okundu', 'roster.period': 'Liste ayını değiştirdi', 'user.create': 'Kullanıcı ekledi', 'user.edit': 'Kullanıcı düzenledi',
   'user.approve': 'Üyelik onayladı', 'user.delete': 'Kullanıcı sildi', 'user.resetpw': 'Geçici şifre oluşturdu', 'settings.save': 'Ayarları değiştirdi', 'structure.save': 'Bölüm/birim kaydetti', 'structure.delete': 'Bölüm/birim sildi',
   'backup.create': 'Yedek aldı', 'backup.download': 'Yedek indirdi', 'backup.delete': 'Yedek sildi', 'invite.general': 'QR davet oluşturdu', 'invite.personal': 'Davet oluşturdu', 'invite.use': 'Davetle katıldı', 'invite.revoke': 'Davet iptal etti',
-  'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
+  'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'phonebook.create': 'Rehbere numara ekledi', 'phonebook.save': 'Rehberde numara düzenledi', 'phonebook.delete': 'Rehberden numara sildi', 'phonebook.import': 'Rehbere liste ekledi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
 };
 async function drawAudit(body, more, keepInput) {
   if (!more) {
@@ -1419,4 +1420,214 @@ CHANGE['brand-h'] = (el) => {
   applyBrand();
   const v = $('#logoHval'); if (v) v.textContent = h + ' px';
   saveLogoH(h);
+};
+
+/* =================================================================== */
+/* Telefon rehberi: hastane dahilileri + ekip, tek aramada               */
+/* =================================================================== */
+const PB = { items: null, santral: '', q: '', people: null };
+const pbFavKey = () => 'nm-pbfav-' + (S.me ? S.me.id : 0);
+function pbFavs() { try { const a = JSON.parse(localStorage.getItem(pbFavKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function pbSaveFavs(a) { try { localStorage.setItem(pbFavKey(), JSON.stringify(a)); } catch (e) { /* */ } }
+/** "2345 / 2346" -> ['2345', '2346'] */
+function pbSplit(num) { return String(num || '').split(/\s*[/,]\s*/).map((x) => x.trim()).filter((x) => /\d/.test(x)); }
+const pbDigits = (n) => String(n || '').replace(/[^\d+]/g, '');
+function pbIsExt(n) { const d = String(n).replace(/\D/g, ''); return d.length >= 2 && d.length <= 5; }
+/** Dahili, santral numarası varsa cep telefonundan "santral, bekle, dahili" olarak aranır */
+function pbHref(n) {
+  if (!pbIsExt(n)) return 'tel:' + pbDigits(n);
+  return PB.santral ? 'tel:' + pbDigits(PB.santral) + ',' + pbDigits(n) : '';
+}
+function pbNumHtml(n) {
+  const h = pbHref(n);
+  return h ? html`<a class="pb-num" href="${h}" title="Ara">${icon('phone', 'sm')}<span>${n}</span></a>`
+    : html`<button class="pb-num" data-act="pb-copy" data-n="${n}" title="Kopyala">${n}</button>`;
+}
+function pbRowHtml(it, favs, showCat = true) {
+  const fav = favs.includes(it.id);
+  const sub = [showCat ? it.category : '', it.note].filter(Boolean).join(' · ');
+  return html`<div class="list-row pb-row ${it.pinned ? 'pinned' : ''}" data-id="${it.id}">
+    <div class="grow" style="min-width:0"><div class="lr-t">${it.name}</div>${sub ? html`<div class="lr-s">${sub}</div>` : ''}</div>
+    <div class="pb-nums">${pbSplit(it.number).map(pbNumHtml)}</div>
+    <button class="btn ghost icon sm pb-fav ${fav ? 'on' : ''}" data-act="pb-fav" data-id="${it.id}" aria-label="${fav ? 'Sık arananlardan çıkar' : 'Sık arananlara ekle'}" aria-pressed="${fav ? 'true' : 'false'}">${icon('star', 'sm')}</button>
+    ${isPublisher() ? html`<button class="btn ghost icon sm" data-act="pb-edit" data-id="${it.id}" aria-label="Düzenle">${icon('edit', 'sm')}</button>` : ''}
+  </div>`;
+}
+function pbPersonHtml(p) {
+  const nums = [p.extension, p.phone].filter(Boolean);
+  return html`<div class="list-row pb-row">${avatar(p.name, 'sm', p.avatar || null)}
+    <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div><div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ') || 'Ekip'}</div></div>
+    <div class="pb-nums">${nums.map(pbNumHtml)}</div></div>`;
+}
+async function renderPhonebook(view) {
+  setHTML(view, html`<div class="page-head"><div><h1>Telefon rehberi</h1><p>Dahili numaralar ve ekip. Arayanın numarasını yazarak kim olduğunu da bulursunuz.</p></div>
+      ${isPublisher() ? html`<div class="row wrap" style="gap:6px"><button class="btn primary" data-act="pb-add">${icon('plus', 'sm')}<span>Numara ekle</span></button><button class="btn" data-act="pb-import">${icon('upload', 'sm')}<span>Listeyi yapıştır</span></button><button class="btn" data-act="pb-santral">${icon('building', 'sm')}<span>Santral</span></button></div>` : ''}</div>
+    <div class="search pb-search">${icon('search')}<input class="input" id="pbQ" type="search" enterkeyhint="search" placeholder="Birim, kişi veya numara ara" data-input="pb-q" value="${PB.q}" autocomplete="off" aria-label="Rehberde ara"></div>
+    <div id="pbList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
+  if (window.innerWidth > 900) { const q = $('#pbQ'); if (q) q.focus({ preventScroll: true }); }
+  const [pb, pp] = await Promise.allSettled([api('phonebook.list'), api('people.list')]);
+  if (pb.status === 'fulfilled') { PB.items = pb.value.items; PB.santral = pb.value.santral || ''; } else if (!PB.items) {
+    setHTML($('#pbList') || document.createElement('div'), html`<div class="card empty"><p class="small">${pb.reason.message}</p></div>`); return;
+  }
+  if (pp.status === 'fulfilled') { PB.people = pp.value.people; syncPeopleAvatars(PB.people); }
+  drawPhonebook();
+}
+function drawPhonebook() {
+  const box = $('#pbList');
+  if (!box || !PB.items) return;
+  const favs = pbFavs();
+  const q = avKey(PB.q);
+  const qd = PB.q.replace(/\D/g, '');
+  const hit = (txt, nums) => (!q || avKey(txt).includes(q)) || (qd.length >= 2 && /^[\d\s+()/-]+$/.test(PB.q.trim()) && nums.some((n) => n.replace(/\D/g, '').includes(qd)));
+  const items = PB.items.filter((it) => hit([it.name, it.category, it.note, it.number].join(' '), pbSplit(it.number)));
+  const people = (PB.people || []).filter((p) => (p.extension || p.phone) && hit([p.name, titleName(p.title_id), unitName(p.unit_id)].join(' '), [p.extension || '', p.phone || '']));
+  const card = (title, ic, rows, cls = '') => html`<div class="sec-title">${icon(ic, 'sm')} ${title}</div><div class="card ${cls}"><div class="list">${rows}</div></div>`;
+  if (!PB.items.length && !q) {
+    setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('phone')}</div><h3>Rehber henüz boş</h3>
+      <p class="small">${isPublisher() ? html`Hastanenin dahili listesini Excel'den kopyalayıp <b>Listeyi yapıştır</b> ile tek seferde ekleyebilirsiniz.` : 'Yöneticiniz dahili numaraları eklediğinde burada görünür.'}</p>
+      ${isPublisher() ? html`<div class="row" style="justify-content:center;gap:8px;margin-top:12px"><button class="btn primary" data-act="pb-import">${icon('upload', 'sm')}Listeyi yapıştır</button><button class="btn" data-act="pb-add">${icon('plus', 'sm')}Tek tek ekle</button></div>` : ''}</div>
+      ${people.length ? card('Ekip', 'users', people.map(pbPersonHtml)) : ''}`);
+    return;
+  }
+  if (q) {
+    setHTML(box, items.length || people.length ? html`${items.length ? card(`${items.length} numara`, 'phone', items.map((it) => pbRowHtml(it, favs))) : ''}${people.length ? card('Ekip', 'users', people.map(pbPersonHtml)) : ''}`
+      : html`<div class="card empty"><p class="small">“${PB.q}” için sonuç yok.</p></div>`);
+    return;
+  }
+  const favItems = favs.map((id) => PB.items.find((x) => x.id === id)).filter(Boolean);
+  const groups = new Map();
+  PB.items.filter((it) => !it.pinned).forEach((it) => { const k = it.category || 'Diğer'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
+  const pinned = PB.items.filter((it) => it.pinned);
+  setHTML(box, html`
+    ${!PB.santral && isPublisher() && PB.items.some((it) => pbSplit(it.number).some(pbIsExt)) ? html`<div class="banner info pb-tip">${icon('info')}<span>Santral numarasını girerseniz ekip cep telefonundan dahilileri tek dokunuşla arayabilir.</span><button class="btn sm" data-act="pb-santral">Santral gir</button></div>` : ''}
+    ${favItems.length ? card('Sık aradıklarım', 'star', favItems.map((it) => pbRowHtml(it, favs))) : ''}
+    ${pinned.length ? card('Acil ve önemli', 'alert', pinned.map((it) => pbRowHtml(it, favs)), 'pb-pinned') : ''}
+    ${[...groups].map(([k, list]) => card(k, 'phone', list.map((it) => pbRowHtml(it, favs, false))))}
+    ${people.length ? card('Ekip', 'users', people.map(pbPersonHtml)) : ''}`);
+}
+CHANGE['pb-q'] = debounce((el) => { PB.q = el.value; drawPhonebook(); }, 120);
+ACT['pb-fav'] = (el) => {
+  const id = +el.dataset.id;
+  const f = pbFavs();
+  const i = f.indexOf(id);
+  if (i >= 0) f.splice(i, 1); else f.unshift(id);
+  pbSaveFavs(f.slice(0, 30));
+  toast(i >= 0 ? 'Sık arananlardan çıkarıldı' : 'Sık arananlara eklendi');
+  drawPhonebook();
+};
+ACT['pb-copy'] = async (el) => {
+  const n = el.dataset.n;
+  try { await navigator.clipboard.writeText(n); toast(`${n} kopyalandı`); } catch (e) { toast(`Dahili: ${n}`); }
+};
+function pbForm(it) {
+  const cats = [...new Set((PB.items || []).map((x) => x.category).filter(Boolean))];
+  return html`<form class="stack" data-form="pb-save">
+    <input type="hidden" name="id" value="${it ? it.id : ''}">
+    <div class="field"><label>Ad</label><input class="input" name="name" required minlength="2" maxlength="120" value="${it ? it.name : ''}" placeholder="Örn. Radyoloji, Kan merkezi, Dr. Ayşe Yılmaz"></div>
+    <div class="grid2">
+      <div class="field"><label>Numara</label><input class="input" name="number" required maxlength="40" inputmode="tel" value="${it ? it.number : ''}" placeholder="2345 veya 2345 / 2346"></div>
+      <div class="field"><label>Grup</label><input class="input" name="category" maxlength="60" list="pbCats" value="${it ? it.category : ''}" placeholder="Örn. Laboratuvar"><datalist id="pbCats">${cats.map((c) => html`<option value="${c}">`)}</datalist></div>
+    </div>
+    <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" name="note" maxlength="200" value="${it ? it.note : ''}" placeholder="Örn. 2. kat, gece 16:00 sonrası"></div>
+    <label class="switch"><input type="checkbox" name="pinned" ${it && it.pinned ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Acil ve önemli</b><span>Rehberin en üstünde ayrı gösterilir (ör. Beyaz kod, Güvenlik).</span></span></label>
+    <div class="form-error hidden" data-err></div>
+    <div class="row" style="gap:8px;justify-content:space-between">${it ? html`<button class="btn danger" type="button" data-act="pb-del" data-id="${it.id}">${icon('trash', 'sm')}Sil</button>` : html`<span></span>`}
+      <button class="btn primary" type="submit">Kaydet</button></div>
+  </form>`;
+}
+ACT['pb-add'] = () => { openModal({ title: 'Numara ekle', body: pbForm(null) }); };
+ACT['pb-edit'] = (el) => { const it = (PB.items || []).find((x) => x.id === +el.dataset.id); if (it) openModal({ title: 'Numarayı düzenle', body: pbForm(it) }); };
+FORMS['pb-save'] = async (f) => {
+  const d = formData(f);
+  try {
+    const r = await api('phonebook.save', { ...d, id: d.id ? +d.id : null });
+    PB.items = r.items; PB.santral = r.santral || '';
+    const m = modalStack[modalStack.length - 1]; if (m) m.close();
+    toast('Kaydedildi'); drawPhonebook();
+  } catch (e) { showFormError(f, e.message); }
+};
+ACT['pb-del'] = async (el) => {
+  const it = (PB.items || []).find((x) => x.id === +el.dataset.id);
+  if (!it || !(await confirmDialog({ title: 'Numara silinsin mi?', text: `${it.name} (${it.number}) rehberden silinir.`, ok: 'Sil', danger: true }))) return;
+  try {
+    const r = await api('phonebook.delete', { id: it.id });
+    PB.items = r.items;
+    while (modalStack.length) modalStack[modalStack.length - 1].close();
+    toast('Silindi'); drawPhonebook();
+  } catch (e) { toast(e.message, 'err'); }
+};
+ACT['pb-santral'] = async () => {
+  const v = await promptDialog({ title: 'Santral numarası', label: 'Hastanenin santral numarası', placeholder: '0312 123 45 67', value: PB.santral });
+  if (v === null || v === undefined) return;
+  try { const r = await api('phonebook.santral', { santral: v }); PB.santral = r.santral || ''; toast(PB.santral ? 'Santral kaydedildi. Dahililer artık cepten aranabilir.' : 'Santral numarası kaldırıldı'); drawPhonebook(); } catch (e) { toast(e.message, 'err'); }
+};
+
+/** Yapıştırılan metni satırlara ayırır. Excel'den kopyalanan sütunlar (sekme/;) veya "Radyoloji 2345" biçimi.
+ *  Numarasız kısa satırlar (ör. "LABORATUVAR") bir sonraki satırların grubu olur. */
+function pbParsePaste(text, defCat) {
+  const out = [];
+  let cat = defCat || '';
+  const numLike = (c) => /\d/.test(c) && /^[\d\s+()/.,-]+$/.test(c) && c.replace(/\D/g, '').length >= 2;
+  for (let line of String(text || '').split(/\r?\n/)) {
+    line = line.replace(/ /g, ' ').trim();
+    if (!line) continue;
+    const cells = line.split(/\t|;|\s{3,}/).map((c) => c.trim()).filter(Boolean);
+    let name = '', num = '', note = '';
+    if (cells.length > 1) {
+      const nums = cells.filter(numLike);
+      const words = cells.filter((c) => !numLike(c));
+      if (!nums.length) { if (!defCat && words.length === 1 && words[0].length <= 60) cat = words[0]; continue; }
+      num = nums.join(' / ');
+      name = words[0] || '';
+      note = words.slice(1).join(' · ');
+    } else {
+      const m = /^(.*?\D)[\s:.=–-]*((?:\+?[\d(][\d\s()-]*\d)(?:\s*[/,]\s*[\d\s()-]*\d)*)$/.exec(line) || null;
+      const m2 = !m && /^((?:\+?[\d(][\d\s()-]*\d)(?:\s*[/,]\s*[\d\s()-]*\d)*)[\s:.=–-]+(\D.*)$/.exec(line);
+      if (m && m[2].replace(/\D/g, '').length >= 2) { name = m[1]; num = m[2]; }
+      else if (m2 && m2[1].replace(/\D/g, '').length >= 2) { num = m2[1]; name = m2[2]; }
+      else { if (!defCat && !/\d/.test(line) && line.length <= 60) cat = line.replace(/:$/, ''); continue; }
+    }
+    name = name.replace(/[\s:.=–-]+$/, '').trim();
+    if (name.length < 2) continue;
+    out.push({ name: name.slice(0, 120), number: num.trim().replace(/\s+/g, ' ').slice(0, 40), category: cat.slice(0, 60), note: note.slice(0, 200) });
+  }
+  return out;
+}
+ACT['pb-import'] = () => {
+  const m = openModal({
+    title: 'Listeyi yapıştır', size: 'wide',
+    body: html`<div class="stack">
+      <p class="small muted">Excel'deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
+      <textarea class="textarea" id="pbPaste" style="min-height:180px" placeholder="ACİL SERVİS&#10;Acil triaj	2201&#10;Acil sorumlu hemşire	2205 / 2206&#10;LABORATUVAR&#10;Biyokimya 2310&#10;Kan merkezi: 2315"></textarea>
+      <div class="grid2"><div class="field"><label>Grup <span class="faint">(boşsa başlık satırlarından alınır)</span></label><input class="input" id="pbCat" maxlength="60" placeholder="Örn. Birimler"></div>
+        <label class="switch" style="align-self:end"><input type="checkbox" id="pbReplace"><span class="track"></span><span class="s-text"><b>Mevcut rehberi değiştir</b><span>Açıksa eski numaralar silinir.</span></span></label></div>
+      <div id="pbPrev" class="small muted">Önizleme burada görünür.</div></div>`,
+    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="pbImpBtn" data-act="pb-import-go" disabled>Ekle</button>`,
+  });
+  m.guard = () => !!$('#pbPaste', m.el).value.trim();
+  const prev = () => {
+    const rows = pbParsePaste($('#pbPaste', m.el).value, $('#pbCat', m.el).value.trim());
+    m.rows = rows;
+    $('#pbImpBtn', m.el).disabled = !rows.length;
+    $('#pbImpBtn', m.el).textContent = rows.length ? `${rows.length} numarayı ekle` : 'Ekle';
+    setHTML($('#pbPrev', m.el), rows.length ? html`<div class="pb-prev"><table class="t"><thead><tr><th>Ad</th><th>Numara</th><th>Grup</th></tr></thead><tbody>${rows.slice(0, 8).map((r) => html`<tr><td>${r.name}</td><td>${r.number}</td><td class="faint">${r.category || '—'}</td></tr>`)}</tbody></table>${rows.length > 8 ? html`<div class="tiny faint" style="margin-top:6px">… ve ${rows.length - 8} satır daha</div>` : ''}</div>`
+      : 'Önizleme burada görünür.');
+  };
+  $('#pbPaste', m.el).addEventListener('input', debounce(prev, 150));
+  $('#pbCat', m.el).addEventListener('input', debounce(prev, 150));
+  PB.importModal = m;
+};
+ACT['pb-import-go'] = async (el) => {
+  const m = PB.importModal;
+  if (!m || !m.rows || !m.rows.length) return;
+  const replace = $('#pbReplace', m.el).checked;
+  if (replace && (PB.items || []).length && !(await confirmDialog({ title: 'Rehber yenilensin mi?', text: `Mevcut ${PB.items.length} numara silinip yapıştırdığınız ${m.rows.length} numara eklenecek.`, ok: 'Yenile', danger: true }))) return;
+  el.disabled = true;
+  try {
+    const r = await api('phonebook.import', { items: m.rows, replace });
+    PB.items = r.items; PB.santral = r.santral || '';
+    m.guard = null; m.close();
+    toast(`${r.added} numara eklendi${r.skipped ? `, ${r.skipped} tekrar atlandı` : ''}`);
+    drawPhonebook();
+  } catch (e) { el.disabled = false; toast(e.message, 'err'); }
 };
