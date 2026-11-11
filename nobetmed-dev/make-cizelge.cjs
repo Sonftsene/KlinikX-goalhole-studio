@@ -147,6 +147,7 @@ async function build(sheetSpec) {
       set(T1, `COUNTIF(${rng},"8 16")*8+COUNTIF(${rng},"8 8")*24+COUNTIF(${rng},"16 8")*16+COUNTIF(${rng},"8 20")*12`, work);
       set(T2, `8*SUMPRODUCT(((${rng}="Yİ")+(${rng}="Rp"))*(${hdr}<>"Cmt.")*(${hdr}<>"Paz."))`, leave || null);
       if (!leave) ws.getCell(r, T2).value = { formula: ws.getCell(r, T2).value.formula, result: '' };
+      ws.getCell(r, T2).numFmt = "0;-0;;@"; // 0 izin boş görünsün
       set(T3, `$${col(L - 2)}$8-${col(T2)}${r}`, mesai - leave);
       set(T4, `${col(T1)}${r}-${col(T3)}${r}`, work - (mesai - leave), { bold: true });
     }
