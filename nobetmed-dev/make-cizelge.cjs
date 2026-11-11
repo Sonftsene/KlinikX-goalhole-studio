@@ -1,14 +1,14 @@
 // "Aylık Nöbet Ücret Çizelgesi" biçiminde Excel üretir.
 // Kullanım: node make-cizelge.cjs <veri.json> <çıktı klasörü>   (exceljs gerekir: npm i exceljs)
-// Vardiya kodları: A = "8 8" (24 saat), G = "8 16" (gündüz 8 saat), N = "16 8" (gece 16 saat), Y = "Yİ" (yıllık izin), R = "Rp" (raporlu)
+// Vardiya kodları: A = "8 8" (24 saat), G = "8 16" (gündüz 8 saat), N = "16 8" (gece 16 saat), U = "8 20" (uzun gündüz 12 saat), Y = "Yİ" (yıllık izin), R = "Rp" (raporlu)
 const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 
 const spec = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const outDir = process.argv[3];
-const CODE = { A: '8 8', G: '8 16', N: '16 8', Y: 'Yİ', R: 'Rp' };
-const HOURS = { '8 8': 24, '8 16': 8, '16 8': 16 };
+const CODE = { A: '8 8', G: '8 16', N: '16 8', U: '8 20', Y: 'Yİ', R: 'Rp' };
+const HOURS = { '8 8': 24, '8 16': 8, '16 8': 16, '8 20': 12 };
 const LEAVE = ['Yİ', 'Rp'];
 const GUN = ['Paz.', 'Pzt.', 'Sal.', 'Çar.', 'Per.', 'Cum.', 'Cmt.'];
 const AYLAR = ['OCAK', 'ŞUBAT', 'MART', 'NİSAN', 'MAYIS', 'HAZİRAN', 'TEMMUZ', 'AĞUSTOS', 'EYLÜL', 'EKİM', 'KASIM', 'ARALIK'];
@@ -90,7 +90,7 @@ async function build(sheetSpec) {
   ws.getRow(7).height = 22;
   ws.getCell(8, 3).value = 'BİRİM:'; ws.getCell(8, 3).font = font({ bold: true, size: 9 });
   ws.mergeCells(8, D, 8, D + 7);
-  const birim = ws.getCell(8, D); birim.value = spec.unit; birim.font = font({ bold: true, size: 10 }); birim.alignment = { horizontal: 'center', vertical: 'middle' };
+  const birim = ws.getCell(8, D); birim.value = sheetSpec.unit || spec.unit; birim.font = font({ bold: true, size: 10 }); birim.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.mergeCells(8, L - 7, 8, L - 3);
   const mes = ws.getCell(8, L - 7); mes.value = 'AYLIK MESAİ SAATİ'; mes.font = font({ bold: true, size: 8 }); mes.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.mergeCells(8, L - 2, 8, L - 1);
@@ -144,7 +144,7 @@ async function build(sheetSpec) {
       const rng = `${col(D)}${r}:${col(L)}${r}`;
       const hdr = `${col(D)}$10:${col(L)}$10`;
       const set = (c, formula, result, extra = {}) => { const x = ws.getCell(r, c); x.value = { formula, result }; x.alignment = { horizontal: 'right' }; x.font = font({ size: 11, ...extra }); };
-      set(T1, `COUNTIF(${rng},"8 16")*8+COUNTIF(${rng},"8 8")*24+COUNTIF(${rng},"16 8")*16`, work);
+      set(T1, `COUNTIF(${rng},"8 16")*8+COUNTIF(${rng},"8 8")*24+COUNTIF(${rng},"16 8")*16+COUNTIF(${rng},"8 20")*12`, work);
       set(T2, `8*SUMPRODUCT(((${rng}="Yİ")+(${rng}="Rp"))*(${hdr}<>"Cmt.")*(${hdr}<>"Paz."))`, leave || null);
       if (!leave) ws.getCell(r, T2).value = { formula: ws.getCell(r, T2).value.formula, result: '' };
       set(T3, `$${col(L - 2)}$8-${col(T2)}${r}`, mesai - leave);
@@ -165,7 +165,7 @@ async function build(sheetSpec) {
     for (let i = 0; i < sheetSpec.people.length; i++) { const v = parseCodes(sheetSpec.people[i].codes)[d]; if (v && HOURS[v]) sum += HOURS[v]; }
     const rng = `${col(c)}${first}:${col(c)}${lastRow}`;
     const x = ws.getCell(98, c);
-    x.value = { formula: `COUNTIF(${rng},"8 16")*8+COUNTIF(${rng},"8 8")*24+COUNTIF(${rng},"16 8")*16`, result: sum };
+    x.value = { formula: `COUNTIF(${rng},"8 16")*8+COUNTIF(${rng},"8 8")*24+COUNTIF(${rng},"16 8")*16+COUNTIF(${rng},"8 20")*12`, result: sum };
     x.font = font({ size: 8 }); x.alignment = { horizontal: 'left' };
   }
   [T1, T2, T3, T4].forEach((c, k) => {
@@ -188,8 +188,8 @@ async function build(sheetSpec) {
   // Vardiya kodlarına göre renk (koşullu biçimlendirme) ve açılır liste
   const area = `${col(D)}${first}:${col(L)}${lastRow}`;
   const cf = (text, argb, priority) => ({ type: 'cellIs', operator: 'equal', formulae: [`"${text}"`], priority, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } } });
-  ws.addConditionalFormatting({ ref: area, rules: [cf('8 8', 'FFCBE8C4', 1), cf('8 16', 'FFFBE7B5', 2), cf('16 8', 'FFF5C2CF', 3)] });
-  ws.dataValidations.add(area, { type: 'list', allowBlank: true, formulae: ['"8 8,8 16,16 8,Yİ,Rp,Nİ,RF,S,GGr,AYR"'] });
+  ws.addConditionalFormatting({ ref: area, rules: [cf('8 8', 'FFCBE8C4', 1), cf('8 16', 'FFFBE7B5', 2), cf('16 8', 'FFF5C2CF', 3), cf('8 20', 'FFD6E4F5', 4)] });
+  ws.dataValidations.add(area, { type: 'list', allowBlank: true, formulae: ['"8 8,8 16,16 8,8 20,Yİ,Rp,Nİ,RF,S,GGr,AYR"'] });
   ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
 
   const file = path.join(outDir, sheetSpec.file);

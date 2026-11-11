@@ -28,6 +28,8 @@
     eq([k816.label, k816.start, k816.end, k816.hours], ['Gündüz', '08:00', '16:00', 8], 'classifyCode 8 16 kaydı');
     const k168 = classifyCode('16 8');
     eq([k168.label, k168.hours], ['Gece', 16], 'classifyCode 16 8 kaydı');
+    ['8 20', '820', '08:00-20:00'].forEach((t) => eq([cc(t), classifyCode(t).hours], ['8 20', 12], `classifyCode('${t}') 12 saat`));
+    eq([classifyCode('20 8').hours, !!classifyCode('20 8').nextDay], [12, true], 'classifyCode 20 8 gece');
     eq([classifyCode('Yİ').kind, classifyCode('Yİ').hours, classifyCode('Yİ').label], ['leave', 0, 'Yıllık izin'], 'Yİ izin');
     eq(classifyCode('S').kind, 'off', 'S off');
     eq(classifyCode('Rp').label, 'Raporlu', 'Rp etiketi');

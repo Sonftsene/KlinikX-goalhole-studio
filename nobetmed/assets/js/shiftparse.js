@@ -15,6 +15,8 @@ const SHIFT_CODES_DEFAULT = [
   { code: '8 8', label: '24 saat', start: '08:00', end: '08:00', hours: 24, kind: 'shift', nextDay: true },
   { code: '8 16', label: 'Gündüz', start: '08:00', end: '16:00', hours: 8, kind: 'shift' },
   { code: '16 8', label: 'Gece', start: '16:00', end: '08:00', hours: 16, kind: 'shift', nextDay: true },
+  { code: '8 20', label: 'Uzun gündüz (12 saat)', start: '08:00', end: '20:00', hours: 12, kind: 'shift' },
+  { code: '20 8', label: 'Uzun gece (12 saat)', start: '20:00', end: '08:00', hours: 12, kind: 'shift', nextDay: true },
   { code: '24', label: '24 saat', start: '08:00', end: '08:00', hours: 24, kind: 'shift', nextDay: true, aliases: ['24 saat', '24s'] },
   { code: 'G', label: 'Gündüz', start: '08:00', end: '16:00', hours: 8, kind: 'shift', aliases: ['Gündüz'] },
   { code: 'N', label: 'Gece', start: '16:00', end: '08:00', hours: 16, kind: 'shift', nextDay: true, aliases: ['Gece'] },
