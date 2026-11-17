@@ -435,10 +435,18 @@ await expectText(a, 'Kaydedildi');
 if (!(await a.locator('.pb-pinned .pb-row', { hasText: 'Beyaz kod' }).count())) fail('acil numara üstte değil');
 if (await a.locator('#pbList a.pb-num[href*="2310"]').count()) fail('santral yokken dahili tel: bağlantısı olmamalı');
 await a.click('.pb-tip [data-act=pb-santral]');
-await a.fill('.modal [name=v]', '0312 555 00 00');
+await a.fill('.modal [name=santral]', '0312 555 00 00');
 await a.click('.modal [data-ok]');
 await expectText(a, 'Santral kaydedildi');
 if ((await a.locator('#pbList a.pb-num[href="tel:03125550000,2310"]').count()) !== 1) fail('santral + dahili bağlantısı');
+await a.click('.page-head [data-act=pb-santral]');
+await a.locator('.modal [name=dial][value=ask]').check();
+await a.click('.modal [data-ok]');
+await a.locator('#pbList a.pb-num[href="tel:03125550000;2310"]').waitFor();
+await a.click('.page-head [data-act=pb-santral]');
+await a.locator('.modal [name=dial][value=auto]').check();
+await a.click('.modal [data-ok]');
+await a.locator('#pbList a.pb-num[href="tel:03125550000,2310"]').waitFor();
 const bad = await apiCall(a, 'phonebook.save', { name: 'Kötü', number: 'abc<script>' }).then(() => 'kabul', (e) => e.message);
 if (!/yalnızca rakam/.test(bad)) fail('geçersiz numara: ' + bad);
 // Telefon: üst çubuktan aç, ara, ters ara, sık arananlara ekle; düzenleme yetkisi yok
@@ -476,7 +484,7 @@ if ((await a.locator('#pbImpBtn').innerText()).trim() !== '2 numarayı ekle' || 
 await a.click('.modal [data-act=close-modal]');
 await a.locator('.modal [data-ok]').click();
 await a.locator('.modal').first().waitFor({ state: 'detached' });
-step('telefon rehberi: yapıştırarak 5 numara, Excel/CSV dosyasından (başlıklı sütunlar dahil), acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
+step('telefon rehberi: yapıştırarak 5 numara, Excel/CSV dosyasından (başlıklı sütunlar dahil), acil numara, santral ile dahili arama (tuşlama şekli), arama/ters arama/ekip, sık arananlar, yetki');
 
 // 23) Google E-Tablolar: kod gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi, ikinci (görüntüleme) tablosu
 await a.goto(BASE + '#/yonetim/ayarlar/nobet');

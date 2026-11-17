@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.8.3';
+const NM_VERSION = '3.8.4';
 const NM_ROOT = __DIR__ . '/..';
 
 // data/ (veritabanı) ve uploads/ (dosyalar) pakette yoktur; güncellemede üzerine yazılmasın diye ilk açılışta burada oluşur

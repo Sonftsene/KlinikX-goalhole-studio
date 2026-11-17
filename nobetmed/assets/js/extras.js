@@ -1435,7 +1435,7 @@ CHANGE['brand-h'] = (el) => {
 /* =================================================================== */
 /* Telefon rehberi: hastane dahilileri + ekip, tek aramada               */
 /* =================================================================== */
-const PB = { items: null, santral: '', q: '', people: null };
+const PB = { items: null, santral: '', dial: 'auto', q: '', people: null };
 const pbFavKey = () => 'nm-pbfav-' + (S.me ? S.me.id : 0);
 function pbFavs() { try { const a = JSON.parse(localStorage.getItem(pbFavKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function pbSaveFavs(a) { try { localStorage.setItem(pbFavKey(), JSON.stringify(a)); } catch (e) { /* */ } }
@@ -1444,12 +1444,17 @@ function pbSplit(num) { return String(num || '').split(/\s*[/,]\s*/).map((x) => 
 const pbDigits = (n) => String(n || '').replace(/[^\d+]/g, '');
 function pbIsExt(n) { const d = String(n).replace(/\D/g, ''); return d.length >= 2 && d.length <= 5; }
 /** Dahili, santral numarası varsa cep telefonundan "santral, bekle, dahili" olarak aranır */
+/** Santral sonrası dahiliyi tuşlama: auto = 2 sn bekle (virgül), long = ~6 sn, ask = telefon "Gönder?" diye sorar (;), manual = yalnız santral aranır */
+const PB_DIAL = { auto: ',', long: ',,,', ask: ';', manual: '' };
 function pbHref(n) {
   if (!pbIsExt(n)) return 'tel:' + pbDigits(n);
-  return PB.santral ? 'tel:' + pbDigits(PB.santral) + ',' + pbDigits(n) : '';
+  if (!PB.santral) return '';
+  return PB.dial === 'manual' ? 'tel:' + pbDigits(PB.santral) : 'tel:' + pbDigits(PB.santral) + (PB_DIAL[PB.dial] ?? ',') + pbDigits(n);
 }
+function pbSet(r) { PB.santral = r.santral || ''; PB.dial = r.dial || 'auto'; }
 function pbNumHtml(n) {
   const h = pbHref(n);
+  if (h && PB.dial === 'manual' && pbIsExt(n)) return html`<a class="pb-num" href="${h}" data-act="pb-manual" data-n="${n}" title="Santrali ara">${icon('phone', 'sm')}<span>${n}</span></a>`;
   return h ? html`<a class="pb-num" href="${h}" title="Ara">${icon('phone', 'sm')}<span>${n}</span></a>`
     : html`<button class="pb-num" data-act="pb-copy" data-n="${n}" title="Kopyala">${n}</button>`;
 }
@@ -1476,7 +1481,7 @@ async function renderPhonebook(view) {
     <div id="pbList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   if (window.innerWidth > 900) { const q = $('#pbQ'); if (q) q.focus({ preventScroll: true }); }
   const [pb, pp] = await Promise.allSettled([api('phonebook.list'), api('people.list')]);
-  if (pb.status === 'fulfilled') { PB.items = pb.value.items; PB.santral = pb.value.santral || ''; } else if (!PB.items) {
+  if (pb.status === 'fulfilled') { PB.items = pb.value.items; pbSet(pb.value); } else if (!PB.items) {
     setHTML($('#pbList') || document.createElement('div'), html`<div class="card empty"><p class="small">${pb.reason.message}</p></div>`); return;
   }
   if (pp.status === 'fulfilled') { PB.people = pp.value.people; syncPeopleAvatars(PB.people); }
@@ -1551,7 +1556,7 @@ FORMS['pb-save'] = async (f) => {
   const d = formData(f);
   try {
     const r = await api('phonebook.save', { ...d, id: d.id ? +d.id : null });
-    PB.items = r.items; PB.santral = r.santral || '';
+    PB.items = r.items; pbSet(r);
     const m = modalStack[modalStack.length - 1]; if (m) m.close();
     toast('Kaydedildi'); drawPhonebook();
   } catch (e) { showFormError(f, e.message); }
@@ -1566,10 +1571,33 @@ ACT['pb-del'] = async (el) => {
     toast('Silindi'); drawPhonebook();
   } catch (e) { toast(e.message, 'err'); }
 };
-ACT['pb-santral'] = async () => {
-  const v = await promptDialog({ title: 'Santral numarası', label: 'Hastanenin santral numarası', placeholder: '0312 123 45 67', value: PB.santral });
-  if (v === null || v === undefined) return;
-  try { const r = await api('phonebook.santral', { santral: v }); PB.santral = r.santral || ''; toast(PB.santral ? 'Santral kaydedildi. Dahililer artık cepten aranabilir.' : 'Santral numarası kaldırıldı'); drawPhonebook(); } catch (e) { toast(e.message, 'err'); }
+ACT['pb-manual'] = async (el) => {
+  const n = el.dataset.n;
+  try { await navigator.clipboard.writeText(n); } catch (e) { /* */ }
+  toast(`Santral aranıyor. Hat açılınca ${n} tuşlayın (kopyalandı).`);
+  setTimeout(() => { location.href = el.getAttribute('href'); }, 400);
+};
+ACT['pb-santral'] = () => {
+  const opt = (k, t, d) => html`<label class="list-row" style="gap:10px;cursor:pointer"><input type="radio" name="dial" value="${k}" ${PB.dial === k ? raw('checked') : ''}><div class="grow"><div class="lr-t">${t}</div><div class="lr-s" style="white-space:normal">${d}</div></div></label>`;
+  const m = openModal({ title: 'Santral', size: 'narrow', body: html`<form class="stack" id="sntForm">
+      <div class="field"><label>Hastanenin santral numarası</label><input class="input" name="santral" inputmode="tel" value="${PB.santral}" placeholder="0312 123 45 67"><p class="hint">Cep telefonundan dahiliye dokununca önce bu numara aranır.</p></div>
+      <div class="sec-label">Dahili nasıl tuşlansın?</div>
+      <div class="card"><div class="list">
+        ${opt('auto', 'Otomatik (önerilen)', 'Santral açılınca 2 sn bekleyip dahiliyi kendisi tuşlar. Arama ekranında numaranın arasında virgül görünür; bu normaldir.')}
+        ${opt('long', 'Otomatik, uzun bekleme', 'Santral karşılama mesajı uzunsa: yaklaşık 6 sn bekler.')}
+        ${opt('ask', 'Hat açılınca sorsun', 'Telefon “Gönder?” diye sorar, siz dokununca dahiliyi tuşlar (noktalı virgül).')}
+        ${opt('manual', 'Ben tuşlarım', 'Yalnızca santral aranır; dahili kopyalanır, hat açılınca kendiniz tuşlarsınız.')}
+      </div></div></form>`,
+    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
+  m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const f = $('#sntForm', m.el);
+    const dial = (f.querySelector('[name=dial]:checked') || {}).value || 'auto';
+    try {
+      const r = await api('phonebook.santral', { santral: f.santral.value, dial });
+      pbSet(r); m.close(); drawPhonebook();
+      toast(PB.santral ? 'Santral kaydedildi' : 'Santral numarası kaldırıldı');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
 };
 
 /** Yapıştırılan metni satırlara ayırır. Excel'den kopyalanan sütunlar (sekme/;) veya "Radyoloji 2345" biçimi.
@@ -1680,7 +1708,7 @@ ACT['pb-import-go'] = async (el) => {
   el.disabled = true;
   try {
     const r = await api('phonebook.import', { items: m.rows, replace });
-    PB.items = r.items; PB.santral = r.santral || '';
+    PB.items = r.items; pbSet(r);
     m.guard = null; m.close();
     toast(`${r.added} numara eklendi${r.skipped ? `, ${r.skipped} tekrar atlandı` : ''}`);
     drawPhonebook();

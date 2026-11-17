@@ -814,7 +814,7 @@ function pb_out(array $r): array
 function a_phonebook_list(): void
 {
     need_user();
-    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', '')]);
+    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'dial' => setting('pb_dial', 'auto')]);
 }
 
 function a_phonebook_save(): void
@@ -886,7 +886,7 @@ function a_phonebook_import(): void
         throw $e;
     }
     audit($me, 'phonebook.import', 'Telefon rehberi', $added . ' kayıt' . (b('replace') ? ' (liste yenilendi)' : ''));
-    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'added' => $added, 'skipped' => count($clean) - $added]);
+    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'dial' => setting('pb_dial', 'auto'), 'added' => $added, 'skipped' => count($clean) - $added]);
 }
 
 /** Santral numarası: cep telefonundan dahiliyi aramak için önce santral aranır, sonra dahili tuşlanır. */
@@ -897,7 +897,9 @@ function a_phonebook_santral(): void
     $num = $v === '' ? '' : pb_number($v);
     if ($v !== '' && $num === '') fail('Santral numarası yalnızca rakam ve + ( ) - işaretleri içerebilir.');
     set_setting('pb_santral', $num);
-    audit($me, 'settings.save', 'Santral numarası', $num ?: 'silindi');
+    $dial = s('dial', 10);
+    if (in_array($dial, ['auto', 'long', 'ask', 'manual'], true)) set_setting('pb_dial', $dial);
+    audit($me, 'settings.save', 'Santral numarası', ($num ?: 'silindi') . ' · ' . setting('pb_dial', 'auto'));
     a_phonebook_list();
 }
 
