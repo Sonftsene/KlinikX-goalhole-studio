@@ -11,10 +11,23 @@ PHP 8.0+ olan her paylaşımlı sunucuda (Hostinger dahil) ek kurulum gerektirme
 3. `data` ve `uploads` klasörlerinin izni **755** olsun (Hostinger'da varsayılan).
 4. hPanel → **SSL** bölümünden ücretsiz SSL'i açın ve **HTTPS'e zorla (Force HTTPS)** seçeneğini etkinleştirin.
 5. Sitenizi açın.
-   - Paketiniz size özel hazırlandıysa (`config.php` içinde `INITIAL_ADMIN_*` dolu) yönetici hesabınız hazırdır: e-posta adresiniz ve size verilen **geçici şifre** ile giriş yapın, ilk girişte kendi şifrenizi belirleyin.
+   - Paketiniz size özel hazırlandıysa (içinde `INITIAL_ADMIN_*` dolu bir `config.php` varsa) yönetici hesabınız hazırdır: e-posta adresiniz ve size verilen **geçici şifre** ile giriş yapın, ilk girişte kendi şifrenizi belirleyin.
    - Aksi halde ilk ekranda **kurum adı** ve **ilk yönetici hesabını** oluşturun.
 
 Veritabanı ilk açılışta otomatik oluşur (`data/` klasöründe, tahmin edilemez bir adla). SQL içe aktarmanıza gerek yoktur.
+
+Ayarları değiştirmek isterseniz (MySQL, Google ile giriş, ilk yönetici) `config.sample.php` dosyasının bir kopyasını **`config.php`** adıyla oluşturup onu düzenleyin. Paket `config.php` içermez; böylece güncellemelerde ayarlarınız asla ezilmez.
+
+### Yeni sürüme güncelleme
+
+Verileriniz `data/` (veritabanı) ve `uploads/` (dosyalar) klasörlerindedir; ayarlarınız `config.php` dosyasındadır. Güncellemede bunlara dokunmayın.
+
+1. hPanel → **Dosya Yöneticisi** → `public_html`. Paket `data`, `uploads` ve `config.php` içermez; bunlar yerinde kalır. İsterseniz önce `data` ve `uploads` klasörleriyle `config.php` dosyasını bilgisayarınıza indirin (yedek).
+2. Yeni ZIP'i `public_html` içine yükleyin. Aynı adlı ZIP zaten varsa önce eskisini silin.
+3. ZIP'e sağ tıklayıp **Çıkart (Extract)** deyin. Dosya Yöneticisi “dosya zaten var” diye sorarsa **Üzerine yaz / Değiştir (Replace / Overwrite)** seçin, “ikisini de tut / yeniden adlandır (Keep both / Rename)” **seçmeyin**: o zaman yeni dosyalar `api (1).php` gibi adlarla kaydedilir ve eski kod çalışmaya devam eder.
+4. Sitenizi açın; veritabanı kendiliğinden güncellenir.
+
+Yanlışlıkla “yeniden adlandır” seçildiyse: `(1)`, `_1` gibi eklerle oluşan dosyaları silin ve ZIP'i yeniden **üzerine yazarak** çıkartın. `data` ve `uploads` klasörlerini silmeyin. Uygulama, veritabanı adı kaybolsa bile `data/` içindeki eski veritabanını bulup kendiliğinden kullanır; kurulum ekranı açılırsa yeni hesap oluşturmadan önce sayfayı yenileyin.
 
 ## 2. İlk ayarlar (önerilen)
 
@@ -73,7 +86,7 @@ Ek olarak:
 SQLite yüzlerce kullanıcı için yeterlidir. Yine de MySQL isterseniz:
 
 1. hPanel → **Veritabanları → MySQL** → yeni veritabanı ve kullanıcı oluşturun.
-2. `config.php` dosyasında `DB_DRIVER` değerini `'mysql'` yapın, `DB_NAME`, `DB_USER`, `DB_PASS` alanlarını doldurun.
+2. `config.php` dosyasında (yoksa `config.sample.php`'yi `config.php` adıyla kopyalayın) `DB_DRIVER` değerini `'mysql'` yapın, `DB_NAME`, `DB_USER`, `DB_PASS` alanlarını doldurun.
 3. Siteyi açın; tablolar otomatik oluşur.
 
 ## 7. Google ile giriş (isteğe bağlı)

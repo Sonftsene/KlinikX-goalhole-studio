@@ -10,7 +10,7 @@ DirectoryIndex index.php
 </IfModule>
 
 # Hassas dosyalara doğrudan erişimi engelle
-<FilesMatch "(^\.|\.(sqlite|sqlite-wal|sqlite-shm|db|sql|ini|log|md|bak)$|^config\.php$)">
+<FilesMatch "(^\.|\.(sqlite|sqlite-wal|sqlite-shm|db|sql|ini|log|md|bak)$|^config(\.sample)?\.php$)">
     Require all denied
 </FilesMatch>
 

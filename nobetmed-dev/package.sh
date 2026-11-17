@@ -5,5 +5,6 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$(realpath -m "${1:-$here/dupcii-hostinger.zip}")"
 cd "$here/../nobetmed"
 rm -f "$out"
-zip -r -q "$out" . -x 'data/*.sqlite*' -x 'data/.dbname.php' -x 'uploads/2*' -x 'uploads/*.part' -x 'data/backups/*' -x 'data/sessions/*' -x 'data/tmp/*' -x '.gitignore'
+# data/, uploads/ ve config.php pakette yok: güncellemede dosya yöneticisi çakışma yaşamaz, veriler ve ayarlar ezilmez
+zip -r -q "$out" . -x 'data' -x 'data/*' -x 'uploads' -x 'uploads/*' -x 'config.php' -x '.gitignore'
 echo "$out"

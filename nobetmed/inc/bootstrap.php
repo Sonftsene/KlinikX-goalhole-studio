@@ -1,13 +1,26 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config.php';
+// Kendi ayarlarınız config.php'de; paket bu dosyayı içermez, güncellemede üzerine yazılmaz.
+// config.php yoksa varsayılanlar (config.sample.php) kullanılır.
+require_once is_file(__DIR__ . '/../config.php') ? __DIR__ . '/../config.php' : __DIR__ . '/../config.sample.php';
+foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'DB_USER' => '', 'DB_PASS' => '', 'APP_URL' => '', 'GOOGLE_CLIENT_ID' => '',
+    'INITIAL_ADMIN_NAME' => '', 'INITIAL_ADMIN_EMAIL' => '', 'INITIAL_ADMIN_PASSWORD_HASH' => '', 'INITIAL_ORG_NAME' => '', 'APP_TIMEZONE' => 'Europe/Istanbul', 'MAX_UPLOAD_MB' => 0] as $k => $v) {
+    if (!defined($k)) define($k, $v);
+}
 
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.7.0';
+const NM_VERSION = '3.7.1';
 const NM_ROOT = __DIR__ . '/..';
+
+// data/ (veritabanı) ve uploads/ (dosyalar) pakette yoktur; güncellemede üzerine yazılmasın diye ilk açılışta burada oluşur
+foreach (['data', 'uploads'] as $nmDir) {
+    $nmPath = NM_ROOT . '/' . $nmDir;
+    if (!is_dir($nmPath)) @mkdir($nmPath, 0755, true);
+    if (!is_file($nmPath . '/.htaccess')) @file_put_contents($nmPath . '/.htaccess', "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Deny from all\n</IfModule>\n");
+}
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
 header('X-Content-Type-Options: nosniff');
@@ -70,6 +83,17 @@ function db(): PDO
         $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA foreign_keys = ON');
         $pdo->exec('PRAGMA busy_timeout = 5000');
+        // Güncelleme sırasında veritabanı adı kaybolduysa boş bir veritabanı açılmış (belki kurulum ekranında tek hesap
+        // oluşturulmuş) olabilir: klasörde daha çok kullanıcısı olan eski veritabanı varsa ona geri dön
+        if (($cnt = sqlite_user_count($pdo)) <= 1 && ($old = sqlite_find_existing(basename(sqlite_path()), $cnt))) {
+            $pdo = null;
+            file_put_contents(NM_ROOT . '/data/.dbname.php', "<?php return '$old';\n");
+            error_log('[dupcii] boş veritabanı yerine mevcut veriler kullanılıyor: ' . $old);
+            $pdo = new PDO('sqlite:' . NM_ROOT . '/data/' . $old, null, null, $opts);
+            $pdo->exec('PRAGMA journal_mode = WAL');
+            $pdo->exec('PRAGMA foreign_keys = ON');
+            $pdo->exec('PRAGMA busy_timeout = 5000');
+        }
     }
     nm_migrate($pdo);
     return $pdo;
@@ -85,7 +109,15 @@ function sqlite_path(): string
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $nameFile = $dir . '/.dbname.php';
     $name = is_file($nameFile) ? (string)(include $nameFile) : '';
+    if (preg_match('/^nm-[a-f0-9]{24}\.sqlite$/', $name) && !is_file($dir . '/' . $name) && ($old = sqlite_find_existing($name))) {
+        file_put_contents($nameFile, "<?php return '$old';\n");
+        return $dir . '/' . $old;
+    }
     if (!preg_match('/^nm-[a-f0-9]{24}\.sqlite$/', $name)) {
+        if ($old = sqlite_find_existing('')) {
+            file_put_contents($nameFile, "<?php return '$old';\n");
+            return $dir . '/' . $old;
+        }
         $name = 'nm-' . bin2hex(random_bytes(12)) . '.sqlite';
         if (is_file($dir . '/nobetmed.sqlite')) {
             foreach (['', '-wal', '-shm'] as $sfx) {
@@ -95,6 +127,35 @@ function sqlite_path(): string
         file_put_contents($nameFile, "<?php return '$name';\n");
     }
     return $dir . '/' . $name;
+}
+
+function sqlite_user_count(PDO $pdo): int
+{
+    try { return (int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn(); } catch (Throwable $e) { return 0; }
+}
+
+/** data/ klasöründe $minUsers'tan çok kullanıcısı olan başka bir dupcii veritabanı (en çok kullanıcılı, eşitse en yeni) */
+function sqlite_find_existing(string $except, int $minUsers = 0): ?string
+{
+    $best = null;
+    $bestKey = [0, 0];
+    foreach (glob(NM_ROOT . '/data/{nm-*.sqlite,nobetmed.sqlite}', GLOB_BRACE) ?: [] as $f) {
+        $n = basename($f);
+        if ($n === $except || !preg_match('/^(nm-[a-f0-9]{24}|nobetmed)\.sqlite$/', $n)) continue;
+        try {
+            $p = new PDO('sqlite:' . $f, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $u = sqlite_user_count($p);
+            $p = null;
+        } catch (Throwable $e) { continue; }
+        $key = [$u, (int)@filemtime($f)];
+        if ($u > $minUsers && $key > $bestKey) { $best = $n; $bestKey = $key; }
+    }
+    if ($best === 'nobetmed.sqlite') {
+        $name = 'nm-' . bin2hex(random_bytes(12)) . '.sqlite';
+        foreach (['', '-wal', '-shm'] as $sfx) if (is_file(NM_ROOT . '/data/nobetmed.sqlite' . $sfx)) @rename(NM_ROOT . '/data/nobetmed.sqlite' . $sfx, NM_ROOT . '/data/' . $name . $sfx);
+        $best = $name;
+    }
+    return $best;
 }
 
 function q(string $sql, array $params = []): PDOStatement
