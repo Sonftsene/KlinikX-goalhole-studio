@@ -337,6 +337,7 @@ async function drawSettings(body) {
   mountBackupBox();
   mountCodesBox();
   if (typeof mountGsync === 'function') mountGsync();
+  NM_EXT.settingsCards.forEach((c) => { if (c.mount && (!c.admin || isAdmin())) { try { c.mount(); } catch (e) { /* */ } } });
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);

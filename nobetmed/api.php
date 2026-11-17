@@ -10,6 +10,10 @@ if (is_file(__DIR__ . '/inc/webauthn.php')) require __DIR__ . '/inc/webauthn.php
 require __DIR__ . '/inc/gsync.php';
 require __DIR__ . '/inc/swaps.php';
 require __DIR__ . '/inc/api_sync.php';
+require __DIR__ . '/inc/rules.php';
+// Özellik modülleri: inc/mod_*.php her biri kendi işlevlerini tanımlar ve ['eylem' => 'işlev'] dizisi döndürür
+$NM_MOD_ROUTES = [];
+foreach (glob(__DIR__ . '/inc/mod_*.php') ?: [] as $nmMod) { $nmR = require $nmMod; if (is_array($nmR)) $NM_MOD_ROUTES += $nmR; }
 
 nm_session();
 
@@ -76,6 +80,8 @@ if ($action === 'brand') { a_brand_get(); exit; }
 if ($action === 'backup.download') { a_backup_download_get(); exit; }
 if ($action === 'gsync.push') { a_gsync_push(); exit; }
 if ($action === 'gsync.tables') { a_gsync_tables(); exit; }
+// Modüllerin oturumsuz/GET uçları: $GLOBALS['NM_GET'][eylem] = işlev
+if (isset($GLOBALS['NM_GET'][$action])) { ($GLOBALS['NM_GET'][$action])(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -164,6 +170,11 @@ $routes = [
     'swap.respond' => 'a_swap_respond',
     'swap.cancel' => 'a_swap_cancel',
     'swap.rules' => 'a_swap_rules',
+    'rules.get' => 'a_rules_get',
+    'rules.needs.save' => 'a_rules_needs_save',
+    'rules.exempt.save' => 'a_rules_exempt_save',
+    'rules.exempt.delete' => 'a_rules_exempt_delete',
+    'holidays.save' => 'a_holidays_save',
     'phonebook.save' => 'a_phonebook_save',
     'phonebook.delete' => 'a_phonebook_delete',
     'phonebook.import' => 'a_phonebook_import',
@@ -202,6 +213,7 @@ $routes = [
     'mail.log' => 'a_mail_log',
 ];
 
+$routes += $NM_MOD_ROUTES;
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 jobs_after_response();
@@ -502,6 +514,8 @@ function a_boot(): void
             'push_ready' => push_ready(),
             'shift_codes' => shift_codes(),
         ];
+        // Modüllerin açılış verisi: $GLOBALS['NM_BOOT'][] = fn(array $me): array
+        foreach ($GLOBALS['NM_BOOT'] ?? [] as $fn) { try { $data = array_merge($data, (array)$fn($me)); } catch (Throwable $e) { error_log('[dupcii] boot modülü: ' . $e->getMessage()); } }
         $data['counts'] = counts_for($me);
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
         $data['people'] = array_map(fn($r) => [

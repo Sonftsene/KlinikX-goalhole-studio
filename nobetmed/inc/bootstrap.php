@@ -199,7 +199,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 10) return;
+    if ($version >= 11) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -280,6 +280,18 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS side_moves (id $pk, date VARCHAR(10) NOT NULL, name VARCHAR(120) NOT NULL, user_id INT NULL, from_side VARCHAR(20) NOT NULL, to_side VARCHAR(20) NOT NULL, unit VARCHAR(40) NOT NULL DEFAULT '', code VARCHAR(20) NOT NULL DEFAULT '', counted INT NOT NULL DEFAULT 0, method VARCHAR(10) NOT NULL DEFAULT 'elle', pool TEXT NULL, note VARCHAR(200) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL)$end",
         "CREATE TABLE IF NOT EXISTS swap_requests (id $pk, roster_id INT NOT NULL, kind VARCHAR(10) NOT NULL, from_user INT NOT NULL, from_name VARCHAR(120) NOT NULL, from_date VARCHAR(10) NOT NULL, from_code VARCHAR(20) NOT NULL, to_user INT NULL, to_name VARCHAR(120) NOT NULL, to_date VARCHAR(10) NULL, to_code VARCHAR(20) NULL, status VARCHAR(12) NOT NULL DEFAULT 'pending', note VARCHAR(300) NULL, created_at VARCHAR(19) NOT NULL, decided_at VARCHAR(19) NULL, applied_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS gs_sources (id $pk, sheet_id VARCHAR(100) NOT NULL, name VARCHAR(120) NOT NULL, purpose VARCHAR(10) NOT NULL DEFAULT 'nobet', title VARCHAR(120) NULL, seen VARCHAR(19) NULL, changed VARCHAR(19) NULL, hash VARCHAR(64) NULL, status VARCHAR(300) NULL, att_id INT NULL, tabs TEXT NULL, fallback INT NOT NULL DEFAULT 0, created_at VARCHAR(19) NOT NULL)$end",
+        // --- Sürüm 11: istekler, ilanlar, eksik çağrısı, blok yerleşimi, kurallar, tatiller ---
+        "CREATE TABLE IF NOT EXISTS req_periods (id $pk, ym VARCHAR(7) NOT NULL, roster_id INT NULL, deadline VARCHAR(10) NULL, status VARCHAR(10) NOT NULL DEFAULT 'open', note VARCHAR(300) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS shift_requests (id $pk, period_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, roster_id INT NULL, date VARCHAR(10) NOT NULL, kind VARCHAR(10) NOT NULL, note VARCHAR(200) NULL, status VARCHAR(10) NOT NULL DEFAULT 'pending', reason VARCHAR(300) NULL, decided_by INT NULL, decided_at VARCHAR(19) NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS staff_needs (id $pk, unit VARCHAR(40) NOT NULL, day_type VARCHAR(10) NOT NULL, period VARCHAR(5) NOT NULL, count INT NOT NULL DEFAULT 0)$end",
+        "CREATE TABLE IF NOT EXISTS listings (id $pk, roster_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, date VARCHAR(10) NOT NULL, code VARCHAR(20) NOT NULL, kind VARCHAR(10) NOT NULL DEFAULT 'give', note VARCHAR(300) NULL, status VARCHAR(10) NOT NULL DEFAULT 'open', taker_user INT NULL, taker_name VARCHAR(120) NULL, taker_date VARCHAR(10) NULL, taker_code VARCHAR(20) NULL, swap_request_id INT NULL, created_at VARCHAR(19) NOT NULL, closed_at VARCHAR(19) NULL, meta TEXT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS listing_apps (id $pk, listing_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, offer_date VARCHAR(10) NULL, offer_code VARCHAR(20) NULL, note VARCHAR(300) NULL, status VARCHAR(10) NOT NULL DEFAULT 'applied', created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS callouts (id $pk, roster_id INT NULL, side VARCHAR(20) NULL, unit VARCHAR(40) NULL, date VARCHAR(10) NOT NULL, shift VARCHAR(5) NOT NULL, code VARCHAR(20) NOT NULL, need INT NOT NULL DEFAULT 1, status VARCHAR(10) NOT NULL DEFAULT 'open', note VARCHAR(300) NULL, filters TEXT NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, closed_at VARCHAR(19) NULL, meta TEXT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS callout_resp (id $pk, callout_id INT NOT NULL, user_id INT NULL, name VARCHAR(120) NOT NULL, answer VARCHAR(5) NOT NULL DEFAULT 'asked', chosen INT NOT NULL DEFAULT 0, move_from VARCHAR(10) NULL, created_at VARCHAR(19) NOT NULL, answered_at VARCHAR(19) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS placements (id $pk, date VARCHAR(10) NOT NULL, name VARCHAR(120) NOT NULL, user_id INT NULL, roster_id INT NULL, side VARCHAR(20) NOT NULL, unit VARCHAR(40) NOT NULL, code VARCHAR(20) NOT NULL DEFAULT '', period VARCHAR(5) NOT NULL DEFAULT '24', method VARCHAR(10) NOT NULL DEFAULT 'auto', counted INT NOT NULL DEFAULT 0, pool TEXT NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS placement_adjust (id $pk, name VARCHAR(120) NOT NULL, user_id INT NULL, side VARCHAR(20) NULL, unit VARCHAR(40) NULL, cross_count INT NOT NULL DEFAULT 0, unit_count INT NOT NULL DEFAULT 0, note VARCHAR(200) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS rule_exempt (id $pk, name VARCHAR(120) NOT NULL, user_id INT NULL, scope VARCHAR(20) NOT NULL DEFAULT 'all', until VARCHAR(10) NULL, note VARCHAR(200) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS holidays (id $pk, date VARCHAR(10) NOT NULL, name VARCHAR(80) NOT NULL, half INT NOT NULL DEFAULT 0, custom INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
     foreach ($tables as $sql) $pdo->exec($sql);
@@ -313,6 +325,14 @@ function nm_migrate(PDO $pdo): void
         'CREATE UNIQUE INDEX idx_passkey_cred ON passkeys (credential_id)',
         'CREATE UNIQUE INDEX idx_invite_token ON invites (token)',
         'CREATE INDEX idx_side_date ON side_moves (date)',
+        'CREATE INDEX idx_sreq_period ON shift_requests (period_id, date)',
+        'CREATE INDEX idx_sreq_user ON shift_requests (user_id)',
+        'CREATE INDEX idx_listing_status ON listings (status, date)',
+        'CREATE INDEX idx_callout_status ON callouts (status, date)',
+        'CREATE INDEX idx_callresp ON callout_resp (callout_id)',
+        'CREATE INDEX idx_place_date ON placements (date)',
+        'CREATE INDEX idx_place_name ON placements (name)',
+        'CREATE UNIQUE INDEX idx_holiday_date ON holidays (date)',
         'CREATE INDEX idx_swap_status ON swap_requests (status, roster_id)',
     ];
     foreach ($indexes as $sql) {
@@ -351,7 +371,9 @@ function nm_migrate(PDO $pdo): void
     }
     // Sürüm 4: rehber, bildirim türü, belge geçerlilik tarihi, belge metni, liste dönemi
     $cols = [
-        'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1', 'avatar VARCHAR(80) NULL'],
+        'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1', 'avatar VARCHAR(80) NULL',
+            // Sürüm 11: kişiye özel ücretler (yalnız kişi görür), hatırlatma ve görünüm tercihleri
+            'pay_rates TEXT NULL', 'remind_prefs TEXT NULL', 'ui_prefs TEXT NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],
@@ -392,11 +414,31 @@ function nm_migrate(PDO $pdo): void
             }
         } catch (Throwable $e) { error_log('[dupcii] gs göç: ' . $e->getMessage()); }
     }
+    // Sürüm 11: Türkiye resmî tatilleri ve bayramlar (yönetici düzenleyebilir; dini bayramlar Diyanet takvimine göre)
+    if ($version < 11 && (int)$pdo->query('SELECT COUNT(*) FROM holidays')->fetchColumn() === 0) {
+        $h = [];
+        foreach (range(2025, 2030) as $y) {
+            foreach (['01-01' => 'Yılbaşı', '04-23' => 'Ulusal Egemenlik ve Çocuk Bayramı', '05-01' => 'Emek ve Dayanışma Günü', '05-19' => 'Atatürk’ü Anma, Gençlik ve Spor Bayramı',
+                '07-15' => 'Demokrasi ve Millî Birlik Günü', '08-30' => 'Zafer Bayramı', '10-29' => 'Cumhuriyet Bayramı'] as $md => $n) $h[] = ["$y-$md", $n, 0];
+            $h[] = ["$y-10-28", 'Cumhuriyet Bayramı arifesi', 1];
+        }
+        $rel = [
+            ['2025-03-29', '2025-03-30', 3, 'Ramazan Bayramı'], ['2025-06-05', '2025-06-06', 4, 'Kurban Bayramı'],
+            ['2026-03-19', '2026-03-20', 3, 'Ramazan Bayramı'], ['2026-05-26', '2026-05-27', 4, 'Kurban Bayramı'],
+            ['2027-03-08', '2027-03-09', 3, 'Ramazan Bayramı'], ['2027-05-15', '2027-05-16', 4, 'Kurban Bayramı'],
+        ];
+        foreach ($rel as [$arife, $first, $days, $n]) {
+            $h[] = [$arife, $n . ' arifesi', 1];
+            for ($i = 0; $i < $days; $i++) $h[] = [date('Y-m-d', strtotime("$first +$i day")), $n . ' ' . ($i + 1) . '. gün', 0];
+        }
+        $st = $pdo->prepare('INSERT INTO holidays (date, name, half, custom) VALUES (?, ?, ?, 0)');
+        foreach ($h as $r) { try { $st->execute($r); } catch (Throwable $e) { /* aynı gün */ } }
+    }
     if ($version < 9) {
         try { $pdo->exec("UPDATE gs_sources SET mask_mode = 'surname', mask_cols = 'Hastanın Adı Soyadı' WHERE purpose = 'tablo' AND (mask_cols IS NULL OR mask_cols = '')"); } catch (Throwable $e) { /* */ }
     }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '10')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '11')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

@@ -197,6 +197,8 @@ function run_jobs(bool $force = false): array
     }
     if (function_exists('gs_job')) { try { $g = gs_job(); if ($g !== null) $done['gsync'] = $g; } catch (Throwable $e) { error_log('[dupcii] gsync: ' . $e->getMessage()); } }
     if (function_exists('swap_expire')) { try { swap_expire(); } catch (Throwable $e) { error_log('[dupcii] swap: ' . $e->getMessage()); } }
+    // Modül görevleri: $GLOBALS['NM_JOBS'][ad] = işlev (dönen değer kayda yazılır)
+    foreach ($GLOBALS['NM_JOBS'] ?? [] as $jn => $jf) { try { $r = $jf($force); if ($r !== null) $done[$jn] = $r; } catch (Throwable $e) { error_log('[dupcii] görev ' . $jn . ': ' . $e->getMessage()); } }
     if (mail_ready()) $done['mail'] = mail_flush(60);
     return $done;
 }

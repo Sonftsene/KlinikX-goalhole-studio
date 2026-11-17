@@ -5,6 +5,18 @@ const BOOT = (() => {
   try { return JSON.parse(document.getElementById('nm-boot').textContent || '{}'); } catch (e) { return {}; }
 })();
 
+/**
+ * Özellik modülleri için kayıt noktaları (assets/js/<modül>.js dosyaları buraya ekler):
+ *  routes[ad] = (view, routeParts) => void           #/ad sayfası
+ *  nav[] = { href, icon, label, match: (r) => bool, pub?: bool, admin?: bool, sec?: 'nobet' | 'yonetim' }
+ *  hubTabs[] = { key, href, icon, label }              Nöbet sayfası sekmeleri
+ *  homeCards[] = { id, title, icon, order, place: 'top' | 'side', render: async (el) => void, visible?: () => bool }
+ *  settingsCards[] = { sec: 'nobet' | ..., html: (A) => html, mount?: () => void, admin?: bool }
+ *  dayActions[] = (entry, dateStr) => html            Takvimim gün panelinde kendi nöbet satırına düğme
+ *  notif[kind] = [tone, icon]  ·  audit[eylem] = 'etiket'  ·  profileTabs[] = { key, label, icon, html: () => html, mount?: () => void }
+ */
+const NM_EXT = { routes: {}, nav: [], hubTabs: [], homeCards: [], settingsCards: [], dayActions: [], notif: {}, audit: {}, profileTabs: [] };
+
 /** Uygulama durumu */
 const S = {
   csrf: BOOT.csrf || '',

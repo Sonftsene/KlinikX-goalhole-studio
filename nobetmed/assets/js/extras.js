@@ -67,7 +67,7 @@ ACT.notifs = async (el) => {
   const grp = (n) => (n.at.slice(0, 10) >= today ? 'Bugün' : n.at.slice(0, 10) >= weekAgo ? 'Bu hafta' : 'Daha eski');
   let lastG = '';
   setHTML(list, items.length ? items.map((n) => html`${grp(n) !== lastG ? html`<div class="np-sec">${(lastG = grp(n))}</div>` : ''}<button class="np-item ${n.read ? '' : 'unread'}" data-act="notif-open" data-id="${n.id}" data-url="${n.url || '#/'}">
-      <span class="np-ico tone-${{ roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky', swap: 'violet', side: 'amber' }[n.kind] || 'slate'}">${icon({ roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users', swap: 'history', side: 'layers' }[n.kind] || 'bell', 'sm')}</span>
+      <span class="np-ico tone-${(NM_EXT.notif[n.kind] || [])[0] || { roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky', swap: 'violet', side: 'amber' }[n.kind] || 'slate'}">${icon((NM_EXT.notif[n.kind] || [])[1] || { roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users', swap: 'history', side: 'layers' }[n.kind] || 'bell', 'sm')}</span>
       <span class="grow" style="min-width:0"><span class="np-t">${n.title}</span>${n.body ? html`<span class="np-b">${n.body}</span>` : ''}<span class="np-at">${fmtRel(n.at)}</span></span>
       ${n.read ? '' : html`<span class="dot"></span>`}
     </button>`)
@@ -230,11 +230,12 @@ ACT['go-profile'] = () => { location.hash = '#/profil'; };
 /* Nöbet sayfası: Takvimim · Kim nöbette · Excel liste                  */
 /* =================================================================== */
 const HUB_HREF = { cal: '#/nobetim', who: '#/rehber', list: '#/nobet', taraf: '#/taraf' };
-function hubHref() { try { return HUB_HREF[localStorage.getItem('nm-hub')] || '#/nobetim'; } catch (e) { return '#/nobetim'; } }
+function hubHref() { try { const k = localStorage.getItem('nm-hub'); const x = NM_EXT.hubTabs.find((t) => t.key === k); return (x && x.href) || HUB_HREF[k] || '#/nobetim'; } catch (e) { return '#/nobetim'; } }
 function hubTabs(active) {
   try { localStorage.setItem('nm-hub', active); } catch (e) { /* */ }
   const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${l}</span></a>`;
-  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${t('taraf', 'layers', 'Taraf')}${t('list', 'table', 'Excel liste')}</nav>`;
+  NM_EXT.hubTabs.forEach((x) => { HUB_HREF[x.key] = x.href; });
+  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${t('taraf', 'layers', 'Taraf')}${NM_EXT.hubTabs.map((x) => t(x.key, x.icon, x.label))}${t('list', 'table', 'Excel liste')}</nav>`;
 }
 function hubHead(active, sub, actions) {
   return html`<div class="page-head hub-head"><div><h1>Nöbet</h1><p>${sub}</p></div>${actions || ''}</div>${hubTabs(active)}`;
@@ -315,7 +316,7 @@ async function loadDayPanel() {
   const mv = (MY.moves || {})[CAL.sel];
   const canSwap = CAL.sel >= ymd(new Date());
   const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours && !/saat/i.test(e.label || '') ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div>
-        ${e.kind === 'shift' && canSwap ? html`<button class="btn sm" data-act="swap-open" data-d="${e.date}">${icon('history', 'sm')}<span>Değiş / Devret</span></button>` : ''}</div>`)}
+        ${e.kind === 'shift' && canSwap ? html`<div class="dm-acts"><button class="btn sm" data-act="swap-open" data-d="${e.date}">${icon('history', 'sm')}<span>Değiş / Devret</span></button>${NM_EXT.dayActions.map((f) => f(e, CAL.sel))}</div>` : ''}</div>`)}
       ${mv ? html`<div class="dm-move">${icon('layers', 'sm')}<span>Bu gün <b>${mv.unit}</b>’ta çalıştın${mv.method === 'kura' ? ' (kura)' : ''}${mv.counted ? ' · karşı tarafa geçiş sayıldı' : ''}</span></div>` : ''}</div>`
     : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
   setHTML(box, html`${head}${mineHtml}<div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
@@ -1013,7 +1014,7 @@ async function drawAudit(body, more, keepInput) {
   if (!box) return;
   setHTML(box, AUD.items.length ? html`<div class="card"><div class="list">${AUD.items.map((x) => html`<div class="list-row audit-row">
       <span class="tiny faint nowrap" title="${x.at}">${fmtDateTime(x.at)}</span>
-      <div class="grow" style="min-width:0"><div class="small"><b>${x.user || 'Sistem'}</b> · ${AUDIT_LABEL[x.action] || x.action}${x.target ? html`: <span class="muted">${x.target}</span>` : ''}</div>${x.detail ? html`<div class="tiny faint ellipsis">${x.detail}</div>` : ''}</div>
+      <div class="grow" style="min-width:0"><div class="small"><b>${x.user || 'Sistem'}</b> · ${NM_EXT.audit[x.action] || AUDIT_LABEL[x.action] || x.action}${x.target ? html`: <span class="muted">${x.target}</span>` : ''}</div>${x.detail ? html`<div class="tiny faint ellipsis">${x.detail}</div>` : ''}</div>
       <span class="tiny faint desk-only">${x.ip || ''}</span></div>`)}</div></div>
     ${AUD.more ? html`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="aud-more">Daha fazla</button></div>` : ''}` : html`<div class="card empty"><p class="small">Kayıt bulunamadı.</p></div>`);
 }
@@ -1044,6 +1045,7 @@ function settingsExtrasHtml(A) {
     ${typeof gsyncCardHtml === 'function' ? gsyncCardHtml() : ''}
     ${shiftCodesCardHtml()}
     ${typeof swapRulesCardHtml === 'function' ? swapRulesCardHtml(A) : ''}
+    ${NM_EXT.settingsCards.filter((c) => !c.admin || isAdmin()).map((c) => c.html(A))}
     <div class="card card-pad stack" data-sec="yedek">
       <div><h3 style="font-size:15px">${icon('download', 'sm')} Yedekleme</h3><p class="small muted">Veritabanı her hafta otomatik yedeklenir (son 4 yedek saklanır). İstediğiniz an indirebilirsiniz.</p></div>
       ${SWX('backup_weekly', A.backup_weekly, 'Haftalık otomatik yedek', '')}

@@ -9,12 +9,12 @@ const out = process.argv[2] || path.join(here, 'nobetmed-onizleme.html');
 // (gerçek kişi isimleri içeren listeler repoya konmaz, önizlemeye buradan verilir)
 const extraDir = process.argv[3] || null;
 const read = (p) => fs.readFileSync(p, 'utf8');
-let css = read(path.join(app, 'app.css'));
+let css = read(path.join(app, 'app.css')) + ['placement', 'requests', 'market', 'prefs'].map((n) => '\n' + read(path.join(app, 'css', n + '.css'))).join('');
 // Koyu tema değişkenlerini sistem tercihine de bağla (tema seçimi yapılmamış görüntüleyiciler için)
 const dark = css.match(/\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
 css += `\n@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {${dark}\n} }\n`;
 const safe = (s) => s.replace(/<\/script/gi, '<\\/script');
-const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'pwa', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
+const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'pwa', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
 const html = `<!doctype html>
 <html lang="tr">
 <meta charset="utf-8">

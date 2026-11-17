@@ -550,6 +550,7 @@ function a_swap_rules(): void
     $me = need_admin();
     set_setting('swap_max_cont', (string)max(8, min(72, (int)i('max_cont'))));
     set_setting('swap_max_gap', (string)max(1, min(30, (int)i('max_gap'))));
-    audit($me, 'settings.save', 'Nöbet değişim kuralları', 'üst üste ' . setting('swap_max_cont') . ' saat, boşluk ' . setting('swap_max_gap') . ' gün');
+    if (i('rest') !== null) set_setting('rule_rest', (string)max(0, min(48, (int)i('rest'))));
+    audit($me, 'settings.save', 'Nöbet değişim kuralları', 'üst üste ' . setting('swap_max_cont') . ' saat, boşluk ' . setting('swap_max_gap') . ' gün, dinlenme ' . setting('rule_rest', '16') . ' saat');
     out(['rules' => swap_rules()]);
 }

@@ -66,6 +66,7 @@ function renderNav() {
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
     ${navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf')}
+    ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && (!n.pub || isPublisher()) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
     ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
     ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">Tablolar</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}
@@ -74,6 +75,7 @@ function renderNav() {
     ${isPublisher() ? html`
       <div class="nav-sec">Yönetim</div>
       ${navItem('#/yonetim/onaylar', icon('inbox'), 'Onay bekleyenler', c.pending_posts, r[0] === 'yonetim' && (r[1] || 'onaylar') === 'onaylar', 'warn')}
+      ${NM_EXT.nav.filter((n) => n.sec === 'yonetim' && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
       ${isAdmin() ? html`
         ${navItem('#/yonetim/kullanicilar', icon('users'), 'Kullanıcılar', c.pending_users, r[0] === 'yonetim' && r[1] === 'kullanicilar', 'warn')}
         ${navItem('#/yonetim/yapi', icon('layers'), 'Bölüm ve birimler', 0, r[0] === 'yonetim' && r[1] === 'yapi')}
@@ -87,7 +89,7 @@ function renderNav() {
   const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${tab(hubHref(), icon('calendar'), 'Nöbet', ['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]), 0)}
+    ${tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
     ${isPublisher() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
@@ -191,7 +193,9 @@ function route() {
       renderHome(view);
       openPost(+r[1]);
       break;
-    default: location.hash = '#/';
+    default:
+      if (NM_EXT.routes[r[0]]) { NM_EXT.routes[r[0]](view, r); break; }
+      location.hash = '#/';
   }
   renderNav();
   window.scrollTo(0, 0);
@@ -207,10 +211,12 @@ function greeting() {
 function renderHome(view) {
   setHTML(view, html`
     ${heroHtml()}
+    <div id="homeExtTop" class="home-ext-top"></div>
     <div class="home-grid">
       <section id="feedHost"></section>
       <aside class="side-col" id="homeSide">
         ${isAdmin() ? html`<div id="setupBox"></div>` : ''}
+        <div id="homeExtSide"></div>
         <div id="homeTips"></div>
         <div class="card" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
         <div class="card" id="rosterCard">${rosterCard()}</div>
@@ -218,9 +224,27 @@ function renderHome(view) {
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
   loadHomeExtras();
+  mountHomeExt();
   maybeShowTour();
   refreshRosters().then(() => {
     const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());
+  });
+}
+
+/** Modüllerin ana sayfa kartları (sıra ve görünürlük kişinin ana sayfa tercihlerine göre) */
+function mountHomeExt() {
+  const top = $('#homeExtTop'), side = $('#homeExtSide');
+  if (!top || !side) return;
+  const prefs = typeof homePrefs === 'function' ? homePrefs() : { hidden: [], order: [] };
+  const cards = NM_EXT.homeCards.filter((c) => !prefs.hidden.includes(c.id) && (!c.visible || c.visible()))
+    .sort((a, b) => { const ia = prefs.order.indexOf(a.id), ib = prefs.order.indexOf(b.id); return (ia < 0 ? 100 + (a.order || 50) : ia) - (ib < 0 ? 100 + (b.order || 50) : ib); });
+  top.innerHTML = ''; side.innerHTML = '';
+  cards.forEach((c) => {
+    const el = document.createElement('div');
+    el.className = 'home-ext home-ext-' + c.id;
+    el.dataset.card = c.id;
+    (c.place === 'top' ? top : side).appendChild(el);
+    Promise.resolve().then(() => c.render(el)).catch(() => { el.remove(); });
   });
 }
 

@@ -9,13 +9,17 @@ self.__NM_SW_VERSION = VERSION;
 const SHELL_ASSETS = [
   './',
   'assets/app.css',
+  'assets/css/placement.css',
+  'assets/css/requests.css',
+  'assets/css/market.css',
+  'assets/css/prefs.css',
   'assets/theme.js',
   'assets/icon.svg',
   'assets/icon-192.png',
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
-const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'pwa'];
+const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'pwa'];
 const PRECACHE = SHELL_ASSETS.concat(JS_FILES.map((n) => 'assets/js/' + n + '.js'));
 
 const SHELL_CACHE = 'nm-shell-' + VERSION;

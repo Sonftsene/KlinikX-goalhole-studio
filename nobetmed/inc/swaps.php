@@ -16,6 +16,7 @@ function swap_rules(): array
     return [
         'max_cont' => max(8, min(72, (int)setting('swap_max_cont', '24'))),
         'max_gap' => max(1, min(30, (int)setting('swap_max_gap', '4'))),
+        'rest' => max(0, min(48, (int)setting('rule_rest', '16'))),
     ];
 }
 
@@ -95,6 +96,19 @@ function swap_check(array $days, array $added, array $removed, array $rules, str
             $blk = $x;
         }
         if ($e = $check($blk)) return $e;
+        // Dinlenme: eklenen nöbetin öncesinde ve sonrasında, nöbetten çıkış ile yeni başlangıç arası en az N saat
+        $rest = (int)($rules['rest'] ?? 0) * 3600;
+        $n = count($iv);
+        for ($k = 0; $k < $n; $k++) {
+            if (!$iv[$k][2]) continue;
+            foreach ([$k - 1, $k + 1] as $j) {
+                if ($j < 0 || $j >= $n) continue;
+                [$a, $b] = $j < $k ? [$iv[$j], $iv[$k]] : [$iv[$k], $iv[$j]];
+                $gap = $b[0] - $a[1];
+                if ($gap < 0) return "$who için iki nöbet çakışıyor";
+                if ($gap > 0 && $gap < $rest) return "$who için dinlenme " . round($gap / 3600) . " saat kalır (nöbetten çıkınca en az {$rules['rest']} saat dinlenme)";
+            }
+        }
     }
     // 2) Uzun boşluk (izin/rapor günleri dolu sayılır)
     if ($removed) {

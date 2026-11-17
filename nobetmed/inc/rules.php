@@ -1,0 +1,263 @@
+<?php
+/**
+ * dupcii — ortak nöbet kuralları ve yardımcıları (istekler, ilan, eksik çağrısı ve blok yerleşimi hepsi bunu kullanır).
+ *
+ *  rules_cfg()                       ['rest' => 16, 'max_cont' => 24, 'max_gap' => 4]
+ *  rules_check_add($days, $date, $row, $who)       kişi bu nöbeti alabilir mi (null = evet, metin = neden)
+ *  holiday_on($date) / day_type($date)             'weekend' (Cmt/Paz/tam gün tatil) | 'weekday'
+ *  needs_for_date($date)             [birim => ['day' => n, 'night' => n]]
+ *  rules_is_exempt($name, $scope, $date)           muaf mı (scope: kura | kaydirma | cagri)
+ *  rules_fair_stats($rid, $date)                   kişi bazlı adalet ölçüleri
+ *  rules_fair_sort($list, $stats)                  adalet sırasına göre sıralar (eşitlikte sabit, kura ayrı)
+ */
+declare(strict_types=1);
+
+function rules_cfg(): array
+{
+    return swap_rules();
+}
+
+/** Kişinin günlerine $date günü $row nöbetini eklemek kurallara uyar mı */
+function rules_check_add(array $days, string $date, array $row, string $who = 'Bu kişi'): ?string
+{
+    if (isset($days[$date])) return $who . ' o gün zaten listede (' . ($days[$date]['code'] ?? '') . ')';
+    $days[$date] = $row;
+    return swap_check($days, [$date], [], rules_cfg(), $who);
+}
+
+/* ------------------------------------------------------------------ */
+/* Resmî tatiller                                                      */
+/* ------------------------------------------------------------------ */
+
+function holidays_between(string $from, string $to): array
+{
+    $out = [];
+    foreach (all('SELECT date, name, half FROM holidays WHERE date >= ? AND date <= ? ORDER BY date', [$from, $to]) as $h) $out[$h['date']] = ['name' => $h['name'], 'half' => (bool)$h['half']];
+    return $out;
+}
+
+function holiday_on(string $date): ?array
+{
+    static $cache = [];
+    if (!array_key_exists($date, $cache)) {
+        $h = one('SELECT name, half FROM holidays WHERE date = ?', [$date]);
+        $cache[$date] = $h ? ['name' => $h['name'], 'half' => (bool)$h['half']] : null;
+    }
+    return $cache[$date];
+}
+
+/** Hafta sonu veya tam gün resmî tatil -> 'weekend', diğerleri 'weekday' */
+function day_type(string $date): string
+{
+    $w = (int)date('w', strtotime($date));
+    if ($w === 0 || $w === 6) return 'weekend';
+    $h = holiday_on($date);
+    return $h && !$h['half'] ? 'weekend' : 'weekday';
+}
+
+/* ------------------------------------------------------------------ */
+/* Gereken nöbetçi sayıları (birim × gün türü × dönem)                 */
+/* ------------------------------------------------------------------ */
+
+function needs_all(): array
+{
+    $out = [];
+    foreach (all('SELECT unit, day_type, period, count FROM staff_needs') as $r) $out[$r['unit']][$r['day_type']][$r['period']] = (int)$r['count'];
+    return $out;
+}
+
+/** [birim => ['day' => n, 'night' => n]] o güne göre (hafta içi / hafta sonu-tatil) */
+function needs_for_date(string $date): array
+{
+    $dt = day_type($date);
+    $out = [];
+    foreach (needs_all() as $unit => $byType) $out[$unit] = ['day' => (int)($byType[$dt]['day'] ?? 0), 'night' => (int)($byType[$dt]['night'] ?? 0)];
+    return $out;
+}
+
+/** Taraf toplamı: [tarafAnahtarı => ['day' => n, 'night' => n]] */
+function needs_by_side(string $date): array
+{
+    $n = needs_for_date($date);
+    $out = [];
+    foreach (function_exists('sides_cfg') ? sides_cfg() : [] as $sd) {
+        $out[$sd['key']] = ['day' => 0, 'night' => 0];
+        foreach ($sd['units'] as $u) { $out[$sd['key']]['day'] += $n[$u]['day'] ?? 0; $out[$sd['key']]['night'] += $n[$u]['night'] ?? 0; }
+    }
+    return $out;
+}
+
+/** Bir nöbet kodunun hangi dönem(ler)i kapsadığı: 08-16 -> [day], 16-08 -> [night], 08-08 -> [day, night] */
+function shift_periods(array $row): array
+{
+    if (($row['kind'] ?? 'shift') !== 'shift') return [];
+    $h = (int)($row['hours'] ?? 0);
+    $st = $row['start_time'] ?? ($row['start'] ?? null);
+    $en = $row['end_time'] ?? ($row['end'] ?? null);
+    if ($h >= 20 || ($st && $en && $st === $en)) return ['day', 'night'];
+    if ($st && $en) return $en <= $st ? ['night'] : ['day'];
+    return $h >= 16 ? ['night'] : ['day'];
+}
+
+/* ------------------------------------------------------------------ */
+/* Muafiyet                                                            */
+/* ------------------------------------------------------------------ */
+
+function rules_exempt_list(): array
+{
+    $today = date('Y-m-d');
+    return array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'user_id' => $r['user_id'] !== null ? (int)$r['user_id'] : null, 'scope' => $r['scope'],
+        'until' => $r['until'], 'note' => $r['note'], 'active' => !$r['until'] || $r['until'] >= $today],
+        all('SELECT * FROM rule_exempt ORDER BY name'));
+}
+
+/** $scope: kura | kaydirma | cagri. Kayıttaki 'all' her şeyi kapsar. */
+function rules_is_exempt(string $name, string $scope, ?string $date = null): bool
+{
+    static $rows = null;
+    if ($rows === null) $rows = all('SELECT name, scope, until FROM rule_exempt');
+    $date = $date ?? date('Y-m-d');
+    foreach ($rows as $r) {
+        if ($r['until'] && $r['until'] < $date) continue;
+        if ($r['scope'] !== 'all' && $r['scope'] !== $scope) continue;
+        if (names_match((string)$r['name'], $name)) return true;
+    }
+    return false;
+}
+
+/* ------------------------------------------------------------------ */
+/* Adalet ölçüleri                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Listedeki herkes için: ay içi nöbet saati/sayısı, son 7 gün nöbet sayısı, önceki/sonraki nöbet,
+ * boşluk (gün) ve karşı tarafa geçiş sayısı (blok yerleşimi modülü 'placement_cross_counts' sağlarsa).
+ * Dönen: [ad anahtarı (swap_key) => [...]]
+ */
+function rules_fair_stats(int $rid, string $date): array
+{
+    $ym = substr($date, 0, 7);
+    $tl = swap_timeline($rid, date('Y-m-d', strtotime($date . ' -40 days')), date('Y-m-d', strtotime($date . ' +40 days')));
+    $cross = function_exists('placement_cross_counts') ? placement_cross_counts() : [];
+    $t0 = strtotime($date . ' 00:00');
+    $out = [];
+    foreach ($tl as $k => $p) {
+        $hours = 0; $shifts = 0; $last7 = 0; $prevEnd = null; $nextStart = null;
+        foreach ($p['days'] as $d => $row) {
+            if (($row['kind'] ?? '') !== 'shift') continue;
+            $iv = swap_interval($d, $row);
+            if (substr($d, 0, 7) === $ym) { $shifts++; $hours += (int)($row['hours'] ?? 0); }
+            if ($d < $date && $d >= date('Y-m-d', strtotime($date . ' -7 days'))) $last7++;
+            if ($iv && $iv[1] <= $t0 && ($prevEnd === null || $iv[1] > $prevEnd)) $prevEnd = $iv[1];
+            if ($iv && $iv[0] >= $t0 + 86400 && ($nextStart === null || $iv[0] < $nextStart)) $nextStart = $iv[0];
+        }
+        $out[$k] = [
+            'name' => $p['name'], 'title' => $p['title'], 'month_hours' => $hours, 'month_shifts' => $shifts, 'last7' => $last7,
+            'prev_end' => $prevEnd ? date('Y-m-d H:i', $prevEnd) : null, 'next_start' => $nextStart ? date('Y-m-d H:i', $nextStart) : null,
+            'rest_before' => $prevEnd !== null ? (int)floor(($t0 - $prevEnd) / 3600) : null,
+            'free_days' => ($prevEnd !== null ? (int)floor(($t0 - $prevEnd) / 86400) : 7) + ($nextStart !== null ? (int)floor(($nextStart - $t0 - 86400) / 86400) : 7),
+            'cross' => (int)($cross[$k] ?? 0),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Adalet sırası: ① az karşı tarafa geçiş ② ay içinde az nöbet saati ③ son 7 günde az nöbet ④ çok boşluk.
+ * $list: kişi dizileri (her biri 'name' içerir). Eşitler yan yana kalır; kura çağıran tarafta yapılır.
+ */
+function rules_fair_sort(array $list, array $stats, array $order = ['cross', 'month_hours', 'last7', '-free_days']): array
+{
+    $key = function ($p) use ($stats, $order) {
+        $s = $stats[swap_key((string)$p['name'])] ?? [];
+        return array_map(fn($k) => $k[0] === '-' ? -(int)($s[substr($k, 1)] ?? 0) : (int)($s[$k] ?? 0), $order);
+    };
+    usort($list, fn($a, $b) => $key($a) <=> $key($b));
+    return $list;
+}
+
+/** Eşitler arasından rastgele seçim (kayıt için adaylar ve sonuç döner) */
+function rules_draw(array $group): array
+{
+    $group = array_values($group);
+    return $group ? $group[random_int(0, count($group) - 1)] : [];
+}
+
+/* ------------------------------------------------------------------ */
+/* API: kurallar, gereken sayılar, muafiyet, tatiller (Ayarlar › Nöbet) */
+/* ------------------------------------------------------------------ */
+
+function rules_units(): array
+{
+    $u = [];
+    foreach (function_exists('sides_cfg') ? sides_cfg() : [] as $sd) foreach ($sd['units'] as $x) $u[] = ['unit' => $x, 'side' => $sd['key'], 'side_name' => $sd['name']];
+    return $u;
+}
+
+function a_rules_get(): void
+{
+    need_user();
+    out(['rules' => rules_cfg(), 'needs' => (object)needs_all(), 'units' => rules_units(), 'exempt' => is_publisher(current_user()) ? rules_exempt_list() : [],
+        'holidays' => array_map(fn($d, $h) => ['date' => $d] + $h, array_keys($hh = holidays_between(date('Y-01-01'), date('Y-12-31', strtotime('+1 year')))), $hh)]);
+}
+
+function a_rules_needs_save(): void
+{
+    $me = need_publisher();
+    $units = array_column(rules_units(), 'unit');
+    db()->beginTransaction();
+    q('DELETE FROM staff_needs');
+    $n = 0;
+    foreach (arr('needs') as $unit => $byType) {
+        if (!in_array((string)$unit, $units, true) || !is_array($byType)) continue;
+        foreach (['weekday', 'weekend'] as $dt) foreach (['day', 'night'] as $pr) {
+            $c = max(0, min(30, (int)($byType[$dt][$pr] ?? 0)));
+            q('INSERT INTO staff_needs (unit, day_type, period, count) VALUES (?, ?, ?, ?)', [(string)$unit, $dt, $pr, $c]);
+            $n += $c;
+        }
+    }
+    db()->commit();
+    audit($me, 'settings.save', 'Gereken nöbetçi sayıları', $n . ' kişi-dönem');
+    out(['needs' => (object)needs_all()]);
+}
+
+function a_rules_exempt_save(): void
+{
+    $me = need_publisher();
+    $name = s('name', 120);
+    if (mb_strlen($name) < 3) fail('Kişiyi seçin.');
+    $scope = in_array(s('scope', 20), ['all', 'kura', 'kaydirma', 'cagri'], true) ? s('scope', 20) : 'all';
+    $until = s('until', 10);
+    if ($until !== '' && !valid_ymd($until)) fail('Geçersiz tarih.');
+    $u = swap_user_for($name);
+    q('INSERT INTO rule_exempt (name, user_id, scope, until, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$name, $u ? (int)$u['id'] : null, $scope, $until ?: null, s('note', 200) ?: null, $me['id'], now()]);
+    audit($me, 'settings.save', 'Muafiyet: ' . $name, $scope . ($until ? ' · ' . $until . ' tarihine kadar' : ''));
+    out(['exempt' => rules_exempt_list()]);
+}
+
+function a_rules_exempt_delete(): void
+{
+    $me = need_publisher();
+    $r = one('SELECT name FROM rule_exempt WHERE id = ?', [(int)i('id')]) ?? fail('Kayıt bulunamadı.', 404);
+    q('DELETE FROM rule_exempt WHERE id = ?', [(int)i('id')]);
+    audit($me, 'settings.save', 'Muafiyet kaldırıldı: ' . $r['name']);
+    out(['exempt' => rules_exempt_list()]);
+}
+
+function a_holidays_save(): void
+{
+    $me = need_admin();
+    $date = s('date', 10);
+    if (!valid_ymd($date)) fail('Geçersiz tarih.');
+    $name = s('name', 80);
+    if ($name === '') {
+        q('DELETE FROM holidays WHERE date = ?', [$date]);
+        audit($me, 'settings.save', 'Tatil kaldırıldı', $date);
+    } else {
+        q('DELETE FROM holidays WHERE date = ?', [$date]);
+        q('INSERT INTO holidays (date, name, half, custom) VALUES (?, ?, ?, 1)', [$date, $name, b('half') ? 1 : 0]);
+        audit($me, 'settings.save', 'Tatil: ' . $name, $date . (b('half') ? ' (yarım gün)' : ''));
+    }
+    a_rules_get();
+}
