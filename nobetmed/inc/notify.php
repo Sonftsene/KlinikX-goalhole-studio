@@ -260,6 +260,8 @@ function job_shift_remind(): int
     $users = active_users_sql();
     $sent = 0;
     foreach ($users as $u) {
+        // Kendi hatırlatma saatini seçen kişiye kişisel görev (mod_prefs) gönderir
+        if (function_exists('remind_skip_default') && remind_skip_default((int)$u['id'])) continue;
         $mine = array_values(array_filter($rows, fn($r) => names_match((string)$r['name'], (string)$u['name'])));
         if (!$mine) continue;
         $s = $mine[0];

@@ -220,8 +220,20 @@
         out.counts = counts(u);
         out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, avatar: x.avatar || null, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+        out.my_prefs = { ui: u.ui_prefs || {}, pay: u.pay_rates || {}, remind: u.remind_prefs || null };
+        out.holidays = DEMO_HOLIDAYS;
+        out.remind_default_hour = 18; out.remind_default_on = true;
       }
       return out;
+    },
+    'me.prefs.save'(d) {
+      const u = me(); if (!u) err('Giriş gerekli', 401);
+      const v = d.value || {};
+      if (d.kind === 'ui') u.ui_prefs = { ...(u.ui_prefs || {}), ...v };
+      else if (d.kind === 'pay') u.pay_rates = v;
+      else if (d.kind === 'remind') u.remind_prefs = v.reset ? null : v;
+      else err('Geçersiz tercih.');
+      return { prefs: { ui: u.ui_prefs || {}, pay: u.pay_rates || {}, remind: u.remind_prefs || null } };
     },
     'auth.login'(d) {
       const u = db.users.find((x) => x.email === lower(d.email));
@@ -669,6 +681,12 @@
     } finally { db.settings.registration = reg; }
   };
 
+  const DEMO_HOLIDAYS = [];
+  for (let y = new Date().getFullYear() - 1; y <= new Date().getFullYear() + 1; y++) {
+    [['01-01', 'Yılbaşı'], ['04-23', 'Ulusal Egemenlik ve Çocuk Bayramı'], ['05-01', 'Emek ve Dayanışma Günü'], ['05-19', 'Gençlik ve Spor Bayramı'], ['07-15', 'Demokrasi ve Millî Birlik Günü'], ['08-30', 'Zafer Bayramı'], ['10-29', 'Cumhuriyet Bayramı']]
+      .forEach(([md, n]) => DEMO_HOLIDAYS.push({ date: `${y}-${md}`, name: n, half: false, kind: 'resmi' }));
+    DEMO_HOLIDAYS.push({ date: `${y}-10-28`, name: 'Cumhuriyet Bayramı arifesi', half: true, kind: 'resmi' });
+  }
   window.NM_DEMO_API = {
     async call(action, data) {
       await new Promise((r) => setTimeout(r, 120 + Math.random() * 120));

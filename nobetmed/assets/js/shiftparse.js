@@ -615,8 +615,10 @@ function matchPersonName(rosterName, userName) {
   return s[0] === l[0] || s[s.length - 1] === l[l.length - 1];
 }
 
-/** Bir kişinin aylık özeti. entries: o kişiye ait kayıtlar. */
-function summarizeMonth(entries, year, month) {
+/** Bir kişinin aylık özeti. entries: o kişiye ait kayıtlar.
+ *  holidays (isteğe bağlı): { 'YYYY-MM-DD': { half: bool } } — hafta içine denk gelen resmî tatil
+ *  zorunlu çalışma saatinden düşer (tam gün 8, arife/yarım gün 4 saat). */
+function summarizeMonth(entries, year, month, holidays) {
   const list = (entries || []).filter((e) => {
     if (!e || !e.date) return true;
     const [y, m] = e.date.split('-').map(Number);
@@ -635,6 +637,17 @@ function summarizeMonth(entries, year, month) {
       if (day && w !== 0 && w !== 6) leave.add(day);
     }
   });
-  const requiredHours = weekdays * 8 - leave.size * 8;
+  let requiredHours = weekdays * 8 - leave.size * 8;
+  if (holidays) {
+    let off = 0;
+    for (let d = 1; d <= days; d++) {
+      const h = holidays[`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`];
+      const w = spDow(year, month, d);
+      if (!h || w === 0 || w === 6 || leave.has(d)) continue;
+      off += h.half ? 4 : 8;
+    }
+    requiredHours -= off;
+    return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours, holidayOff: off };
+  }
   return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours };
 }

@@ -365,7 +365,7 @@ await a.locator('#setupBox .setup-row').first().waitFor();
 const su = await a.locator('#setupBox .setup-row').count();
 const suOk = await a.locator('#setupBox .setup-row.ok').count();
 await m.goto(BASE + '#/profil/gorunum');
-await m.click('[data-act=fs][data-v=lg]');
+await m.click('[data-act=pf-set][data-k=fs][data-v=lg]');
 if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg')))) fail('büyük yazı açılmadı');
 await m.reload();
 if (!(await m.evaluate(() => document.documentElement.classList.contains('fs-lg')))) fail('büyük yazı hatırlanmadı');
@@ -373,7 +373,7 @@ await m.goto(BASE + '#/');
 await m.locator('#heroShift .hs-t').waitFor();
 await m.screenshot({ path: path.join(OUT, 'f-home-buyuk.png') });
 await m.goto(BASE + '#/profil/gorunum');
-await m.click('[data-act=fs][data-v=""]');
+await m.click('[data-act=pf-set][data-k=fs][data-v=""]');
 step(`kurulum listesi ${suOk}/${su}, büyük yazı seçeneği`);
 
 // 20) Profil fotoğrafı rehberde ve yönetici kaldırabiliyor

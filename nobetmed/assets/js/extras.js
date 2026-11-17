@@ -139,10 +139,10 @@ function heroHtml() {
   const first = S.me.name.split(' ')[0];
   const now = new Date();
   const pend = (c.pending_posts || 0) + (isAdmin() ? c.pending_users || 0 : 0);
-  return html`<section class="hero">
+  return html`<section class="hero" data-home="hero">
     <div class="hero-head"><div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div></div>
     <a class="hero-shift" id="heroShift" href="#/nobetim"><span class="hs-ico tone-slate">${icon('calendar')}</span><span class="grow"><span class="skel" style="display:block;height:18px;width:62%"></span><span class="skel" style="display:block;height:13px;width:40%;margin-top:8px"></span></span></a>
-    <div class="hero-chips">
+    <div class="hero-chips" data-home="chips">
       <a class="hchip ${c.todo ? 'warn' : 'ok'}" href="#/okunacak">${icon(c.todo ? 'alert' : 'checkCircle', 'sm')}${c.todo ? html`<span>Okuman gereken <b data-count="todo">${c.todo}</b></span>` : html`<span>Okunacak yok</span>`}</a>
       <button class="hchip ${c.unread ? 'brand' : ''}" data-act="feed-filter" data-filter="unread">${icon('bell', 'sm')}<span>Yeni <b data-count="unread">${c.unread}</b></span></button>
       ${isPublisher() && pend ? html`<a class="hchip danger" href="${c.pending_posts ? '#/yonetim/onaylar' : '#/yonetim/kullanicilar'}">${icon('inbox', 'sm')}<span>Onay bekleyen <b>${pend}</b></span></a>` : ''}
@@ -158,7 +158,7 @@ function heroShiftHtml(my) {
   if (!ent.length) return box('slate', 'search', 'Listede adın bulunamadı', `Portaldaki adın (“${S.me.name}”) listedekiyle aynı olmalı.`);
   const y = new Date().getFullYear(), mo = new Date().getMonth() + 1;
   const monthList = ent.filter((e) => e.date.startsWith(`${y}-${pad(mo)}`));
-  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, mo) : null;
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, mo, holidayMapOrNull()) : null;
   const monthTxt = sm ? ` · Bu ay ${sm.shifts} nöbet, ${sm.hours} saat` : '';
   const cur = currentShift(ent);
   if (cur) return box(shiftTone(cur), 'clock', 'Şu an nöbettesin', html`${codeChip(cur)} ${shiftDesc(cur)} · ${cur.end}’de bitiyor`);
@@ -172,6 +172,7 @@ async function loadHomeExtras() {
   const [my, day] = await Promise.all([loadMyShifts(true), api('shifts.day', { date: ymd(new Date()) }).catch(() => null)]);
   const k = $('#heroShift');
   if (k) setHTML(k, heroShiftHtml(my));
+  if (k && typeof mountCountdown === 'function') mountCountdown(k, my);
   const tc = $('#todayCard');
   if (tc && day) setHTML(tc, todayCardHtml(day, true));
   const tips = $('#homeTips');
@@ -277,7 +278,8 @@ function drawCalendar() {
   const today = ymd(new Date());
   const pre = `${y}-${pad(m)}`;
   const monthList = (MY.entries || []).filter((e) => e.date.startsWith(pre));
-  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, m) : null;
+  const hol = holidayMapOrNull() || {};
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, m, holidayMapOrNull()) : null;
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push(html`<span class="cal-d empty" aria-hidden="true"></span>`);
   for (let d = 1; d <= days; d++) {
@@ -285,7 +287,7 @@ function drawCalendar() {
     const list = byDate[ds] || [];
     const main = list.find((e) => e.kind === 'shift') || list[0];
     const mv = (MY.moves || {})[ds];
-    cells.push(html`<button type="button" class="cal-d ${main ? 'has tone-' + shiftTone(main) : ''} ${ds === today ? 'today' : ''} ${ds === CAL.sel ? 'sel' : ''}" data-act="cal-day" data-d="${ds}" aria-label="${dateLabel(ds)}${main ? ' · ' + main.code + ' ' + shiftDesc(main) : ''}${mv ? ' · ' + mv.unit : ''}"><span class="cd-n">${d}</span>${main ? html`<span class="cd-c">${main.code}</span>` : ''}${mv ? html`<span class="cd-mv" title="${mv.unit}">${unitShort(mv.unit)}</span>` : ''}</button>`);
+    cells.push(html`<button type="button" class="cal-d ${main ? 'has tone-' + shiftTone(main) : ''} ${ds === today ? 'today' : ''} ${ds === CAL.sel ? 'sel' : ''} ${hol[ds] ? (hol[ds].half ? 'holiday-half' : 'holiday') : ''}" data-act="cal-day" data-d="${ds}" title="${hol[ds] ? hol[ds].name : ''}" aria-label="${dateLabel(ds)}${hol[ds] ? ' · ' + hol[ds].name : ''}${main ? ' · ' + main.code + ' ' + shiftDesc(main) : ''}${mv ? ' · ' + mv.unit : ''}"><span class="cd-n">${d}</span>${main ? html`<span class="cd-c">${main.code}</span>` : ''}${mv ? html`<span class="cd-mv" title="${mv.unit}">${unitShort(mv.unit)}</span>` : ''}</button>`);
   }
   const used = new Map();
   monthList.forEach((e) => used.set(e.kind + '|' + e.code, e));
@@ -294,7 +296,18 @@ function drawCalendar() {
       <div><b class="${sm.overtime > 0 ? 'pos' : ''}">${sm.overtime > 0 ? '+' : ''}${Math.abs(sm.overtime)}</b><span>${sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div><div><b>${sm.leaveDays}</b><span>izin günü</span></div></div>`
       : html`<p class="tiny faint cal-none">Bu ay için listede nöbetiniz yok.</p>`}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
-    ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || (e.kind === 'role' ? 'Görev' : e.kind === 'leave' ? 'İzin' : 'Nöbet')}</span></span>`)}</div>` : ''}`);
+    ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || (e.kind === 'role' ? 'Görev' : e.kind === 'leave' ? 'İzin' : 'Nöbet')}</span></span>`)}</div>` : ''}
+    ${Object.keys(hol).some((d) => d.startsWith(pre)) ? html`<div class="cal-legend">${Object.keys(hol).filter((d) => d.startsWith(pre)).map((d) => html`<span><span class="hol-mark"></span><span>${+d.slice(8)} ${TR_MONTHS_S[m - 1]} · ${hol[d].name}</span></span>`)}</div>` : ''}`);
+  if (typeof mountPayBox === 'function') mountPayBox(y, m, monthList, sm);
+}
+/** Resmî tatil haritası (açılış verisinden) — yoksa null */
+function holidayMapOrNull() {
+  if (!Array.isArray(S.holidays) || !S.holidays.length) return null;
+  if (S._holMap && S._holMap.src === S.holidays) return S._holMap.map;
+  const map = {};
+  S.holidays.forEach((h) => { map[h.date] = h; });
+  S._holMap = { src: S.holidays, map };
+  return map;
 }
 ACT['cal-day'] = (el) => { CAL.sel = el.dataset.d; drawCalendar(); loadDayPanel(); if (window.innerWidth < 900) { const p = $('#dayPanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
 ACT['cal-mv'] = (el) => {
@@ -453,7 +466,8 @@ const NMODE_HINT = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.'
 function renderProfile(view) {
   const me = S.me;
   const r = currentRoute()[1];
-  const tab = PROF_TABS.some(([k]) => k === r) ? r : 'profil';
+  const tabs = profTabs();
+  const tab = tabs.some(([k]) => k === r) ? r : 'profil';
   setHTML(view, html`
     <div class="prof-hero">
       <label class="prof-av" title="Profil fotoğrafını değiştir">${avatar(me.name, 'xl')}<span class="prof-av-edit">${icon('edit', 'sm')}</span><input type="file" accept="image/*" hidden data-change="av-file"></label>
@@ -461,13 +475,24 @@ function renderProfile(view) {
         <div class="small muted">${[titleName(me.title_id), unitName(me.unit_id)].filter(Boolean).join(' · ') || me.email}</div>
         <div class="row wrap" style="gap:6px;margin-top:8px"><span class="badge ${me.role === 'admin' ? 'brand' : me.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[me.role]}</span>${me.phone ? html`<span class="badge">${icon('phone')}${me.phone}</span>` : ''}</div></div>
     </div>
-    <nav class="seg prof-tabs" role="tablist">${PROF_TABS.map(([k, l, ic]) => html`<a class="${tab === k ? 'on' : ''}" href="#/profil/${k}" role="tab">${icon(ic, 'sm')}<span>${l}</span></a>`)}</nav>
+    <nav class="seg prof-tabs" role="tablist">${tabs.map(([k, l, ic]) => html`<a class="${tab === k ? 'on' : ''}" href="#/profil/${k}" role="tab">${icon(ic, 'sm')}<span>${l}</span></a>`)}</nav>
     <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
   if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
   if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
+  if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
+  if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
+  const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
+  if (ext && ext.mount) { try { ext.mount(); } catch (e) { /* */ } }
+}
+/** Profil sekmeleri: yerleşikler + modüllerin sekmeleri (Gönderilerim en sonda) */
+function profTabs() {
+  const ext = NM_EXT.profileTabs.filter((t) => !t.visible || t.visible()).map((t) => [t.key, t.label, t.icon || 'star']);
+  return [...PROF_TABS.slice(0, -1), ...ext, PROF_TABS[PROF_TABS.length - 1]];
 }
 function profileTabHtml(tab) {
   const me = S.me;
+  const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
+  if (ext) return ext.html();
   if (tab === 'profil') return html`
     <div class="card card-pad stack">
       <h3 class="ph">Profil fotoğrafı</h3>
@@ -508,7 +533,8 @@ function profileTabHtml(tab) {
       <div class="seg seg-block">${[['instant', 'Anlık'], ['digest', 'Sabah özeti'], ['off', 'Kapalı']].map(([k, l]) => html`<button class="${(me.notify_mode || 'instant') === k ? 'on' : ''}" data-act="nmode" data-m="${k}">${l}</button>`)}</div>
       <p class="tiny faint" id="nmodeHint">${NMODE_HINT[me.notify_mode || 'instant']}</p>
     </div>
-    <div class="card card-pad stack"><h3 class="ph">Telefon bildirimleri</h3><div id="pushBox"><p class="tiny faint">${S.settings.push_ready ? 'Yükleniyor…' : 'Telefon bildirimleri bu sitede kapalı.'}</p></div></div>`;
+    <div class="card card-pad stack"><h3 class="ph">Telefon bildirimleri</h3><div id="pushBox"><p class="tiny faint">${S.settings.push_ready ? 'Yükleniyor…' : 'Telefon bildirimleri bu sitede kapalı.'}</p></div></div>
+    ${typeof remindCardHtml === 'function' ? remindCardHtml() : ''}`;
   if (tab === 'guvenlik') return html`
     <form class="card card-pad stack" data-form="me-pw">
       <h3 class="ph">${me.has_password ? 'Şifre değiştir' : 'Şifre belirle'}</h3>
@@ -519,7 +545,7 @@ function profileTabHtml(tab) {
     </form>
     <div class="card card-pad stack" id="pkBox"><h3 class="ph">Parmak izi / Face ID ile giriş</h3><div class="tiny faint">Yükleniyor…</div></div>
     <div class="card card-pad"><button class="btn danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button></div>`;
-  if (tab === 'gorunum') return appearanceCardHtml();
+  if (tab === 'gorunum') return typeof prefsAppearanceHtml === 'function' ? prefsAppearanceHtml() : appearanceCardHtml();
   return html`<div class="card"><div style="padding:14px" id="feedHost"></div></div>`;
 }
 /** Profil/ad değişince menü, üst çubuk ve listelerde güncel görünsün */

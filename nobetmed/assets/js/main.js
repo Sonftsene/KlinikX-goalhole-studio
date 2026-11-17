@@ -1,6 +1,7 @@
 /* dupcii — açılış */
 'use strict';
 
+const BOOT_CORE_KEYS = new Set(['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb', 'people', 'counts', 'csrf', 'mail_ready', 'setup_needed', 'ok', 'error']);
 async function start() {
   if (BOOT.share && !start.guestShown) {
     start.guestShown = true;
@@ -18,6 +19,11 @@ async function start() {
   ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });
   S.people = r.people || [];
   if (r.counts) S.counts = r.counts;
+  // Modüllerin açılış verisi (NM_BOOT): bilinmeyen anahtarlar S'ye kopyalanır; hesap değişince eskileri silinir
+  (S._modKeys || []).forEach((k) => { if (!(k in r)) delete S[k]; });
+  S._modKeys = Object.keys(r).filter((k) => !BOOT_CORE_KEYS.has(k));
+  S._modKeys.forEach((k) => { S[k] = r[k]; });
+  if (typeof prefsOnBoot === 'function') { try { prefsOnBoot(); } catch (e) { /* */ } }
   document.title = 'dupcii · ' + (S.settings.org_name || 'Klinik Portalı');
   applyBrand();
   if (r.setup_needed) return renderSetup();

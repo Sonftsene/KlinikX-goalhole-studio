@@ -215,18 +215,19 @@ function renderHome(view) {
     ${heroHtml()}
     <div id="homeExtTop" class="home-ext-top"></div>
     <div class="home-grid">
-      <section id="feedHost"></section>
+      <section id="feedHost" data-home="feed"></section>
       <aside class="side-col" id="homeSide">
         ${isAdmin() ? html`<div id="setupBox"></div>` : ''}
         <div id="homeExtSide"></div>
-        <div id="homeTips"></div>
-        <div class="card" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
-        <div class="card" id="rosterCard">${rosterCard()}</div>
+        <div id="homeTips" data-home="tips"></div>
+        <div class="card" data-home="today" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
+        <div class="card" data-home="rosters" id="rosterCard">${rosterCard()}</div>
       </aside>
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
   loadHomeExtras();
   mountHomeExt();
+  if (typeof applyHomeLayout === 'function') applyHomeLayout();
   maybeShowTour();
   refreshRosters().then(() => {
     const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());

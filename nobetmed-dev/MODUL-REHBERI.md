@@ -27,7 +27,7 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
   - Gereken nöbetçi: `needs_for_date($tarih)` [birim => ['day' => n, 'night' => n]]; `needs_by_side($tarih)` [tarafAnahtarı => ...]; Ayarlar'da düzenlenir (`rules.get`, `rules.needs.save`).
 - Taraflar: `sides_cfg()` -> [['key' => 's3', 'name' => '3. Basamak', 'roster_id' => 3, 'units' => ['B blok']], ['key' => 's2', ..., 'units' => ['A blok', 'C blok']]]. Mevcut eski taraf kayıtları: tablo `side_moves`.
 - Değişim akışı (hazır): `swap_requests` tablosu (status pending|accepted|declined|cancelled|applied|expired). Kabul edilen bir değişim/devir için kayıt eklemek, sorumluya bildirim ve "Excel güncellenince uygulandı" otomatik (`swap_check_applied`). Var olan işlevleri okuyun: `nobetmed/inc/swaps.php`, `nobetmed/inc/api_sync.php` (a_swap_*).
-- Kancalar: `$GLOBALS['NM_JOBS']['ad'] = fn(bool $force) => ...` (5 dakikada bir/cron), `$GLOBALS['NM_BOOT'][] = fn(array $me): array` (açılış verisine ekler), `$GLOBALS['NM_GET']['eylem'] = fn()` (oturumsuz GET).
+- Kancalar: `$GLOBALS['NM_JOBS']['ad'] = fn(bool $force) => ...` (5 dakikada bir/cron), `$GLOBALS['NM_BOOT'][] = fn(array $me): array` (açılış verisine ekler; dönen anahtarlar istemcide doğrudan `S.<anahtar>` olur, hesap değişince silinir), `$GLOBALS['NM_GET']['eylem'] = fn()` (oturumsuz GET).
 
 ## Veritabanı (hazır, sürüm 11 — şemayı değiştirmeyin; ek alan gerekirse `meta` TEXT sütununa JSON yazın)
 - `req_periods` (id, ym 'YYYY-MM', roster_id NULL=hepsi, deadline 'Y-m-d', status open|closed, note, created_by, created_at, meta)
@@ -62,3 +62,8 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Çalıştırma: taze kopya + php -S + iki betik + sizinki. Hazır betik: `/tmp/claude-0/-home-user-KlinikX-goalhole-studio/4d7744e8-ab7f-5308-b766-65f9f8511e50/scratchpad/fullrun.sh <no> <port>` taban+features'ı çalıştırır, site `scratchpad/run<no>`, çıktı `scratchpad/r<no>`; sonra kendi testinizi `node e2e-<modül>.mjs http://localhost:<port>/ <çıktı> <site>` ile çalıştırın (sunucuyu sonra `pkill -f "localhost:<port>"`). Her ajan FARKLI port kullansın.
 - Playwright/Chromium kurulu (`require('playwright')`), kurulum yapmayın. Telefon görünümünü (390×844) ekran görüntüsüyle kontrol edin; yatay taşma olmamalı.
 - Bitince: php -l, node --check, kendi testiniz geçmeli. git commit YAPMAYIN (ana geliştirici yapar).
+
+## Ortak yardımcılar (prefs modülü)
+- `holidayMapOrNull()` → `{ 'YYYY-MM-DD': { name, half, kind: 'resmi'|'bayram' } }` (S.holidays'ten); `summarizeMonth(entries, y, m, holidays)` tatilleri zorunlu saatten düşer.
+- Ana sayfa kartları kişinin “Ana sayfam” ayarına göre gizlenir/sıralanır (`homePrefs()`); yerleşik bloklar `data-home` ile işaretlidir.
+- Profil sekmesi eklemek: `NM_EXT.profileTabs.push({ key, label, icon, html, mount })`.

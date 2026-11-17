@@ -1,1 +1,135 @@
-/* dupcii — prefs modülü */
+/* dupcii — kişisel tercihler: renk paletleri, köşe/yoğunluk, OLED, ana sayfa düzeni, geri sayım, ücret */
+
+/* ================= Renk paletleri (data-accent) ================= */
+:root[data-accent] {
+  --sky: var(--brand-soft);
+  --sky-2: color-mix(in srgb, var(--brand) 20%, #fff);
+  --sky-text: var(--brand-text);
+  --mint: var(--brand-soft);
+  --mint-text: var(--brand-text);
+  --focus: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+:root[data-accent][data-theme="dark"] {
+  --sky-2: color-mix(in srgb, var(--brand) 26%, transparent);
+}
+:root[data-accent] .card { border-color: var(--border); }
+:root[data-accent] .hero { border-color: color-mix(in srgb, var(--brand) 16%, var(--border)); }
+:root[data-accent] .hero-shift { border-color: var(--border); }
+:root[data-accent] .tabs button.on { border-bottom-color: var(--brand); }
+:root[data-accent] .btn.primary { box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--brand) 75%, transparent); }
+
+:root[data-accent="okyanus"] { --brand: #1d6fd1; --brand-strong: #175bb0; --brand-soft: #e2edfc; --brand-text: #1557a8; --violet: #3d5bdb; --violet-soft: #e8ecfd; --violet-text: #3047b8;
+  --grad-brand: linear-gradient(135deg, #1d9be0 0%, #1d6fd1 50%, #3d5bdb 100%); --grad-soft: linear-gradient(135deg, #e3f3fc 0%, #e6ecfc 100%); --bg: #f2f6fb; }
+:root[data-accent="okyanus"][data-theme="dark"] { --brand: #5aa2f5; --brand-strong: #7ab6f8; --brand-soft: rgba(90, 162, 245, .15); --brand-text: #8cc0fa; --violet: #8c9eff; --violet-soft: rgba(140, 158, 255, .15); --violet-text: #aab7ff;
+  --grad-brand: linear-gradient(135deg, #4ab3f0 0%, #5a8ff5 55%, #7c84f5 100%); --grad-soft: linear-gradient(135deg, rgba(74, 179, 240, .10) 0%, rgba(124, 132, 245, .10) 100%); --bg: #0a1018; }
+
+:root[data-accent="lavanta"] { --brand: #7451d6; --brand-strong: #5f3fc0; --brand-soft: #efe9fd; --brand-text: #5a3cbf;
+  --grad-brand: linear-gradient(135deg, #8b6cf0 0%, #a35fe0 55%, #c965c8 100%); --grad-soft: linear-gradient(135deg, #f1ecfe 0%, #f8ebfa 100%); --bg: #f6f4fc; }
+:root[data-accent="lavanta"][data-theme="dark"] { --brand: #a58bff; --brand-strong: #bba6ff; --brand-soft: rgba(165, 139, 255, .15); --brand-text: #c4b1ff;
+  --grad-brand: linear-gradient(135deg, #9d84ff 0%, #b98af0 55%, #d98ad8 100%); --grad-soft: linear-gradient(135deg, rgba(157, 132, 255, .12) 0%, rgba(217, 138, 216, .10) 100%); --bg: #0f0c18; }
+
+:root[data-accent="gul"] { --brand: #c4426a; --brand-strong: #a73457; --brand-soft: #fce7ee; --brand-text: #a23255;
+  --grad-brand: linear-gradient(135deg, #e0577f 0%, #ea6f6d 55%, #f08a5d 100%); --grad-soft: linear-gradient(135deg, #fdebf1 0%, #fdf0e8 100%); --bg: #fbf4f6; }
+:root[data-accent="gul"][data-theme="dark"] { --brand: #f383a3; --brand-strong: #f6a0b9; --brand-soft: rgba(243, 131, 163, .14); --brand-text: #f7a9c0;
+  --grad-brand: linear-gradient(135deg, #f07a9c 0%, #f38d8a 55%, #f5a37c 100%); --grad-soft: linear-gradient(135deg, rgba(240, 122, 156, .11) 0%, rgba(245, 163, 124, .09) 100%); --bg: #140c0f; }
+
+:root[data-accent="gunes"] { --brand: #c26412; --brand-strong: #a3530c; --brand-soft: #fdf0dd; --brand-text: #964c0a;
+  --grad-brand: linear-gradient(135deg, #f0a12b 0%, #ec7b33 55%, #e2593e 100%); --grad-soft: linear-gradient(135deg, #fdf3e0 0%, #fdeae3 100%); --bg: #fbf7f1; }
+:root[data-accent="gunes"][data-theme="dark"] { --brand: #f4b15a; --brand-strong: #f7c47f; --brand-soft: rgba(244, 177, 90, .14); --brand-text: #f7c47f;
+  --grad-brand: linear-gradient(135deg, #f6bf5c 0%, #f39a59 55%, #f07f5a 100%); --grad-soft: linear-gradient(135deg, rgba(246, 191, 92, .10) 0%, rgba(240, 127, 90, .09) 100%); --bg: #130f0a; }
+
+:root[data-accent="orman"] { --brand: #2e8540; --brand-strong: #246b33; --brand-soft: #e3f3e6; --brand-text: #22663a;
+  --grad-brand: linear-gradient(135deg, #2f9a59 0%, #4aa64a 55%, #8bb543 100%); --grad-soft: linear-gradient(135deg, #e5f5e8 0%, #f0f6df 100%); --bg: #f3f8f3; }
+:root[data-accent="orman"][data-theme="dark"] { --brand: #6cd486; --brand-strong: #8ade9f; --brand-soft: rgba(108, 212, 134, .14); --brand-text: #8ade9f;
+  --grad-brand: linear-gradient(135deg, #5ccf8a 0%, #7bd36a 55%, #b2d45e 100%); --grad-soft: linear-gradient(135deg, rgba(92, 207, 138, .10) 0%, rgba(178, 212, 94, .08) 100%); --bg: #0a120c; }
+
+:root[data-accent="grafit"] { --brand: #3f5563; --brand-strong: #2f414c; --brand-soft: #e8edf0; --brand-text: #33454f;
+  --grad-brand: linear-gradient(135deg, #586f7e 0%, #3f5563 55%, #29353d 100%); --grad-soft: linear-gradient(135deg, #eef2f4 0%, #e9edf0 100%); --bg: #f4f6f7; }
+:root[data-accent="grafit"][data-theme="dark"] { --brand: #a9bac4; --brand-strong: #c2d0d8; --brand-soft: rgba(169, 186, 196, .14); --brand-text: #c2d0d8;
+  --grad-brand: linear-gradient(135deg, #9fb3bf 0%, #7d929f 55%, #5f7380 100%); --grad-soft: linear-gradient(135deg, rgba(169, 186, 196, .09) 0%, rgba(95, 115, 128, .09) 100%); --bg: #0c0f11; }
+:root[data-accent="grafit"][data-theme="dark"] .btn.primary { color: #0c1114; }
+
+:root[data-accent="gece"] { --brand: #3949ab; --brand-strong: #2c3a91; --brand-soft: #e8eafb; --brand-text: #2e3c99;
+  --grad-brand: linear-gradient(135deg, #3949ab 0%, #5a4bd1 55%, #7c4dff 100%); --grad-soft: linear-gradient(135deg, #e9ebfb 0%, #efe9ff 100%); --bg: #f4f5fb; }
+:root[data-accent="gece"][data-theme="dark"] { --brand: #8c9eff; --brand-strong: #a5b3ff; --brand-soft: rgba(140, 158, 255, .15); --brand-text: #aab7ff;
+  --grad-brand: linear-gradient(135deg, #7986f5 0%, #8f7dfa 55%, #b07cff 100%); --grad-soft: linear-gradient(135deg, rgba(121, 134, 245, .11) 0%, rgba(176, 124, 255, .10) 100%); --bg: #0b0c18; }
+
+/* ================= Gece siyahı (OLED) ================= */
+:root[data-theme="dark"][data-oled="1"] {
+  --bg: #000; --surface: #0a0a0b; --surface-2: #101012; --surface-3: #17171a;
+  --border: #222327; --border-strong: #303237;
+}
+:root[data-theme="dark"][data-oled="1"] .sidebar { background: #000; }
+
+/* ================= Köşeler ve yoğunluk ================= */
+:root[data-shape="sharp"] { --radius: 6px; --radius-sm: 4px; }
+:root[data-shape="sharp"] .hero, :root[data-shape="sharp"] .hero-shift, :root[data-shape="sharp"] .modal, :root[data-shape="sharp"] .hchip,
+:root[data-shape="sharp"] .btn, :root[data-shape="sharp"] .input, :root[data-shape="sharp"] .select, :root[data-shape="sharp"] .textarea { border-radius: 6px; }
+:root[data-shape="sharp"] .seg, :root[data-shape="sharp"] .seg button { border-radius: 5px; }
+:root[data-density="compact"] .card-pad { padding: 13px; }
+:root[data-density="compact"] .list-row { padding: 9px 14px; gap: 10px; }
+:root[data-density="compact"] .hero { padding: 14px 16px; margin-bottom: 14px; }
+:root[data-density="compact"] .hero-shift { margin-top: 10px; padding: 11px 13px; }
+:root[data-density="compact"] .stack { gap: 10px; }
+:root[data-density="compact"] .home-grid { gap: 14px; }
+
+/* ================= Görünüm kartı ================= */
+.pf-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.pf-sw { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 8px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.pf-sw:hover { border-color: var(--border-strong); }
+.pf-sw.on { border-color: var(--brand); color: var(--brand-text); box-shadow: var(--focus); }
+.pf-sw i { width: 38px; height: 38px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55), 0 2px 6px -2px rgba(0, 0, 0, .3); }
+.pf-sw.on i { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.pf-row > .pf-l { min-width: 120px; font-size: 13px; color: var(--text-2); }
+.pf-preview { border-radius: 14px; padding: 14px; background: var(--grad-soft); border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pf-preview .pv-dot { width: 34px; height: 34px; border-radius: 10px; background: var(--grad-brand); flex: none; }
+
+/* ================= Ana sayfa düzeni ================= */
+.hl-list { display: flex; flex-direction: column; gap: 6px; }
+.hl-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.hl-item.off { opacity: .55; background: var(--surface-2); }
+.hl-item .hl-t { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+.hl-item .hl-s { display: block; font-size: 11.5px; color: var(--text-3); font-weight: 500; }
+.hl-item .btn.icon { width: 30px; height: 30px; }
+.hl-group { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin: 8px 2px 2px; }
+[data-home].home-hidden { display: none !important; }
+.home-edit-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-3); margin: 4px 0 14px; }
+.home-edit-link:hover { color: var(--brand-text); }
+
+/* ================= Canlı geri sayım ================= */
+.cd-box { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.cd-units { display: flex; gap: 6px; }
+.cd-u { min-width: 50px; padding: 6px 8px 5px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); text-align: center; box-shadow: var(--shadow-sm); }
+.cd-u b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cd-u span { display: block; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.cd-lbl { font-size: 12.5px; color: var(--text-2); }
+.cd-bar { flex-basis: 100%; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.cd-bar > span { display: block; height: 100%; background: var(--grad-brand); border-radius: 99px; transition: width 1s linear; }
+.cd-block { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: var(--brand-soft); color: var(--brand-text); font-size: 12px; font-weight: 700; }
+
+/* ================= Ücret ================= */
+.pay-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pay-stat { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2); }
+.pay-stat .ps-l { font-size: 12px; color: var(--text-3); font-weight: 600; }
+.pay-stat .ps-v { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.pay-stat .ps-s { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.pay-stat.total { background: var(--grad-soft); border-color: color-mix(in srgb, var(--brand) 25%, var(--border)); }
+.pay-stat.total .ps-v { color: var(--brand-text); }
+.pay-lock { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-3); }
+.pay-x { display: grid; grid-template-columns: 1fr 100px 80px 34px; gap: 6px; align-items: center; }
+@media (max-width: 480px) { .pay-x { grid-template-columns: 1fr 84px 64px 30px; } }
+.hol-mark { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--c-rose); }
+.cal-d.holiday { background: var(--c-rose-bg); }
+.cal-d.holiday-half { background: linear-gradient(135deg, transparent 50%, var(--c-rose-bg) 50%); }
+.hol-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--c-rose); }
+
+/* ================= Kurallar kartı ================= */
+.nd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.nd-table th, .nd-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); text-align: center; }
+.nd-table th:first-child, .nd-table td:first-child { text-align: left; }
+.nd-table input { width: 52px; text-align: center; padding: 0 4px; height: 32px; }
+.nd-wrap { overflow-x: auto; }
+.ex-row, .hd-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ex-row .grow, .hd-row .grow { min-width: 0; }
+@media (max-width: 900px) { .home-grid.side-first > aside { order: -1; } .home-grid.side-first > aside .side-col, .home-grid.side-first > aside { position: static; } }
