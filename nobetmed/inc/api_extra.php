@@ -870,11 +870,11 @@ function a_phonebook_import(): void
     try {
         if (b('replace')) q('DELETE FROM phonebook');
         $seen = [];
-        foreach (all('SELECT name, number FROM phonebook') as $r) $seen[tr_lower($r['name']) . '|' . $r['number']] = 1;
+        foreach (all('SELECT name, number, category FROM phonebook') as $r) $seen[tr_lower($r['name']) . '|' . $r['number'] . '|' . tr_lower((string)$r['category'])] = 1;
         $sort = (int)val('SELECT COALESCE(MAX(sort), 0) FROM phonebook');
         $added = 0;
         foreach ($clean as [$name, $num, $cat, $note]) {
-            $k = tr_lower($name) . '|' . $num;
+            $k = tr_lower($name) . '|' . $num . '|' . tr_lower($cat);
             if (isset($seen[$k])) continue;
             $seen[$k] = 1;
             q('INSERT INTO phonebook (name, number, category, note, pinned, updated_by, updated_at, sort) VALUES (?, ?, ?, ?, 0, ?, ?, ?)', [$name, $num, $cat, $note, $me['id'], now(), ++$sort]);

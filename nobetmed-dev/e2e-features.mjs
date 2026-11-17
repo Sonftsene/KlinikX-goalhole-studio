@@ -469,10 +469,14 @@ await a.click('.page-head [data-act=pb-import]');
 await a.setInputFiles('#pbFile', { name: 'rehber.csv', mimeType: 'text/csv', buffer: Buffer.from('HORMON LAB\nHormon;2330\nTiroid;2331 / 2332\n') });
 await expectText(a, 'rehber.csv okundu');
 if ((await a.locator('#pbImpBtn').innerText()).trim() !== '2 numarayı ekle') fail('dosyadan rehber önizlemesi: ' + await a.locator('#pbImpBtn').innerText());
+await a.setInputFiles('#pbFile', { name: 'rehber2.csv', mimeType: 'text/csv', buffer: Buffer.from('Grup;Ad;Numara;Not\n112 Servisi;Ambulans Desk;1199;\nACİL;Kırmızı alan;1161;gece 1162\n') });
+await expectText(a, 'rehber2.csv okundu');
+const prevTxt = await a.locator('#pbPrev').innerText();
+if ((await a.locator('#pbImpBtn').innerText()).trim() !== '2 numarayı ekle' || !/Ambulans Desk\s+1199\s+112 Servisi/.test(prevTxt)) fail('başlıklı sütunlar okunmadı: ' + prevTxt.slice(0, 200));
 await a.click('.modal [data-act=close-modal]');
 await a.locator('.modal [data-ok]').click();
 await a.locator('.modal').first().waitFor({ state: 'detached' });
-step('telefon rehberi: yapıştırarak 5 numara, Excel/CSV dosyasından, acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
+step('telefon rehberi: yapıştırarak 5 numara, Excel/CSV dosyasından (başlıklı sütunlar dahil), acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
 
 // 23) Google E-Tablolar: kod gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi, ikinci (görüntüleme) tablosu
 await a.goto(BASE + '#/yonetim/ayarlar/nobet');

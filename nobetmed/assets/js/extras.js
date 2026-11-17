@@ -1578,9 +1578,26 @@ function pbParsePaste(text, defCat) {
   const out = [];
   let cat = defCat || '';
   const numLike = (c) => /\d/.test(c) && /^[\d\s+()/.,-]+$/.test(c) && c.replace(/\D/g, '').length >= 2;
+  const hk = (c) => avKey(c).replace(/[^a-z0-9 ]/g, '').trim();
+  let map = null;
   for (let line of String(text || '').split(/\r?\n/)) {
     line = line.replace(/ /g, ' ').trim();
     if (!line) continue;
+    // Başlık satırı (Grup | Ad | Numara | Not) varsa sonraki satırlar sütunlara göre okunur
+    if (!map && /\t|;/.test(line)) {
+      const hc = line.split(/\t|;/).map(hk);
+      const find = (re) => hc.findIndex((c) => re.test(c));
+      const iNum = find(/^(numara|numarasi|dahili|dahili no|telefon|tel|tel no|no)$/), iName = find(/^(ad|adi|isim|yer|oda|birim adi|kisi)$/);
+      if (iNum >= 0 && iName >= 0) { map = { num: iNum, name: iName, grp: find(/^(grup|bolum|kategori|birim|servis)$/), note: find(/^(not|notlar|aciklama)$/) }; continue; }
+    }
+    if (map) {
+      const c = line.split(/\t|;/).map((x) => x.trim());
+      const num = (c[map.num] || '').replace(/\s+/g, ' ');
+      const name = c[map.name] || (map.grp >= 0 ? c[map.grp] : '') || '';
+      if (!/\d/.test(num) || name.length < 2) continue;
+      out.push({ name: name.slice(0, 120), number: num.slice(0, 40), category: ((map.grp >= 0 && c[map.grp]) || defCat || '').slice(0, 60), note: (map.note >= 0 ? c[map.note] || '' : '').slice(0, 200) });
+      continue;
+    }
     const cells = line.split(/\t|;|\s{3,}/).map((c) => c.trim()).filter(Boolean);
     let name = '', num = '', note = '';
     if (cells.length > 1) {
@@ -1642,7 +1659,7 @@ ACT['pb-import'] = () => {
         for (let r = 0; r < Math.min(rows, 5000); r++) {
           const row = [];
           for (let c = 0; c < Math.min(cols, 30); c++) { const x = sh.cells.get(r * 100000 + c); row.push(x && x.text != null ? String(x.text).replace(/\s+/g, ' ').trim() : ''); }
-          if (row.some(Boolean)) lines.push(row.filter(Boolean).join('\t'));
+          if (row.some(Boolean)) lines.push(row.join('\t').replace(/\t+$/, ''));
         }
       });
       delete window.NM_FILE_REG[url];
