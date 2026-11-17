@@ -65,6 +65,7 @@ function renderNav() {
     <div class="nav-sec">Nöbet</div>
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
+    ${navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf')}
     ${S.rosters.length ? S.rosters.map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
     <div class="nav-sec">Bölümler</div>
@@ -85,7 +86,7 @@ function renderNav() {
   const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${tab(hubHref(), icon('calendar'), 'Nöbet', ['nobet', 'nobetim', 'rehber'].includes(r[0]), 0)}
+    ${tab(hubHref(), icon('calendar'), 'Nöbet', ['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]), 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
     ${isPublisher() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
@@ -183,6 +184,7 @@ function route() {
     case 'nobetim': renderMyShifts(view); break;
     case 'rehber': renderDirectory(view); break;
     case 'telefon': renderPhonebook(view); break;
+    case 'taraf': renderTaraf(view); break;
     case 'p':
       history.replaceState(null, '', '#/');
       renderHome(view);

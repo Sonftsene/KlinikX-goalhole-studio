@@ -11,7 +11,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/mail.php';
 require __DIR__ . '/inc/notify.php';
-foreach (["push.php", "webauthn.php"] as $f) if (is_file(__DIR__ . '/inc/' . $f)) require __DIR__ . '/inc/' . $f;
+foreach (["push.php", "webauthn.php", "gsync.php", "swaps.php"] as $f) if (is_file(__DIR__ . '/inc/' . $f)) require __DIR__ . '/inc/' . $f;
 set_setting('cron_last', (string)time());
 $done = run_jobs(in_array('--force', $argv ?? [], true));
 $n = mail_flush(200);

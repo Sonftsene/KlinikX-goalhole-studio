@@ -1167,3 +1167,77 @@ a.pb-num svg.i { width: 15px; height: 15px; }
   .pb-num { font-size: 17px; min-height: 42px; padding: 6px 10px; }
   .pb-row .btn.icon.sm { width: 32px; padding: 0; }
 }
+
+/* ---------------- Google E-Tablolar bağlantısı ---------------- */
+.gs-mode button { white-space: normal; line-height: 1.25; }
+.gs-steps h4, #gsCard h4 { font-size: 14px; font-weight: 650; }
+.gs-steps ol { padding-left: 20px; display: grid; gap: 6px; color: var(--text-2); }
+.gs-code { position: relative; }
+.gs-code pre { max-height: 220px; overflow: auto; font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; white-space: pre; }
+.gs-code .btn { position: absolute; top: 8px; right: 8px; }
+.gs-status { display: grid; gap: 6px; padding: 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.gs-status.bad { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); background: var(--danger-soft); }
+.err-text { color: var(--danger); }
+.gs-kind .select { flex-shrink: 0; }
+.rs-linked { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--c-emerald); flex-wrap: wrap; }
+.rs-linked svg.i { width: 14px; height: 14px; }
+
+/* ---------------- Takvim: başka blokta çalışma + değişim ---------------- */
+.cal-d { position: relative; }
+.cd-mv { position: absolute; top: 3px; right: 3px; min-width: 15px; height: 15px; border-radius: 5px; background: var(--violet); color: #fff; font: 700 9.5px/15px var(--font); text-align: center; padding: 0 2px; }
+.dm-move { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--violet-soft); color: var(--violet-text); font-size: 13px; }
+.dm-row .btn { flex-shrink: 0; }
+.swap-card { margin-bottom: 14px; }
+.swap-row { align-items: flex-start; }
+.swap-row .badge { margin-top: 3px; }
+.sw-mine { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.sw-row { align-items: flex-start; }
+.sw-opts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 60%; }
+.sw-opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 6px 8px; font: 600 13px var(--font); color: var(--text); cursor: pointer; }
+.sw-opt:hover, .sw-give:hover { border-color: var(--brand); background: var(--brand-soft); }
+.sw-give { width: 100%; border: 0; background: none; cursor: pointer; font: inherit; color: inherit; }
+.sw-sum { padding: 14px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-text); font-weight: 600; line-height: 1.45; }
+@media (max-width: 600px) { .sw-row { flex-wrap: wrap; } .sw-opts { max-width: none; justify-content: flex-start; flex: 1 1 100%; } }
+
+/* ---------------- Taraf listesi ---------------- */
+.tr-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.tr-nav b { font-size: 16px; min-width: 120px; text-align: center; }
+.tr-orders { display: grid; gap: 8px; }
+.tr-order { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tr-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.tr-board-l { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 14px; }
+.tr-p { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; }
+.tr-p.in { background: var(--violet-soft); border-color: transparent; color: var(--violet-text); }
+.tr-p.out { opacity: .55; text-decoration: line-through; }
+.tr-p.out .tiny { text-decoration: none; }
+.tr-unit { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: var(--violet); color: #fff; font: 700 11px var(--font); }
+.tr-unit.big { min-width: 34px; height: 34px; border-radius: 10px; font-size: 15px; }
+.tr-mx-wrap { padding: 0; overflow: hidden; }
+.tr-mx-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tr-mx { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }
+.tr-mx th, .tr-mx td { border-bottom: 1px solid var(--border); text-align: center; padding: 0; height: 34px; min-width: 30px; position: relative; }
+.tr-mx thead th { background: var(--surface-2); font-weight: 600; height: 40px; }
+.tr-mx thead th button { all: unset; cursor: pointer; display: grid; line-height: 1.1; width: 100%; height: 100%; place-items: center; }
+.tr-mx thead th small { font-size: 9px; color: var(--text-3); font-weight: 500; }
+.tr-mx th.we, .tr-mx td.we { background: color-mix(in srgb, var(--surface-3) 60%, transparent); }
+.tr-mx th.td { color: var(--brand-text); box-shadow: inset 0 -2px 0 var(--brand); }
+.tr-mx .sel { background: var(--brand-soft) !important; }
+.tr-mx .tr-n { position: sticky; left: 0; z-index: 1; background: var(--surface); text-align: left; padding: 0 10px; white-space: nowrap; min-width: 150px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; border-right: 1px solid var(--border); }
+.tr-mx thead .tr-n { background: var(--surface-2); z-index: 2; }
+.tr-mx .tr-c { min-width: 38px; background: var(--surface-2); }
+.tr-mx td > span { display: inline-grid; place-items: center; min-width: 22px; height: 20px; border-radius: 6px; font-weight: 700; font-size: 11px; }
+.tr-c-emerald { background: var(--c-emerald-bg); color: var(--c-emerald); }
+.tr-c-indigo { background: var(--c-indigo-bg); color: var(--c-indigo); }
+.tr-c-amber { background: var(--c-amber-bg); color: var(--c-amber); }
+.tr-c-slate { background: var(--c-slate-bg); color: var(--c-slate); }
+.tr-c-teal { background: var(--c-teal-bg); color: var(--c-teal); }
+.tr-mx td.tr-moved { box-shadow: inset 0 0 0 2px var(--violet); }
+.tr-mx td > i { position: absolute; width: auto; height: auto; display: block; color: #fff; top: 1px; right: 1px; font: 700 8.5px/1 var(--font); font-style: normal; background: var(--violet); color: #fff; border-radius: 3px; padding: 1px 2px; }
+.tr-log { align-items: flex-start; }
+.sd-cand { cursor: pointer; gap: 10px; }
+.sd-cand.prio { background: var(--brand-soft); }
+.draw-box { text-align: center; padding: 22px 10px; display: grid; gap: 8px; }
+.draw-roll { font-size: 26px; font-weight: 800; letter-spacing: -.02em; min-height: 36px; }
+.draw-roll.win { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tr-side-f { background: var(--surface-2); }
+@media (max-width: 600px) { .tr-mx .tr-n { min-width: 118px; max-width: 130px; font-size: 11.5px; padding: 0 6px; } .tr-mx th, .tr-mx td { min-width: 27px; } }

@@ -13,6 +13,12 @@ async function refreshRosters() {
 }
 
 function renderRosters(view, id) {
+  // Başka yerden yeni oluşturulan liste (ör. Google E-Tablolar bağlama) henüz bu sekmede bilinmiyor olabilir
+  if (id && !rosterById(id) && !RS.retried) {
+    RS.retried = true;
+    refreshRosters().then(() => { if (currentRoute()[0] === 'nobet') renderRosters($('#view'), id); RS.retried = false; });
+    return;
+  }
   RS.views.clear();
   if (!S.rosters.length) {
     setHTML(view, html`${hubHead('list', 'Excel nöbet listeleri, yüklendiği gibi açık görünür')}
@@ -33,15 +39,22 @@ function renderRosters(view, id) {
   if (isPublisher()) bindRosterDrop(RS.stage);
   showRoster(want);
   syncRosters();
+  // Excel (Google E-Tablolar) değiştikçe açık sayfa da güncellensin
+  clearInterval(RS.timer);
+  RS.timer = setInterval(() => {
+    if (!RS.stage || !document.body.contains(RS.stage)) { clearInterval(RS.timer); return; }
+    if (document.visibilityState === 'visible' && S.rosters.some((x) => x.linked)) syncRosters();
+  }, 60000);
 }
 
 /** Sunucudaki güncel listeleri alır; başka biri yeni dosya yüklediyse görünümü yeniler */
 async function syncRosters() {
-  const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id]));
+  const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id, x.tab]));
   const before = sig();
   try { S.rosters = (await api('rosters.list')).rosters; } catch (e) { return; }
   if (sig() === before) return;
   renderNav();
+  if (typeof MY !== 'undefined') MY.at = 0;
   if (!RS.stage || !document.body.contains(RS.stage)) return;
   if (!rosterById(RS.active)) { renderRosters($('#view'), null); return; }
   showRoster(RS.active);
@@ -62,15 +75,17 @@ function drawRosterInfo() {
   setHTML(box, html`
     <div class="grow" style="min-width:0">
       <h1 class="rs-title ellipsis">${r.name}</h1>
-      <div class="small muted rs-meta">${f ? html`${icon('clock', 'sm')}<span>${fmtRel(f.updated_at)} güncellendi${f.user_name ? ' · ' + f.user_name : ''}</span><span class="faint ellipsis rs-file">· ${f.name}</span>` : 'Henüz dosya yüklenmedi'}</div>
-      ${f && isPublisher() && r.period && r.parsed_file_id === f.id ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(r.period)}</b> · ${r.parsed_count || 0} nöbet kaydı okundu</span><a href="#" data-act="rs-period">Ayı değiştir</a></div>` : ''}
+      <div class="small muted rs-meta">${f ? html`${icon('clock', 'sm')}<span>${fmtRel(f.updated_at)} güncellendi${r.linked ? ' · Google E-Tablolar' : f.user_name ? ' · ' + f.user_name : ''}</span><span class="faint ellipsis rs-file">· ${f.name}</span>` : 'Henüz dosya yüklenmedi'}</div>
+      ${r.linked ? html`<div class="tiny rs-linked">${icon('link', 'sm')}<span><b>Google E-Tablolar’a bağlı</b> · Excel’de değişince kendiliğinden güncellenir${r.sync_at ? ' · son kontrol ' + fmtRel(r.sync_at) : ''}${r.tab ? ' · sekme: ' + r.tab : ''}</span></div>
+        ${isPublisher() && r.sync_status ? html`<div class="tiny ${String(r.sync_status).startsWith('!') ? 'err-text' : 'faint'} rs-parsed">${icon('calendar', 'sm')}<span>${String(r.sync_status).replace(/^!/, '')}</span></div>` : ''}`
+      : f && isPublisher() && r.period && r.parsed_file_id === f.id ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(r.period)}</b> · ${r.parsed_count || 0} nöbet kaydı okundu</span><a href="#" data-act="rs-period">Ayı değiştir</a></div>` : ''}
       <div class="rs-progress hidden" id="rsProgress"><div class="progress"><span style="width:0%"></span></div><span class="tiny muted">Yükleniyor…</span></div>
     </div>
     <div class="row wrap rs-actions">
       ${f ? html`<button class="btn sm" data-act="rs-full" title="Tam ekran">${icon('expand', 'sm')}<span class="desk-only">Tam ekran</span></button>
         <button class="btn sm icon" data-act="fv-dl" data-url="${f.url}" data-name="${f.name}" title="İndir" aria-label="İndir">${icon('download', 'sm')}</button>` : ''}
       ${isPublisher() ? html`
-        <label class="btn sm primary">${icon('upload', 'sm')}<span>${f ? 'Yeni sürüm yükle' : 'Excel yükle'}</span><input type="file" hidden accept="${ROSTER_ACCEPT}" data-change="rs-file"></label>
+        ${r.linked ? '' : html`<label class="btn sm primary">${icon('upload', 'sm')}<span>${f ? 'Yeni sürüm yükle' : 'Excel yükle'}</span><input type="file" hidden accept="${ROSTER_ACCEPT}" data-change="rs-file"></label>`}
         <button class="btn sm icon" data-act="rs-menu" aria-label="Liste işlemleri">${icon('more', 'sm')}</button>`
         : r.versions > 1 ? html`<button class="btn sm" data-act="rs-versions">${icon('history', 'sm')}Önceki sürümler</button>` : ''}
     </div>`);
@@ -96,16 +111,17 @@ function showRoster(id) {
     v = { el, fileId };
     RS.views.set(id, v);
     if (r.file) {
-      mountPreview(el, r.file).then(() => {
+      mountPreview(el, r.file, r.tab ? { sheetName: r.tab } : {}).then(() => {
         prefetchRosters();
         // Yayıncı listeyi ilk kez görünce kişi başı nöbetler okunur (Nöbetlerim, hatırlatmalar, kim nöbette)
-        if (isPublisher() && r.file && r.parsed_file_id !== r.file.id && ['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) {
+        if (isPublisher() && !r.linked && r.file && r.parsed_file_id !== r.file.id && ['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) {
           loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {});
         }
       });
     } else {
       setHTML(el, isPublisher()
         ? html`<label class="dropzone rs-drop">${icon('upload', 'lg')}<div style="margin-top:8px"><b>Excel dosyasını buraya sürükleyin</b> veya tıklayıp seçin</div><div class="hint">.xlsx, .xls, .ods, .csv — renkler, birleşik hücreler ve sütun genişlikleriyle görünür</div><input type="file" hidden accept="${ROSTER_ACCEPT}" data-change="rs-file"></label>`
+        : r.linked ? html`<div class="card empty"><div class="e-ico">${icon('link', 'lg')}</div><h3>Google E-Tablolar’dan bekleniyor</h3><p class="small">Tablodaki ilk değişiklikte burada görünecek.</p></div>`
         : html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Bu liste henüz yüklenmedi</h3><p class="small">Yöneticiniz yüklediğinde burada açık olarak görünecek.</p></div>`);
     }
   }
@@ -211,7 +227,7 @@ async function rosterVersions(r) {
       <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${v.name}</div><div class="lr-s">${fmtDateTime(v.updated_at)}${v.user_name ? ' · ' + v.user_name : ''} · ${fmtSize(v.size)}</div></div>
       ${i === 0 ? html`<span class="badge success">Güncel</span>` : ''}
       <button class="btn sm" data-ver-open="${i}">Aç</button>
-      ${i > 0 && isPublisher() ? html`<button class="btn sm" data-ver-restore="${v.version_id}">Geri yükle</button>` : ''}
+      ${i > 0 && isPublisher() && !r.linked ? html`<button class="btn sm" data-ver-restore="${v.version_id}">Geri yükle</button>` : ''}
     </div>`)}</div></div>`);
   m.el.addEventListener('click', async (e) => {
     const o = e.target.closest('[data-ver-open]');

@@ -690,6 +690,7 @@ async function mountSheet(el, att, opts = {}) {
   const model = await loadSheetModel(att);
   if (!model.sheets.length) throw new Error('Bu dosyada görüntülenecek sayfa yok.');
   const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
+  if (opts.sheetName) { const si = model.sheets.findIndex((x) => x.name === opts.sheetName); if (si >= 0) state.sheet = si; }
   const meMatch = S.me ? nameMatcher(S.me.name) : () => false;
   setHTML(el, html`<div class="xv">
     <div class="xv-bar">

@@ -67,7 +67,7 @@ ACT.notifs = async (el) => {
   const grp = (n) => (n.at.slice(0, 10) >= today ? 'Bugün' : n.at.slice(0, 10) >= weekAgo ? 'Bu hafta' : 'Daha eski');
   let lastG = '';
   setHTML(list, items.length ? items.map((n) => html`${grp(n) !== lastG ? html`<div class="np-sec">${(lastG = grp(n))}</div>` : ''}<button class="np-item ${n.read ? '' : 'unread'}" data-act="notif-open" data-id="${n.id}" data-url="${n.url || '#/'}">
-      <span class="np-ico tone-${{ roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky' }[n.kind] || 'slate'}">${icon({ roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users' }[n.kind] || 'bell', 'sm')}</span>
+      <span class="np-ico tone-${{ roster: 'emerald', shift: 'indigo', remind: 'amber', review: 'rose', post: 'teal', digest: 'sky', swap: 'violet', side: 'amber' }[n.kind] || 'slate'}">${icon({ roster: 'table', shift: 'calendar', remind: 'clock', review: 'alert', post: 'megaphone', digest: 'sun', pending_post: 'inbox', pending_user: 'users', swap: 'history', side: 'layers' }[n.kind] || 'bell', 'sm')}</span>
       <span class="grow" style="min-width:0"><span class="np-t">${n.title}</span>${n.body ? html`<span class="np-b">${n.body}</span>` : ''}<span class="np-at">${fmtRel(n.at)}</span></span>
       ${n.read ? '' : html`<span class="dot"></span>`}
     </button>`)
@@ -229,12 +229,12 @@ ACT['go-profile'] = () => { location.hash = '#/profil'; };
 /* =================================================================== */
 /* Nöbet sayfası: Takvimim · Kim nöbette · Excel liste                  */
 /* =================================================================== */
-const HUB_HREF = { cal: '#/nobetim', who: '#/rehber', list: '#/nobet' };
+const HUB_HREF = { cal: '#/nobetim', who: '#/rehber', list: '#/nobet', taraf: '#/taraf' };
 function hubHref() { try { return HUB_HREF[localStorage.getItem('nm-hub')] || '#/nobetim'; } catch (e) { return '#/nobetim'; } }
 function hubTabs(active) {
   try { localStorage.setItem('nm-hub', active); } catch (e) { /* */ }
   const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${l}</span></a>`;
-  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${t('list', 'table', 'Excel liste')}</nav>`;
+  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${t('taraf', 'layers', 'Taraf')}${t('list', 'table', 'Excel liste')}</nav>`;
 }
 function hubHead(active, sub, actions) {
   return html`<div class="page-head hub-head"><div><h1>Nöbet</h1><p>${sub}</p></div>${actions || ''}</div>${hubTabs(active)}`;
@@ -258,10 +258,12 @@ async function renderMyShifts(view) {
     : html`
       ${top ? html`<div class="next-shift tone-${shiftTone(top)}"><div class="ns-l">${cur ? 'Şu an nöbettesin' : 'Sıradaki nöbetin'}</div><div class="ns-d">${cur ? `${cur.end}’de bitiyor` : dateLabel(top.date)}</div>
         <div class="ns-c">${codeChip(top, true)}<span>${shiftDesc(top)}${top.hours && !/saat/i.test(top.label || '') ? html` · <b>${top.hours} saat</b>` : ''}</span></div><div class="ns-r">${top.roster || ''}</div></div>` : ''}
+      <div id="swapBox"></div>
       <div class="cal-wrap"><div class="card cal-card" id="calCard"></div><div class="card" id="dayPanel"></div></div>`}`);
   $('#icsBtn').disabled = !entries.some((e) => e.kind === 'shift' && e.date >= ymd(new Date()));
   drawCalendar();
   loadDayPanel();
+  if (typeof mountSwapBox === 'function') mountSwapBox();
 }
 function drawCalendar() {
   const box = $('#calCard');
@@ -281,7 +283,8 @@ function drawCalendar() {
     const ds = `${pre}-${pad(d)}`;
     const list = byDate[ds] || [];
     const main = list.find((e) => e.kind === 'shift') || list[0];
-    cells.push(html`<button type="button" class="cal-d ${main ? 'has tone-' + shiftTone(main) : ''} ${ds === today ? 'today' : ''} ${ds === CAL.sel ? 'sel' : ''}" data-act="cal-day" data-d="${ds}" aria-label="${dateLabel(ds)}${main ? ' · ' + main.code + ' ' + shiftDesc(main) : ''}"><span class="cd-n">${d}</span>${main ? html`<span class="cd-c">${main.code}</span>` : ''}</button>`);
+    const mv = (MY.moves || {})[ds];
+    cells.push(html`<button type="button" class="cal-d ${main ? 'has tone-' + shiftTone(main) : ''} ${ds === today ? 'today' : ''} ${ds === CAL.sel ? 'sel' : ''}" data-act="cal-day" data-d="${ds}" aria-label="${dateLabel(ds)}${main ? ' · ' + main.code + ' ' + shiftDesc(main) : ''}${mv ? ' · ' + mv.unit : ''}"><span class="cd-n">${d}</span>${main ? html`<span class="cd-c">${main.code}</span>` : ''}${mv ? html`<span class="cd-mv" title="${mv.unit}">${unitShort(mv.unit)}</span>` : ''}</button>`);
   }
   const used = new Map();
   monthList.forEach((e) => used.set(e.kind + '|' + e.code, e));
@@ -309,7 +312,11 @@ async function loadDayPanel() {
   if (!box || !CAL.sel) return;
   const mine = (MY.entries || []).filter((e) => e.date === CAL.sel);
   const head = html`<div class="card-head"><h3>${dateLabel(CAL.sel)}</h3></div>`;
-  const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours && !/saat/i.test(e.label || '') ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div></div>`)}</div>`
+  const mv = (MY.moves || {})[CAL.sel];
+  const canSwap = CAL.sel >= ymd(new Date());
+  const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours && !/saat/i.test(e.label || '') ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div>
+        ${e.kind === 'shift' && canSwap ? html`<button class="btn sm" data-act="swap-open" data-d="${e.date}">${icon('history', 'sm')}<span>Değiş / Devret</span></button>` : ''}</div>`)}
+      ${mv ? html`<div class="dm-move">${icon('layers', 'sm')}<span>Bu gün <b>${mv.unit}</b>’ta çalıştın${mv.method === 'kura' ? ' (kura)' : ''}${mv.counted ? ' · karşı tarafa geçiş sayıldı' : ''}</span></div>` : ''}</div>`
     : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
   setHTML(box, html`${head}${mineHtml}<div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
   const want = CAL.sel;
@@ -342,7 +349,7 @@ ACT.ics = () => {
 /* Nöbet listesinden nöbetleri çıkar (yayıncı yüklediğinde/gördüğünde)  */
 /* =================================================================== */
 async function syncRosterShifts(roster, model) {
-  if (!isPublisher() || !roster || !roster.file || !model || typeof extractShifts !== 'function') return;
+  if (!isPublisher() || !roster || roster.linked || !roster.file || !model || typeof extractShifts !== 'function') return;
   if (roster.parsed_file_id === roster.file.id && !roster._reparse) return;
   roster._reparse = false;
   let res;
@@ -987,7 +994,8 @@ const AUDIT_LABEL = {
   'roster.create': 'Liste oluşturdu', 'roster.delete': 'Liste sildi', 'roster.parse': 'Listeden nöbetler okundu', 'roster.period': 'Liste ayını değiştirdi', 'user.create': 'Kullanıcı ekledi', 'user.edit': 'Kullanıcı düzenledi',
   'user.approve': 'Üyelik onayladı', 'user.delete': 'Kullanıcı sildi', 'user.resetpw': 'Geçici şifre oluşturdu', 'settings.save': 'Ayarları değiştirdi', 'structure.save': 'Bölüm/birim kaydetti', 'structure.delete': 'Bölüm/birim sildi',
   'backup.create': 'Yedek aldı', 'backup.download': 'Yedek indirdi', 'backup.delete': 'Yedek sildi', 'invite.general': 'QR davet oluşturdu', 'invite.personal': 'Davet oluşturdu', 'invite.use': 'Davetle katıldı', 'invite.revoke': 'Davet iptal etti',
-  'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'phonebook.create': 'Rehbere numara ekledi', 'phonebook.save': 'Rehberde numara düzenledi', 'phonebook.delete': 'Rehberden numara sildi', 'phonebook.import': 'Rehbere liste ekledi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
+  'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'roster.sync': 'Google E-Tablolar’dan güncellendi', 'roster.link': 'Listeyi Google E-Tablolar’a bağladı', 'roster.unlink': 'Liste bağlantısını kaldırdı',
+  'side.draw': 'Taraf kurası çekti', 'side.save': 'Taraf kaydı ekledi', 'side.delete': 'Taraf kaydı sildi', 'swap.request': 'Nöbet değişim isteği', 'swap.accept': 'Nöbet değişimini kabul etti', 'swap.decline': 'Nöbet değişimini reddetti', 'swap.cancel': 'Nöbet isteğini iptal etti', 'phonebook.create': 'Rehbere numara ekledi', 'phonebook.save': 'Rehberde numara düzenledi', 'phonebook.delete': 'Rehberden numara sildi', 'phonebook.import': 'Rehbere liste ekledi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
 };
 async function drawAudit(body, more, keepInput) {
   if (!more) {
@@ -1033,7 +1041,9 @@ function settingsExtrasHtml(A) {
       <div><h3 style="font-size:15px">${icon('bell', 'sm')} Telefon bildirimleri</h3><p class="small muted">Portalı telefona ekleyenlere duyuru ve hatırlatmalar anında gelir (Android ve iPhone — iPhone’da önce “Ana Ekrana Ekle”).</p></div>
       ${SWX('push_enabled', A.push_enabled, 'Telefon bildirimlerini kullan', A.push_ready ? '' : 'Sunucunuz şu an bu özelliği desteklemiyor; hosting desteğine “PHP OpenSSL” eklentisini sorun.')}
     </div>
+    ${typeof gsyncCardHtml === 'function' ? gsyncCardHtml() : ''}
     ${shiftCodesCardHtml()}
+    ${typeof swapRulesCardHtml === 'function' ? swapRulesCardHtml(A) : ''}
     <div class="card card-pad stack" data-sec="yedek">
       <div><h3 style="font-size:15px">${icon('download', 'sm')} Yedekleme</h3><p class="small muted">Veritabanı her hafta otomatik yedeklenir (son 4 yedek saklanır). İstediğiniz an indirebilirsiniz.</p></div>
       ${SWX('backup_weekly', A.backup_weekly, 'Haftalık otomatik yedek', '')}

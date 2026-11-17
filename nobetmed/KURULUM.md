@@ -99,6 +99,26 @@ Google ile gelen yeni kişiler de kayıt ayarınıza (onaylı / açık / kapalı
 - **Nöbet kodları:** Ayarlar › Nöbet › Nöbet kodları bölümünden kısaltmaların anlamını, saatlerini ve türünü düzenleyin (ör. “8 16” = Gündüz 08–16). Kaydedince listeler yeniden okunur.
 - Excel listede **Sadece ben** düğmesi, yalnızca başlıkları ve sizin satırınızı gösterir.
 
+### 8a. Google E-Tablolar'dan otomatik güncelleme
+
+Liste Google E-Tablolar'da tutuluyorsa (siz yalnızca **görüntüleyen** olsanız bile) uygulama onu kendiliğinden izler:
+
+1. **Ayarlar › Nöbet › Google E-Tablolar bağlantısı** bölümüne tablonun adresini yapıştırın ve **Yalnızca bana paylaşıldı** seçiliyken **Kaydet** deyin.
+2. Ekranda çıkan kodu kopyalayın. Tabloyu görebildiğiniz Google hesabıyla **script.google.com** adresini açın, yeni projeye kodu yapıştırıp kaydedin.
+3. Üstteki listeden **kur** işlevini seçip **Çalıştır**'a basın ve izin verin (Gelişmiş → projeye git → İzin ver). Bu sizin kendi betiğinizdir; veriler yalnızca sizin sitenize gider.
+4. İlk veri gelince uygulamada tablodaki sekme türleri listelenir (ör. “3. BASAMAK”, “2. BASAMAK”). Her türü bir nöbet listesine bağlayın veya **+ Yeni liste oluştur** deyin. Her ayın sekmesi (KASIM 3, BASAMAK · ARALIK 3.BASAMAK …) aynı listeye kendiliğinden eklenir.
+
+Sonrasında sorumlu Excel'i düzenledikçe en geç 5 dakikada: liste görüntüsü, herkesin Takvimi, Kim nöbette ve hatırlatmalar güncellenir; nöbeti değişen kişiye “Nöbetinde değişiklik var” bildirimi gider. Bağlı listelere uygulamadan dosya yüklenemez, kimse listeyi uygulamada değiştiremez.
+Tablo “bağlantıya sahip herkes görüntüleyebilir” olarak paylaşıldıysa betik gerekmez; ikinci seçeneği seçmeniz yeterli (sunucu her 5 dakikada kendisi indirir; zamanlanmış görev önerilir, bkz. 13. bölüm).
+
+### 8b. Taraf listesi (kura)
+
+**Nöbet › Taraf** sayfasında taraflar tanımlanır (ör. 3. Basamak → B blok, 2. Basamak → A blok ve C blok) ve her taraf bir nöbet listesine bağlanır. Bir gün karşı tarafa personel gerekince o gün nöbetçi olanlar arasından **Kura çek** denir: önce hiç ya da en az geçmiş olanlar seçilir, eşitlik varsa aralarında kura çekilir. Gece içeren nöbetler (16-08, 08-08) 1 geçiş sayılır; 08-16 sayılmaz. Sayfada aylık tablo (kim hangi gün nerede), kişi başı aylık ve toplam geçiş sayısı, adaylar ve kura sonucu kayıtlı görünür. Kura başka yerde çekildiyse **Elle kaydet** kullanılır. Kaydı o gün nöbette olanlar veya sorumlular yapabilir.
+
+### 8c. Nöbet değişimi ve devri
+
+Takvimde kendi nöbet gününüze dokunup **Değiş / Devret** deyin: yalnızca kurallara uyan kişiler ve günler listelenir (üst üste en fazla 24 saat — 24 saat çıkışına nöbet eklenemez; nöbetler arası en fazla 4 boş gün — 5 günlük boşluk olamaz; izinli günler boşluk sayılmaz). Kurallar Ayarlar › Nöbet bölümünden değiştirilebilir. İstek karşı tarafa gider; kabul edilince sorumluya “Excel'e işlenecek” olarak bildirilir. Sorumlu Excel'i güncelleyince istek kendiliğinden “Listeye işlendi” olur.
+
 ## 9. Dosya yükleme
 
 - **Her tür dosya** yüklenebilir. PDF, Excel, Word (.docx), görsel, video, ses ve metin dosyaları sitede doğrudan açılır. Diğerleri (PowerPoint, eski .doc, zip vb.) indirilerek açılır.

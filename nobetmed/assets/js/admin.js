@@ -335,6 +335,7 @@ async function drawSettings(body) {
   applySettingsSec(sec);
   mountBackupBox();
   mountCodesBox();
+  if (typeof mountGsync === 'function') mountGsync();
 }
 FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);

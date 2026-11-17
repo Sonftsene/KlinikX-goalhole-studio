@@ -7,6 +7,9 @@ require __DIR__ . '/inc/notify.php';
 require __DIR__ . '/inc/api_extra.php';
 if (is_file(__DIR__ . '/inc/push.php')) require __DIR__ . '/inc/push.php';
 if (is_file(__DIR__ . '/inc/webauthn.php')) require __DIR__ . '/inc/webauthn.php';
+require __DIR__ . '/inc/gsync.php';
+require __DIR__ . '/inc/swaps.php';
+require __DIR__ . '/inc/api_sync.php';
 
 nm_session();
 
@@ -71,6 +74,7 @@ if ($action === 'push.pending') { a_push_pending_get(); exit; }
 if ($action === 'avatar') { a_avatar_get(); exit; }
 if ($action === 'brand') { a_brand_get(); exit; }
 if ($action === 'backup.download') { a_backup_download_get(); exit; }
+if ($action === 'gsync.push') { a_gsync_push(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -138,6 +142,23 @@ $routes = [
     'push.test' => 'a_push_test',
     'people.list' => 'a_people_list',
     'phonebook.list' => 'a_phonebook_list',
+    'gsync.get' => 'a_gsync_get',
+    'gsync.save' => 'a_gsync_save',
+    'gsync.pull' => 'a_gsync_pull',
+    'gsync.bind' => 'a_gsync_bind',
+    'gsync.create' => 'a_gsync_create',
+    'side.get' => 'a_side_get',
+    'side.day' => 'a_side_day',
+    'side.draw' => 'a_side_draw',
+    'side.save' => 'a_side_save',
+    'side.delete' => 'a_side_delete',
+    'side.settings' => 'a_side_settings',
+    'swap.options' => 'a_swap_options',
+    'swap.request' => 'a_swap_request',
+    'swap.list' => 'a_swap_list',
+    'swap.respond' => 'a_swap_respond',
+    'swap.cancel' => 'a_swap_cancel',
+    'swap.rules' => 'a_swap_rules',
     'phonebook.save' => 'a_phonebook_save',
     'phonebook.delete' => 'a_phonebook_delete',
     'phonebook.import' => 'a_phonebook_import',
@@ -1265,8 +1286,18 @@ function roster_out(array $r): array
         'versions' => (int)val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ?', [$r['id']]),
         'period' => $r['period'] ?? null,
         'parsed_file_id' => isset($r['parsed_file_id']) ? (int)$r['parsed_file_id'] : null,
+        'linked' => !empty($r['src_on']),
+        'tab' => !empty($r['src_on']) ? ($r['src_tabname'] ?? null) : null,
+        'sync_at' => !empty($r['src_on']) ? ($r['src_sync_at'] ?? null) : null,
+        'sync_status' => !empty($r['src_on']) ? ($r['src_status'] ?? null) : null,
         'parsed_count' => $cur && isset($r['parsed_file_id']) && (int)$r['parsed_file_id'] === (int)$cur['id'] ? (int)val('SELECT COUNT(*) FROM roster_shifts WHERE roster_id = ?', [$r['id']]) : 0,
     ];
+}
+
+/** Google E-Tablolar'a bağlı liste yalnızca oradan güncellenir */
+function roster_not_linked(int $id): void
+{
+    if ((int)val('SELECT src_on FROM rosters WHERE id = ?', [$id]) === 1) fail('Bu liste Google E-Tablolar’a bağlı; yalnızca Excel’de yapılan değişikliklerle güncellenir.', 409);
 }
 
 function a_rosters_list(): void
@@ -1333,6 +1364,7 @@ function a_rosters_upload(): void
     $id = (int)i('id');
     $attId = (int)i('attachment_id');
     if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
+    roster_not_linked($id);
     if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
     // Aynı dosya tekrar yüklendiyse yeni sürüm, duyuru ve bildirim oluşturma
     $new = one('SELECT stored_name, size FROM attachments WHERE id = ?', [$attId]);
@@ -1382,6 +1414,7 @@ function a_rosters_restore(): void
 {
     $me = need_publisher();
     $id = (int)i('id');
+    roster_not_linked($id);
     $f = one('SELECT * FROM roster_files WHERE id = ? AND roster_id = ?', [(int)i('version_id'), $id]);
     if (!$f) fail('Sürüm bulunamadı.', 404);
     add_roster_version($id, (int)$f['attachment_id'], $me);
@@ -1615,6 +1648,7 @@ function admin_settings(): array
         'auto_remind_days' => (int)setting('auto_remind_days', '3'),
         'review_warn_days' => (int)setting('review_warn_days', '14'),
         'backup_weekly' => setting('backup_weekly', '1') === '1',
+        'swap_max_cont' => swap_rules()['max_cont'], 'swap_max_gap' => swap_rules()['max_gap'],
         'default_notify_mode' => setting('default_notify_mode', 'instant'),
         'mail_on' => setting('mail_on') === '1',
         'mail_host' => setting('mail_host'),

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.6.0';
+const NM_VERSION = '3.7.0';
 const NM_ROOT = __DIR__ . '/..';
 
 header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
@@ -138,7 +138,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 6) return;
+    if ($version >= 7) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -216,6 +216,8 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS templates (id $pk, title VARCHAR(200) NOT NULL, body TEXT NOT NULL, category_id INT NULL, required INT NOT NULL DEFAULT 0, created_by INT NULL, created_at VARCHAR(19) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS password_resets (id $pk, user_id INT NOT NULL, token_hash VARCHAR(64) NOT NULL, expires INT NOT NULL, used INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS phonebook (id $pk, name VARCHAR(120) NOT NULL, number VARCHAR(40) NOT NULL, category VARCHAR(60) NOT NULL DEFAULT '', note VARCHAR(200) NOT NULL DEFAULT '', pinned INT NOT NULL DEFAULT 0, sort INT NOT NULL DEFAULT 0, updated_by INT NULL, updated_at VARCHAR(19) NULL)$end",
+        "CREATE TABLE IF NOT EXISTS side_moves (id $pk, date VARCHAR(10) NOT NULL, name VARCHAR(120) NOT NULL, user_id INT NULL, from_side VARCHAR(20) NOT NULL, to_side VARCHAR(20) NOT NULL, unit VARCHAR(40) NOT NULL DEFAULT '', code VARCHAR(20) NOT NULL DEFAULT '', counted INT NOT NULL DEFAULT 0, method VARCHAR(10) NOT NULL DEFAULT 'elle', pool TEXT NULL, note VARCHAR(200) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL)$end",
+        "CREATE TABLE IF NOT EXISTS swap_requests (id $pk, roster_id INT NOT NULL, kind VARCHAR(10) NOT NULL, from_user INT NOT NULL, from_name VARCHAR(120) NOT NULL, from_date VARCHAR(10) NOT NULL, from_code VARCHAR(20) NOT NULL, to_user INT NULL, to_name VARCHAR(120) NOT NULL, to_date VARCHAR(10) NULL, to_code VARCHAR(20) NULL, status VARCHAR(12) NOT NULL DEFAULT 'pending', note VARCHAR(300) NULL, created_at VARCHAR(19) NOT NULL, decided_at VARCHAR(19) NULL, applied_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS login_attempts (id $pk, ip VARCHAR(45) NOT NULL, email VARCHAR(190) NOT NULL, at INT NOT NULL)$end",
     ];
     foreach ($tables as $sql) $pdo->exec($sql);
@@ -248,6 +250,8 @@ function nm_migrate(PDO $pdo): void
         'CREATE UNIQUE INDEX idx_push_hash ON push_subscriptions (endpoint_hash)',
         'CREATE UNIQUE INDEX idx_passkey_cred ON passkeys (credential_id)',
         'CREATE UNIQUE INDEX idx_invite_token ON invites (token)',
+        'CREATE INDEX idx_side_date ON side_moves (date)',
+        'CREATE INDEX idx_swap_status ON swap_requests (status, roster_id)',
     ];
     foreach ($indexes as $sql) {
         try { $pdo->exec($sql); } catch (Throwable $e) { /* zaten var */ }
@@ -288,7 +292,7 @@ function nm_migrate(PDO $pdo): void
         'users' => ['phone VARCHAR(30) NULL', 'extension VARCHAR(12) NULL', "notify_mode VARCHAR(10) NOT NULL DEFAULT 'instant'", 'push_on INT NOT NULL DEFAULT 1', 'avatar VARCHAR(80) NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
-        'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL'],
+        'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL'],
     ];
     foreach ($cols as $t => $list) {
         foreach ($list as $def) {
@@ -312,7 +316,7 @@ function nm_migrate(PDO $pdo): void
         foreach ($tpl as $i => $t) $st->execute([$t[0], $t[1], $t[2], date('Y-m-d H:i:s'), $i]);
     }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '6')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '7')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

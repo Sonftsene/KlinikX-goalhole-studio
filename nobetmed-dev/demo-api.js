@@ -531,6 +531,13 @@
     'backup.list'() { needAdmin(); return { items: db.backups, zip: true, weekly: db.settings.backup_weekly !== false, last: db.backups[0] ? db.backups[0].at : null }; },
     'backup.create'() { needAdmin(); db.backups.unshift({ name: 'nobetmed-yedek-' + now().replace(/[: ]/g, '-') + '.zip', size: 380000 + Math.round(Math.random() * 60000), at: now() }); db.backups = db.backups.slice(0, 4); audit('backup.create', 'Elle yedek'); return { items: db.backups }; },
     'backup.delete'(d) { needAdmin(); db.backups = db.backups.filter((b) => b.name !== d.name); return { items: db.backups }; },
+    /* ---- Taraf listesi / değişim / Google (önizlemede sade) ---- */
+    'side.get'(d) { const u = needUser(); const ym = d.month || now().slice(0, 7); const [y, m] = ym.split('-').map(Number); return { month: ym, days: new Date(y, m, 0).getDate(), sides: [], since: null, moves: [], can_admin: u.role === 'admin', can_record: isPub(u), rosters: db.rosters.map((r) => ({ id: r.id, name: r.name })) }; },
+    'side.settings'() { needAdmin(); err('Önizlemede taraflar kaydedilmez.'); },
+    'swap.list'() { needUser(); return { items: [], todo: [] }; },
+    'swap.options'() { needUser(); err('Önizlemede nöbet değişimi kapalı; gerçek kurulumda açılır.'); },
+    'gsync.get'() { needAdmin(); return { gs: { id: '', mode: 'push', token: 'onizleme', push_url: location.origin + '/api.php?action=gsync.push', title: '', seen: null, changed: null, status: '', status_ok: true, fallback: false, kinds: [], parser: true, rosters: db.rosters.map((r) => ({ id: r.id, name: r.name, linked: false, kind: '', status: null, sync_at: null })) } }; },
+    'gsync.save'() { needAdmin(); err('Önizlemede Google bağlantısı kurulamaz.'); },
     /* ---- Telefon rehberi ---- */
     'phonebook.list'() { needUser(); return { items: db.phonebook || [], santral: db.settings.pb_santral || '' }; },
     'phonebook.save'(d) {

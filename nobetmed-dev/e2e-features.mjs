@@ -467,6 +467,139 @@ await m.screenshot({ path: path.join(OUT, 'f-telefon-mobil.png') });
 await a.screenshot({ path: path.join(OUT, 'f-telefon-desktop.png') });
 step('telefon rehberi: yapıştırarak 5 numara, acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
 
+// 23) Google E-Tablolar: betik gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi
+await a.goto(BASE + '#/yonetim/ayarlar/nobet');
+await a.locator('#gsCard .seg').waitFor();
+await a.fill('#gsSheet', 'https://docs.google.com/spreadsheets/d/1TestTestTestTestTestTestTestTestTestTest12/edit#gid=0');
+await a.click('[data-act=gs-save]');
+await a.locator('#gsCode').waitFor();
+const gs = (await apiCall(a, 'gsync.get')).gs;
+if (!/tablo: '1TestTest/.test(await a.locator('#gsCode').innerText()) || !gs.token) fail('Apps Script kodu/anahtar');
+const now = new Date();
+const ym0 = { y: now.getFullYear(), m: now.getMonth() + 1 };
+const nx = new Date(ym0.y, ym0.m, 1);
+const ym1 = { y: nx.getFullYear(), m: nx.getMonth() + 1 };
+const MN = ['OCAK', 'ŞUBAT', 'MART', 'NİSAN', 'MAYIS', 'HAZİRAN', 'TEMMUZ', 'AĞUSTOS', 'EYLÜL', 'EKİM', 'KASIM', 'ARALIK'];
+const P1 = { 'Elif Yılmaz': { 1: '8 16', 3: '8 8', 5: '16 8', 7: '8 16', 10: '8 8', 12: '8 16', 13: '8 8' }, 'Burak Demir': { 1: '8 16', 5: '16 8', 8: '8 8', 10: '8 16', 13: '8 8' }, 'Ayşe Kaya': { 2: '8 8', 5: '8 16', 13: '8 8' }, 'Deniz Şahin': { 4: '8 8', 9: '8 8' } };
+const P0 = { 'Elif Yılmaz': { 26: '8 8', 28: '8 16', 30: '8 8' }, 'Burak Demir': { 27: '8 8', 29: '8 16' }, 'Ayşe Kaya': { 26: '8 16' }, 'Deniz Şahin': { 25: '8 8' } };
+const P2 = { 'Kemal Bulut': { 5: '8 8', 13: '16 8' }, 'Merve Kaplan': { 6: '8 8' } };
+const book = (v) => a.evaluate(async ([v, ym0, ym1, MN, P0, P1, P2]) => {
+  await loadVendor('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const tab = (name, y, m, people) => {
+    const ws = wb.addWorksheet(name);
+    ws.getCell(5, 4).value = 'AYLIK NÖBET ÜCRET ÇİZELGESİ';
+    ws.getCell(7, 20).value = 'AİT OLDUĞU DÖNEM'; ws.getCell(7, 26).value = y; ws.getCell(7, 27).value = m;
+    const days = new Date(y, m, 0).getDate();
+    ws.getCell(9, 2).value = 'PERSONEL LİSTESİ'; ws.getCell(9, 3).value = 'ÜNVANI';
+    for (let d = 1; d <= days; d++) { ws.getCell(9, 3 + d).value = d; ws.getCell(10, 3 + d).value = ['Paz.', 'Pzt.', 'Sal.', 'Çar.', 'Per.', 'Cum.', 'Cmt.'][new Date(y, m - 1, d).getDay()]; }
+    Object.entries(people).forEach(([nm, codes], i) => { ws.getCell(11 + i, 1).value = i + 1; ws.getCell(11 + i, 2).value = nm.toLocaleUpperCase('tr'); ws.getCell(11 + i, 3).value = 'HEMŞİRE'; Object.entries(codes).forEach(([d, c]) => { ws.getCell(11 + i, 3 + +d).value = c; }); });
+    ws.getCell(11 + Object.keys(people).length + 1, 3).value = 'Topl Saat';
+  };
+  const p1 = JSON.parse(JSON.stringify(P1));
+  if (v >= 2) p1['Elif Yılmaz'][12] = '16 8';
+  if (v >= 3) { delete p1['Elif Yılmaz'][3]; p1['Elif Yılmaz'][8] = '8 8'; delete p1['Burak Demir'][8]; p1['Burak Demir'][3] = '8 8'; }
+  tab(MN[ym0.m - 1], ym0.y, ym0.m, { 'Selin Arslan': { 3: '8 8' } });
+  tab(MN[ym0.m - 1] + ' 2.BASAMAK', ym0.y, ym0.m, { 'Kemal Bulut': { 26: '8 8' } });
+  tab(MN[ym0.m - 1] + ' 3, BASAMAK', ym0.y, ym0.m, P0);
+  tab(MN[ym1.m - 1] + ' 3.BASAMAK', ym1.y, ym1.m, p1);
+  tab(MN[ym1.m - 1] + ' 2.BASAMAK', ym1.y, ym1.m, P2);
+  const buf = await wb.xlsx.writeBuffer();
+  let bin = ''; new Uint8Array(buf).forEach((x) => { bin += String.fromCharCode(x); });
+  return btoa(bin);
+}, [v, ym0, ym1, MN, P0, P1, P2]);
+const push = async (body, token, type = 'application/octet-stream') => {
+  const r = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': token, 'Content-Type': type, 'X-Title': encodeURIComponent('YOĞUN BAKIM') }, body });
+  return { status: r.status, json: await r.json().catch(() => null) };
+};
+const badTok = await push(Buffer.from(await book(1), 'base64'), 'yanlis');
+if (badTok.status !== 403) fail('yanlış anahtar kabul edildi: ' + badTok.status);
+const p1r = await push(Buffer.from(await book(1), 'base64'), gs.token);
+if (p1r.status !== 200 || !p1r.json.changed) fail('ilk gönderim: ' + JSON.stringify(p1r));
+const same = await push(Buffer.from(await book(1), 'base64'), gs.token);
+if (!same.json || same.json.changed) fail('aynı dosya değişiklik sayıldı: ' + JSON.stringify(same.json));
+await a.reload();
+await a.locator('#gsCard [data-change=gs-bind]').first().waitFor();
+const kinds = (await apiCall(a, 'gsync.get')).gs.kinds.map((k) => k.kind + ':' + k.label).sort().join('|');
+if (kinds !== '2basamak:2. BASAMAK|3basamak:3. BASAMAK|:Ay adı (genel liste)') fail('sekme türleri: ' + kinds);
+const c3 = await apiCall(a, 'gsync.create', { name: '3. Basamak (B blok)', kind: '3basamak' });
+const c2 = await apiCall(a, 'gsync.create', { name: '2. Basamak (A-C blok)', kind: '2basamak' });
+const linked = c2.gs.rosters.filter((r) => r.linked);
+if (linked.length !== 2 || !/kayıt/.test(linked[0].status || '')) fail('bağlama: ' + JSON.stringify(linked));
+const r3 = linked.find((r) => r.kind === '3basamak').id, r2 = linked.find((r) => r.kind === '2basamak').id;
+const p2 = (n) => String(n).padStart(2, '0');
+const d1 = (d) => `${ym1.y}-${p2(ym1.m)}-${p2(d)}`;
+const myE = await apiCall(m, 'shifts.my');
+if (!myE.entries.some((e) => e.date === d1(3) && e.code === '8 8' && e.roster === '3. Basamak (B blok)')) fail('Elif sonraki ay nöbeti okunmadı');
+const upl = await apiCall(a, 'rosters.upload', { id: r3, attachment_id: 1 }).then(() => 'kabul', (e) => e.message);
+if (!/Google E-Tablolar/.test(upl)) fail('bağlı listeye yükleme engellenmedi: ' + upl);
+const per = await apiCall(a, 'rosters.period', { id: r3, period: '2026-01' }).then(() => 'kabul', (e) => e.message);
+if (!/Google E-Tablolar/.test(per)) fail('bağlı listenin ayı değişti: ' + per);
+await a.goto(BASE + '#/nobet/' + r3);
+await expectText(a, 'Google E-Tablolar’a bağlı');
+if (await a.locator('#rsInfo [data-change=rs-file]').count()) fail('bağlı listede yükleme düğmesi var');
+// Değişiklik: Elif'in sonraki ay 12. günü 8 16 -> 16 8
+const nBefore = (await apiCall(m, 'notif.list')).items.length;
+const p2r = await push(Buffer.from(await book(2), 'base64'), gs.token);
+if (!p2r.json || !p2r.json.changed) fail('ikinci gönderim: ' + JSON.stringify(p2r.json));
+const nl = (await apiCall(m, 'notif.list')).items;
+const chg = nl.find((x) => /Nöbetinde değişiklik/.test(x.title));
+if (!chg || !/8 16 → 16 8/.test(chg.body) || nl[0] !== chg || nl.filter((x) => /Nöbetinde değişiklik/.test(x.title)).length !== 1) fail('değişiklik bildirimi: ' + JSON.stringify(nl.slice(0, 2)) + ' önce ' + nBefore);
+// İndirme kapalı tablolar: görünen değerlerle (JSON) gönderim
+const grid = await push(JSON.stringify({ title: 'YOĞUN BAKIM', grid: [{ name: MN[ym1.m - 1] + ' 3.BASAMAK', values: [['', 'PERSONEL', 'ÜNVANI', ...Array.from({ length: 28 }, (_, i) => String(i + 1))], ['1', 'ELİF YILMAZ', 'HEMŞİRE', '8 8']], merges: [] }] }), gs.token, 'application/json');
+if (grid.status !== 200) fail('JSON gönderimi: ' + JSON.stringify(grid));
+await push(Buffer.from(await book(2), 'base64'), gs.token);
+step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, salt okunur liste, değişiklik bildirimi, JSON yedek yolu');
+
+// 24) Taraf listesi: kura en az geçene, geçiş sayımı, takvimde blok
+const sides = await apiCall(a, 'side.settings', { sides: [{ key: 's3', name: '3. Basamak', roster_id: r3, units: ['B blok'] }, { key: 's2', name: '2. Basamak', roster_id: r2, units: ['A blok', 'C blok'] }] });
+if (sides.sides.length !== 2) fail('taraf ayarı');
+const dr1 = await apiCall(a, 'side.draw', { date: d1(5), from: 's3', unit: 'A blok', count: 1, names: ['ELİF YILMAZ', 'BURAK DEMİR'] });
+const w1 = dr1.chosen[0].name;
+if (dr1.chosen[0].group.length !== 2) fail('ilk kura grubu: ' + JSON.stringify(dr1.chosen));
+const dr2 = await apiCall(a, 'side.draw', { date: d1(13), from: 's3', unit: 'C blok', count: 1, names: ['ELİF YILMAZ', 'BURAK DEMİR', 'AYŞE KAYA'] });
+if (dr2.chosen[0].group.includes(w1) || dr2.chosen[0].group.length !== 2) fail('öncelik en az geçene: ' + JSON.stringify(dr2.chosen) + ' ilk: ' + w1);
+const memberDraw = await apiCall(m, 'side.draw', { date: d1(2), from: 's3', unit: 'A blok', count: 1, names: [] }).then(() => 'kabul', (e) => e.message);
+if (!/nöbette olanlar/.test(memberDraw)) fail('nöbette olmayan üye kura çekti: ' + memberDraw);
+const sg = await apiCall(m, 'side.get', { month: `${ym1.y}-${p2(ym1.m)}` });
+const tot = sg.sides[0].people.reduce((x, p) => x + p.total, 0);
+if (tot !== 2 || sg.moves.length !== 2) fail(`geçiş sayımı ${tot}, kayıt ${sg.moves.length}`);
+await m.goto(BASE + '#/taraf');
+await m.click('[data-act=tr-mv][data-d="1"]');
+await m.locator('.tr-mx td.tr-moved').first().waitFor();
+const elifMoved = [w1, dr2.chosen[0].name].includes('ELİF YILMAZ');
+await m.goto(BASE + '#/nobetim');
+await m.locator('#calCard .cal-d').first().waitFor();
+await m.click('[data-act=cal-mv][data-d="1"]');
+if (elifMoved && !(await m.locator('#calCard .cd-mv').count())) fail('takvimde blok işareti yok');
+step(`taraf listesi: kura (${w1} → A blok), öncelik en az geçene (${dr2.chosen[0].name}), sayım 2, yetki, tablo ve takvim`);
+
+// 25) Nöbet değişimi: seçenekler kurallara göre, istek → kabul → Excel güncellenince "uygulandı"
+const so = await apiCall(m, 'swap.options', { date: d1(3) });
+const burakOpts = (so.swap.find((p) => p.name === 'BURAK DEMİR') || { options: [] }).options.map((x) => x.date);
+if (!burakOpts.includes(d1(8))) fail('Burak 8. gün seçeneği yok: ' + JSON.stringify(so.swap));
+const blockedWhy = so.blocked.map((x) => x.reason).join(' | ');
+await m.click('.cal-d[data-d="' + d1(3) + '"]');
+await m.click('#dayPanel [data-act=swap-open]');
+await m.locator('.modal .sw-opt').first().waitFor();
+await m.locator('.modal .sw-row', { hasText: 'BURAK DEMİR' }).locator(`.sw-opt[data-x="${d1(8)}"]`).click();
+await m.click('.modal [data-send]');
+await expectText(m, 'İstek gönderildi');
+const B = await ctx('burak', true);
+await login(B.p, 'burak@test.com', 'Sifre1234');
+await B.p.goto(BASE + '#/nobetim');
+await B.p.locator('#swapBox [data-act=swap-ans][data-a="1"]').click();
+await expectText(B.p, 'Kabul edildi');
+const todo = (await apiCall(a, 'swap.list')).todo;
+if (todo.length !== 1) fail('sorumlu Excel’e işlenecek listesi: ' + todo.length);
+const p3r = await push(Buffer.from(await book(3), 'base64'), gs.token);
+if (!p3r.json || !p3r.json.changed) fail('üçüncü gönderim');
+const st3 = (await apiCall(m, 'swap.list')).items[0];
+if (st3.status !== 'applied') fail('değişim uygulandı olmadı: ' + st3.status);
+// 48 saat kuralı: Burak 3. gün 24 saat aldı; 4. gün kimse 24 saat devredemez ona
+step('nöbet değişimi: kurallı seçenekler, istek, kabul, sorumlu listesi, Excel güncellenince uygulandı' + (blockedWhy ? ' · engel örneği: ' + blockedWhy.slice(0, 80) : ''));
+await B.c.close();
+
 // Masaüstü ekran görüntüleri
 await a.goto(BASE + '#/');
 await a.locator('#todayCard .duty-g, #todayCard .list-row').first().waitFor();

@@ -127,7 +127,11 @@ function a_shifts_mine2(): void
     $from = date('Y-m-d', strtotime('first day of last month'));
     $to = date('Y-m-d', strtotime('+70 days'));
     $rows = shifts_for_user($me, $from, $to);
-    out(['entries' => array_map('shift_row_out', $rows), 'has_data' => (bool)val('SELECT COUNT(*) FROM roster_shifts'), 'name' => $me['name']]);
+    $moves = [];
+    foreach (all('SELECT date, name, user_id, unit, to_side, from_side, counted, method FROM side_moves WHERE date >= ? AND date <= ?', [$from, $to]) as $m) {
+        if ((int)($m['user_id'] ?? 0) === (int)$me['id'] || names_match((string)$m['name'], (string)$me['name'])) $moves[$m['date']] = ['unit' => $m['unit'], 'counted' => (bool)$m['counted'], 'method' => $m['method']];
+    }
+    out(['entries' => array_map('shift_row_out', $rows), 'moves' => (object)$moves, 'has_data' => (bool)val('SELECT COUNT(*) FROM roster_shifts'), 'name' => $me['name']]);
 }
 
 /** Tarayıcının Excel'den çıkardığı nöbetleri kaydeder (liste yükleyen yayıncı) */
@@ -138,6 +142,7 @@ function a_rosters_shifts_save(): void
     $fid = (int)i('file_id');
     $period = s('period', 7);
     if (!valid_id('rosters', $rid)) fail('Liste bulunamadı.', 404);
+    roster_not_linked($rid);
     if (!one('SELECT id FROM roster_files WHERE roster_id = ? AND attachment_id = ?', [$rid, $fid])) fail('Dosya bu listeye ait değil.', 400);
     if (!preg_match('/^\d{4}-\d{2}$/', $period)) fail('Geçersiz dönem.');
     $entries = array_slice(arr('entries'), 0, 6000);
@@ -159,6 +164,7 @@ function a_rosters_shifts_save(): void
     }
     q('UPDATE rosters SET period = ?, parsed_file_id = ? WHERE id = ?', [$period, $fid, $rid]);
     db()->commit();
+    if (function_exists('swap_check_applied')) swap_check_applied($rid);
     audit($me, 'roster.parse', 'Liste #' . $rid, "$n nöbet kaydı, dönem $period");
     out(['saved' => $n]);
 }
@@ -171,6 +177,7 @@ function a_rosters_period(): void
     $period = s('period', 7);
     if (!preg_match('/^(\d{4})-(\d{2})$/', $period, $m) || (int)$m[2] < 1 || (int)$m[2] > 12) fail('Geçersiz dönem.');
     $r = one('SELECT * FROM rosters WHERE id = ?', [$rid]) ?? fail('Liste bulunamadı.', 404);
+    roster_not_linked($rid);
     $days = (int)date('t', strtotime($period . '-01'));
     foreach (all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]) as $x) {
         $d = (int)substr($x['date'], 8, 2);
