@@ -1471,7 +1471,7 @@ function pbPersonHtml(p) {
 }
 async function renderPhonebook(view) {
   setHTML(view, html`<div class="page-head"><div><h1>Telefon rehberi</h1><p>Dahili numaralar ve ekip. Arayanın numarasını yazarak kim olduğunu da bulursunuz.</p></div>
-      ${isPublisher() ? html`<div class="row wrap" style="gap:6px"><button class="btn primary" data-act="pb-add">${icon('plus', 'sm')}<span>Numara ekle</span></button><button class="btn" data-act="pb-import">${icon('upload', 'sm')}<span>Listeyi yapıştır</span></button><button class="btn" data-act="pb-santral">${icon('building', 'sm')}<span>Santral</span></button></div>` : ''}</div>
+      ${isPublisher() ? html`<div class="row wrap" style="gap:6px"><button class="btn primary" data-act="pb-add">${icon('plus', 'sm')}<span>Numara ekle</span></button><button class="btn" data-act="pb-import" data-file="1">${icon('table', 'sm')}<span>Excel’den ekle</span></button><button class="btn" data-act="pb-import">${icon('upload', 'sm')}<span>Listeyi yapıştır</span></button><button class="btn" data-act="pb-santral">${icon('building', 'sm')}<span>Santral</span></button></div>` : ''}</div>
     <div class="search pb-search">${icon('search')}<input class="input" id="pbQ" type="search" enterkeyhint="search" placeholder="Birim, kişi veya numara ara" data-input="pb-q" value="${PB.q}" autocomplete="off" aria-label="Rehberde ara"></div>
     <div id="pbList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   if (window.innerWidth > 900) { const q = $('#pbQ'); if (q) q.focus({ preventScroll: true }); }
@@ -1620,12 +1620,12 @@ function pbParsePaste(text, defCat) {
   }
   return out;
 }
-ACT['pb-import'] = () => {
+ACT['pb-import'] = (el) => {
   const m = openModal({
     title: 'Listeyi yapıştır', size: 'wide',
     body: html`<div class="stack">
       <p class="small muted">Excel'deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın <b>ya da dosyayı seçin</b>. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
-      <label class="btn">${icon('upload', 'sm')}<span>Excel / CSV dosyası seç</span><input type="file" hidden accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt" id="pbFile"></label>
+      <label class="btn primary">${icon('table', 'sm')}<span>Excel / CSV dosyası seç</span><input type="file" hidden accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt" id="pbFile"></label>
       <textarea class="textarea" id="pbPaste" style="min-height:180px" placeholder="ACİL SERVİS&#10;Acil triaj	2201&#10;Acil sorumlu hemşire	2205 / 2206&#10;LABORATUVAR&#10;Biyokimya 2310&#10;Kan merkezi: 2315"></textarea>
       <div class="grid2"><div class="field"><label>Grup <span class="faint">(boşsa başlık satırlarından alınır)</span></label><input class="input" id="pbCat" maxlength="60" placeholder="Örn. Birimler"></div>
         <label class="switch" style="align-self:end"><input type="checkbox" id="pbReplace"><span class="track"></span><span class="s-text"><b>Mevcut rehberi değiştir</b><span>Açıksa eski numaralar silinir.</span></span></label></div>
@@ -1670,6 +1670,7 @@ ACT['pb-import'] = () => {
   });
   $('#pbCat', m.el).addEventListener('input', debounce(prev, 150));
   PB.importModal = m;
+  if (el && el.dataset && el.dataset.file) $('#pbFile', m.el).click();
 };
 ACT['pb-import-go'] = async (el) => {
   const m = PB.importModal;

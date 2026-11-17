@@ -105,7 +105,7 @@ ACT.theme = () => {
   if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
 };
 ACT['me-menu'] = (el) => openMenu(el, [
-  { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div></div>` },
+  { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''}</div></div>` },
   { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
   { id: 't', icon: isDark() ? 'sun' : 'moon', label: isDark() ? 'Açık tema' : 'Koyu tema', run: () => ACT.theme() },
   '-',

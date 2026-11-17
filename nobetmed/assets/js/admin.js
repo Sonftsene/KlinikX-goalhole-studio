@@ -269,6 +269,7 @@ async function drawSettings(body) {
     <div class="card card-pad stack" data-sec="genel">
       <h3 style="font-size:15px">Genel</h3>
       <div class="field"><label>Kurum / klinik adı</label><input class="input" name="org_name" value="${st.org_name}" required></div>
+      <p class="tiny faint">Uygulama sürümü: <b>${BOOT.v || '?'}</b></p>
     </div>
 
     <div class="card card-pad stack" data-sec="nobet">
