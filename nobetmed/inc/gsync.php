@@ -55,9 +55,9 @@ function gs_tab_info(string $name): array
 }
 
 /** Liste türlerinin özeti (bağlama ekranı için): her tür için örnek sekme adları */
-function gs_kinds(): array
+function gs_kinds(array $src): array
 {
-    $tabs = json_decode(setting('gs_tabs', '[]'), true) ?: [];
+    $tabs = json_decode((string)($src['tabs'] ?? '[]'), true) ?: [];
     $kinds = [];
     foreach ($tabs as $t) {
         if (empty($t['mo'])) continue;
@@ -97,63 +97,73 @@ function gs_dict(): ?array
     return is_array($j) && $j ? $j : null;
 }
 
-function gs_status(string $msg, bool $ok = true): void
+function gs_sources(): array
 {
-    set_setting('gs_status', mb_substr(($ok ? '' : '!') . $msg, 0, 300));
+    return all('SELECT * FROM gs_sources ORDER BY id');
+}
+
+function gs_source(int $id): ?array
+{
+    return one('SELECT * FROM gs_sources WHERE id = ?', [$id]);
+}
+
+function gs_src_set(int $id, array $f): void
+{
+    if (!$f) return;
+    q('UPDATE gs_sources SET ' . implode(', ', array_map(fn($k) => "$k = ?", array_keys($f))) . ' WHERE id = ?', array_merge(array_values($f), [$id]));
+}
+
+function gs_status(int $sid, string $msg, bool $ok = true): void
+{
+    gs_src_set($sid, ['status' => mb_substr(($ok ? '' : '!') . $msg, 0, 300)]);
 }
 
 /**
  * Gelen çalışma kitabını işler. $file: geçici .xlsx yolu (taşınır/silinir).
  * $force: içerik aynı olsa da bağlı listeleri yeniden oku (ör. yeni bağlama).
  */
-function gs_ingest(string $file, string $title = '', bool $force = false, ?int $onlyRoster = null): array
+function gs_ingest(array $src, string $file, string $title = '', bool $force = false, ?int $onlyRoster = null): array
 {
+    $sid = (int)$src['id'];
     $hash = hash_file('sha256', $file) ?: '';
-    set_setting('gs_seen', now());
-    if (!$force && $hash !== '' && $hash === setting('gs_hash')) {
+    gs_src_set($sid, ['seen' => now()]);
+    if (!$force && $hash !== '' && $hash === (string)$src['hash']) {
         @unlink($file);
         return ['changed' => false, 'message' => 'Değişiklik yok'];
     }
-    if (!gs_load_parser()) { @unlink($file); gs_status('Sunucuda Excel okuyucu eksik (inc/xlsx.php).', false); return ['changed' => false, 'error' => 'Excel okuyucu eksik']; }
+    if (!gs_load_parser()) { @unlink($file); gs_status($sid, 'Sunucuda Excel okuyucu eksik (inc/xlsx.php).', false); return ['changed' => false, 'error' => 'Excel okuyucu eksik']; }
     try {
         $model = xlsx_read($file);
     } catch (Throwable $e) {
         @unlink($file);
-        gs_status('Gelen dosya okunamadı: ' . $e->getMessage(), false);
+        gs_status($sid, 'Gelen dosya okunamadı: ' . $e->getMessage(), false);
         return ['changed' => false, 'error' => 'Dosya okunamadı'];
     }
     $tabs = [];
-    foreach ($model['sheets'] as $i => $sh) $tabs[] = ['name' => (string)$sh['name'], 'hidden' => !empty($sh['hidden'])] + gs_tab_info((string)$sh['name']);
-    set_setting('gs_tabs', json_encode($tabs, JSON_UNESCAPED_UNICODE));
-    if ($title !== '') set_setting('gs_title', mb_substr($title, 0, 120));
-    set_setting('gs_hash', $hash);
-    set_setting('gs_changed', now());
+    foreach ($model['sheets'] as $sh) $tabs[] = ['name' => (string)$sh['name'], 'hidden' => !empty($sh['hidden'])] + gs_tab_info((string)$sh['name']);
+    $title = $title !== '' ? mb_substr($title, 0, 120) : (string)$src['title'];
+    gs_src_set($sid, ['tabs' => json_encode($tabs, JSON_UNESCAPED_UNICODE), 'title' => $title ?: null, 'hash' => $hash, 'changed' => now()]);
 
-    // Dosyayı kalıcı ek olarak sakla (bağlı listelerin hepsi aynı eki gösterir)
+    // Dosyayı kalıcı ek olarak sakla (bu tabloya bağlı listelerin hepsi aynı eki gösterir)
     $stored = date('Ym') . '_' . bin2hex(random_bytes(10)) . '.bin';
     $dir = NM_ROOT . '/uploads';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    if (!@rename($file, $dir . '/' . $stored)) { if (!@copy($file, $dir . '/' . $stored)) { @unlink($file); gs_status('Dosya kaydedilemedi (disk dolu olabilir).', false); return ['changed' => false, 'error' => 'Kaydedilemedi']; } @unlink($file); }
+    if (!@rename($file, $dir . '/' . $stored)) { if (!@copy($file, $dir . '/' . $stored)) { @unlink($file); gs_status($sid, 'Dosya kaydedilemedi (disk dolu olabilir).', false); return ['changed' => false, 'error' => 'Kaydedilemedi']; } @unlink($file); }
     $owner = gs_owner_id();
-    $name = (setting('gs_title') !== '' ? setting('gs_title') : 'Google E-Tablo') . '.xlsx';
     q('INSERT INTO attachments (post_id, roster_id, user_id, orig_name, stored_name, mime, size, created_at) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?)',
-        [$owner, $name, $stored, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', (int)filesize($dir . '/' . $stored), now()]);
+        [$owner, ($title ?: $src['name']) . '.xlsx', $stored, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', (int)filesize($dir . '/' . $stored), now()]);
     $attId = (int)db()->lastInsertId();
-    $prevAtt = (int)setting('gs_att', '0');
-    set_setting('gs_att', (string)$attId);
+    $prevAtt = (int)$src['att_id'];
+    gs_src_set($sid, ['att_id' => $attId]);
 
-    $rosters = all('SELECT * FROM rosters WHERE src_on = 1' . ($onlyRoster ? ' AND id = ' . (int)$onlyRoster : '') . ' ORDER BY sort, id');
+    $rosters = all('SELECT * FROM rosters WHERE src_on = 1 AND src_source = ?' . ($onlyRoster ? ' AND id = ' . (int)$onlyRoster : '') . ' ORDER BY sort, id', [$sid]);
     $summary = [];
     foreach ($rosters as $r) $summary[] = gs_apply_roster($r, $model, $tabs, $attId, $owner);
-    // Hiçbir listeye bağlanmayan önceki geçici ek gereksiz
-    if ($prevAtt && $prevAtt !== $attId && (int)val('SELECT COUNT(*) FROM roster_files WHERE attachment_id = ?', [$prevAtt]) === 0) {
-        $a = one('SELECT stored_name, post_id FROM attachments WHERE id = ?', [$prevAtt]);
-        if ($a && $a['post_id'] === null) { @unlink($dir . '/' . $a['stored_name']); q('DELETE FROM attachments WHERE id = ?', [$prevAtt]); }
-    }
+    if ($prevAtt && $prevAtt !== $attId) gs_delete_attachment_if_unused($prevAtt);
     if (!$rosters) q('UPDATE attachments SET roster_id = 0 WHERE id = ?', [$attId]); // girişli herkes görebilsin (bağlama önizlemesi)
     $msg = $rosters ? implode(' · ', array_map(fn($x) => $x['name'] . ': ' . $x['status'], $summary)) : count($tabs) . ' sekme alındı; henüz bağlı liste yok';
-    gs_status($msg);
-    if (function_exists('audit')) audit(null, 'roster.sync', setting('gs_title') ?: 'Google E-Tablo', mb_substr($msg, 0, 250));
+    gs_status($sid, $msg);
+    if (function_exists('audit')) audit(null, 'roster.sync', $title ?: $src['name'], mb_substr($msg, 0, 250));
     return ['changed' => true, 'message' => $msg, 'rosters' => $summary];
 }
 
@@ -162,30 +172,6 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
 {
     $rid = (int)$r['id'];
     $kind = (string)$r['src_tab'];
-    $today = date('Y-m-d');
-    $lo = date('Y-m-01', strtotime('first day of -4 months'));
-    $hi = date('Y-m-t', strtotime('last day of +3 months'));
-    $dict = gs_dict();
-    $entries = [];
-    $months = [];
-    $tabNow = null;
-    $warn = [];
-    foreach ($tabs as $i => $t) {
-        if ($t['kind'] !== $kind || !$t['mo']) continue;
-        $opts = ['uploadedAt' => now(), 'month' => $t['mo'], 'fileName' => $t['name']];
-        if ($t['y']) $opts['year'] = $t['y'];
-        if ($dict) $opts['dict'] = $dict;
-        try { $res = sp_extract_sheet($model, $i, $opts); } catch (Throwable $e) { $res = ['ok' => false]; error_log('[dupcii] sekme ' . $t['name'] . ': ' . $e->getMessage()); }
-        if (empty($res['ok']) || empty($res['entries'])) continue;
-        $ym = sprintf('%04d-%02d', (int)$res['year'], (int)$res['month']);
-        if ($ym . '-01' < $lo || $ym . '-01' > $hi || isset($months[$ym])) continue; // eski aylar ve aynı ayın ikinci sekmesi
-        $months[$ym] = $t['name'];
-        if ($ym === substr($today, 0, 7)) $tabNow = $t['name'];
-        foreach ($res['entries'] as $e) $entries[] = $e;
-        foreach (($res['warnings'] ?? []) as $w) if (!preg_match('/sayfa adından/u', $w)) $warn[] = $t['name'] . ': ' . $w;
-    }
-    // Viewer'da açılacak sekme: bu ayın sekmesi, yoksa en yeni ay
-    if (!$tabNow && $months) { ksort($months); $tabNow = end($months); }
     // Yeni sürüm (dosya her değiştiğinde; liste görüntüsü güncel kalsın)
     q('UPDATE attachments SET roster_id = ? WHERE id = ? AND (roster_id IS NULL OR roster_id = 0)', [$rid, $attId]);
     $last = one('SELECT attachment_id FROM roster_files WHERE roster_id = ? ORDER BY id DESC LIMIT 1', [$rid]);
@@ -196,9 +182,47 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
             gs_delete_attachment_if_unused((int)$o['attachment_id']);
         }
     }
+    // Yalnızca görüntülenen tablo (ör. hasta listesi): nöbet okunmaz, gizli olmayan tüm sekmeler görünür
+    if ($kind === '*' || ($r['kind'] ?? 'nobet') === 'tablo') {
+        $names = array_values(array_map(fn($t) => $t['name'], array_filter($tabs, fn($t) => empty($t['hidden']))));
+        $act = $model['sheets'][$model['active'] ?? 0]['name'] ?? ($names[0] ?? null);
+        if ($act !== null && !in_array($act, $names, true)) $act = $names[0] ?? null;
+        $st = count($names) . ' sekme';
+        q('UPDATE rosters SET parsed_file_id = ?, src_sync_at = ?, src_status = ?, src_tabname = ?, src_tabs = ? WHERE id = ?', [$attId, now(), $st, $act, json_encode($names, JSON_UNESCAPED_UNICODE), $rid]);
+        return ['id' => $rid, 'name' => $r['name'], 'status' => $st, 'changed' => 0];
+    }
+    $today = date('Y-m-d');
+    $lo = date('Y-m-01', strtotime('first day of -4 months'));
+    $hi = date('Y-m-t', strtotime('last day of +3 months'));
+    $dict = gs_dict();
+    $entries = [];
+    $months = [];
+    $allTabs = [];
+    $tabNow = null;
+    $warn = [];
+    foreach ($tabs as $i => $t) {
+        if ($t['kind'] !== $kind || !$t['mo']) continue;
+        $opts = ['uploadedAt' => now(), 'month' => $t['mo'], 'fileName' => $t['name']];
+        if ($t['y']) $opts['year'] = $t['y'];
+        if ($dict) $opts['dict'] = $dict;
+        try { $res = sp_extract_sheet($model, $i, $opts); } catch (Throwable $e) { $res = ['ok' => false]; error_log('[dupcii] sekme ' . $t['name'] . ': ' . $e->getMessage()); }
+        if (empty($res['ok']) || empty($res['entries'])) continue;
+        $ym = sprintf('%04d-%02d', (int)$res['year'], (int)$res['month']);
+        if (!isset($allTabs[$ym]) && empty($t['hidden'])) $allTabs[$ym] = $t['name'];
+        if ($ym . '-01' < $lo || $ym . '-01' > $hi || isset($months[$ym])) continue; // eski aylar ve aynı ayın ikinci sekmesi
+        $months[$ym] = $t['name'];
+        if ($ym === substr($today, 0, 7)) $tabNow = $t['name'];
+        foreach ($res['entries'] as $e) $entries[] = $e;
+        foreach (($res['warnings'] ?? []) as $w) if (!preg_match('/sayfa adından/u', $w)) $warn[] = $t['name'] . ': ' . $w;
+    }
+    ksort($months);
+    ksort($allTabs);
+    // Liste görüntüsünde yalnızca bu listenin sekmeleri (aylara göre sıralı); açılışta bu ay
+    $tabList = json_encode(array_values($allTabs), JSON_UNESCAPED_UNICODE);
+    if (!$tabNow && $months) $tabNow = end($months);
     if (!$entries) {
         $st = 'Eşleşen sekmede nöbet bulunamadı';
-        q('UPDATE rosters SET src_sync_at = ?, src_status = ?, src_tabname = ?, parsed_file_id = ? WHERE id = ?', [now(), '!' . $st, $tabNow, $attId, $rid]);
+        q('UPDATE rosters SET src_sync_at = ?, src_status = ?, src_tabname = ?, src_tabs = ?, parsed_file_id = ? WHERE id = ?', [now(), '!' . $st, $tabNow, $tabList, $attId, $rid]);
         // eski kayıtlar korunur ama yeni dosyaya taşınır (Kim nöbette/Takvimim boş kalmasın)
         q('UPDATE roster_shifts SET file_id = ? WHERE roster_id = ?', [$attId, $rid]);
         return ['id' => $rid, 'name' => $r['name'], 'status' => $st, 'changed' => 0];
@@ -217,11 +241,10 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
                 isset($e['hours']) && is_numeric($e['hours']) ? (int)$e['hours'] : null, $hm($e['start'] ?? null), $hm($e['end'] ?? null)]);
         }
         $cur = substr($today, 0, 7);
-        ksort($months);
         $period = isset($months[$cur]) ? $cur : (string)array_key_last($months);
         $ml = implode(', ', array_map(fn($ym) => GS_MONTH_NAMES[(int)substr($ym, 5, 2) - 1] . ' ' . substr($ym, 0, 4), array_keys($months)));
         $status = $ml . ' · ' . count($entries) . ' kayıt' . ($warn ? ' · ' . $warn[0] : '');
-        q('UPDATE rosters SET period = ?, parsed_file_id = ?, src_sync_at = ?, src_status = ?, src_tabname = ? WHERE id = ?', [$period, $attId, now(), mb_substr($status, 0, 250), $tabNow, $rid]);
+        q('UPDATE rosters SET period = ?, parsed_file_id = ?, src_sync_at = ?, src_status = ?, src_tabname = ?, src_tabs = ? WHERE id = ?', [$period, $attId, now(), mb_substr($status, 0, 250), $tabNow, $tabList, $rid]);
         db()->commit();
     } catch (Throwable $e) {
         db()->rollBack();
@@ -234,7 +257,7 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
 
 function gs_delete_attachment_if_unused(int $attId): void
 {
-    if ($attId === (int)setting('gs_att', '0')) return;
+    if ((int)val('SELECT COUNT(*) FROM gs_sources WHERE att_id = ?', [$attId]) > 0) return;
     if ((int)val('SELECT COUNT(*) FROM roster_files WHERE attachment_id = ?', [$attId]) > 0) return;
     $a = one('SELECT * FROM attachments WHERE id = ?', [$attId]);
     if (!$a || $a['post_id'] !== null) return;
@@ -423,20 +446,38 @@ function gs_tmp(): string
     return $dir . '/gs_' . bin2hex(random_bytes(8)) . '.xlsx';
 }
 
-/** Apps Script'ten gelen istek (oturumsuz; X-Sync-Token ile doğrulanır) */
+function gs_token_ok(): bool
+{
+    $want = setting('gs_token');
+    $got = (string)($_SERVER['HTTP_X_SYNC_TOKEN'] ?? ($_GET['token'] ?? ''));
+    return $want !== '' && hash_equals($want, $got);
+}
+
+/** Betik her çalıştığında hangi tabloları göndereceğini buradan öğrenir (yeni tablo eklemek için kodu değiştirmek gerekmez) */
+function a_gsync_tables(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    if (!gs_token_ok()) { usleep(300000); http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Anahtar geçersiz']); return; }
+    echo json_encode(['ok' => true, 'tables' => setting('gs_mode', 'push') === 'push' ? array_column(gs_sources(), 'sheet_id') : []]);
+}
+
+/** Apps Script'ten gelen istek (oturumsuz; X-Sync-Token ile doğrulanır; X-Sheet hangi tablo olduğunu söyler) */
 function a_gsync_push(): void
 {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     $res = function (int $code, array $body) { http_response_code($code); echo json_encode($body, JSON_UNESCAPED_UNICODE); };
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { $res(405, ['ok' => false, 'error' => 'POST gerekli']); return; }
-    $want = setting('gs_token');
-    $got = (string)($_SERVER['HTTP_X_SYNC_TOKEN'] ?? ($_GET['token'] ?? ''));
-    if ($want === '' || setting('gs_mode', 'push') !== 'push' || !hash_equals($want, $got)) {
+    if (setting('gs_mode', 'push') !== 'push' || !gs_token_ok()) {
         usleep(300000);
-        $res(403, ['ok' => false, 'error' => 'Anahtar geçersiz. Uygulamadaki Google E-Tablolar ayarından güncel betiği kopyalayın.']);
+        $res(403, ['ok' => false, 'error' => 'Anahtar geçersiz. Uygulamadaki Google E-Tablolar ayarından güncel kodu kopyalayın.']);
         return;
     }
+    $sheet = (string)($_SERVER['HTTP_X_SHEET'] ?? '');
+    $src = $sheet !== '' ? one('SELECT * FROM gs_sources WHERE sheet_id = ?', [$sheet])
+        : (one("SELECT * FROM gs_sources WHERE purpose = 'nobet' ORDER BY id LIMIT 1") ?? one('SELECT * FROM gs_sources ORDER BY id LIMIT 1')); // eski betik
+    if (!$src) { $res(404, ['ok' => false, 'error' => 'Bu tablo uygulamada ekli değil.']); return; }
     $len = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($len > GS_MAX_BYTES) { $res(413, ['ok' => false, 'error' => 'Dosya çok büyük']); return; }
     $body = (string)file_get_contents('php://input', false, null, 0, GS_MAX_BYTES + 1);
@@ -447,32 +488,34 @@ function a_gsync_push(): void
     try {
         if (strncmp($body, "PK\x03\x04", 4) === 0) {
             file_put_contents($tmp, $body);
+            gs_src_set((int)$src['id'], ['fallback' => 0]);
         } else {
             $j = json_decode($body, true);
             if (!is_array($j) || !is_array($j['grid'] ?? null)) { $res(400, ['ok' => false, 'error' => 'Tanınmayan içerik']); return; }
             if ($title === '' && is_string($j['title'] ?? null)) $title = mb_substr($j['title'], 0, 120);
             gs_grid_to_xlsx($j['grid'], $tmp);
-            set_setting('gs_fallback', '1');
+            unset($j);
+            gs_src_set((int)$src['id'], ['fallback' => 1]);
         }
         unset($body);
-        if (isset($j)) unset($j); else set_setting('gs_fallback', '0');
-        $out = gs_ingest($tmp, $title);
+        $out = gs_ingest($src, $tmp, $title);
     } catch (Throwable $e) {
         @unlink($tmp);
         error_log('[dupcii] gsync: ' . $e->getMessage());
-        gs_status('Gelen veri işlenemedi: ' . $e->getMessage(), false);
+        gs_status((int)$src['id'], 'Gelen veri işlenemedi: ' . $e->getMessage(), false);
         $res(500, ['ok' => false, 'error' => 'İşlenemedi']);
         return;
     }
-    $res(200, ['ok' => true, 'changed' => $out['changed'], 'message' => $out['message'] ?? ($out['error'] ?? '')]);
+    $res(200, ['ok' => true, 'changed' => $out['changed'], 'message' => $src['name'] . ': ' . ($out['message'] ?? ($out['error'] ?? ''))]);
 }
 
 /** Herkese açık tabloyu sunucunun kendisi indirir */
-function gs_pull(bool $force = false): array
+function gs_pull(array $src, bool $force = false): array
 {
-    $id = setting('gs_id');
-    if ($id === '' || !preg_match('/^[A-Za-z0-9_-]{20,100}$/', $id)) return ['changed' => false, 'error' => 'Tablo adresi yok'];
-    if (!function_exists('curl_init')) { gs_status('Sunucuda curl yok; Apps Script yöntemini kullanın.', false); return ['changed' => false, 'error' => 'curl yok']; }
+    $id = (string)$src['sheet_id'];
+    $sid = (int)$src['id'];
+    if (!preg_match('/^[A-Za-z0-9_-]{20,100}$/', $id)) return ['changed' => false, 'error' => 'Tablo adresi yok'];
+    if (!function_exists('curl_init')) { gs_status($sid, 'Sunucuda curl yok; “Yalnızca bana paylaşıldı” yöntemini kullanın.', false); return ['changed' => false, 'error' => 'curl yok']; }
     $ch = curl_init('https://docs.google.com/spreadsheets/d/' . $id . '/export?format=xlsx');
     $tmp = gs_tmp();
     $fp = fopen($tmp, 'wb');
@@ -483,34 +526,40 @@ function gs_pull(bool $force = false): array
     $err = curl_error($ch);
     curl_close($ch);
     fclose($fp);
-    set_setting('gs_seen', now());
+    gs_src_set($sid, ['seen' => now()]);
     $head = (string)@file_get_contents($tmp, false, null, 0, 4);
     if (!$ok || $code !== 200 || $head !== "PK\x03\x04" || filesize($tmp) > GS_MAX_BYTES) {
         @unlink($tmp);
-        gs_status($code === 200 || $code === 401 || $code === 403
-            ? 'Tablo herkese açık değil. "Yalnızca bana paylaşıldı" yöntemini (Apps Script) kullanın.'
+        gs_status($sid, $code === 200 || $code === 401 || $code === 403
+            ? 'Tablo herkese açık değil. “Yalnızca bana paylaşıldı” yöntemini (Apps Script) kullanın.'
             : 'Tablo indirilemedi (' . ($err ?: 'HTTP ' . $code) . ')', false);
         return ['changed' => false, 'error' => 'İndirilemedi'];
     }
-    return gs_ingest($tmp, '', $force);
+    return gs_ingest($src, $tmp, '', $force);
 }
 
 /** Zamanlanmış görev: çekme modunda her çalıştırmada (en az 5 dk arayla) */
 function gs_job(): ?string
 {
-    if (setting('gs_mode', 'push') !== 'pull' || setting('gs_id') === '') return null;
-    $r = gs_pull();
-    return $r['message'] ?? ($r['error'] ?? '');
+    // Güncellemeden sonra: sekme listesi henüz hesaplanmamış bağlı listeleri son gelen dosyadan yeniden işle
+    foreach (all('SELECT DISTINCT src_source FROM rosters WHERE src_on = 1 AND src_tabs IS NULL AND src_source IS NOT NULL') as $x) {
+        $src = gs_source((int)$x['src_source']);
+        if ($src && $src['att_id']) { try { gs_reprocess($src); } catch (Throwable $e) { error_log('[dupcii] gs yeniden işleme: ' . $e->getMessage()); } }
+    }
+    if (setting('gs_mode', 'push') !== 'pull') return null;
+    $out = [];
+    foreach (gs_sources() as $src) { $r = gs_pull($src); $out[] = $src['name'] . ': ' . ($r['message'] ?? ($r['error'] ?? '')); }
+    return $out ? implode(' · ', $out) : null;
 }
 
-/** Bağlama sonrası (veya elle) son gelen dosyayı yeniden işle */
-function gs_reprocess(?int $onlyRoster = null): ?array
+/** Bağlama sonrası (veya elle) bu tablodan son gelen dosyayı yeniden işle */
+function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
 {
-    $att = one('SELECT stored_name FROM attachments WHERE id = ?', [(int)setting('gs_att', '0')]);
+    $att = $src['att_id'] ? one('SELECT stored_name FROM attachments WHERE id = ?', [(int)$src['att_id']]) : null;
     if (!$att) return null;
-    $src = NM_ROOT . '/uploads/' . $att['stored_name'];
-    if (!is_file($src)) return null;
+    $file = NM_ROOT . '/uploads/' . $att['stored_name'];
+    if (!is_file($file)) return null;
     $tmp = gs_tmp();
-    if (!@copy($src, $tmp)) return null;
-    return gs_ingest($tmp, '', true, $onlyRoster);
+    if (!@copy($file, $tmp)) return null;
+    return gs_ingest($src, $tmp, '', true, $onlyRoster);
 }

@@ -467,14 +467,16 @@ await m.screenshot({ path: path.join(OUT, 'f-telefon-mobil.png') });
 await a.screenshot({ path: path.join(OUT, 'f-telefon-desktop.png') });
 step('telefon rehberi: yapıştırarak 5 numara, acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
 
-// 23) Google E-Tablolar: betik gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi
+// 23) Google E-Tablolar: kod gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi, ikinci (görüntüleme) tablosu
 await a.goto(BASE + '#/yonetim/ayarlar/nobet');
-await a.locator('#gsCard .seg').waitFor();
+await a.locator('#gsCard #gsSheet').waitFor();
 await a.fill('#gsSheet', 'https://docs.google.com/spreadsheets/d/1TestTestTestTestTestTestTestTestTestTest12/edit#gid=0');
-await a.click('[data-act=gs-save]');
+await a.click('[data-act=gs-add-save]');
 await a.locator('#gsCode').waitFor();
-const gs = (await apiCall(a, 'gsync.get')).gs;
-if (!/tablo: '1TestTest/.test(await a.locator('#gsCode').innerText()) || !gs.token) fail('Apps Script kodu/anahtar');
+let gsAll = (await apiCall(a, 'gsync.get')).gs;
+const gs = { token: gsAll.token };
+const srcN = gsAll.sources[0];
+if (!/liste: '.*gsync\.tables'/.test(await a.locator('#gsCode').innerText()) || !gs.token || srcN.purpose !== 'nobet') fail('Apps Script kodu/anahtar/tablo');
 const now = new Date();
 const ym0 = { y: now.getFullYear(), m: now.getMonth() + 1 };
 const nx = new Date(ym0.y, ym0.m, 1);
@@ -520,13 +522,13 @@ const same = await push(Buffer.from(await book(1), 'base64'), gs.token);
 if (!same.json || same.json.changed) fail('aynı dosya değişiklik sayıldı: ' + JSON.stringify(same.json));
 await a.reload();
 await a.locator('#gsCard [data-change=gs-bind]').first().waitFor();
-const kinds = (await apiCall(a, 'gsync.get')).gs.kinds.map((k) => k.kind + ':' + k.label).sort().join('|');
+const kinds = (await apiCall(a, 'gsync.get')).gs.sources[0].kinds.map((k) => k.kind + ':' + k.label).sort().join('|');
 if (kinds !== '2basamak:2. BASAMAK|3basamak:3. BASAMAK|:Ay adı (genel liste)') fail('sekme türleri: ' + kinds);
-const c3 = await apiCall(a, 'gsync.create', { name: '3. Basamak (B blok)', kind: '3basamak' });
-const c2 = await apiCall(a, 'gsync.create', { name: '2. Basamak (A-C blok)', kind: '2basamak' });
+const c3 = await apiCall(a, 'gsync.create', { name: '3. Basamak (B blok)', kind: '3basamak', source_id: srcN.id });
+const c2 = await apiCall(a, 'gsync.create', { name: '2. Basamak (A-C blok)', kind: '2basamak', source_id: srcN.id });
 const linked = c2.gs.rosters.filter((r) => r.linked);
 if (linked.length !== 2 || !/kayıt/.test(linked[0].status || '')) fail('bağlama: ' + JSON.stringify(linked));
-const r3 = linked.find((r) => r.kind === '3basamak').id, r2 = linked.find((r) => r.kind === '2basamak').id;
+const r3 = linked.find((r) => r.tab === '3basamak').id, r2 = linked.find((r) => r.tab === '2basamak').id;
 const p2 = (n) => String(n).padStart(2, '0');
 const d1 = (d) => `${ym1.y}-${p2(ym1.m)}-${p2(d)}`;
 const myE = await apiCall(m, 'shifts.my');
@@ -537,6 +539,9 @@ const per = await apiCall(a, 'rosters.period', { id: r3, period: '2026-01' }).th
 if (!/Google E-Tablolar/.test(per)) fail('bağlı listenin ayı değişti: ' + per);
 await a.goto(BASE + '#/nobet/' + r3);
 await expectText(a, 'Google E-Tablolar’a bağlı');
+await a.locator('.xv-tabs button').first().waitFor();
+const vt = await a.locator('.xv-tabs button').allInnerTexts();
+if (vt.length !== 2 || !vt.every((t) => /BASAMAK/.test(t) && /3/.test(t)) || !(await a.locator('.xv-tabs button.on').innerText()).startsWith(MN[ym0.m - 1])) fail('liste sekmeleri yalnızca bu listenin ayları olmalı: ' + vt.join(' | '));
 if (await a.locator('#rsInfo [data-change=rs-file]').count()) fail('bağlı listede yükleme düğmesi var');
 // Değişiklik: Elif'in sonraki ay 12. günü 8 16 -> 16 8
 const nBefore = (await apiCall(m, 'notif.list')).items.length;
@@ -549,7 +554,24 @@ if (!chg || !/8 16 → 16 8/.test(chg.body) || nl[0] !== chg || nl.filter((x) =>
 const grid = await push(JSON.stringify({ title: 'YOĞUN BAKIM', grid: [{ name: MN[ym1.m - 1] + ' 3.BASAMAK', values: [['', 'PERSONEL', 'ÜNVANI', ...Array.from({ length: 28 }, (_, i) => String(i + 1))], ['1', 'ELİF YILMAZ', 'HEMŞİRE', '8 8']], merges: [] }] }), gs.token, 'application/json');
 if (grid.status !== 200) fail('JSON gönderimi: ' + JSON.stringify(grid));
 await push(Buffer.from(await book(2), 'base64'), gs.token);
-step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, salt okunur liste, değişiklik bildirimi, JSON yedek yolu');
+// İkinci tablo: hasta listesi (yalnızca görüntüleme); kod tablo listesini sunucudan alır
+const HS = '1HastaHastaHastaHastaHastaHastaHasta123456';
+const hs = await apiCall(a, 'gsync.source.save', { sheet: 'https://docs.google.com/spreadsheets/d/' + HS + '/edit', name: 'Hasta listesi', purpose: 'tablo' });
+const tl = await (await fetch(BASE + 'api.php?action=gsync.tables', { headers: { 'X-Sync-Token': gs.token } })).json();
+if (!tl.tables || tl.tables.length !== 2 || !tl.tables.includes(HS)) fail('tablo listesi: ' + JSON.stringify(tl));
+const hasta = await a.evaluate(async () => { await loadVendor('exceljs'); const wb = new ExcelJS.Workbook(); const w1 = wb.addWorksheet('B BLOK'); w1.addRow(['Yatak', 'Hasta']); w1.addRow(['1', 'A.Y.']); const w2 = wb.addWorksheet('A BLOK'); w2.addRow(['Yatak', 'Hasta']); wb.addWorksheet('ESKİ').state = 'hidden';
+  const buf = await wb.xlsx.writeBuffer(); let bin = ''; new Uint8Array(buf).forEach((x) => { bin += String.fromCharCode(x); }); return btoa(bin); });
+const hp = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': HS, 'Content-Type': 'application/octet-stream' }, body: Buffer.from(hasta, 'base64') });
+if (hp.status !== 200) fail('hasta listesi gönderimi: ' + hp.status);
+const unknown = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': '1BilinmeyenBilinmeyenBilinmeyen0000', 'Content-Type': 'application/octet-stream' }, body: Buffer.from(hasta, 'base64') });
+if (unknown.status !== 404) fail('eklenmemiş tablo kabul edildi: ' + unknown.status);
+const hr = (await apiCall(m, 'rosters.list')).rosters.find((r) => r.name === 'Hasta listesi');
+if (!hr || hr.kind !== 'tablo' || !hr.file || JSON.stringify(hr.tabs) !== '["B BLOK","A BLOK"]') fail('hasta listesi: ' + JSON.stringify(hr));
+await m.goto(BASE + '#/nobet/' + hr.id);
+await m.locator('.xv-tabs button').first().waitFor();
+if ((await m.locator('.hub-tabs').count()) || (await m.locator('.xv-tabs button').count()) !== 2) fail('hasta listesi görünümü');
+if (await m.locator('#rsTabs button', { hasText: '3. Basamak' }).count()) fail('hasta listesi sayfasında nöbet listeleri sekmesi var');
+step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi)');
 
 // 24) Taraf listesi: kura en az geçene, geçiş sayımı, takvimde blok
 const sides = await apiCall(a, 'side.settings', { sides: [{ key: 's3', name: '3. Basamak', roster_id: r3, units: ['B blok'] }, { key: 's2', name: '2. Basamak', roster_id: r2, units: ['A blok', 'C blok'] }] });

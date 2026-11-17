@@ -17,7 +17,7 @@ const shortDate = (d) => { const x = parseDT(d); return x ? `${x.getDate()} ${TR
 /* =================================================================== */
 /* Ayarlar › Nöbet: Google E-Tablolar bağlantısı                        */
 /* =================================================================== */
-const GS = { data: null };
+const GS = { data: null, add: false };
 function gsyncCardHtml() {
   if (!isAdmin()) return '';
   return html`<div class="card card-pad stack" data-sec="nobet" id="gsCard"><div class="skel" style="height:16px;width:50%"></div></div>`;
@@ -25,15 +25,17 @@ function gsyncCardHtml() {
 async function mountGsync() {
   if (!$('#gsCard')) return;
   try { GS.data = (await api('gsync.get')).gs; } catch (e) { setHTML($('#gsCard'), html`<p class="small muted">${e.message}</p>`); return; }
+  GS.add = !GS.data.sources.length;
   drawGsync();
 }
 function gsScript(g) {
   return `// dupcii · Google E-Tablolar otomatik eşitleme
-// Bu betik SİZİN Google hesabınızda çalışır; tablo değişince güncel listeyi yalnızca kendi sitenize gönderir.
+// Bu kod SİZİN Google hesabınızda çalışır; tablolar değişince güncel hâllerini yalnızca kendi sitenize gönderir.
+// Hangi tabloların gönderileceğini uygulamadan öğrenir: uygulamada yeni tablo eklediğinizde bu kodu değiştirmeniz gerekmez.
 // 1) Kaydedin  2) Üstteki listeden "kur" işlevini seçip Çalıştır'a basın  3) İzin verin. Bu kadar.
 var AYAR = {
-  tablo: '${g.id}',
   adres: '${g.push_url}',
+  liste: '${g.tables_url}',
   anahtar: '${g.token}'
 };
 
@@ -49,12 +51,22 @@ function kur() {
 }
 
 function esitle(zorla) {
-  var dosya = DriveApp.getFileById(AYAR.tablo);
+  var r = UrlFetchApp.fetch(AYAR.liste, { headers: { 'X-Sync-Token': AYAR.anahtar }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('dupcii tablo listesi alınamadı: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 200));
+  var hatalar = [];
+  (JSON.parse(r.getContentText()).tables || []).forEach(function (id) {
+    try { gonder(id, zorla === true); } catch (e) { hatalar.push(e.message); }
+  });
+  if (hatalar.length) throw new Error(hatalar.join(' | '));
+}
+
+function gonder(id, zorla) {
+  var dosya = DriveApp.getFileById(id);
   var son = String(dosya.getLastUpdated().getTime());
   var ayar = PropertiesService.getScriptProperties();
-  if (zorla !== true && son === ayar.getProperty('son')) return; // değişiklik yok
+  if (!zorla && son === ayar.getProperty('son_' + id)) return; // değişiklik yok
   var govde, tur;
-  var r = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + AYAR.tablo + '/export?format=xlsx', {
+  var r = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
   });
   var b = r.getContent();
@@ -62,7 +74,7 @@ function esitle(zorla) {
     govde = b; tur = 'application/octet-stream';
   } else {
     // Tabloda indirme kapalıysa görünen değerler gönderilir
-    var ss = SpreadsheetApp.openById(AYAR.tablo);
+    var ss = SpreadsheetApp.openById(id);
     var grid = ss.getSheets().map(function (sh) {
       var rg = sh.getDataRange();
       return {
@@ -74,85 +86,101 @@ function esitle(zorla) {
   }
   var y = UrlFetchApp.fetch(AYAR.adres, {
     method: 'post', contentType: tur, payload: govde, muteHttpExceptions: true,
-    headers: { 'X-Sync-Token': AYAR.anahtar, 'X-Title': encodeURIComponent(dosya.getName()) }
+    headers: { 'X-Sync-Token': AYAR.anahtar, 'X-Sheet': id, 'X-Title': encodeURIComponent(dosya.getName()) }
   });
-  if (y.getResponseCode() !== 200) throw new Error('dupcii yanıtı ' + y.getResponseCode() + ': ' + y.getContentText().slice(0, 300));
-  ayar.setProperty('son', son);
-  Logger.log('Uygulamaya gönderildi: ' + (JSON.parse(y.getContentText()).message || 'tamam'));
+  if (y.getResponseCode() !== 200) throw new Error(dosya.getName() + ': dupcii yanıtı ' + y.getResponseCode() + ' ' + y.getContentText().slice(0, 200));
+  ayar.setProperty('son_' + id, son);
+  Logger.log('Gönderildi: ' + (JSON.parse(y.getContentText()).message || dosya.getName()));
 }
 `;
+}
+const sheetUrl = (id) => 'https://docs.google.com/spreadsheets/d/' + id + '/edit';
+function gsSourceHtml(src, g) {
+  const st = src.seen ? (src.status_ok ? 'success' : 'danger') : '';
+  const bound = (k) => g.rosters.find((r) => r.linked && r.source === src.id && r.tab === k);
+  return html`<div class="gs-src" data-sid="${src.id}">
+    <div class="row between wrap" style="gap:8px"><div style="min-width:0"><div class="lr-t">${src.name} <span class="badge ${src.purpose === 'tablo' ? 'info' : 'brand'}">${src.purpose === 'tablo' ? 'Yalnızca görüntüleme' : 'Nöbet listesi'}</span> <span class="badge ${st}">${src.seen ? (src.status_ok ? 'Bağlı' : 'Sorun var') : 'Veri bekleniyor'}</span></div>
+        <div class="tiny faint ellipsis"><a href="${sheetUrl(src.sheet_id)}" target="_blank" rel="noopener">${src.title || 'Tabloyu aç'}</a>${src.seen ? ' · son veri ' + fmtRel(src.seen) : ''}${src.changed ? ' · son değişiklik ' + fmtRel(src.changed) : ''}</div></div>
+      <div class="row" style="gap:4px"><button type="button" class="btn sm" data-act="gs-pull" data-sid="${src.id}" title="${g.mode === 'pull' ? 'Şimdi eşitle' : 'Son veriyi yeniden işle'}">${icon('history', 'sm')}</button><button type="button" class="btn sm ghost" data-act="gs-del" data-sid="${src.id}" aria-label="Kaldır">${icon('trash', 'sm')}</button></div></div>
+    ${src.status ? html`<div class="small ${src.status_ok ? 'muted' : 'err-text'}">${src.status}</div>` : ''}
+    ${src.fallback ? html`<div class="tiny faint">Tabloda indirme kapalı olduğu için görünen değerler alınıyor (renkler sade görünebilir).</div>` : ''}
+    ${src.purpose === 'nobet' && src.kinds.length ? html`<div class="card"><div class="list">${src.kinds.map((k) => {
+      const cur = bound(k.kind);
+      return html`<div class="list-row gs-kind"><div class="grow" style="min-width:0"><div class="lr-t">${k.label}</div><div class="lr-s">${k.tabs.slice(0, 4).join(' · ')}${k.tabs.length > 4 ? ` · +${k.tabs.length - 4}` : ''}</div>
+          ${cur && cur.status ? html`<div class="tiny ${String(cur.status).startsWith('!') ? 'err-text' : 'faint'}">${String(cur.status).replace(/^!/, '')}</div>` : ''}</div>
+        <select class="select" data-change="gs-bind" data-sid="${src.id}" data-kind="${k.kind}" style="width:auto;max-width:220px">
+          <option value="">— Bağlı değil</option>
+          ${g.rosters.filter((r) => r.kind !== 'tablo').map((r) => html`<option value="${r.id}" ${cur && cur.id === r.id ? raw('selected') : ''}>${r.name}${r.linked && (!cur || cur.id !== r.id) ? ' (başka sekmeye bağlı)' : ''}</option>`)}
+          <option value="new">+ Yeni liste oluştur</option></select></div>`;
+    })}</div></div>` : src.purpose === 'nobet' ? html`<p class="tiny faint">İlk veri gelince tablodaki sekme türleri (ör. 3. BASAMAK, 2. BASAMAK) burada çıkar; her birini bir listeye bağlarsınız.</p>`
+      : html`<p class="tiny faint">${icon('table', 'sm')} Uygulamada “${src.name}” adıyla, yalnızca görüntülenen bir liste olarak görünür.</p>`}
+  </div>`;
 }
 function drawGsync() {
   const box = $('#gsCard');
   const g = GS.data;
   if (!box || !g) return;
-  const linked = g.rosters.filter((r) => r.linked);
-  const st = g.seen ? (g.status_ok ? 'success' : 'danger') : '';
-  const kinds = g.kinds || [];
   setHTML(box, html`
-    <div class="row between wrap"><div><h3 style="font-size:15px">${icon('link', 'sm')} Google E-Tablolar bağlantısı</h3>
-      <p class="small muted">Excel listeniz Google E-Tablolar’daysa uygulama onu kendiliğinden izler. Sorumlu tabloyu düzenledikçe listeler, herkesin takvimi, Kim nöbette ve hatırlatmalar en geç 5 dakikada güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
-      <span class="badge ${st}">${g.seen ? (g.status_ok ? 'Bağlı' : 'Sorun var') : 'Bağlı değil'}</span></div>
-    <div class="field"><label>Tablonun adresi</label><input class="input" id="gsSheet" value="${g.id ? 'https://docs.google.com/spreadsheets/d/' + g.id + '/edit' : ''}" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocomplete="off" spellcheck="false">
-      <p class="hint">Tabloyu tarayıcıda açıp adres çubuğundaki bağlantıyı olduğu gibi yapıştırın.</p></div>
+    <div><h3 style="font-size:15px">${icon('link', 'sm')} Google E-Tablolar bağlantısı</h3>
+      <p class="small muted">Excel listeleriniz Google E-Tablolar’daysa uygulama onları kendiliğinden izler; sorumlu tabloyu düzenledikçe en geç 5 dakikada güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
     <div class="seg seg-block gs-mode">
       <button type="button" class="${g.mode === 'push' ? 'on' : ''}" data-act="gs-mode" data-m="push">Yalnızca bana paylaşıldı</button>
       <button type="button" class="${g.mode === 'pull' ? 'on' : ''}" data-act="gs-mode" data-m="pull">Bağlantıya sahip herkes görebiliyor</button></div>
-    <p class="tiny faint">${g.mode === 'push' ? 'Önerilen. Tablo yalnızca size (görüntüleyen olarak) paylaşıldıysa: kendi Google hesabınızda çalışan küçük bir betik değişiklikleri gönderir.' : 'Tablo herkese açık bağlantıyla paylaşıldıysa sunucu her 5 dakikada kendisi indirir; betik gerekmez.'}</p>
-    <div><button type="button" class="btn primary" data-act="gs-save">${icon('check', 'sm')}Kaydet</button></div>
-    ${g.id && g.mode === 'push' ? html`<div class="gs-steps stack">
-      <h4>Betiği kurun (bir kez, 2 dakika)</h4>
+    <p class="tiny faint">${g.mode === 'push' ? 'Önerilen. Tablolar yalnızca size (görüntüleyen olarak) paylaşıldıysa: kendi Google hesabınızda çalışan küçük bir kod değişiklikleri gönderir.' : 'Tablolar herkese açık bağlantıyla paylaşıldıysa sunucu her 5 dakikada kendisi indirir; kod gerekmez.'}</p>
+    <h4>Tablolar</h4>
+    ${g.sources.length ? html`<div class="stack" style="gap:10px">${g.sources.map((x) => gsSourceHtml(x, g))}</div>` : ''}
+    ${GS.add ? html`<div class="gs-add stack">
+        <div class="field"><label>Tablonun adresi</label><input class="input" id="gsSheet" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocomplete="off" spellcheck="false"><p class="hint">Tabloyu tarayıcıda açıp adres çubuğundaki bağlantıyı olduğu gibi yapıştırın.</p></div>
+        <div class="grid2"><div class="field"><label>Ad</label><input class="input" id="gsName" maxlength="120" value="${g.sources.length ? '' : 'Nöbet listesi'}" placeholder="Örn. Hasta listesi"></div>
+          <div class="field"><label>Türü</label><select class="select" id="gsPurpose"><option value="nobet" ${g.sources.length ? '' : raw('selected')}>Nöbet listesi (takvime işlenir)</option><option value="tablo" ${g.sources.length ? raw('selected') : ''}>Yalnızca görüntülenen tablo</option></select></div></div>
+        <p class="tiny faint" id="gsKvkk">${icon('lock', 'sm')} Hasta listesi gibi tablolarda ad-soyad, TC, tanı gibi bilgiler özel nitelikli kişisel veridir (KVKK). Kurumunuzun izni olmadan paylaşmayın; mümkünse yatak no ve baş harflerle tutun. Tablo yalnızca giriş yapmış ekip üyelerine görünür.</p>
+        <div class="row" style="gap:8px"><button type="button" class="btn primary" data-act="gs-add-save">${icon('check', 'sm')}Tabloyu ekle</button>${g.sources.length ? html`<button type="button" class="btn" data-act="gs-add" data-v="0">Vazgeç</button>` : ''}</div></div>`
+      : html`<div><button type="button" class="btn" data-act="gs-add" data-v="1">${icon('plus', 'sm')}Tablo ekle</button></div>`}
+    ${g.sources.length && g.mode === 'push' ? html`<div class="gs-steps stack">
+      <h4>Kodu kurun (bir kez)</h4>
       <ol class="small">
-        <li><a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener"><b>script.google.com</b></a> adresini, tabloyu görebildiğiniz Google hesabıyla açın (yeni proje açılır).</li>
-        <li>İçindeki kodu silin, aşağıdaki kodu yapıştırın ve <b>Kaydet</b>’e basın.</li>
-        <li>Üstteki işlev listesinden <b>kur</b>’u seçip <b>Çalıştır</b>’a basın. İzin isterse hesabınızı seçin → <b>Gelişmiş</b> → <b>… projesine git</b> → <b>İzin ver</b>. (Kendi betiğinizdir; Google bu yüzden “doğrulanmadı” der.)</li>
-        <li>Bitti. Aşağıda “Son veri” saati görünür; tablo her değiştiğinde en geç 5 dakikada uygulamaya gelir.</li>
+        <li><a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener"><b>script.google.com</b></a> adresini, tabloları görebildiğiniz Google hesabıyla açın.</li>
+        <li>İçindeki kodu silin, aşağıdaki kodu yapıştırın ve <b>Kaydet</b>’e basın. (Eski kodunuz varsa tamamen bununla değiştirin.)</li>
+        <li>Üstteki listeden <b>kur</b>’u seçip <b>Çalıştır</b>’a basın. İzin isterse hesabınızı seçin → <b>Gelişmiş</b> → <b>… projesine git</b> → <b>İzin ver</b>.</li>
+        <li>Bitti. Sonradan eklediğiniz tablolar da kendiliğinden gönderilir; kodu yeniden yapıştırmanız gerekmez.</li>
       </ol>
       <div class="gs-code"><pre id="gsCode">${gsScript(g)}</pre><button type="button" class="btn sm" data-act="gs-copy">${icon('copy', 'sm')}Kodu kopyala</button></div>
       <p class="tiny faint">Kod, yalnızca sizin sitenize gönderim yapan gizli bir anahtar içerir; başkasıyla paylaşmayın. <a href="#" data-act="gs-token">Anahtarı yenile</a> (sonra kodu yeniden yapıştırın).</p>
     </div>` : ''}
-    ${g.id ? html`<div class="gs-status ${g.status_ok ? '' : 'bad'}">
-      <div class="row wrap" style="gap:14px"><span class="small">${icon('clock', 'sm')} Son veri: <b>${g.seen ? fmtRel(g.seen) : 'henüz gelmedi'}</b></span>${g.changed ? html`<span class="small muted">Son değişiklik: ${fmtRel(g.changed)}</span>` : ''}${g.title ? html`<span class="small muted">“${g.title}”</span>` : ''}</div>
-      ${g.status ? html`<div class="small ${g.status_ok ? 'muted' : 'err-text'}">${g.status}</div>` : ''}
-      ${g.fallback ? html`<div class="tiny faint">Tabloda indirme kapalı olduğu için görünen değerler alınıyor (renkler sade görünebilir).</div>` : ''}
-      ${!g.parser ? html`<div class="small err-text">Sunucuda Excel okuyucu dosyası eksik. Paketi yeniden yükleyin.</div>` : ''}
-      <div><button type="button" class="btn sm" data-act="gs-pull">${icon('history', 'sm')}${g.mode === 'pull' ? 'Şimdi eşitle' : 'Son veriyi yeniden işle'}</button></div>
-    </div>` : ''}
-    ${kinds.length ? html`<div class="stack" style="gap:8px"><h4>Hangi sekme hangi liste?</h4>
-      <p class="tiny faint">Her ay için ayrı sekmeler (ör. “KASIM 3, BASAMAK”, “ARALIK 3.BASAMAK”) aynı listeye bağlanır; yeni ayın sekmesi açılınca kendiliğinden eklenir.</p>
-      <div class="card"><div class="list">${kinds.map((k) => {
-        const cur = g.rosters.find((r) => r.linked && r.kind === k.kind);
-        return html`<div class="list-row gs-kind"><div class="grow" style="min-width:0"><div class="lr-t">${k.label}</div><div class="lr-s">${k.tabs.slice(0, 4).join(' · ')}${k.tabs.length > 4 ? ` · +${k.tabs.length - 4}` : ''}</div>
-            ${cur && cur.status ? html`<div class="tiny ${String(cur.status).startsWith('!') ? 'err-text' : 'faint'}">${String(cur.status).replace(/^!/, '')}</div>` : ''}</div>
-          <select class="select" data-change="gs-bind" data-kind="${k.kind}" style="width:auto;max-width:220px">
-            <option value="">— Bağlı değil</option>
-            ${g.rosters.map((r) => html`<option value="${r.id}" ${cur && cur.id === r.id ? raw('selected') : ''}>${r.name}${r.linked && (!cur || cur.id !== r.id) ? ' (başka sekmeye bağlı)' : ''}</option>`)}
-            <option value="new">+ Yeni liste oluştur</option></select></div>`;
-      })}</div></div></div>` : g.id && g.seen ? '' : g.id ? html`<p class="tiny faint">Betik ilk veriyi gönderdiğinde tablodaki sekmeler burada listelenir; sonra hangi sekmenin hangi listeye ait olduğunu seçersiniz.</p>` : ''}
-    ${linked.length ? html`<p class="tiny faint">${icon('lock', 'sm')} Bağlı listeler: ${linked.map((r) => r.name).join(', ')} — bu listelere elle dosya yüklenemez; yalnızca Excel’deki değişikliklerle güncellenir.</p>` : ''}`);
+    ${!g.parser ? html`<div class="small err-text">Sunucuda Excel okuyucu dosyası eksik. Paketi yeniden yükleyin.</div>` : ''}`);
 }
-ACT['gs-mode'] = (el) => { GS.data.mode = el.dataset.m; drawGsync(); };
-ACT['gs-save'] = (el) => busy(el, async () => {
+ACT['gs-mode'] = async (el) => {
+  try { GS.data = (await api('gsync.save', { mode: el.dataset.m })).gs; drawGsync(); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['gs-add'] = (el) => { GS.add = el.dataset.v === '1'; drawGsync(); if (GS.add) { const x = $('#gsSheet'); if (x) x.focus(); } };
+ACT['gs-add-save'] = (el) => busy(el, async () => {
   try {
-    GS.data = (await api('gsync.save', { sheet: $('#gsSheet').value, mode: GS.data.mode })).gs;
-    toast(GS.data.mode === 'push' ? 'Kaydedildi. Şimdi betiği kurun.' : 'Kaydedildi. Eşitleme deneniyor…');
+    const r = await api('gsync.source.save', { sheet: $('#gsSheet').value, name: $('#gsName').value, purpose: $('#gsPurpose').value });
+    GS.data = r.gs; GS.add = false;
     drawGsync();
-    if (GS.data.mode === 'pull' && GS.data.id) ACT['gs-pull']($('[data-act=gs-pull]'));
+    refreshRosters();
+    toast(GS.data.mode === 'push' ? (GS.data.sources.length > 1 ? 'Tablo eklendi. Kod kuruluysa 5 dakika içinde gelir.' : 'Tablo eklendi. Şimdi kodu kurun.') : 'Tablo eklendi; eşitleniyor…');
+    if (GS.data.mode === 'pull') ACT['gs-pull']({ dataset: { sid: String(r.id) } });
   } catch (e) { toast(e.message, 'err'); }
 });
+ACT['gs-del'] = async (el) => {
+  const src = GS.data.sources.find((x) => x.id === +el.dataset.sid);
+  if (!src || !(await confirmDialog({ title: `“${src.name}” bağlantısı kaldırılsın mı?`, text: 'Uygulamadaki listeler ve önceki sürümleri silinmez; yalnızca bu tablodan güncelleme gelmez.', ok: 'Kaldır', danger: true }))) return;
+  try { GS.data = (await api('gsync.source.delete', { id: src.id })).gs; drawGsync(); refreshRosters(); toast('Bağlantı kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+};
 ACT['gs-copy'] = async () => {
   const t = gsScript(GS.data);
   try { await navigator.clipboard.writeText(t); toast('Kod kopyalandı'); } catch (e) {
-    const r = document.createRange(); r.selectNodeContents($('#gsCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Kod seçildi; kopyalayın');
+    const r = document.createRange(); r.selectNodeContents($('#gsCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Kod seçildi; kopyalayın');
   }
 };
 ACT['gs-token'] = async () => {
-  if (!(await confirmDialog({ title: 'Anahtar yenilensin mi?', text: 'Eski betik çalışmayı bırakır; yeni kodu script.google.com’da yeniden yapıştırmanız gerekir.', ok: 'Yenile', danger: true }))) return;
+  if (!(await confirmDialog({ title: 'Anahtar yenilensin mi?', text: 'Eski kod çalışmayı bırakır; yeni kodu script.google.com’da yeniden yapıştırmanız gerekir.', ok: 'Yenile', danger: true }))) return;
   try { GS.data = (await api('gsync.save', { new_token: true })).gs; drawGsync(); toast('Yeni anahtar oluşturuldu'); } catch (e) { toast(e.message, 'err'); }
 };
-ACT['gs-pull'] = (el) => busy(el, async () => {
+ACT['gs-pull'] = (el) => busy(el && el.tagName ? el : null, async () => {
   try {
-    const r = await api('gsync.pull');
+    const r = await api('gsync.pull', { source_id: +el.dataset.sid });
     GS.data = r.gs;
     drawGsync();
     const res = r.result || {};
@@ -162,20 +190,22 @@ ACT['gs-pull'] = (el) => busy(el, async () => {
 });
 CHANGE['gs-bind'] = async (el) => {
   const kind = el.dataset.kind;
+  const sid = +el.dataset.sid;
   const v = el.value;
   try {
     let r;
     if (v === 'new') {
-      const k = (GS.data.kinds || []).find((x) => x.kind === kind);
-      const name = await promptDialog({ title: 'Yeni liste', label: 'Liste adı', value: k && !/genel liste/.test(k.label) ? k.label.replace(/\b\w/g, (c) => c) : 'Nöbet listesi', ok: 'Oluştur ve bağla' });
+      const src = GS.data.sources.find((x) => x.id === sid);
+      const k = src && src.kinds.find((x) => x.kind === kind);
+      const name = await promptDialog({ title: 'Yeni liste', label: 'Liste adı', value: k && !/genel liste/.test(k.label) ? k.label : 'Nöbet listesi', ok: 'Oluştur ve bağla' });
       if (!name) { drawGsync(); return; }
-      r = await api('gsync.create', { name, kind });
+      r = await api('gsync.create', { name, kind, source_id: sid });
     } else if (v === '') {
-      const cur = GS.data.rosters.find((x) => x.linked && x.kind === kind);
+      const cur = GS.data.rosters.find((x) => x.linked && x.source === sid && x.tab === kind);
       if (!cur) return;
       r = await api('gsync.bind', { roster_id: cur.id, unlink: true });
     } else {
-      r = await api('gsync.bind', { roster_id: +v, kind });
+      r = await api('gsync.bind', { roster_id: +v, kind, source_id: sid });
     }
     GS.data = r.gs;
     drawGsync();

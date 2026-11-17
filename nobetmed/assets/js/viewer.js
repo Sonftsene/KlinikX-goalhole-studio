@@ -687,7 +687,12 @@ function nameMatcher(name) {
 /** Excel görüntüleyiciyi kurar */
 async function mountSheet(el, att, opts = {}) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Excel açılıyor…</span></div>`);
-  const model = await loadSheetModel(att);
+  let model = await loadSheetModel(att);
+  // Bağlı listede yalnızca o listeye ait sekmeler (ör. yalnızca "… 3. BASAMAK" ayları), verilen sırayla
+  if (opts.sheets && opts.sheets.length) {
+    const keep = opts.sheets.map((n) => model.sheets.find((x) => x.name === n)).filter(Boolean);
+    if (keep.length) model = { ...model, sheets: keep, active: 0 };
+  }
   if (!model.sheets.length) throw new Error('Bu dosyada görüntülenecek sayfa yok.');
   const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
   if (opts.sheetName) { const si = model.sheets.findIndex((x) => x.name === opts.sheetName); if (si >= 0) state.sheet = si; }

@@ -75,6 +75,7 @@ if ($action === 'avatar') { a_avatar_get(); exit; }
 if ($action === 'brand') { a_brand_get(); exit; }
 if ($action === 'backup.download') { a_backup_download_get(); exit; }
 if ($action === 'gsync.push') { a_gsync_push(); exit; }
+if ($action === 'gsync.tables') { a_gsync_tables(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -147,6 +148,8 @@ $routes = [
     'gsync.pull' => 'a_gsync_pull',
     'gsync.bind' => 'a_gsync_bind',
     'gsync.create' => 'a_gsync_create',
+    'gsync.source.save' => 'a_gsync_source_save',
+    'gsync.source.delete' => 'a_gsync_source_delete',
     'side.get' => 'a_side_get',
     'side.day' => 'a_side_day',
     'side.draw' => 'a_side_draw',
@@ -1286,6 +1289,8 @@ function roster_out(array $r): array
         'versions' => (int)val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ?', [$r['id']]),
         'period' => $r['period'] ?? null,
         'parsed_file_id' => isset($r['parsed_file_id']) ? (int)$r['parsed_file_id'] : null,
+        'kind' => $r['kind'] ?? 'nobet',
+        'tabs' => !empty($r['src_on']) && !empty($r['src_tabs']) ? (json_decode((string)$r['src_tabs'], true) ?: null) : null,
         'linked' => !empty($r['src_on']),
         'tab' => !empty($r['src_on']) ? ($r['src_tabname'] ?? null) : null,
         'sync_at' => !empty($r['src_on']) ? ($r['src_sync_at'] ?? null) : null,

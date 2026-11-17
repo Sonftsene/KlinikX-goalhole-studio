@@ -1241,3 +1241,12 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .draw-roll.win { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tr-side-f { background: var(--surface-2); }
 @media (max-width: 600px) { .tr-mx .tr-n { min-width: 118px; max-width: 130px; font-size: 11.5px; padding: 0 6px; } .tr-mx th, .tr-mx td { min-width: 27px; } }
+.gs-src { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.gs-src .lr-t { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gs-add { padding: 12px; border: 1px dashed var(--border-strong); border-radius: 12px; }
+.gs-src { min-width: 0; overflow: hidden; }
+.gs-src .card { min-width: 0; }
+.gs-kind { flex-wrap: wrap; }
+.gs-kind .grow { flex: 1 1 180px; }
+.gs-kind .select { flex: 1 1 160px; max-width: 100% !important; }
+.gs-src .tiny.ellipsis { white-space: normal; }

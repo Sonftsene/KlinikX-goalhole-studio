@@ -26,12 +26,15 @@ function renderRosters(view, id) {
       ${isPublisher() ? html`<p class="small" style="margin-bottom:14px">Bir liste oluşturup Excel dosyanızı yükleyin.</p><button class="btn primary" data-act="rs-new">${icon('plus', 'sm')}Liste oluştur</button>` : html`<p class="small">Yöneticiniz liste yüklediğinde burada görünecek.</p>`}</div>`);
     return;
   }
-  const want = id && rosterById(id) ? id : rosterById(lastRoster()) ? lastRoster() : S.rosters[0].id;
+  const nob = S.rosters.filter((x) => x.kind !== 'tablo');
+  const pick = id && rosterById(id) ? id : rosterById(lastRoster()) && rosterById(lastRoster()).kind !== 'tablo' ? lastRoster() : (nob[0] || S.rosters[0]).id;
+  const want = pick;
+  RS.group = rosterById(want).kind === 'tablo' ? 'tablo' : 'nobet';
   setHTML(view, html`
-    ${hubTabs('list')}
+    ${RS.group === 'tablo' ? '' : hubTabs('list')}
     <div class="rs-top">
       <div class="seg rs-tabs" role="tablist" id="rsTabs"></div>
-      ${isPublisher() ? html`<button class="btn sm" data-act="rs-new">${icon('plus', 'sm')}Yeni liste</button>` : ''}
+      ${isPublisher() && RS.group !== 'tablo' ? html`<button class="btn sm" data-act="rs-new">${icon('plus', 'sm')}Yeni liste</button>` : ''}
     </div>
     <div class="rs-info" id="rsInfo"></div>
     <div class="rs-stage" id="rsStage"></div>`);
@@ -49,7 +52,7 @@ function renderRosters(view, id) {
 
 /** Sunucudaki güncel listeleri alır; başka biri yeni dosya yüklediyse görünümü yeniler */
 async function syncRosters() {
-  const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id, x.tab]));
+  const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id, x.tab, x.tabs]));
   const before = sig();
   try { S.rosters = (await api('rosters.list')).rosters; } catch (e) { return; }
   if (sig() === before) return;
@@ -63,7 +66,7 @@ async function syncRosters() {
 function drawRosterTabs() {
   const box = $('#rsTabs');
   if (!box) return;
-  setHTML(box, S.rosters.map((r) => html`<button role="tab" class="${r.id === RS.active ? 'on' : ''}" data-act="rs-tab" data-id="${r.id}">${icon('table', 'sm')}${r.name}${r.file && isFresh(r.file.updated_at) ? html`<span class="dot" title="Yeni güncellendi"></span>` : ''}</button>`));
+  setHTML(box, S.rosters.filter((r) => (r.kind === 'tablo' ? 'tablo' : 'nobet') === (RS.group || 'nobet') && (RS.group !== 'tablo' || r.id === RS.active)).map((r) => html`<button role="tab" class="${r.id === RS.active ? 'on' : ''}" data-act="rs-tab" data-id="${r.id}">${icon('table', 'sm')}${r.name}${r.file && isFresh(r.file.updated_at) ? html`<span class="dot" title="Yeni güncellendi"></span>` : ''}</button>`));
 }
 function isFresh(at) { const d = parseDT(at); return d && Date.now() - d.getTime() < 3 * 86400000; }
 
@@ -111,7 +114,7 @@ function showRoster(id) {
     v = { el, fileId };
     RS.views.set(id, v);
     if (r.file) {
-      mountPreview(el, r.file, r.tab ? { sheetName: r.tab } : {}).then(() => {
+      mountPreview(el, r.file, r.linked ? { sheetName: r.tab || undefined, sheets: r.tabs || undefined } : {}).then(() => {
         prefetchRosters();
         // Yayıncı listeyi ilk kez görünce kişi başı nöbetler okunur (Nöbetlerim, hatırlatmalar, kim nöbette)
         if (isPublisher() && !r.linked && r.file && r.parsed_file_id !== r.file.id && ['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) {

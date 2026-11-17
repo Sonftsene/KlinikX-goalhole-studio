@@ -66,8 +66,9 @@ function renderNav() {
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
     ${navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf')}
-    ${S.rosters.length ? S.rosters.map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
+    ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
+    ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">Tablolar</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}
     <div class="nav-sec">Bölümler</div>
     ${S.categories.map((cat) => navItem('#/b/' + cat.id, html`<span class="cat-ico sm tone-${cat.color}">${icon(cat.icon)}</span>`, cat.name, (c.unread_by_cat || {})[cat.id] || 0, r[0] === 'b' && +r[1] === cat.id, 'muted'))}
     ${isPublisher() ? html`
@@ -176,7 +177,7 @@ function route() {
     case 'kaydedilenler': renderFeedPage(view, { filter: 'saved', fixed: true }); break;
     case 'ara': if (si) si.value = r[1] || ''; renderFeedPage(view, { q: r[1] || '' }); break;
     case 'nobet':
-      if (RS.stage && document.body.contains(RS.stage) && rosterById(+r[1])) { showRoster(+r[1]); return; }
+      if (RS.stage && document.body.contains(RS.stage) && rosterById(+r[1]) && (rosterById(+r[1]).kind === 'tablo' ? 'tablo' : 'nobet') === RS.group) { showRoster(+r[1]); return; }
       renderRosters(view, +r[1] || null);
       break;
     case 'yonetim': if (isPublisher()) { renderAdmin(view, r[1] || 'onaylar'); } else location.hash = '#/'; break;

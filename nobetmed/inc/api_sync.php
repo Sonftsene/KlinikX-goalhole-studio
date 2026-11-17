@@ -17,22 +17,22 @@ function gs_sheet_id(string $v): string
 
 function gs_admin_out(): array
 {
-    $st = setting('gs_status');
+    $rosters = all('SELECT * FROM rosters ORDER BY sort, id');
     return [
-        'id' => setting('gs_id'),
         'mode' => setting('gs_mode', 'push'),
         'token' => setting('gs_token'),
         'push_url' => base_url() . 'api.php?action=gsync.push',
-        'title' => setting('gs_title'),
-        'seen' => setting('gs_seen') ?: null,
-        'changed' => setting('gs_changed') ?: null,
-        'status' => ltrim($st, '!'),
-        'status_ok' => $st === '' || $st[0] !== '!',
-        'fallback' => setting('gs_fallback') === '1',
-        'kinds' => gs_kinds(),
+        'tables_url' => base_url() . 'api.php?action=gsync.tables',
         'parser' => gs_load_parser(),
-        'rosters' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'linked' => (bool)$r['src_on'], 'kind' => $r['src_tab'], 'status' => $r['src_status'], 'sync_at' => $r['src_sync_at']],
-            all('SELECT * FROM rosters ORDER BY sort, id')),
+        'sources' => array_map(function ($s) use ($rosters) {
+            $st = (string)$s['status'];
+            return ['id' => (int)$s['id'], 'name' => $s['name'], 'purpose' => $s['purpose'], 'sheet_id' => $s['sheet_id'], 'title' => $s['title'],
+                'seen' => $s['seen'], 'changed' => $s['changed'], 'status' => ltrim($st, '!'), 'status_ok' => $st === '' || $st[0] !== '!', 'fallback' => (bool)$s['fallback'],
+                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [],
+                'rosters' => array_values(array_map(fn($r) => (int)$r['id'], array_filter($rosters, fn($r) => (int)$r['src_on'] === 1 && (int)$r['src_source'] === (int)$s['id'])))];
+        }, gs_sources()),
+        'rosters' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'kind' => $r['kind'] ?? 'nobet', 'linked' => (bool)$r['src_on'], 'source' => $r['src_source'] !== null ? (int)$r['src_source'] : null,
+            'tab' => $r['src_tab'], 'status' => $r['src_status'], 'sync_at' => $r['src_sync_at']], $rosters),
     ];
 }
 
@@ -42,17 +42,10 @@ function a_gsync_get(): void
     out(['gs' => gs_admin_out()]);
 }
 
+/** Genel ayarlar: yöntem ve anahtar */
 function a_gsync_save(): void
 {
     $me = need_admin();
-    global $IN;
-    if (array_key_exists('sheet', $IN)) {
-        $raw = s('sheet', 300);
-        $id = $raw === '' ? '' : gs_sheet_id($raw);
-        if ($raw !== '' && $id === '') fail('Google E-Tablolar bağlantısı tanınmadı. Tarayıcıdaki adresi olduğu gibi yapıştırın.');
-        if ($id !== setting('gs_id')) { set_setting('gs_hash', ''); }
-        set_setting('gs_id', $id);
-    }
     $mode = s('mode', 10);
     if (in_array($mode, ['push', 'pull'], true)) set_setting('gs_mode', $mode);
     if (setting('gs_token') === '' || b('new_token')) set_setting('gs_token', bin2hex(random_bytes(20)));
@@ -61,15 +54,60 @@ function a_gsync_save(): void
     out(['gs' => gs_admin_out()]);
 }
 
+/** Tablo ekle / düzenle. purpose: nobet (kişi başı nöbetler okunur) | tablo (yalnızca görüntülenir) */
+function a_gsync_source_save(): void
+{
+    $me = need_admin();
+    $id = (int)i('id');
+    $name = s('name', 120);
+    $sheet = gs_sheet_id(s('sheet', 300));
+    if (mb_strlen($name) < 2) fail('Tabloya bir ad verin (ör. Hasta listesi).');
+    if ($sheet === '') fail('Google E-Tablolar bağlantısı tanınmadı. Tarayıcıdaki adresi olduğu gibi yapıştırın.');
+    $dup = one('SELECT id FROM gs_sources WHERE sheet_id = ? AND id <> ?', [$sheet, $id]);
+    if ($dup) fail('Bu tablo zaten ekli.');
+    if (setting('gs_token') === '') set_setting('gs_token', bin2hex(random_bytes(20)));
+    set_setting('gs_owner', (string)$me['id']);
+    if ($id) {
+        $src = gs_source($id) ?? fail('Tablo bulunamadı.', 404);
+        gs_src_set($id, ['name' => $name, 'sheet_id' => $sheet] + ($sheet !== $src['sheet_id'] ? ['hash' => null] : []));
+        q("UPDATE rosters SET name = ? WHERE src_source = ? AND kind = 'tablo'", [$name, $id]);
+        audit($me, 'settings.save', 'Google tablosu: ' . $name);
+    } else {
+        $purpose = s('purpose', 10) === 'tablo' ? 'tablo' : 'nobet';
+        q('INSERT INTO gs_sources (sheet_id, name, purpose, created_at) VALUES (?, ?, ?, ?)', [$sheet, $name, $purpose, now()]);
+        $id = insert_id();
+        if ($purpose === 'tablo') {
+            q("INSERT INTO rosters (name, sort, created_at, kind, src_on, src_tab, src_source) VALUES (?, ?, ?, 'tablo', 1, '*', ?)", [$name, (int)val('SELECT COALESCE(MAX(sort), 0) + 1 FROM rosters'), now(), $id]);
+        }
+        audit($me, 'roster.link', 'Google tablosu eklendi: ' . $name, $purpose === 'tablo' ? 'yalnızca görüntüleme' : 'nöbet listesi');
+    }
+    out(['id' => $id, 'gs' => gs_admin_out()]);
+}
+
+function a_gsync_source_delete(): void
+{
+    $me = need_admin();
+    $src = gs_source((int)i('id')) ?? fail('Tablo bulunamadı.', 404);
+    q('UPDATE rosters SET src_on = 0, src_source = NULL WHERE src_source = ?', [$src['id']]);
+    q('DELETE FROM gs_sources WHERE id = ?', [$src['id']]);
+    if ($src['att_id']) gs_delete_attachment_if_unused((int)$src['att_id']);
+    audit($me, 'roster.unlink', 'Google tablosu kaldırıldı: ' . $src['name'], 'Listeler ve geçmiş sürümler duruyor');
+    out(['gs' => gs_admin_out()]);
+}
+
 function a_gsync_pull(): void
 {
     need_admin();
-    if (setting('gs_mode', 'push') === 'pull') {
-        $r = gs_pull(true);
-    } else {
-        $r = gs_reprocess() ?? ['changed' => false, 'error' => 'Henüz Google’dan veri gelmedi. Betiği çalıştırın.'];
+    $ids = i('source_id') ? [(int)i('source_id')] : array_map('intval', array_column(gs_sources(), 'id'));
+    $res = [];
+    foreach ($ids as $sid) {
+        $src = gs_source($sid);
+        if (!$src) continue;
+        $res[] = setting('gs_mode', 'push') === 'pull' ? gs_pull($src, true)
+            : (gs_reprocess($src) ?? ['changed' => false, 'error' => $src['name'] . ': henüz Google’dan veri gelmedi. Betikte “esitle”yi çalıştırın.']);
     }
-    out(['result' => $r, 'gs' => gs_admin_out()]);
+    $first = $res[0] ?? ['changed' => false, 'error' => 'Ekli tablo yok'];
+    out(['result' => $first, 'results' => $res, 'gs' => gs_admin_out()]);
 }
 
 function a_gsync_bind(): void
@@ -84,12 +122,13 @@ function a_gsync_bind(): void
         audit($me, 'roster.unlink', $r['name']);
         out(['gs' => gs_admin_out()]);
     }
+    $src = gs_source((int)i('source_id')) ?? fail('Tablo bulunamadı.', 404);
     $kind = gs_fold((string)$kind);
-    $known = array_column(gs_kinds(), 'kind');
+    $known = array_column(gs_kinds($src), 'kind');
     if ($known && !in_array($kind, $known, true)) fail('Bu türde sekme yok.');
-    q('UPDATE rosters SET src_on = 1, src_tab = ? WHERE id = ?', [$kind, $rid]);
-    audit($me, 'roster.link', $r['name'], 'Sekme türü: ' . ($kind === '' ? 'ay adı' : $kind));
-    $res = gs_reprocess($rid);
+    q("UPDATE rosters SET src_on = 1, src_tab = ?, src_source = ?, kind = 'nobet' WHERE id = ?", [$kind, (int)$src['id'], $rid]);
+    audit($me, 'roster.link', $r['name'], $src['name'] . ' · sekme türü: ' . ($kind === '' ? 'ay adı' : $kind));
+    $res = gs_reprocess(gs_source((int)$src['id']), $rid);
     out(['gs' => gs_admin_out(), 'result' => $res]);
 }
 
@@ -178,7 +217,7 @@ function a_side_get(): void
     }
     out(['month' => $ym, 'days' => (int)date('t', strtotime($from)), 'sides' => $outSides, 'since' => setting('side_since') ?: null,
         'moves' => array_map(fn($m) => side_move_out($m, $me), $moves), 'can_admin' => is_admin($me), 'can_record' => is_publisher($me) || side_on_duty($me, date('Y-m-d')) !== null,
-        'rosters' => is_admin($me) ? array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all('SELECT id, name FROM rosters ORDER BY sort, id')) : []]);
+        'rosters' => is_admin($me) ? array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all("SELECT id, name FROM rosters WHERE kind <> 'tablo' ORDER BY sort, id")) : []]);
 }
 
 /** Kişi o gün bir tarafın listesinde nöbetçi mi (kayıt yetkisi için) */

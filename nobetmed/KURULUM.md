@@ -121,6 +121,10 @@ Liste Google E-Tablolar'da tutuluyorsa (siz yalnızca **görüntüleyen** olsan�
 3. Üstteki listeden **kur** işlevini seçip **Çalıştır**'a basın ve izin verin (Gelişmiş → projeye git → İzin ver). Bu sizin kendi betiğinizdir; veriler yalnızca sizin sitenize gider.
 4. İlk veri gelince uygulamada tablodaki sekme türleri listelenir (ör. “3. BASAMAK”, “2. BASAMAK”). Her türü bir nöbet listesine bağlayın veya **+ Yeni liste oluştur** deyin. Her ayın sekmesi (KASIM 3, BASAMAK · ARALIK 3.BASAMAK …) aynı listeye kendiliğinden eklenir.
 
+**Birden fazla tablo:** Aynı bölümde **Tablo ekle** ile başka Google tabloları da ekleyebilirsiniz. Türü **Nöbet listesi** olan tabloların nöbetleri takvime işlenir; **Yalnızca görüntülenen tablo** (ör. hasta listesi) menüde “Tablolar” altında salt okunur görünür. Kod hangi tabloları göndereceğini uygulamadan öğrenir; yeni tablo eklediğinizde kodu yeniden yapıştırmanız gerekmez (3.8.0'dan önceki kodu kurduysanız bir kez yeni kodla değiştirin). Hasta adı, TC, tanı gibi bilgiler özel nitelikli kişisel veridir (KVKK); kurumunuzun izni olmadan paylaşmayın, mümkünse yatak no ve baş harflerle tutun.
+
+Liste görüntüsünde yalnızca o listeye ait sekmeler görünür (ör. 3. Basamak listesinde yalnızca “… 3. BASAMAK” ayları); açılışta bu ayın sekmesi seçilidir.
+
 Sonrasında sorumlu Excel'i düzenledikçe en geç 5 dakikada: liste görüntüsü, herkesin Takvimi, Kim nöbette ve hatırlatmalar güncellenir; nöbeti değişen kişiye “Nöbetinde değişiklik var” bildirimi gider. Bağlı listelere uygulamadan dosya yüklenemez, kimse listeyi uygulamada değiştiremez.
 Tablo “bağlantıya sahip herkes görüntüleyebilir” olarak paylaşıldıysa betik gerekmez; ikinci seçeneği seçmeniz yeterli (sunucu her 5 dakikada kendisi indirir; zamanlanmış görev önerilir, bkz. 13. bölüm).
 
