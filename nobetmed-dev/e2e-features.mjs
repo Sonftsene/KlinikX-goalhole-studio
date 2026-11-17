@@ -599,7 +599,20 @@ await expectText(m, 'Mehmet Ali K.');
 await expectText(m, 'Zeynep K.');
 if ((await m.locator('.hub-tabs').count()) || (await m.locator('.xv-tabs button').count()) !== 2) fail('hasta listesi görünümü');
 if (await m.locator('#rsTabs button', { hasText: '3. Basamak' }).count()) fail('hasta listesi sayfasında nöbet listeleri sekmesi var');
-step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi, adlar kısaltılmış: Mehmet Ali K.)');
+// Görünen sekmeler: yalnızca A BLOK; B BLOK içeriği kaydedilen dosyada hiç olmamalı
+const hsId = (await apiCall(a, 'gsync.get')).gs.sources.find((x) => x.sheet_id === HS).id;
+const tabsRes = await apiCall(a, 'gsync.source.tabs', { id: hsId, tabs: ['A BLOK'] });
+const hsAfter = tabsRes.gs.sources.find((x) => x.id === hsId);
+if (JSON.stringify(hsAfter.show_tabs) !== '["A BLOK"]' || hsAfter.tab_names.length !== 3) fail('sekme seçimi: ' + JSON.stringify(hsAfter));
+const hr2 = (await apiCall(m, 'rosters.list')).rosters.find((r) => r.id === hr.id);
+if (JSON.stringify(hr2.tabs) !== '["A BLOK"]' || hr2.versions !== 1) fail('hasta listesi sekmeleri: ' + JSON.stringify(hr2.tabs) + ' sürüm ' + hr2.versions);
+const hb2 = Buffer.from(await m.evaluate(async (u) => { const b = new Uint8Array(await (await fetch(u)).arrayBuffer()); let s = ''; b.forEach((x) => { s += String.fromCharCode(x); }); return btoa(s); }, hr2.file.url), 'base64').toString('latin1');
+if (/Pn.?.?moni|Mehmet Ali/.test(hb2)) fail('seçilmeyen sekmenin içeriği dosyada kaldı');
+await m.goto(BASE + '#/');
+await m.goto(BASE + '#/nobet/' + hr.id);
+await m.locator('.xv-scroll').waitFor();
+if (await m.locator('.xv-tabs button').count()) fail('tek sekmede sekme çubuğu görünmemeli');
+step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi, adlar kısaltılmış: Mehmet Ali K., yalnızca seçilen sekmeler)');
 
 // 24) Taraf listesi: kura en az geçene, geçiş sayımı, takvimde blok
 const sides = await apiCall(a, 'side.settings', { sides: [{ key: 's3', name: '3. Basamak', roster_id: r3, units: ['B blok'] }, { key: 's2', name: '2. Basamak', roster_id: r2, units: ['A blok', 'C blok'] }] });

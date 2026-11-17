@@ -29,7 +29,8 @@ function gs_admin_out(): array
             $st = (string)$s['status'];
             return ['id' => (int)$s['id'], 'name' => $s['name'], 'purpose' => $s['purpose'], 'sheet_id' => $s['sheet_id'], 'title' => $s['title'],
                 'seen' => $s['seen'], 'changed' => $s['changed'], 'status' => ltrim($st, '!'), 'status_ok' => $st === '' || $st[0] !== '!', 'fallback' => (bool)$s['fallback'],
-                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [], 'mask_mode' => $s['mask_mode'] ?? 'none', 'mask_cols' => (string)($s['mask_cols'] ?? ''),
+                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [], 'mask_mode' => $s['mask_mode'] ?? 'none', 'mask_cols' => (string)($s['mask_cols'] ?? ''), 'show_tabs' => gs_show_tabs($s) ?: null,
+                'tab_names' => array_values(array_map(fn($t) => (string)$t['name'], json_decode((string)($s['tabs'] ?? '[]'), true) ?: [])),
                 'rosters' => array_values(array_map(fn($r) => (int)$r['id'], array_filter($rosters, fn($r) => (int)$r['src_on'] === 1 && (int)$r['src_source'] === (int)$s['id'])))];
         }, gs_sources()),
         'rosters' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'kind' => $r['kind'] ?? 'nobet', 'linked' => (bool)$r['src_on'], 'source' => $r['src_source'] !== null ? (int)$r['src_source'] : null,
@@ -104,12 +105,30 @@ function a_gsync_source_mask(): void
     out(['gs' => gs_admin_out(), 'result' => $res]);
 }
 
+/** Yalnızca görüntülenen tablo: hangi sekmeler görünsün (boş = gizli olmayan hepsi) */
+function a_gsync_source_tabs(): void
+{
+    $me = need_admin();
+    $src = gs_source((int)i('id')) ?? fail('Tablo bulunamadı.', 404);
+    $all = array_map(fn($t) => (string)$t['name'], json_decode((string)($src['tabs'] ?? '[]'), true) ?: []);
+    $want = array_values(array_intersect($all, array_map('strval', arr('tabs'))));
+    gs_src_set((int)$src['id'], ['show_tabs' => $want ? json_encode($want, JSON_UNESCAPED_UNICODE) : null, 'hash' => null]);
+    // Eski sürümlerde artık görünmemesi gereken sekmeler olabilir: sil, son veriyi yeni seçimle yeniden işle
+    $old = [];
+    foreach (all('SELECT f.id, f.attachment_id FROM roster_files f JOIN rosters r ON r.id = f.roster_id WHERE r.src_source = ?', [$src['id']]) as $f) { $old[] = (int)$f['attachment_id']; q('DELETE FROM roster_files WHERE id = ?', [$f['id']]); }
+    $res = gs_reprocess(gs_source((int)$src['id']));
+    foreach (array_unique($old) as $a) gs_delete_attachment_if_unused($a);
+    audit($me, 'settings.save', 'Görünen sekmeler: ' . $src['name'], $want ? implode(', ', $want) : 'hepsi');
+    out(['gs' => gs_admin_out(), 'result' => $res]);
+}
+
 function a_gsync_source_delete(): void
 {
     $me = need_admin();
     $src = gs_source((int)i('id')) ?? fail('Tablo bulunamadı.', 404);
     q('UPDATE rosters SET src_on = 0, src_source = NULL WHERE src_source = ?', [$src['id']]);
     q('DELETE FROM gs_sources WHERE id = ?', [$src['id']]);
+    @unlink(gs_raw_path((int)$src['id']));
     if ($src['att_id']) gs_delete_attachment_if_unused((int)$src['att_id']);
     audit($me, 'roster.unlink', 'Google tablosu kaldırıldı: ' . $src['name'], 'Listeler ve geçmiş sürümler duruyor');
     out(['gs' => gs_admin_out()]);

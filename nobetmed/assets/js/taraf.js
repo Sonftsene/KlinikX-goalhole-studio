@@ -133,7 +133,9 @@ function gsSourceHtml(src, g) {
     })}</div></div>` : src.purpose === 'nobet' ? html`<p class="tiny faint">İlk veri gelince tablodaki sekme türleri (ör. 3. BASAMAK, 2. BASAMAK) burada çıkar; her birini bir listeye bağlarsınız.</p>`
       : html`<p class="tiny faint">${icon('table', 'sm')} Uygulamada “${src.name}” adıyla, yalnızca görüntülenen bir liste olarak görünür.</p>
         <div class="gs-mask row wrap"><span class="small">${icon('lock', 'sm')} ${src.mask_mode === 'none' ? html`<b>Adlar kısaltılmıyor</b>` : html`<b>${src.mask_cols.split('\n').join(', ')}</b> sütunu kısaltılıyor: ${src.mask_mode === 'initials' ? 'Ayşe Yılmaz → A. Y.' : 'Ayşe Yılmaz → Ayşe Y.'}`}</span>
-          <button type="button" class="btn sm" data-act="gs-mask" data-sid="${src.id}">Değiştir</button></div>`}
+          <button type="button" class="btn sm" data-act="gs-mask" data-sid="${src.id}">Değiştir</button></div>
+        ${src.tab_names && src.tab_names.length ? html`<div class="gs-mask row wrap"><span class="small">${icon('table', 'sm')} Görünen sekmeler: <b>${src.show_tabs ? src.show_tabs.join(', ') : 'hepsi'}</b>${src.show_tabs ? html` <span class="faint">(${src.tab_names.length} sekmeden ${src.show_tabs.length})</span>` : ''}</span>
+          <button type="button" class="btn sm" data-act="gs-tabs" data-sid="${src.id}">Seç</button></div>` : ''}`}
   </div>`;
 }
 function drawGsync() {
@@ -199,6 +201,24 @@ ACT['gs-mask'] = (el) => {
       const r = await api('gsync.source.mask', { id: src.id, cols: $('#gmCols', m.el).value, mode: $('#gmMode', m.el).value });
       GS.data = r.gs; m.close(); drawGsync(); refreshRosters();
       toast('Kaydedildi; liste yeniden işlendi, eski sürümler silindi');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};
+ACT['gs-tabs'] = (el) => {
+  const src = GS.data.sources.find((x) => x.id === +el.dataset.sid);
+  if (!src) return;
+  const on = (n) => !src.show_tabs || src.show_tabs.includes(n);
+  const m = openModal({ title: 'Görünen sekmeler', size: 'narrow', body: html`<div class="stack">
+      <p class="small muted">Ekip yalnızca işaretlediğiniz sekmeleri görür. İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez (indirilen dosyada da bulunmaz).</p>
+      <div class="card"><div class="list">${src.tab_names.map((n) => html`<label class="list-row" style="gap:10px;cursor:pointer"><input type="checkbox" value="${n}" ${on(n) ? raw('checked') : ''}><span class="grow">${n}</span></label>`)}</div></div></div>`,
+    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
+  m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const tabs = $$('input[type=checkbox]', m.el).filter((x) => x.checked).map((x) => x.value);
+    if (!tabs.length) { toast('En az bir sekme seçin', 'err'); return; }
+    try {
+      const r = await api('gsync.source.tabs', { id: src.id, tabs: tabs.length === src.tab_names.length ? [] : tabs });
+      GS.data = r.gs; m.close(); drawGsync(); refreshRosters();
+      toast('Kaydedildi; liste yeniden hazırlandı');
     } catch (err) { toast(err.message, 'err'); }
   }));
 };

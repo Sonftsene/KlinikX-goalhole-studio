@@ -145,6 +145,15 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
         gs_status($sid, 'Gelen dosya okunamadı: ' . $e->getMessage(), false);
         return ['changed' => false, 'error' => 'Dosya okunamadı'];
     }
+    // Ayar değişince yeniden işlenebilsin diye (kısaltılmış) tam kopya korumalı data/ klasöründe tutulur
+    $raw = gs_raw_path($sid);
+    if ($raw !== $file) @copy($file, $raw);
+    // Yalnızca görüntülenen tablo: seçilmeyen sekmelerin içeriği uygulamaya kaydedilen dosyadan çıkarılır
+    $keep = gs_show_tabs($src);
+    if ($src['purpose'] === 'tablo' && $keep) {
+        try { gs_strip_xlsx($file, $keep); }
+        catch (Throwable $e) { @unlink($file); gs_status($sid, 'Sekmeler ayıklanamadı; güvenlik için tablo kaydedilmedi: ' . $e->getMessage(), false); return ['changed' => false, 'error' => 'Sekmeler ayıklanamadı']; }
+    }
     $tabs = [];
     foreach ($model['sheets'] as $sh) $tabs[] = ['name' => (string)$sh['name'], 'hidden' => !empty($sh['hidden'])] + gs_tab_info((string)$sh['name']);
     $title = $title !== '' ? mb_substr($title, 0, 120) : (string)$src['title'];
@@ -164,7 +173,7 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
 
     $rosters = all('SELECT * FROM rosters WHERE src_on = 1 AND src_source = ?' . ($onlyRoster ? ' AND id = ' . (int)$onlyRoster : '') . ' ORDER BY sort, id', [$sid]);
     $summary = [];
-    foreach ($rosters as $r) $summary[] = gs_apply_roster($r, $model, $tabs, $attId, $owner);
+    foreach ($rosters as $r) $summary[] = gs_apply_roster($r, $model, $tabs, $attId, $owner, $keep);
     if ($prevAtt && $prevAtt !== $attId) gs_delete_attachment_if_unused($prevAtt);
     if (!$rosters) q('UPDATE attachments SET roster_id = 0 WHERE id = ?', [$attId]); // girişli herkes görebilsin (bağlama önizlemesi)
     $msg = $rosters ? implode(' · ', array_map(fn($x) => $x['name'] . ': ' . $x['status'], $summary)) : count($tabs) . ' sekme alındı; henüz bağlı liste yok';
@@ -175,7 +184,7 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
 }
 
 /** Bir listeyi gelen çalışma kitabından günceller */
-function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $owner): array
+function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $owner, array $keep = []): array
 {
     $rid = (int)$r['id'];
     $kind = (string)$r['src_tab'];
@@ -191,7 +200,7 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
     }
     // Yalnızca görüntülenen tablo (ör. hasta listesi): nöbet okunmaz, gizli olmayan tüm sekmeler görünür
     if ($kind === '*' || ($r['kind'] ?? 'nobet') === 'tablo') {
-        $names = array_values(array_map(fn($t) => $t['name'], array_filter($tabs, fn($t) => empty($t['hidden']))));
+        $names = array_values(array_map(fn($t) => $t['name'], array_filter($tabs, fn($t) => $keep ? in_array($t['name'], $keep, true) : empty($t['hidden']))));
         $act = $model['sheets'][$model['active'] ?? 0]['name'] ?? ($names[0] ?? null);
         if ($act !== null && !in_array($act, $names, true)) $act = $names[0] ?? null;
         $st = count($names) . ' sekme';
@@ -571,10 +580,13 @@ function gs_job(): ?string
 /** Bağlama sonrası (veya elle) bu tablodan son gelen dosyayı yeniden işle */
 function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
 {
-    $att = $src['att_id'] ? one('SELECT stored_name FROM attachments WHERE id = ?', [(int)$src['att_id']]) : null;
-    if (!$att) return null;
-    $file = NM_ROOT . '/uploads/' . $att['stored_name'];
-    if (!is_file($file)) return null;
+    $file = gs_raw_path((int)$src['id']);
+    if (!is_file($file)) {
+        $att = $src['att_id'] ? one('SELECT stored_name FROM attachments WHERE id = ?', [(int)$src['att_id']]) : null;
+        if (!$att) return null;
+        $file = NM_ROOT . '/uploads/' . $att['stored_name'];
+        if (!is_file($file)) return null;
+    }
     $tmp = gs_tmp();
     if (!@copy($file, $tmp)) return null;
     return gs_ingest($src, $tmp, '', true, $onlyRoster);
@@ -687,5 +699,86 @@ function gs_mask_xlsx(string $path, array $headers, string $mode): int
     }
     $zip->close();
     return $count;
+}
+
+/* ------------------------------------------------------------------ */
+/* Yalnızca seçilen sekmeler                                           */
+/* ------------------------------------------------------------------ */
+
+function gs_raw_path(int $sid): string
+{
+    $dir = NM_ROOT . '/data/gs';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    return $dir . '/kaynak-' . $sid . '.xlsx';
+}
+
+function gs_show_tabs(array $src): array
+{
+    $j = json_decode((string)($src['show_tabs'] ?? ''), true);
+    return is_array($j) ? array_values(array_filter(array_map('strval', $j), fn($x) => $x !== '')) : [];
+}
+
+/**
+ * Seçilmeyen sekmelerin içeriğini siler ve onları gizler; paylaşılan metinlerden yalnızca kalan sekmelerin
+ * kullandıkları bırakılır. Dosya geçerli bir .xlsx olarak kalır. Dönen değer: boşaltılan sekme sayısı.
+ */
+function gs_strip_xlsx(string $path, array $keep): int
+{
+    if (!class_exists('ZipArchive') || !class_exists('DOMDocument')) throw new RuntimeException('Sunucuda ZipArchive/DOM yok');
+    $zip = new ZipArchive();
+    if ($zip->open($path) !== true) throw new RuntimeException('Dosya açılamadı');
+    $NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    $RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    $load = function (string $xml): DOMDocument {
+        $d = new DOMDocument();
+        if (!@$d->loadXML($xml, LIBXML_NONET | LIBXML_COMPACT | LIBXML_PARSEHUGE)) throw new RuntimeException('XML okunamadı');
+        return $d;
+    };
+    $wb = $load((string)$zip->getFromName('xl/workbook.xml'));
+    $rels = $load((string)$zip->getFromName('xl/_rels/workbook.xml.rels'));
+    $target = [];
+    foreach ($rels->getElementsByTagName('Relationship') as $r) {
+        $t = $r->getAttribute('Target');
+        $target[$r->getAttribute('Id')] = $t[0] === '/' ? ltrim($t, '/') : 'xl/' . $t;
+    }
+    $sheets = [];
+    foreach ($wb->getElementsByTagNameNS($NS, 'sheet') as $sh) $sheets[] = $sh;
+    $keptIdx = [];
+    foreach ($sheets as $i => $sh) if (in_array($sh->getAttribute('name'), $keep, true)) $keptIdx[] = $i;
+    if (!$keptIdx) { $zip->close(); return 0; } // seçilen hiçbir sekme yoksa dosyaya dokunma
+    $keptFiles = [];
+    $n = 0;
+    foreach ($sheets as $i => $sh) {
+        $file = $target[$sh->getAttributeNS($RNS, 'id')] ?? null;
+        if (!$file) continue;
+        if (in_array($i, $keptIdx, true)) { $sh->removeAttribute('state'); $keptFiles[] = $file; continue; }
+        $sh->setAttribute('state', 'hidden');
+        $zip->addFromString($file, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' . $NS . '"><sheetData/></worksheet>');
+        $n++;
+    }
+    foreach ($wb->getElementsByTagNameNS($NS, 'workbookView') as $v) {
+        if (!in_array((int)$v->getAttribute('activeTab'), $keptIdx, true)) $v->setAttribute('activeTab', (string)$keptIdx[0]);
+        if ($v->hasAttribute('firstSheet')) $v->setAttribute('firstSheet', (string)$keptIdx[0]);
+    }
+    $zip->addFromString('xl/workbook.xml', $wb->saveXML());
+    // Paylaşılan metinler: yalnızca kalan sekmelerde kullanılanlar kalır
+    $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($ssXml !== false && $n) {
+        $used = [];
+        foreach ($keptFiles as $f) {
+            $x = $zip->getFromName($f);
+            if ($x === false) continue;
+            if (preg_match_all('~<c\b[^>]*\bt="s"[^>]*>(?:(?!</c>).)*?<v>(\d+)</v>~s', $x, $m)) foreach ($m[1] as $k) $used[(int)$k] = true;
+        }
+        $ss = $load($ssXml);
+        $i = 0;
+        foreach (iterator_to_array($ss->getElementsByTagNameNS($NS, 'si')) as $si) {
+            if (!isset($used[$i])) { while ($si->firstChild) $si->removeChild($si->firstChild); $si->appendChild($ss->createElementNS($NS, 't')); }
+            $i++;
+        }
+        $zip->addFromString('xl/sharedStrings.xml', $ss->saveXML());
+    }
+    $zip->close();
+    return $n;
 }
 
