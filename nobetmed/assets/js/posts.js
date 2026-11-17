@@ -170,6 +170,8 @@ function route() {
   const view = $('#view');
   const si = $('#searchInput');
   if (si && r[0] !== 'ara') si.value = '';
+  // Modül sayfaları yerleşik sayfaların yerine geçebilir (ör. #/taraf -> blok yerleşimi)
+  if (r[0] && NM_EXT.routes[r[0]]) { NM_EXT.routes[r[0]](view, r); renderNav(); window.scrollTo(0, 0); return; }
   switch (r[0]) {
     case undefined: renderHome(view); break;
     case 'b':
