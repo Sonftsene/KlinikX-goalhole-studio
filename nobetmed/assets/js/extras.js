@@ -1607,7 +1607,8 @@ ACT['pb-import'] = () => {
   const m = openModal({
     title: 'Listeyi yapıştır', size: 'wide',
     body: html`<div class="stack">
-      <p class="small muted">Excel'deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
+      <p class="small muted">Excel'deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın <b>ya da dosyayı seçin</b>. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
+      <label class="btn">${icon('upload', 'sm')}<span>Excel / CSV dosyası seç</span><input type="file" hidden accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt" id="pbFile"></label>
       <textarea class="textarea" id="pbPaste" style="min-height:180px" placeholder="ACİL SERVİS&#10;Acil triaj	2201&#10;Acil sorumlu hemşire	2205 / 2206&#10;LABORATUVAR&#10;Biyokimya 2310&#10;Kan merkezi: 2315"></textarea>
       <div class="grid2"><div class="field"><label>Grup <span class="faint">(boşsa başlık satırlarından alınır)</span></label><input class="input" id="pbCat" maxlength="60" placeholder="Örn. Birimler"></div>
         <label class="switch" style="align-self:end"><input type="checkbox" id="pbReplace"><span class="track"></span><span class="s-text"><b>Mevcut rehberi değiştir</b><span>Açıksa eski numaralar silinir.</span></span></label></div>
@@ -1624,6 +1625,32 @@ ACT['pb-import'] = () => {
       : 'Önizleme burada görünür.');
   };
   $('#pbPaste', m.el).addEventListener('input', debounce(prev, 150));
+  $('#pbFile', m.el).addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const url = 'pbfile:' + Date.now();
+      window.NM_FILE_REG = window.NM_FILE_REG || {};
+      window.NM_FILE_REG[url] = f;
+      const model = await loadSheetModel({ name: f.name, url });
+      const lines = [];
+      model.sheets.forEach((sh) => {
+        if (model.sheets.length > 1 && sh.name) lines.push(sh.name);
+        let rows = sh.nRows || 0, cols = sh.nCols || 0;
+        sh.cells.forEach((_, k) => { rows = Math.max(rows, Math.floor(k / 100000) + 1); cols = Math.max(cols, (k % 100000) + 1); });
+        for (let r = 0; r < Math.min(rows, 5000); r++) {
+          const row = [];
+          for (let c = 0; c < Math.min(cols, 30); c++) { const x = sh.cells.get(r * 100000 + c); row.push(x && x.text != null ? String(x.text).replace(/\s+/g, ' ').trim() : ''); }
+          if (row.some(Boolean)) lines.push(row.filter(Boolean).join('\t'));
+        }
+      });
+      delete window.NM_FILE_REG[url];
+      $('#pbPaste', m.el).value = lines.join('\n');
+      prev();
+      toast(`${f.name} okundu; önizlemeyi kontrol edin`);
+    } catch (err) { toast('Dosya okunamadı: ' + err.message, 'err'); }
+  });
   $('#pbCat', m.el).addEventListener('input', debounce(prev, 150));
   PB.importModal = m;
 };

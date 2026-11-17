@@ -150,6 +150,7 @@ $routes = [
     'gsync.create' => 'a_gsync_create',
     'gsync.source.save' => 'a_gsync_source_save',
     'gsync.source.delete' => 'a_gsync_source_delete',
+    'gsync.source.mask' => 'a_gsync_source_mask',
     'side.get' => 'a_side_get',
     'side.day' => 'a_side_day',
     'side.draw' => 'a_side_draw',

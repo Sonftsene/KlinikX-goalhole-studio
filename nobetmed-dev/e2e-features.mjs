@@ -465,7 +465,14 @@ const ov = await m.evaluate(() => document.documentElement.scrollWidth - window.
 if (ov > 0) fail('rehber telefonda yatay taşıyor: ' + ov);
 await m.screenshot({ path: path.join(OUT, 'f-telefon-mobil.png') });
 await a.screenshot({ path: path.join(OUT, 'f-telefon-desktop.png') });
-step('telefon rehberi: yapıştırarak 5 numara, acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
+await a.click('.page-head [data-act=pb-import]');
+await a.setInputFiles('#pbFile', { name: 'rehber.csv', mimeType: 'text/csv', buffer: Buffer.from('HORMON LAB\nHormon;2330\nTiroid;2331 / 2332\n') });
+await expectText(a, 'rehber.csv okundu');
+if ((await a.locator('#pbImpBtn').innerText()).trim() !== '2 numarayı ekle') fail('dosyadan rehber önizlemesi: ' + await a.locator('#pbImpBtn').innerText());
+await a.click('.modal [data-act=close-modal]');
+await a.locator('.modal [data-ok]').click();
+await a.locator('.modal').first().waitFor({ state: 'detached' });
+step('telefon rehberi: yapıştırarak 5 numara, Excel/CSV dosyasından, acil numara, santral ile dahili arama, arama/ters arama/ekip, sık arananlar, yetki');
 
 // 23) Google E-Tablolar: kod gönderimi, sekme→liste bağlama, salt okunur, değişiklik bildirimi, ikinci (görüntüleme) tablosu
 await a.goto(BASE + '#/yonetim/ayarlar/nobet');
@@ -559,7 +566,7 @@ const HS = '1HastaHastaHastaHastaHastaHastaHasta123456';
 const hs = await apiCall(a, 'gsync.source.save', { sheet: 'https://docs.google.com/spreadsheets/d/' + HS + '/edit', name: 'Hasta listesi', purpose: 'tablo' });
 const tl = await (await fetch(BASE + 'api.php?action=gsync.tables', { headers: { 'X-Sync-Token': gs.token } })).json();
 if (!tl.tables || tl.tables.length !== 2 || !tl.tables.includes(HS)) fail('tablo listesi: ' + JSON.stringify(tl));
-const hasta = await a.evaluate(async () => { await loadVendor('exceljs'); const wb = new ExcelJS.Workbook(); const w1 = wb.addWorksheet('B BLOK'); w1.addRow(['Yatak', 'Hasta']); w1.addRow(['1', 'A.Y.']); const w2 = wb.addWorksheet('A BLOK'); w2.addRow(['Yatak', 'Hasta']); wb.addWorksheet('ESKİ').state = 'hidden';
+const hasta = await a.evaluate(async () => { await loadVendor('exceljs'); const wb = new ExcelJS.Workbook(); const w1 = wb.addWorksheet('B BLOK'); w1.addRow(['Yatak', 'Hastanın Adı Soyadı', 'Tanı']); w1.addRow(['1', 'Mehmet Ali Kaplanoğlu', 'Pnömoni']); w1.addRow(['2', { richText: [{ text: 'Zeynep ' }, { text: 'Karakurtlu' }] }, 'KKY']); const w2 = wb.addWorksheet('A BLOK'); w2.addRow(['Yatak', 'Hasta']); wb.addWorksheet('ESKİ').state = 'hidden';
   const buf = await wb.xlsx.writeBuffer(); let bin = ''; new Uint8Array(buf).forEach((x) => { bin += String.fromCharCode(x); }); return btoa(bin); });
 const hp = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': HS, 'Content-Type': 'application/octet-stream' }, body: Buffer.from(hasta, 'base64') });
 if (hp.status !== 200) fail('hasta listesi gönderimi: ' + hp.status);
@@ -567,11 +574,16 @@ const unknown = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST'
 if (unknown.status !== 404) fail('eklenmemiş tablo kabul edildi: ' + unknown.status);
 const hr = (await apiCall(m, 'rosters.list')).rosters.find((r) => r.name === 'Hasta listesi');
 if (!hr || hr.kind !== 'tablo' || !hr.file || JSON.stringify(hr.tabs) !== '["B BLOK","A BLOK"]') fail('hasta listesi: ' + JSON.stringify(hr));
+const hbytes = Buffer.from(await m.evaluate(async (u) => { const b = new Uint8Array(await (await fetch(u)).arrayBuffer()); let s = ''; b.forEach((x) => { s += String.fromCharCode(x); }); return btoa(s); }, hr.file.url), 'base64');
+const JSZipLike = hbytes.toString('latin1');
+if (!hbytes.length || /Kaplano|Karakurtlu/.test(JSZipLike)) fail('hasta listesi dosyasında tam soyad var (veya dosya boş)');
 await m.goto(BASE + '#/nobet/' + hr.id);
 await m.locator('.xv-tabs button').first().waitFor();
+await expectText(m, 'Mehmet Ali K.');
+await expectText(m, 'Zeynep K.');
 if ((await m.locator('.hub-tabs').count()) || (await m.locator('.xv-tabs button').count()) !== 2) fail('hasta listesi görünümü');
 if (await m.locator('#rsTabs button', { hasText: '3. Basamak' }).count()) fail('hasta listesi sayfasında nöbet listeleri sekmesi var');
-step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi)');
+step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi, adlar kısaltılmış: Mehmet Ali K.)');
 
 // 24) Taraf listesi: kura en az geçene, geçiş sayımı, takvimde blok
 const sides = await apiCall(a, 'side.settings', { sides: [{ key: 's3', name: '3. Basamak', roster_id: r3, units: ['B blok'] }, { key: 's2', name: '2. Basamak', roster_id: r2, units: ['A blok', 'C blok'] }] });

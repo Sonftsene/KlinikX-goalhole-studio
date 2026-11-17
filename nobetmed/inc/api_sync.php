@@ -28,7 +28,7 @@ function gs_admin_out(): array
             $st = (string)$s['status'];
             return ['id' => (int)$s['id'], 'name' => $s['name'], 'purpose' => $s['purpose'], 'sheet_id' => $s['sheet_id'], 'title' => $s['title'],
                 'seen' => $s['seen'], 'changed' => $s['changed'], 'status' => ltrim($st, '!'), 'status_ok' => $st === '' || $st[0] !== '!', 'fallback' => (bool)$s['fallback'],
-                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [],
+                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [], 'mask_mode' => $s['mask_mode'] ?? 'none', 'mask_cols' => (string)($s['mask_cols'] ?? ''),
                 'rosters' => array_values(array_map(fn($r) => (int)$r['id'], array_filter($rosters, fn($r) => (int)$r['src_on'] === 1 && (int)$r['src_source'] === (int)$s['id'])))];
         }, gs_sources()),
         'rosters' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name'], 'kind' => $r['kind'] ?? 'nobet', 'linked' => (bool)$r['src_on'], 'source' => $r['src_source'] !== null ? (int)$r['src_source'] : null,
@@ -74,7 +74,8 @@ function a_gsync_source_save(): void
         audit($me, 'settings.save', 'Google tablosu: ' . $name);
     } else {
         $purpose = s('purpose', 10) === 'tablo' ? 'tablo' : 'nobet';
-        q('INSERT INTO gs_sources (sheet_id, name, purpose, created_at) VALUES (?, ?, ?, ?)', [$sheet, $name, $purpose, now()]);
+        q('INSERT INTO gs_sources (sheet_id, name, purpose, created_at, mask_mode, mask_cols) VALUES (?, ?, ?, ?, ?, ?)',
+            [$sheet, $name, $purpose, now(), $purpose === 'tablo' ? 'surname' : 'none', $purpose === 'tablo' ? 'Hastanın Adı Soyadı' : null]);
         $id = insert_id();
         if ($purpose === 'tablo') {
             q("INSERT INTO rosters (name, sort, created_at, kind, src_on, src_tab, src_source) VALUES (?, ?, ?, 'tablo', 1, '*', ?)", [$name, (int)val('SELECT COALESCE(MAX(sort), 0) + 1 FROM rosters'), now(), $id]);
@@ -82,6 +83,24 @@ function a_gsync_source_save(): void
         audit($me, 'roster.link', 'Google tablosu eklendi: ' . $name, $purpose === 'tablo' ? 'yalnızca görüntüleme' : 'nöbet listesi');
     }
     out(['id' => $id, 'gs' => gs_admin_out()]);
+}
+
+/** Ad kısaltma ayarı. Daha sıkı hâle gelirse eski (kısaltılmamış) sürümler silinir ve son veri yeniden işlenir. */
+function a_gsync_source_mask(): void
+{
+    $me = need_admin();
+    $src = gs_source((int)i('id')) ?? fail('Tablo bulunamadı.', 404);
+    $mode = in_array(s('mode', 10), ['surname', 'initials', 'none'], true) ? s('mode', 10) : 'surname';
+    $cols = implode("\n", array_slice(array_filter(array_map('trim', preg_split('/[,;\n]+/u', s('cols', 600)) ?: []), fn($x) => $x !== ''), 0, 10));
+    if ($mode !== 'none' && $cols === '') fail('Kısaltılacak sütunun başlığını yazın (ör. Hastanın Adı Soyadı).');
+    gs_src_set((int)$src['id'], ['mask_mode' => $mode, 'mask_cols' => $cols ?: null, 'hash' => null]);
+    // Önceki sürümlerde tam adlar olabilir: bu tablonun eski sürümlerini sil, son veriyi yeni ayarla yeniden işle
+    $old = [];
+    foreach (all('SELECT f.id, f.attachment_id FROM roster_files f JOIN rosters r ON r.id = f.roster_id WHERE r.src_source = ?', [$src['id']]) as $f) { $old[] = (int)$f['attachment_id']; q('DELETE FROM roster_files WHERE id = ?', [$f['id']]); }
+    $res = gs_reprocess(gs_source((int)$src['id']));
+    foreach (array_unique($old) as $a) gs_delete_attachment_if_unused($a);
+    audit($me, 'settings.save', 'Ad kısaltma: ' . $src['name'], $mode . ($cols ? ' · ' . str_replace("\n", ', ', $cols) : ''));
+    out(['gs' => gs_admin_out(), 'result' => $res]);
 }
 
 function a_gsync_source_delete(): void

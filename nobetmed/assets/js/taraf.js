@@ -113,7 +113,9 @@ function gsSourceHtml(src, g) {
           ${g.rosters.filter((r) => r.kind !== 'tablo').map((r) => html`<option value="${r.id}" ${cur && cur.id === r.id ? raw('selected') : ''}>${r.name}${r.linked && (!cur || cur.id !== r.id) ? ' (başka sekmeye bağlı)' : ''}</option>`)}
           <option value="new">+ Yeni liste oluştur</option></select></div>`;
     })}</div></div>` : src.purpose === 'nobet' ? html`<p class="tiny faint">İlk veri gelince tablodaki sekme türleri (ör. 3. BASAMAK, 2. BASAMAK) burada çıkar; her birini bir listeye bağlarsınız.</p>`
-      : html`<p class="tiny faint">${icon('table', 'sm')} Uygulamada “${src.name}” adıyla, yalnızca görüntülenen bir liste olarak görünür.</p>`}
+      : html`<p class="tiny faint">${icon('table', 'sm')} Uygulamada “${src.name}” adıyla, yalnızca görüntülenen bir liste olarak görünür.</p>
+        <div class="gs-mask row wrap"><span class="small">${icon('lock', 'sm')} ${src.mask_mode === 'none' ? html`<b>Adlar kısaltılmıyor</b>` : html`<b>${src.mask_cols.split('\n').join(', ')}</b> sütunu kısaltılıyor: ${src.mask_mode === 'initials' ? 'Ayşe Yılmaz → A. Y.' : 'Ayşe Yılmaz → Ayşe Y.'}`}</span>
+          <button type="button" class="btn sm" data-act="gs-mask" data-sid="${src.id}">Değiştir</button></div>`}
   </div>`;
 }
 function drawGsync() {
@@ -133,7 +135,7 @@ function drawGsync() {
         <div class="field"><label>Tablonun adresi</label><input class="input" id="gsSheet" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocomplete="off" spellcheck="false"><p class="hint">Tabloyu tarayıcıda açıp adres çubuğundaki bağlantıyı olduğu gibi yapıştırın.</p></div>
         <div class="grid2"><div class="field"><label>Ad</label><input class="input" id="gsName" maxlength="120" value="${g.sources.length ? '' : 'Nöbet listesi'}" placeholder="Örn. Hasta listesi"></div>
           <div class="field"><label>Türü</label><select class="select" id="gsPurpose"><option value="nobet" ${g.sources.length ? '' : raw('selected')}>Nöbet listesi (takvime işlenir)</option><option value="tablo" ${g.sources.length ? raw('selected') : ''}>Yalnızca görüntülenen tablo</option></select></div></div>
-        <p class="tiny faint" id="gsKvkk">${icon('lock', 'sm')} Hasta listesi gibi tablolarda ad-soyad, TC, tanı gibi bilgiler özel nitelikli kişisel veridir (KVKK). Kurumunuzun izni olmadan paylaşmayın; mümkünse yatak no ve baş harflerle tutun. Tablo yalnızca giriş yapmış ekip üyelerine görünür.</p>
+        <p class="tiny faint" id="gsKvkk">${icon('lock', 'sm')} Yalnızca görüntülenen tablolarda “Hastanın Adı Soyadı” sütunu kendiliğinden kısaltılır (Ayşe Yılmaz → Ayşe Y.); sütun adını sonra değiştirebilirsiniz. TC, tanı gibi bilgiler de özel nitelikli kişisel veridir (KVKK); kurumunuzun izni olmadan paylaşmayın. Tablo yalnızca giriş yapmış ekip üyelerine görünür.</p>
         <div class="row" style="gap:8px"><button type="button" class="btn primary" data-act="gs-add-save">${icon('check', 'sm')}Tabloyu ekle</button>${g.sources.length ? html`<button type="button" class="btn" data-act="gs-add" data-v="0">Vazgeç</button>` : ''}</div></div>`
       : html`<div><button type="button" class="btn" data-act="gs-add" data-v="1">${icon('plus', 'sm')}Tablo ekle</button></div>`}
     ${g.sources.length && g.mode === 'push' ? html`<div class="gs-steps stack">
@@ -163,6 +165,25 @@ ACT['gs-add-save'] = (el) => busy(el, async () => {
     if (GS.data.mode === 'pull') ACT['gs-pull']({ dataset: { sid: String(r.id) } });
   } catch (e) { toast(e.message, 'err'); }
 });
+ACT['gs-mask'] = (el) => {
+  const src = GS.data.sources.find((x) => x.id === +el.dataset.sid);
+  if (!src) return;
+  const m = openModal({ title: 'Adları kısaltma', size: 'narrow', body: html`<div class="stack">
+      <p class="small muted">Tablo sunucuya kaydedilmeden önce bu sütunlardaki adlar kısaltılır; tam ad uygulamada ve indirilen dosyada hiç bulunmaz.</p>
+      <div class="field"><label>Sütun başlığı</label><textarea class="textarea" id="gmCols" style="min-height:70px" placeholder="Hastanın Adı Soyadı">${src.mask_cols || 'Hastanın Adı Soyadı'}</textarea><p class="hint">Excel’deki başlık yazıldığı gibi; birden fazlaysa her satıra bir tane. Büyük/küçük harf önemli değil.</p></div>
+      <div class="field"><label>Biçim</label><select class="select" id="gmMode">
+        <option value="surname" ${src.mask_mode === 'surname' ? raw('selected') : ''}>Ad + soyadın baş harfi (Ayşe Y.)</option>
+        <option value="initials" ${src.mask_mode === 'initials' ? raw('selected') : ''}>Yalnızca baş harfler (A. Y.)</option>
+        <option value="none" ${src.mask_mode === 'none' ? raw('selected') : ''}>Kısaltma (önerilmez)</option></select></div></div>`,
+    foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
+  m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    try {
+      const r = await api('gsync.source.mask', { id: src.id, cols: $('#gmCols', m.el).value, mode: $('#gmMode', m.el).value });
+      GS.data = r.gs; m.close(); drawGsync(); refreshRosters();
+      toast('Kaydedildi; liste yeniden işlendi, eski sürümler silindi');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};
 ACT['gs-del'] = async (el) => {
   const src = GS.data.sources.find((x) => x.id === +el.dataset.sid);
   if (!src || !(await confirmDialog({ title: `“${src.name}” bağlantısı kaldırılsın mı?`, text: 'Uygulamadaki listeler ve önceki sürümleri silinmez; yalnızca bu tablodan güncelleme gelmez.', ok: 'Kaldır', danger: true }))) return;

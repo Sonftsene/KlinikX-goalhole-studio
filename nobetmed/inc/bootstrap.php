@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.8.0';
+const NM_VERSION = '3.8.1';
 const NM_ROOT = __DIR__ . '/..';
 
 // data/ (veritabanı) ve uploads/ (dosyalar) pakette yoktur; güncellemede üzerine yazılmasın diye ilk açılışta burada oluşur
@@ -199,7 +199,7 @@ function nm_migrate(PDO $pdo): void
     } catch (Throwable $e) {
         // tablo yok, kurulum yapılacak
     }
-    if ($version >= 8) return;
+    if ($version >= 9) return;
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
@@ -355,6 +355,7 @@ function nm_migrate(PDO $pdo): void
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],
+        'gs_sources' => ['mask_cols TEXT NULL', "mask_mode VARCHAR(10) NOT NULL DEFAULT 'none'"],
     ];
     foreach ($cols as $t => $list) {
         foreach ($list as $def) {
@@ -391,8 +392,11 @@ function nm_migrate(PDO $pdo): void
             }
         } catch (Throwable $e) { error_log('[dupcii] gs göç: ' . $e->getMessage()); }
     }
+    if ($version < 9) {
+        try { $pdo->exec("UPDATE gs_sources SET mask_mode = 'surname', mask_cols = 'Hastanın Adı Soyadı' WHERE purpose = 'tablo' AND (mask_cols IS NULL OR mask_cols = '')"); } catch (Throwable $e) { /* */ }
+    }
     $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '8')");
+    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '9')");
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

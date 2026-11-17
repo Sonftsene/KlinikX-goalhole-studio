@@ -132,6 +132,12 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
         return ['changed' => false, 'message' => 'Değişiklik yok'];
     }
     if (!gs_load_parser()) { @unlink($file); gs_status($sid, 'Sunucuda Excel okuyucu eksik (inc/xlsx.php).', false); return ['changed' => false, 'error' => 'Excel okuyucu eksik']; }
+    // Kişisel veri: belirtilen sütunlardaki adlar dosya sunucuya kaydedilmeden önce kısaltılır (ör. Ayşe Yılmaz -> Ayşe Y.)
+    $masked = 0;
+    if (($src['mask_mode'] ?? 'none') !== 'none') {
+        try { $masked = gs_mask_xlsx($file, gs_mask_headers($src), (string)$src['mask_mode']); }
+        catch (Throwable $e) { @unlink($file); gs_status($sid, 'Ad kısaltma yapılamadı; güvenlik için tablo kaydedilmedi: ' . $e->getMessage(), false); return ['changed' => false, 'error' => 'Ad kısaltma yapılamadı']; }
+    }
     try {
         $model = xlsx_read($file);
     } catch (Throwable $e) {
@@ -162,6 +168,7 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
     if ($prevAtt && $prevAtt !== $attId) gs_delete_attachment_if_unused($prevAtt);
     if (!$rosters) q('UPDATE attachments SET roster_id = 0 WHERE id = ?', [$attId]); // girişli herkes görebilsin (bağlama önizlemesi)
     $msg = $rosters ? implode(' · ', array_map(fn($x) => $x['name'] . ': ' . $x['status'], $summary)) : count($tabs) . ' sekme alındı; henüz bağlı liste yok';
+    if (($src['mask_mode'] ?? 'none') !== 'none') $msg .= ' · ' . ($masked ? $masked . ' ad kısaltıldı' : 'kısaltılacak sütun bulunamadı (“' . implode('”, “', gs_mask_headers($src)) . '”)');
     gs_status($sid, $msg);
     if (function_exists('audit')) audit(null, 'roster.sync', $title ?: $src['name'], mb_substr($msg, 0, 250));
     return ['changed' => true, 'message' => $msg, 'rosters' => $summary];
@@ -563,3 +570,113 @@ function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
     if (!@copy($file, $tmp)) return null;
     return gs_ingest($src, $tmp, '', true, $onlyRoster);
 }
+
+/* ------------------------------------------------------------------ */
+/* Kişisel veri: ad sütunlarını kısaltma                               */
+/* ------------------------------------------------------------------ */
+
+function gs_mask_headers(array $src): array
+{
+    return array_values(array_filter(array_map('trim', preg_split('/[,;\n]+/u', (string)($src['mask_cols'] ?? '')) ?: []), fn($x) => $x !== ''));
+}
+
+/** "Ayşe Nur Yılmaz" -> "Ayşe Nur Y." (surname) veya "A. N. Y." (initials) */
+function gs_mask_name(string $s, string $mode): string
+{
+    $s = trim((string)preg_replace('/\s+/u', ' ', $s));
+    if ($s === '' || $mode === 'none') return $s;
+    $w = explode(' ', $s);
+    $ini = fn($x) => mb_substr($x, 0, 1) . '.';
+    if ($mode === 'initials') return implode(' ', array_map($ini, $w));
+    if (count($w) < 2) return $ini($w[0]);
+    $last = array_pop($w);
+    return implode(' ', $w) . ' ' . $ini($last);
+}
+
+/**
+ * .xlsx içinde başlığı verilen adlardan biri olan sütunların altındaki hücreleri kısaltır.
+ * Paylaşılan metinler (sharedStrings) de değiştirilir: tam ad dosyanın hiçbir yerinde kalmaz.
+ * Dönen değer: kısaltılan hücre sayısı.
+ */
+function gs_mask_xlsx(string $path, array $headers, string $mode): int
+{
+    $want = array_values(array_filter(array_map('gs_fold', $headers)));
+    if (!$want || $mode === 'none') return 0;
+    if (!class_exists('ZipArchive') || !class_exists('DOMDocument')) throw new RuntimeException('Sunucuda ZipArchive/DOM yok');
+    $zip = new ZipArchive();
+    if ($zip->open($path) !== true) throw new RuntimeException('Dosya açılamadı');
+    $NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    $load = function (string $xml): DOMDocument {
+        $d = new DOMDocument();
+        if (!@$d->loadXML($xml, LIBXML_NONET | LIBXML_COMPACT | LIBXML_PARSEHUGE)) throw new RuntimeException('XML okunamadı');
+        return $d;
+    };
+    $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+    $ssDoc = $ssXml !== false ? $load($ssXml) : null;
+    $ss = [];
+    if ($ssDoc) foreach ($ssDoc->getElementsByTagNameNS($NS, 'si') as $si) { $t = ''; foreach ($si->getElementsByTagNameNS($NS, 't') as $x) $t .= $x->textContent; $ss[] = $t; }
+    $isHeader = function (string $t) use ($want): bool { $f = gs_fold($t); if ($f === '') return false; foreach ($want as $w) if ($f === $w || strpos($f, $w) !== false) return true; return false; };
+    $ssNew = [];
+    $count = 0;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = (string)$zip->getNameIndex($i);
+        if (!preg_match('~^xl/worksheets/[^/]+\.xml$~', $name)) continue;
+        $doc = $load((string)$zip->getFromName($name));
+        $xp = new DOMXPath($doc);
+        $xp->registerNamespace('m', $NS);
+        $cells = $xp->query('//m:sheetData/m:row/m:c');
+        $text = function (DOMElement $c) use ($xp, $ss): string {
+            $t = $c->getAttribute('t');
+            if ($t === 's') { $v = $xp->query('m:v', $c)->item(0); return $v ? (string)($ss[(int)$v->textContent] ?? '') : ''; }
+            if ($t === 'inlineStr') { $o = ''; foreach ($xp->query('m:is//m:t', $c) as $x) $o .= $x->textContent; return $o; }
+            if ($t === 'str') { $v = $xp->query('m:v', $c)->item(0); return $v ? $v->textContent : ''; }
+            return '';
+        };
+        $cols = []; // sütun harfi => başlık satırı
+        foreach ($cells as $c) {
+            if (!preg_match('/^([A-Z]+)(\d+)$/', $c->getAttribute('r'), $m)) continue;
+            if (!isset($cols[$m[1]]) && $isHeader($text($c))) $cols[$m[1]] = (int)$m[2];
+        }
+        if (!$cols) continue;
+        $changed = false;
+        foreach ($cells as $c) {
+            if (!preg_match('/^([A-Z]+)(\d+)$/', $c->getAttribute('r'), $m) || !isset($cols[$m[1]]) || (int)$m[2] <= $cols[$m[1]]) continue;
+            $t = $c->getAttribute('t');
+            $orig = $text($c);
+            if (trim($orig) === '' || $isHeader($orig)) continue;
+            $new = gs_mask_name($orig, $mode);
+            if ($new === $orig) continue;
+            if ($t === 's') {
+                $v = $xp->query('m:v', $c)->item(0);
+                $ssNew[(int)$v->textContent] = $new;
+            } else {
+                // satır içi metin veya formül sonucu: düz satır içi metne çevir
+                while ($c->firstChild) $c->removeChild($c->firstChild);
+                $c->setAttribute('t', 'inlineStr');
+                $is = $doc->createElementNS($NS, 'is');
+                $te = $doc->createElementNS($NS, 't');
+                $te->appendChild($doc->createTextNode($new));
+                $is->appendChild($te);
+                $c->appendChild($is);
+                $changed = true;
+            }
+            $count++;
+        }
+        if ($changed) $zip->addFromString($name, $doc->saveXML());
+    }
+    if ($ssNew && $ssDoc) {
+        $list = $ssDoc->getElementsByTagNameNS($NS, 'si');
+        foreach ($ssNew as $idx => $new) {
+            $si = $list->item($idx);
+            if (!$si) continue;
+            while ($si->firstChild) $si->removeChild($si->firstChild);
+            $te = $ssDoc->createElementNS($NS, 't');
+            $te->appendChild($ssDoc->createTextNode($new));
+            $si->appendChild($te);
+        }
+        $zip->addFromString('xl/sharedStrings.xml', $ssDoc->saveXML());
+    }
+    $zip->close();
+    return $count;
+}
+
