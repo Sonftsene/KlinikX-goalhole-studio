@@ -85,10 +85,9 @@ function xlsx_read(string $path, int $maxCells = 500000): array
             $rel = $rels[$d['rid']] ?? null;
             // Grafik sayfaları ve dosyada bulunmayan sayfalar atlanır (ExcelJS de atlıyor)
             if (!$rel || !preg_match('~/worksheet$~', $rel['type'])) continue;
-            $xml = xlsx_zip_get($zip, $rel['target']);
-            if ($xml === null) continue;
-            $sh = xlsx_sheet($xml, $ctx);
-            unset($xml);
+            $xr = xlsx_zip_reader($zip, $path, $rel['target']);
+            if ($xr === null) continue;
+            $sh = xlsx_sheet($xr, $ctx);
             $sheets[] = ['name' => $d['name'], 'hidden' => $d['state'] === 'hidden' || $d['state'] === 'veryHidden'] + $sh;
         }
         // Etkin sekme dizini, grafik sayfaları hariç listeye göre (ExcelJS: wb.worksheets[activeTab])
@@ -110,6 +109,24 @@ function xlsx_zip_get(ZipArchive $zip, string $name): ?string
     $s = $zip->getFromIndex($i);
     if ($s === false) throw new RuntimeException('Excel dosyası okunamadı: sıkıştırılmış bölüm açılamadı (dosya bozuk olabilir).');
     return $s;
+}
+
+/** Sayfa XML'i için okuyucu: büyük bölümler belleğe alınmadan zip içinden akış hâlinde okunur */
+function xlsx_zip_reader(ZipArchive $zip, string $path, string $name): ?XMLReader
+{
+    $name = ltrim($name, '/');
+    $i = $zip->locateName($name);
+    if ($i === false) $i = $zip->locateName($name, ZipArchive::FL_NOCASE);
+    if ($i === false) return null;
+    $st = $zip->statIndex($i);
+    $real = realpath($path);
+    if ($st && $st['size'] > 4 * 1048576 && $real !== false && !str_contains($real, '#')) {
+        $xr = new XMLReader();
+        if (@$xr->open('zip://' . $real . '#' . $st['name'], null, LIBXML_NONET | LIBXML_COMPACT | LIBXML_PARSEHUGE)) return $xr;
+    }
+    $s = $zip->getFromIndex($i);
+    if ($s === false) throw new RuntimeException('Excel dosyası okunamadı: sıkıştırılmış bölüm açılamadı (dosya bozuk olabilir).');
+    return xlsx_xr($s);
 }
 
 function xlsx_xr(string $xml): XMLReader
@@ -257,11 +274,11 @@ function xlsx_ref(string $a): ?array
 }
 
 /** Bir sayfa XML'ini akış hâlinde okur */
-function xlsx_sheet(string $xml, array &$ctx): array
+function xlsx_sheet(XMLReader $xr, array &$ctx): array
 {
     $cells = [];
     $merges = [];
-    $xr = xlsx_xr($xml);
+    $truncated = false;
     $row = -1; $col = -1;
     while (xlsx_next($xr)) {
         if ($xr->nodeType !== XMLReader::ELEMENT) continue;
@@ -275,7 +292,7 @@ function xlsx_sheet(string $xml, array &$ctx): array
             if ($xr->isEmptyElement) continue;
             $cell = xlsx_cell($xr, $t, $s, $ctx);
             if ($cell === null) continue;
-            if ($ctx['budget'] <= 0) continue; // hücre sınırı aşıldı: kalan hücreler okunmaz
+            if ($ctx['budget'] <= 0) { $truncated = true; break; } // hücre sınırı aşıldı: sayfanın kalanı okunmaz
             $ctx['budget']--;
             $cells[$row * 100000 + $col] = $cell;
         } elseif ($ln === 'row') {
@@ -291,7 +308,7 @@ function xlsx_sheet(string $xml, array &$ctx): array
         }
     }
     $xr->close();
-    return xlsx_finish_sheet($cells, $merges);
+    return xlsx_finish_sheet($cells, $merges) + ['truncated' => $truncated];
 }
 
 /** Birleşik hücrelerin bağlı parçalarını atar, boyutları hesaplar */
