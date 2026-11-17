@@ -280,7 +280,7 @@ async function mkOpenListing(id) {
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${L.manage ? html`
         ${L.status === 'taken' && L.taker ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>${L.taker}</b> aldı${L.taker_date ? ` · karşılığında ${mkShort(L.taker_date)} (${L.taker_code})` : ''}. ${L.swap_status === 'applied' ? 'Listeye işlendi.' : 'Sorumlu Excel’de güncelleyince listeye işlenir.'}</span></div>` : ''}
-        <div class="card"><div class="card-head"><h3>${icon('users', 'sm')} Başvuranlar (${live.length})</h3><span class="tiny faint">${icon('lock', 'sm')} yalnız ilan sahibi ve sorumlular görür</span></div>
+        <div class="card"><div class="card-head"><div><h3>${icon('users', 'sm')} Başvuranlar (${live.length})</h3><div class="tiny faint">${icon('lock', 'sm')} Yalnız ilan sahibi ve sorumlular görür</div></div></div>
           <div class="list">${apps.length ? apps.map(appRow) : html`<div class="list-row small muted">Henüz başvuru yok. Uygun olanlara haber verildi.</div>`}</div></div>
         ${!L.mine && L.status === 'open' && live.length ? html`<p class="tiny faint">Seçimi ilan sahibi yapar.</p>` : ''}`
       : html`${L.status !== 'open' ? html`<div class="mk-box">${icon('info', 'sm')}<span>Bu ilan kapandı.</span></div>` : ''}
@@ -793,7 +793,7 @@ function histText(x) {
   if (x.type === 'listing') {
     return html`<b>${x.who}</b> ${c(x.date, x.code)} ${x.kind === 'swap' ? 'değişmek için' : 'devretmek için'} ilana koydu${x.with ? html` → <b>${x.with}</b> aldı${x.date2 ? html` (karşılığında ${c(x.date2, x.code2)})` : ''}` : ''}`;
   }
-  return html`${c(x.date, x.code)} ${x.text} · ${x.need} kişi eksik${x.unit ? ' (' + x.unit + ')' : ''}${x.with ? html` → <b>${x.with}</b>` : ''}`;
+  return html`${c(x.date)} ${x.text} · ${x.need} kişi eksik${x.unit ? ' (' + x.unit + ')' : ''}${x.with ? html` → <b>${x.with}</b>` : ''}`;
 }
 function histSub(x) {
   const bits = [];

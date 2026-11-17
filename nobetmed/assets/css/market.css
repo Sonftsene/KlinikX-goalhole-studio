@@ -29,7 +29,8 @@ a.mk-item:hover { background: var(--surface-2); text-decoration: none; }
 .mk-spin { display: grid; place-items: center; padding: 34px; }
 .mk-offers { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw-opt.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand) inset; }
-.mk-app { align-items: flex-start; }
+.mk-app { align-items: flex-start; flex-wrap: wrap; }
+.mk-app .grow { flex: 1 1 180px; }
 .mk-app .mk-act { max-width: none; }
 
 /* Bilgi kutuları (pencere içinde) */

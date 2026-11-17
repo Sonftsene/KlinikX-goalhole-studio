@@ -35,6 +35,7 @@ const apiCall = (p, action, data = {}) => p.evaluate(([a, d]) => api(a, d), [act
 const apiErr = (p, action, data = {}) => apiCall(p, action, data).then(() => 'kabul', (e) => e.message);
 const cron = () => execFileSync('php', [path.join(SITE, 'cron.php'), '--force'], { encoding: 'utf8' }).trim();
 const noOverflow = async (p, tag) => { const w = await p.evaluate(() => document.documentElement.scrollWidth); if (w > 390) fail(`${tag}: telefonda yatay taşma ${w}px`); };
+const go = async (p, hash) => { if (p.url() === BASE + hash) await p.reload(); else await p.goto(BASE + hash); };
 const confirmOk = async (p) => { await p.locator('.modal [data-ok]').last().click(); };
 
 const now = new Date();
@@ -130,6 +131,7 @@ step('başvuru: Burak (arayüz) ve Deniz; sahibine bildirim; tekrar/kendi ilanı
 // 4) Elif Burak'ı seçer → Excel'e işlenecek değişim; diğerleri "Kapandı"
 await m.goto(BASE + '#/ilanlar/' + give.id);
 await m.locator('.modal [data-ch]').first().waitFor();
+await m.waitForTimeout(400);
 await m.screenshot({ path: path.join(OUT, 'mk-applicants-mobile.png') });
 await m.locator('.modal .mk-app', { hasText: 'Burak' }).locator('[data-ch]').click();
 await confirmOk(m);
@@ -187,7 +189,7 @@ const elifChips = await elifRow.locator('.co-c.no').allInnerTexts();
 if (!elifChips.some((t) => /Dinlenme/.test(t))) fail('Elif satırında dinlenme ✗ yok: ' + elifChips.join(','));
 if ((await panel.locator('table.co-t').first().locator('tr', { hasText: 'Burak' }).locator('.co-c.ok').count()) !== cand.conds.length) fail('Burak satırında tüm şartlar ✓ değil');
 await panel.locator('[data-change=co-all]').uncheck();
-if (!(await panel.locator('table.co-t').nth(1).count())) fail('kaydırma tablosu yok');
+if (!/Kaydırma adayları/.test(await panel.innerText())) fail('kaydırma bölümü yok');
 if (!cand.moves.some((x) => x.name === 'ELİF YILMAZ' && x.move.from === d1(12))) fail('kaydırma adayı (ertesi gün aynı vardiya) yok: ' + JSON.stringify(cand.moves.map((x) => x.name + x.move.from)));
 await a.screenshot({ path: path.join(OUT, 'mk-callout-modal.png') });
 // Excel indir
@@ -237,7 +239,14 @@ if (!nAns) fail('açan kişiye “gelebilir” bildirimi gitmedi');
 step('yanıt: Burak bildirimden “Gelebilirim” dedi; yanıtları yalnız yönetici ve kendisi görüyor');
 
 // 7) Yönetici seçer → Excel'e işlenecek
-await a.goto(BASE + '#/eksik/' + coId);
+const A2 = await ctx('admin-m', true);
+await login(A2.p, 'ayse@test.com', 'Sifre1234');
+await A2.p.goto(BASE + '#/eksik/' + coId);
+await A2.p.locator('#coPagePanel table.co-t').first().waitFor();
+await A2.p.waitForTimeout(400);
+await A2.p.screenshot({ path: path.join(OUT, 'mk-callout-open-admin-mobile.png'), fullPage: true });
+await noOverflow(A2.p, 'açık çağrı (yönetici)');
+await go(a, '#/eksik/' + coId);
 await a.locator('[data-act=co-choose]').click();
 await confirmOk(a);
 await expectText(a, 'çağrı tamamlandı');
@@ -246,9 +255,7 @@ const nSel = (await apiCall(bp, 'notif.list')).items.find((x) => /seçildin/.tes
 if (!nSel) fail('seçilen kişiye çağrı bildirimi gitmedi');
 const coL = (await apiCall(a, 'callout.list')).items.find((x) => x.id === coId);
 if (coL.status !== 'filled' || !coL.chosen.some((x) => /Burak/i.test(x.name))) fail('çağrı tamamlanmadı: ' + JSON.stringify(coL));
-const A2 = await ctx('admin-m', true);
-await login(A2.p, 'ayse@test.com', 'Sifre1234');
-await A2.p.goto(BASE + '#/eksik/' + coId);
+await go(A2.p, '#/eksik/' + coId);
 await A2.p.locator('.co-resp').first().waitFor();
 await A2.p.waitForTimeout(600);
 await A2.p.screenshot({ path: path.join(OUT, 'mk-callout-admin-mobile.png'), fullPage: true });

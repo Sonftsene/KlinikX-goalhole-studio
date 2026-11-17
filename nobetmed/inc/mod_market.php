@@ -841,9 +841,9 @@ function co_pick(array $cand, array $asks, array $on): array
 function co_ask_text(array $C, ?string $moveFrom): string
 {
     $d = swap_fmt_date((string)$C['date']);
-    $t = $d . ' ' . co_text((string)$C['shift']) . ' için ' . (int)$C['need'] . ' kişi eksik' . ($C['unit'] ? ' (' . $C['unit'] . ')' : '') . '. ';
+    $t = $d . ' ' . co_text((string)$C['shift']) . ' için ' . (int)$C['need'] . ' kişi eksik. ';
     $t .= $moveFrom ? swap_fmt_date($moveFrom) . ' nöbetini ' . mk_date_to((string)$C['date']) . ' kaydırabilir misin?' : 'Gelebilir misin?';
-    return $t . ($C['note'] ? ' · “' . $C['note'] . '”' : '');
+    return $t . ($C['unit'] ? ' · ' . $C['unit'] : '') . ($C['note'] ? ' · “' . $C['note'] . '”' : '');
 }
 
 /** Seçilen adaylara sor: yanıt kaydı + bildirim. Dönen: [sorulan sayısı, hesabı olmayanlar] */
