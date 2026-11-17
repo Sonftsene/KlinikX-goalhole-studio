@@ -582,6 +582,10 @@ const hasta = await a.evaluate(async () => { await loadVendor('exceljs'); const 
   const buf = await wb.xlsx.writeBuffer(); let bin = ''; new Uint8Array(buf).forEach((x) => { bin += String.fromCharCode(x); }); return btoa(bin); });
 const hp = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': HS, 'Content-Type': 'application/octet-stream' }, body: Buffer.from(hasta, 'base64') });
 if (hp.status !== 200) fail('hasta listesi gönderimi: ' + hp.status);
+const gerr = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': HS, 'X-Sync-Error': encodeURIComponent('Tabloya bu Google hesabıyla erişilemiyor.'), 'Content-Type': 'text/plain' }, body: 'hata' });
+const hsSt = (await apiCall(a, 'gsync.get')).gs.sources.find((x) => x.sheet_id === HS);
+if (gerr.status !== 200 || hsSt.status_ok || !/erişilemiyor/.test(hsSt.status)) fail('Google hata bildirimi: ' + JSON.stringify(hsSt && hsSt.status));
+if (!(await apiCall(a, 'gsync.get')).gs.tables_at) fail('kod çalışma zamanı kaydedilmedi');
 const unknown = await fetch(BASE + 'api.php?action=gsync.push', { method: 'POST', headers: { 'X-Sync-Token': gs.token, 'X-Sheet': '1BilinmeyenBilinmeyenBilinmeyen0000', 'Content-Type': 'application/octet-stream' }, body: Buffer.from(hasta, 'base64') });
 if (unknown.status !== 404) fail('eklenmemiş tablo kabul edildi: ' + unknown.status);
 const hr = (await apiCall(m, 'rosters.list')).rosters.find((r) => r.name === 'Hasta listesi');

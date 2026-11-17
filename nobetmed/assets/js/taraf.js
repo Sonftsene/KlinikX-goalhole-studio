@@ -55,22 +55,37 @@ function esitle(zorla) {
   if (r.getResponseCode() !== 200) throw new Error('dupcii tablo listesi alınamadı: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 200));
   var hatalar = [];
   (JSON.parse(r.getContentText()).tables || []).forEach(function (id) {
-    try { gonder(id, zorla === true); } catch (e) { hatalar.push(e.message); }
+    try { gonder(id, zorla === true); } catch (e) {
+      hatalar.push(e.message);
+      // Hatayı uygulamaya da bildir (Ayarlar > Nöbet > Tablolar'da görünür)
+      try { UrlFetchApp.fetch(AYAR.adres, { method: 'post', contentType: 'text/plain', payload: 'hata', muteHttpExceptions: true,
+        headers: { 'X-Sync-Token': AYAR.anahtar, 'X-Sheet': id, 'X-Sync-Error': encodeURIComponent(String(e.message).slice(0, 220)) } }); } catch (e2) {}
+    }
   });
   if (hatalar.length) throw new Error(hatalar.join(' | '));
 }
 
 function gonder(id, zorla) {
-  var dosya = DriveApp.getFileById(id);
+  var dosya;
+  try { dosya = DriveApp.getFileById(id); } catch (e) { throw new Error('Tabloya bu Google hesabıyla erişilemiyor. Tablonun, kodu çalıştıran hesapla paylaşıldığından emin olun.'); }
   var son = String(dosya.getLastUpdated().getTime());
   var ayar = PropertiesService.getScriptProperties();
   if (!zorla && son === ayar.getProperty('son_' + id)) return; // değişiklik yok
   var govde, tur;
-  var r = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', {
+  var tip = dosya.getMimeType();
+  if (tip === MimeType.MICROSOFT_EXCEL || tip === 'application/vnd.ms-excel.sheet.macroEnabled.12') {
+    // Drive'a yüklenmiş gerçek Excel dosyası (.xlsx): olduğu gibi gönder
+    govde = dosya.getBlob().getBytes(); tur = 'application/octet-stream';
+  } else if (tip !== MimeType.GOOGLE_SHEETS) {
+    throw new Error(dosya.getName() + ': Google E-Tablo veya .xlsx değil (' + tip + ')');
+  }
+  var r = govde ? null : UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
   });
-  var b = r.getContent();
-  if (r.getResponseCode() === 200 && b.length > 4 && b[0] === 80 && b[1] === 75) {
+  var b = r ? r.getContent() : [];
+  if (govde) {
+    // hazır
+  } else if (r.getResponseCode() === 200 && b.length > 4 && b[0] === 80 && b[1] === 75) {
     govde = b; tur = 'application/octet-stream';
   } else {
     // Tabloda indirme kapalıysa görünen değerler gönderilir
@@ -103,6 +118,9 @@ function gsSourceHtml(src, g) {
         <div class="tiny faint ellipsis"><a href="${sheetUrl(src.sheet_id)}" target="_blank" rel="noopener">${src.title || 'Tabloyu aç'}</a>${src.seen ? ' · son veri ' + fmtRel(src.seen) : ''}${src.changed ? ' · son değişiklik ' + fmtRel(src.changed) : ''}</div></div>
       <div class="row" style="gap:4px"><button type="button" class="btn sm" data-act="gs-pull" data-sid="${src.id}" title="${g.mode === 'pull' ? 'Şimdi eşitle' : 'Son veriyi yeniden işle'}">${icon('history', 'sm')}</button><button type="button" class="btn sm ghost" data-act="gs-del" data-sid="${src.id}" aria-label="Kaldır">${icon('trash', 'sm')}</button></div></div>
     ${src.status ? html`<div class="small ${src.status_ok ? 'muted' : 'err-text'}">${src.status}</div>` : ''}
+    ${!src.seen && g.mode === 'push' ? html`<div class="gs-wait small">${icon('info', 'sm')}<span>${!g.tables_at
+      ? html`<b>Google’daki kod eski sürüm ya da hiç çalışmadı.</b> Eski kod yalnızca ilk tabloyu gönderir. Aşağıdaki kodu kopyalayıp script.google.com’daki kodun <b>tamamıyla değiştirin</b>, kaydedin ve <b>esitle</b>’yi bir kez çalıştırın.`
+      : html`Kod ${fmtRel(g.tables_at)} çalıştı ama bu tablo gelmedi. Tablonun, kodu çalıştıran Google hesabıyla paylaşıldığından emin olun; script.google.com › <b>Yürütmeler</b> bölümünde hata yazısına bakın.`}</span></div>` : ''}
     ${src.fallback ? html`<div class="tiny faint">Tabloda indirme kapalı olduğu için görünen değerler alınıyor (renkler sade görünebilir).</div>` : ''}
     ${src.purpose === 'nobet' && src.kinds.length ? html`<div class="card"><div class="list">${src.kinds.map((k) => {
       const cur = bound(k.kind);

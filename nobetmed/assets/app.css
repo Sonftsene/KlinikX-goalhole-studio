@@ -1250,3 +1250,5 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .gs-kind .grow { flex: 1 1 180px; }
 .gs-kind .select { flex: 1 1 160px; max-width: 100% !important; }
 .gs-src .tiny.ellipsis { white-space: normal; }
+.gs-wait { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border-radius: 10px; background: var(--warn-soft); color: var(--text); }
+.gs-wait svg.i { flex-shrink: 0; margin-top: 2px; }

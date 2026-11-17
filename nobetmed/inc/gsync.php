@@ -466,6 +466,7 @@ function a_gsync_tables(): void
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     if (!gs_token_ok()) { usleep(300000); http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Anahtar geçersiz']); return; }
+    set_setting('gs_tables_at', now()); // güncel kod çalışıyor (tanı için)
     echo json_encode(['ok' => true, 'tables' => setting('gs_mode', 'push') === 'push' ? array_column(gs_sources(), 'sheet_id') : []]);
 }
 
@@ -485,6 +486,14 @@ function a_gsync_push(): void
     $src = $sheet !== '' ? one('SELECT * FROM gs_sources WHERE sheet_id = ?', [$sheet])
         : (one("SELECT * FROM gs_sources WHERE purpose = 'nobet' ORDER BY id LIMIT 1") ?? one('SELECT * FROM gs_sources ORDER BY id LIMIT 1')); // eski betik
     if (!$src) { $res(404, ['ok' => false, 'error' => 'Bu tablo uygulamada ekli değil.']); return; }
+    // Google tarafında hata (erişim yok, dosya bulunamadı…): uygulamada görünsün
+    $gerr = trim(rawurldecode((string)($_SERVER['HTTP_X_SYNC_ERROR'] ?? '')));
+    if ($gerr !== '') {
+        gs_src_set((int)$src['id'], ['seen' => now()]);
+        gs_status((int)$src['id'], 'Google tarafında hata: ' . mb_substr($gerr, 0, 220), false);
+        $res(200, ['ok' => true, 'changed' => false, 'message' => 'Hata kaydedildi']);
+        return;
+    }
     $len = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($len > GS_MAX_BYTES) { $res(413, ['ok' => false, 'error' => 'Dosya çok büyük']); return; }
     $body = (string)file_get_contents('php://input', false, null, 0, GS_MAX_BYTES + 1);
