@@ -1,6 +1,6 @@
 # dupcii — sıradaki geliştirmeler (ön rapor)
 
-Durum: ONAYLANDI — yapılıyor.
+Durum: TAMAMLANDI — 3.9.0 sürümünde (tüm maddeler + blok geçmişi, nöbet tablosunda sekme seçimi, değişim isteği gizleme/silme).
 
 ### Kullanıcı kararları (son)
 - 16 saat dinlenme değişim ve ilanlarda da geçerli.

@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.8.6';
+const NM_VERSION = '3.9.0';
 const NM_ROOT = __DIR__ . '/..';
 
 // data/ (veritabanı) ve uploads/ (dosyalar) pakette yoktur; güncellemede üzerine yazılmasın diye ilk açılışta burada oluşur
@@ -434,7 +434,9 @@ function nm_migrate(PDO $pdo): void
             for ($i = 0; $i < $days; $i++) $h[] = [date('Y-m-d', strtotime("$first +$i day")), $n . ' ' . ($i + 1) . '. gün', 0];
         }
         $st = $pdo->prepare('INSERT INTO holidays (date, name, half, custom) VALUES (?, ?, ?, 0)');
+        $tx = !$pdo->inTransaction() && $pdo->beginTransaction(); // tek seferde yaz (ilk kurulum hızlı olsun)
         foreach ($h as $r) { try { $st->execute($r); } catch (Throwable $e) { /* aynı gün */ } }
+        if ($tx) $pdo->commit();
     }
     if ($version < 9) {
         try { $pdo->exec("UPDATE gs_sources SET mask_mode = 'surname', mask_cols = 'Hastanın Adı Soyadı' WHERE purpose = 'tablo' AND (mask_cols IS NULL OR mask_cols = '')"); } catch (Throwable $e) { /* */ }

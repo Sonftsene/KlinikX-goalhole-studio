@@ -125,16 +125,36 @@ Liste Google E-Tablolar'da tutuluyorsa (siz yalnızca **görüntüleyen** olsan�
 
 Liste görüntüsünde yalnızca o listeye ait sekmeler görünür (ör. 3. Basamak listesinde yalnızca “… 3. BASAMAK” ayları); açılışta bu ayın sekmesi seçilidir.
 
+**Görünen sekmeler:** Her tablonun yanındaki **Görünen sekmeler › Seç** ile ekibin göreceği sekmeleri işaretleyin (nöbet tablosu ve hasta listesi için). İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez; nöbet tablosunda o sekmelerdeki nöbetler de okunmaz. Tekrar işaretleyince geri gelir.
+
 Sonrasında sorumlu Excel'i düzenledikçe en geç 5 dakikada: liste görüntüsü, herkesin Takvimi, Kim nöbette ve hatırlatmalar güncellenir; nöbeti değişen kişiye “Nöbetinde değişiklik var” bildirimi gider. Bağlı listelere uygulamadan dosya yüklenemez, kimse listeyi uygulamada değiştiremez.
 Tablo “bağlantıya sahip herkes görüntüleyebilir” olarak paylaşıldıysa betik gerekmez; ikinci seçeneği seçmeniz yeterli (sunucu her 5 dakikada kendisi indirir; zamanlanmış görev önerilir, bkz. 13. bölüm).
 
-### 8b. Taraf listesi (kura)
+### 8b. Günlük blok yerleşimi ve taraf listesi (kura)
 
-**Nöbet › Taraf** sayfasında taraflar tanımlanır (ör. 3. Basamak → B blok, 2. Basamak → A blok ve C blok) ve her taraf bir nöbet listesine bağlanır. Bir gün karşı tarafa personel gerekince o gün nöbetçi olanlar arasından **Kura çek** denir: önce hiç ya da en az geçmiş olanlar seçilir, eşitlik varsa aralarında kura çekilir. Gece içeren nöbetler (16-08, 08-08) 1 geçiş sayılır; 08-16 sayılmaz. Sayfada aylık tablo (kim hangi gün nerede), kişi başı aylık ve toplam geçiş sayısı, adaylar ve kura sonucu kayıtlı görünür. Kura başka yerde çekildiyse **Elle kaydet** kullanılır. Kaydı o gün nöbette olanlar veya sorumlular yapabilir.
+**Nöbet › Taraf / Bloklar** sayfasında yayıncı ve yönetici o günkü nöbetçileri bloklara yerleştirir: **Otomatik dağıt** gereken sayılara göre önce herkesi kendi tarafına koyar, eksik taraf için diğer taraftan en az geçmiş kişiler arasından kura çeker (muaflar hariç; 24 saat tutan kişi gün boyu aynı blokta kalır). Sonuç **Kaydet**'le kesinleşir; elle de düzenlenebilir. Son yerleşim ana sayfada herkese görünür, her adın yanında parantez içinde karşı tarafa geçiş sayısı yazar. Herkes geçmiş veya ileri bir günü seçip o günün yerleşimine bakabilir. Geçmişe dönük geçiş sayıları yayıncı/yönetici tarafından elle girilebilir. Gereken nöbetçi sayıları ve muafiyetler **Ayarlar › Nöbet**'tedir.
+
+Eski yöntem: **Nöbet › Taraf** sayfasında taraflar tanımlanır (ör. 3. Basamak → B blok, 2. Basamak → A blok ve C blok) ve her taraf bir nöbet listesine bağlanır. Bir gün karşı tarafa personel gerekince o gün nöbetçi olanlar arasından **Kura çek** denir: önce hiç ya da en az geçmiş olanlar seçilir, eşitlik varsa aralarında kura çekilir. Gece içeren nöbetler (16-08, 08-08) 1 geçiş sayılır; 08-16 sayılmaz. Sayfada aylık tablo (kim hangi gün nerede), kişi başı aylık ve toplam geçiş sayısı, adaylar ve kura sonucu kayıtlı görünür. Kura başka yerde çekildiyse **Elle kaydet** kullanılır. Kaydı o gün nöbette olanlar veya sorumlular yapabilir.
 
 ### 8c. Nöbet değişimi ve devri
 
 Takvimde kendi nöbet gününüze dokunup **Değiş / Devret** deyin: yalnızca kurallara uyan kişiler ve günler listelenir (üst üste en fazla 24 saat — 24 saat çıkışına nöbet eklenemez; nöbetler arası en fazla 4 boş gün — 5 günlük boşluk olamaz; izinli günler boşluk sayılmaz). Kurallar Ayarlar › Nöbet bölümünden değiştirilebilir. İstek karşı tarafa gider; kabul edilince sorumluya “Excel'e işlenecek” olarak bildirilir. Sorumlu Excel'i güncelleyince istek kendiliğinden “Listeye işlendi” olur.
+
+### 8d. Nöbet istekleri, ilanlar, eksik personel
+
+- **İstekler (Nöbet › İstekler):** Yayıncı ay için istek dönemi açar ve son tarih belirler. Herkes **boşluk** ve **yıllık izin** isteğini takvimden ya da “2,3,4 boşluk; 15-19 izin” diye yazarak girer; son tarihten 2 gün önce hatırlatma gider. Yönetim sekmesinde gün gün yoğunluk haritası, adil ret önerisi, kura, gerekçeli onay/ret ve Excel çıktısı vardır. Liste gelince onaylı istekle çakışan nöbetler uyarılır.
+- **Nöbet ilanı (Nöbet › İlanlar):** Takvimde kendi nöbetinize **İlana koy** deyin. Panoda ilan sahibi görünür; başvuranları ve alanı yalnız ilan sahibi, yayıncılar ve yönetici görür. Yalnız kurallara (16 saat dinlenme, 48 saat, 5 gün boşluk) uyan kişiler başvurabilir.
+- **Eksik personel (Yönetim › Eksik personel):** Bir gün eksik olduğunda kurallara uyan adaylar (o gün nöbeti yok, izinli değil, 16 saat dinlenmiş, 48 saat / 5 gün boşluk olmaz, muaf değil) ve kaydırılabilecek kişiler sıralı listelenir; Excel indirilebilir, seçilenlere “Gelebilir misin?” sorulur.
+- **Değişim geçmişi (Yönetim › Değişim geçmişi):** Tüm değişim, devir, ilan ve çağrı kayıtları, yalnız yayıncılar.
+- Sonuçlanan değişim isteklerini herkes kendi listesinden kaldırabilir; sorumlu hatalı isteği silebilir veya “İşlendi” diye kapatabilir.
+
+### 8e. Kişisel ayarlar
+
+- **Hesabım › Görünüm:** açık / koyu / otomatik mod, 8 renk paleti, gece siyahı, köşe ve yoğunluk, yazı boyutu; **Ana sayfam** ile kartları gizleme ve sıralama. Ayarlar hesaba kaydedilir, her cihazda aynı görünür.
+- **Hesabım › Ücretim:** normal fazla mesai, resmî tatil ve bayram saat ücretleri; aylık tahmini tutar Nöbetlerim sayfasında görünür. Ücretleri yalnızca kişinin kendisi görür (yönetici dahil kimse göremez).
+- **Hesabım › Bildirimler › Nöbet hatırlatmam:** “bir gün önce saat X” ve/veya “nöbetten X saat önce”.
+- Ana sayfada sıradaki nöbete (veya nöbetin bitişine) canlı geri sayım.
+- Resmî tatil ve bayramlar takvimde işaretlidir; **Ayarlar › Nöbet**'ten düzenlenir (dini bayram tarihleri Diyanet takvimine göre girilmiştir, gerekirse düzeltin).
 
 ## 9. Dosya yükleme
 
