@@ -1,6 +1,15 @@
 # dupcii — sıradaki geliştirmeler (ön rapor)
 
-Durum: kullanıcı onayı bekleniyor ("tamam" denince hepsi tek seferde yapılacak).
+Durum: ONAYLANDI — yapılıyor.
+
+### Kullanıcı kararları (son)
+- 16 saat dinlenme değişim ve ilanlarda da geçerli.
+- Blok yerleşimi: 24 saatçi aynı blokta kalır; gündüz/gece ayrı yerleşim yok (08-16 ve 16-08'in blokları zaten belli).
+- Fazla mesai ücreti: yalnız Normal ve Bayram/resmî tatil (hafta sonu yok).
+- "İsteğe saygı" kuralı kaldırıldı (istek onayı yönetici/yayıncıda; istekler atamayı engellemez).
+- Blok yerleşiminin son hâli herkese ana ekranda; 3. basamaktan 2. basamağa kaç kez gittiği adın yanında parantez içinde; tüm ay kaydı; geçmiş sayılar yönetici/yayıncı tarafından elle girilebilir.
+- Tema ve renk seçenekleri; herkes ana sayfasını ve temasını kendi düzenler.
+- Kişi başı istek sınırı yok; istek türleri yalnız Boşluk ve Yıllık izin.
 Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 
 ## 0. Ortak kural motoru (her özellik bunu kullanır)
