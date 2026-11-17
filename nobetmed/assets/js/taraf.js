@@ -38,8 +38,13 @@ var AYAR = {
 };
 
 function kur() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('esitle').timeBased().everyMinutes(5).create();
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('esitle').timeBased().everyMinutes(5).create();
+    Logger.log('Zamanlayıcı kuruldu: her 5 dakikada bir kontrol edilecek.');
+  } catch (e) {
+    Logger.log('Zamanlayıcı kurulamadı (' + e.message + '). Biraz sonra "kur"u tekrar çalıştırın ya da soldaki saat simgesi > Tetikleyici ekle: işlev esitle, Zamana dayalı, Dakika zamanlayıcısı, 5 dakikada bir.');
+  }
   esitle(true);
 }
 
@@ -73,6 +78,7 @@ function esitle(zorla) {
   });
   if (y.getResponseCode() !== 200) throw new Error('dupcii yanıtı ' + y.getResponseCode() + ': ' + y.getContentText().slice(0, 300));
   ayar.setProperty('son', son);
+  Logger.log('Uygulamaya gönderildi: ' + (JSON.parse(y.getContentText()).message || 'tamam'));
 }
 `;
 }
