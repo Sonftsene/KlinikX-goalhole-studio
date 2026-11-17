@@ -494,7 +494,7 @@ function a_swap_list(): void
 {
     $me = need_user();
     $since = date('Y-m-d', strtotime('-40 days'));
-    $rows = all('SELECT * FROM swap_requests WHERE (from_user = ? OR to_user = ?) AND from_date >= ? ORDER BY id DESC LIMIT 100', [$me['id'], $me['id'], $since]);
+    $rows = all('SELECT * FROM swap_requests WHERE ((from_user = ? AND hide_from = 0) OR (to_user = ? AND hide_to = 0)) AND from_date >= ? ORDER BY id DESC LIMIT 100', [$me['id'], $me['id'], $since]);
     $todo = is_publisher($me) ? all("SELECT * FROM swap_requests WHERE status = 'accepted' ORDER BY from_date LIMIT 100") : [];
     out(['items' => array_map(fn($r) => swap_req_out($r, $me), $rows), 'todo' => array_map(fn($r) => swap_req_out($r, $me), $todo)]);
 }
@@ -542,6 +542,50 @@ function a_swap_cancel(): void
     $other = one('SELECT * FROM users WHERE id = ?', [(int)$r['to_user']]);
     if ($other && (int)$other['id'] !== (int)$me['id']) notify_users([$other], 'swap', 'Nöbet isteği iptal edildi', swap_req_text($r), '#/nobetim', null);
     audit($me, 'swap.cancel', swap_req_text($r));
+    out(['ok' => true]);
+}
+
+/** Sonuçlanmış isteği kendi listesinden gizle (ids: birden çok) */
+function a_swap_hide(): void
+{
+    $me = need_user();
+    $ids = array_map('intval', arr('ids') ?: [(int)i('id')]);
+    $n = 0;
+    foreach (array_slice($ids, 0, 200) as $id) {
+        $r = one('SELECT * FROM swap_requests WHERE id = ?', [$id]);
+        if (!$r) continue;
+        $isFrom = (int)$r['from_user'] === (int)$me['id'];
+        $isTo = (int)($r['to_user'] ?? 0) === (int)$me['id'];
+        if (!$isFrom && !$isTo) continue;
+        // Bekleyen istek gizlenemez (önce iptal / ret)
+        if ($r['status'] === 'pending' || ($r['status'] === 'accepted' && $isFrom)) continue;
+        if ($isFrom) q('UPDATE swap_requests SET hide_from = 1 WHERE id = ?', [$id]);
+        if ($isTo) q('UPDATE swap_requests SET hide_to = 1 WHERE id = ?', [$id]);
+        $n++;
+    }
+    out(['hidden' => $n]);
+}
+
+/** Sorumlu: kabul edilmiş değişimi Excel'e işlenmiş say (otomatik eşleşmediyse) */
+function a_swap_done(): void
+{
+    $me = need_publisher();
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
+    if ($r['status'] !== 'accepted') fail('Yalnızca kabul edilmiş değişimler işlendi sayılabilir.');
+    q("UPDATE swap_requests SET status = 'applied', applied_at = ? WHERE id = ?", [now(), $r['id']]);
+    $users = array_filter([one('SELECT * FROM users WHERE id = ?', [(int)$r['from_user']]), $r['to_user'] ? one('SELECT * FROM users WHERE id = ?', [(int)$r['to_user']]) : null]);
+    if ($users) notify_users(array_values($users), 'swap', 'Nöbet değişimi listeye işlendi', swap_req_text($r), '#/nobetim', null);
+    audit($me, 'swap.done', swap_req_text($r));
+    out(['ok' => true]);
+}
+
+/** Sorumlu/yönetici: hatalı isteği tamamen sil (taraflara bildirim gitmez; günlükte kalır) */
+function a_swap_delete(): void
+{
+    $me = need_publisher();
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
+    q('DELETE FROM swap_requests WHERE id = ?', [$r['id']]);
+    audit($me, 'swap.delete', swap_req_text($r));
     out(['ok' => true]);
 }
 

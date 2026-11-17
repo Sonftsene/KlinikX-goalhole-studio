@@ -133,3 +133,8 @@
 .ex-row, .hd-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .ex-row .grow, .hd-row .grow { min-width: 0; }
 @media (max-width: 900px) { .home-grid.side-first > aside { order: -1; } .home-grid.side-first > aside .side-col, .home-grid.side-first > aside { position: static; } }
+
+/* Nöbet sekmeleri çoğaldı: dar ekranda kaydırılabilir, taşma yapmaz */
+.hub-tabs { overflow-x: auto; scrollbar-width: none; max-width: 760px; -webkit-overflow-scrolling: touch; }
+.hub-tabs::-webkit-scrollbar { display: none; }
+.hub-tabs a { flex: 1 0 auto; padding: 0 12px; }

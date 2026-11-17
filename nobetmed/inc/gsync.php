@@ -58,9 +58,11 @@ function gs_tab_info(string $name): array
 function gs_kinds(array $src): array
 {
     $tabs = json_decode((string)($src['tabs'] ?? '[]'), true) ?: [];
+    $keep = gs_show_tabs($src);
     $kinds = [];
     foreach ($tabs as $t) {
         if (empty($t['mo'])) continue;
+        if ($keep && !in_array($t['name'], $keep, true)) continue;
         $k = (string)$t['kind'];
         if (!isset($kinds[$k])) $kinds[$k] = ['kind' => $k, 'label' => gs_kind_label($t['name']), 'tabs' => []];
         $kinds[$k]['tabs'][] = $t['name'];
@@ -150,7 +152,7 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
     if ($raw !== $file) @copy($file, $raw);
     // Yalnızca görüntülenen tablo: seçilmeyen sekmelerin içeriği uygulamaya kaydedilen dosyadan çıkarılır
     $keep = gs_show_tabs($src);
-    if ($src['purpose'] === 'tablo' && $keep) {
+    if ($keep) {
         try { gs_strip_xlsx($file, $keep); }
         catch (Throwable $e) { @unlink($file); gs_status($sid, 'Sekmeler ayıklanamadı; güvenlik için tablo kaydedilmedi: ' . $e->getMessage(), false); return ['changed' => false, 'error' => 'Sekmeler ayıklanamadı']; }
     }
@@ -218,6 +220,7 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
     $warn = [];
     foreach ($tabs as $i => $t) {
         if ($t['kind'] !== $kind || !$t['mo']) continue;
+        if ($keep && !in_array($t['name'], $keep, true)) continue; // yöneticinin çıkardığı sekme: görünmez, okunmaz
         $opts = ['uploadedAt' => now(), 'month' => $t['mo'], 'fileName' => $t['name']];
         if ($t['y']) $opts['year'] = $t['y'];
         if ($dict) $opts['dict'] = $dict;

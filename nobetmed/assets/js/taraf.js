@@ -130,13 +130,17 @@ function gsSourceHtml(src, g) {
           <option value="">— Bağlı değil</option>
           ${g.rosters.filter((r) => r.kind !== 'tablo').map((r) => html`<option value="${r.id}" ${cur && cur.id === r.id ? raw('selected') : ''}>${r.name}${r.linked && (!cur || cur.id !== r.id) ? ' (başka sekmeye bağlı)' : ''}</option>`)}
           <option value="new">+ Yeni liste oluştur</option></select></div>`;
-    })}</div></div>` : src.purpose === 'nobet' ? html`<p class="tiny faint">İlk veri gelince tablodaki sekme türleri (ör. 3. BASAMAK, 2. BASAMAK) burada çıkar; her birini bir listeye bağlarsınız.</p>`
+    })}</div></div>${gsTabsRow(src)}` : src.purpose === 'nobet' ? html`<p class="tiny faint">İlk veri gelince tablodaki sekme türleri (ör. 3. BASAMAK, 2. BASAMAK) burada çıkar; her birini bir listeye bağlarsınız.</p>${gsTabsRow(src)}`
       : html`<p class="tiny faint">${icon('table', 'sm')} Uygulamada “${src.name}” adıyla, yalnızca görüntülenen bir liste olarak görünür.</p>
         <div class="gs-mask row wrap"><span class="small">${icon('lock', 'sm')} ${src.mask_mode === 'none' ? html`<b>Adlar kısaltılmıyor</b>` : html`<b>${src.mask_cols.split('\n').join(', ')}</b> sütunu kısaltılıyor: ${src.mask_mode === 'initials' ? 'Ayşe Yılmaz → A. Y.' : 'Ayşe Yılmaz → Ayşe Y.'}`}</span>
           <button type="button" class="btn sm" data-act="gs-mask" data-sid="${src.id}">Değiştir</button></div>
-        ${src.tab_names && src.tab_names.length ? html`<div class="gs-mask row wrap"><span class="small">${icon('table', 'sm')} Görünen sekmeler: <b>${src.show_tabs ? src.show_tabs.join(', ') : 'hepsi'}</b>${src.show_tabs ? html` <span class="faint">(${src.tab_names.length} sekmeden ${src.show_tabs.length})</span>` : ''}</span>
-          <button type="button" class="btn sm" data-act="gs-tabs" data-sid="${src.id}">Seç</button></div>` : ''}`}
+        ${gsTabsRow(src)}`}
   </div>`;
+}
+function gsTabsRow(src) {
+  if (!src.tab_names || !src.tab_names.length) return '';
+  return html`<div class="gs-mask row wrap"><span class="small">${icon('table', 'sm')} Görünen sekmeler: <b>${src.show_tabs ? src.show_tabs.join(', ') : 'hepsi'}</b>${src.show_tabs ? html` <span class="faint">(${src.tab_names.length} sekmeden ${src.show_tabs.length})</span>` : ''}</span>
+    <button type="button" class="btn sm" data-act="gs-tabs" data-sid="${src.id}">Seç</button></div>`;
 }
 function drawGsync() {
   const box = $('#gsCard');
@@ -209,7 +213,7 @@ ACT['gs-tabs'] = (el) => {
   if (!src) return;
   const on = (n) => !src.show_tabs || src.show_tabs.includes(n);
   const m = openModal({ title: 'Görünen sekmeler', size: 'narrow', body: html`<div class="stack">
-      <p class="small muted">Ekip yalnızca işaretlediğiniz sekmeleri görür. İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez (indirilen dosyada da bulunmaz).</p>
+      <p class="small muted">Ekip yalnızca işaretlediğiniz sekmeleri görür. İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez (indirilen dosyada da bulunmaz).${src.purpose === 'nobet' ? ' Çıkarılan sekmelerdeki nöbetler de okunmaz (takvim, kim nöbette, değişim).' : ''}</p>
       <div class="card"><div class="list">${src.tab_names.map((n) => html`<label class="list-row" style="gap:10px;cursor:pointer"><input type="checkbox" value="${n}" ${on(n) ? raw('checked') : ''}><span class="grow">${n}</span></label>`)}</div></div></div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
   m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
@@ -519,14 +523,33 @@ function drawSwapBox() {
     return html`<div class="list-row swap-row"><span class="np-ico tone-violet">${icon('history', 'sm')}</span>
       <div class="grow" style="min-width:0"><div class="small">${swapText(r)}</div><div class="tiny"><span class="badge ${tone}">${t}</span>${r.note ? html` <span class="faint">“${r.note}”</span>` : ''}</div></div>
       <div class="row" style="gap:6px">${r.incoming && r.status === 'pending' ? html`<button class="btn sm primary" data-act="swap-ans" data-id="${r.id}" data-a="1">Kabul et</button><button class="btn sm" data-act="swap-ans" data-id="${r.id}" data-a="0">Reddet</button>` : ''}
-        ${(r.mine || pub) && ['pending', 'accepted'].includes(r.status) ? html`<button class="btn sm ghost" data-act="swap-cancel" data-id="${r.id}">İptal</button>` : ''}</div></div>`;
+        ${pub && r.status === 'accepted' ? html`<button class="btn sm" data-act="swap-done" data-id="${r.id}" title="Excel’de güncellendi ama otomatik eşleşmediyse">${icon('check', 'sm')}İşlendi</button>` : ''}
+        ${(r.mine || pub) && ['pending', 'accepted'].includes(r.status) ? html`<button class="btn sm ghost" data-act="swap-cancel" data-id="${r.id}">İptal</button>` : ''}
+        ${!pub && swapHideable(r) ? html`<button class="btn sm ghost icon" data-act="swap-hide" data-id="${r.id}" aria-label="Listemden kaldır" title="Listemden kaldır">${icon('x', 'sm')}</button>` : ''}
+        ${isPublisher() ? html`<button class="btn sm ghost icon" data-act="swap-del" data-id="${r.id}" aria-label="İsteği sil" title="İsteği tamamen sil (sorumlu)">${icon('trash', 'sm')}</button>` : ''}</div></div>`;
   };
-  setHTML(box, html`${live.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('history', 'sm')} Nöbet değişim istekleri</h3></div><div class="list">${live.map((r) => row(r, false))}</div></div>` : ''}
+  const doneN = live.filter(swapHideable).length;
+  setHTML(box, html`${live.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('history', 'sm')} Nöbet değişim istekleri</h3>${doneN > 1 ? html`<button class="btn ghost sm" data-act="swap-hide-all">Sonuçlananları kaldır (${doneN})</button>` : ''}</div><div class="list">${live.map((r) => row(r, false))}</div></div>` : ''}
     ${todo.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('table', 'sm')} Excel’e işlenecek değişimler (${todo.length})</h3><span class="tiny faint">Excel güncellenince kendiliğinden kapanır</span></div><div class="list">${todo.map((r) => row(r, true))}</div></div>` : ''}`);
 }
 ACT['swap-ans'] = (el) => busy(el, async () => {
   try { await api('swap.respond', { id: +el.dataset.id, accept: el.dataset.a === '1' }); toast(el.dataset.a === '1' ? 'Kabul edildi; sorumluya iletildi' : 'Reddedildi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
 });
+/** Sonuçlanmış istek (bekleyen değil) kişinin listesinden kaldırılabilir */
+function swapHideable(r) { return ['declined', 'cancelled', 'applied', 'expired'].includes(r.status) || (r.status === 'accepted' && !r.mine); }
+async function swapHide(ids) {
+  try { await api('swap.hide', { ids }); SWAP.items = SWAP.items.filter((x) => !ids.includes(x.id)); drawSwapBox(); toast('Listenizden kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+}
+ACT['swap-hide'] = (el) => swapHide([+el.dataset.id]);
+ACT['swap-hide-all'] = () => swapHide(SWAP.items.filter(swapHideable).map((x) => x.id));
+ACT['swap-done'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Değişim işlendi sayılsın mı?', text: 'Excel’de güncellendiği hâlde otomatik eşleşmediyse kullanın. İki kişiye bildirim gider.', ok: 'İşlendi say' }))) return;
+  try { await api('swap.done', { id: +el.dataset.id }); toast('İşlendi olarak kapatıldı'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['swap-del'] = async (el) => {
+  if (!(await confirmDialog({ title: 'İstek tamamen silinsin mi?', text: 'Hatalı veya gereksiz istekler için. Kimseye bildirim gitmez; işlem günlüğünde kalır.', ok: 'Sil', danger: true }))) return;
+  try { await api('swap.delete', { id: +el.dataset.id }); toast('İstek silindi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
+};
 ACT['swap-cancel'] = async (el) => {
   if (!(await confirmDialog({ title: 'İstek iptal edilsin mi?', text: 'Karşı tarafa bildirim gider.', ok: 'İptal et', danger: true }))) return;
   try { await api('swap.cancel', { id: +el.dataset.id }); toast('İptal edildi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }

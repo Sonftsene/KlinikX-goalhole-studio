@@ -378,6 +378,8 @@ function nm_migrate(PDO $pdo): void
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],
         'gs_sources' => ['mask_cols TEXT NULL', "mask_mode VARCHAR(10) NOT NULL DEFAULT 'none'", 'show_tabs TEXT NULL'],
+        // Değişim isteğini taraflar kendi listesinden gizleyebilir
+        'swap_requests' => ['hide_from INT NOT NULL DEFAULT 0', 'hide_to INT NOT NULL DEFAULT 0'],
     ];
     foreach ($cols as $t => $list) {
         foreach ($list as $def) {

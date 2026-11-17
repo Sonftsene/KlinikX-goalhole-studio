@@ -608,8 +608,8 @@ const hr2 = (await apiCall(m, 'rosters.list')).rosters.find((r) => r.id === hr.i
 if (JSON.stringify(hr2.tabs) !== '["A BLOK"]' || hr2.versions !== 1) fail('hasta listesi sekmeleri: ' + JSON.stringify(hr2.tabs) + ' sürüm ' + hr2.versions);
 const hb2 = Buffer.from(await m.evaluate(async (u) => { const b = new Uint8Array(await (await fetch(u)).arrayBuffer()); let s = ''; b.forEach((x) => { s += String.fromCharCode(x); }); return btoa(s); }, hr2.file.url), 'base64').toString('latin1');
 if (/Pn.?.?moni|Mehmet Ali/.test(hb2)) fail('seçilmeyen sekmenin içeriği dosyada kaldı');
-await m.goto(BASE + '#/');
 await m.goto(BASE + '#/nobet/' + hr.id);
+await m.reload();
 await m.locator('.xv-scroll').waitFor();
 if (await m.locator('.xv-tabs button').count()) fail('tek sekmede sekme çubuğu görünmemeli');
 step('Google E-Tablolar: anahtar, gönderim, sekme türleri, bağlama, yalnızca kendi sekmeleri, salt okunur liste, değişiklik bildirimi, JSON yedek yolu, ikinci tablo (hasta listesi, adlar kısaltılmış: Mehmet Ali K., yalnızca seçilen sekmeler)');
@@ -661,6 +661,28 @@ const st3 = (await apiCall(m, 'swap.list')).items[0];
 if (st3.status !== 'applied') fail('değişim uygulandı olmadı: ' + st3.status);
 // 48 saat kuralı: Burak 3. gün 24 saat aldı; 4. gün kimse 24 saat devredemez ona
 step('nöbet değişimi: kurallı seçenekler, istek, kabul, sorumlu listesi, Excel güncellenince uygulandı' + (blockedWhy ? ' · engel örneği: ' + blockedWhy.slice(0, 80) : ''));
+// Sonuçlanan istek kişinin listesinden kaldırılabilir (karşı tarafta kalır); bekleyen istek kaldırılamaz
+await m.goto(BASE + '#/nobetim');
+await m.reload();
+await m.locator(`#swapBox [data-act=swap-hide][data-id="${st3.id}"]`).click();
+await expectText(m, 'Listenizden kaldırıldı');
+if ((await apiCall(m, 'swap.list')).items.some((x) => x.id === st3.id)) fail('gizlenen istek hâlâ listede');
+if (!(await apiCall(B.p, 'swap.list')).items.some((x) => x.id === st3.id)) fail('karşı tarafın listesinden de gitti');
+const delR = await apiCall(m, 'swap.delete', { id: st3.id }).then(() => 'silindi', (e) => e.message);
+if (delR === 'silindi') fail('üye isteği silebildi');
+step('değişim isteği: kişi kendi listesinden kaldırdı, karşı tarafta duruyor; silme yalnız sorumluda');
+// Nöbet tablosunda görünen sekmeler: çıkarılan sekme listede görünmez ve nöbetleri okunmaz
+const allTabs = (await apiCall(a, 'gsync.get')).gs.sources.find((x) => x.id === srcN.id).tab_names;
+const dropTab = allTabs.find((t) => /2\.BASAMAK/.test(t) && t.startsWith(MN[ym0.m - 1]));
+const kemal0 = await apiCall(a, 'shifts.day', { date: `${ym0.y}-${p2(ym0.m)}-26` });
+if (!/kemal bulut/i.test(JSON.stringify(kemal0))) fail('ön koşul: Kemal Bulut 26. gün nöbette görünmüyor');
+await apiCall(a, 'gsync.source.tabs', { id: srcN.id, tabs: allTabs.filter((t) => t !== dropTab) });
+const rr2 = (await apiCall(a, 'rosters.list')).rosters.find((r) => r.id === r2);
+if ((rr2.tabs || []).includes(dropTab)) fail('çıkarılan nöbet sekmesi hâlâ görünüyor: ' + JSON.stringify(rr2.tabs));
+const kemal = await apiCall(a, 'shifts.day', { date: `${ym0.y}-${p2(ym0.m)}-26` });
+if (/kemal bulut/i.test(JSON.stringify(kemal))) fail('çıkarılan sekmedeki nöbet okunuyor');
+await apiCall(a, 'gsync.source.tabs', { id: srcN.id, tabs: [] });
+step('nöbet tablosu: "' + dropTab + '" sekmesi çıkarıldı → listede yok, nöbetleri okunmadı; geri alındı');
 await B.c.close();
 
 // Masaüstü ekran görüntüleri
