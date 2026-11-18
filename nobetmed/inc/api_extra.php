@@ -337,7 +337,7 @@ function invite_out(array $r): array
         'title_id' => $r['title_id'] !== null ? (int)$r['title_id'] : null, 'unit_id' => $r['unit_id'] !== null ? (int)$r['unit_id'] : null,
         'role' => $r['role'], 'auto_approve' => (bool)$r['auto_approve'], 'uses' => (int)$r['uses'], 'max_uses' => (int)$r['max_uses'],
         'expires' => $r['expires'], 'created_at' => $r['created_at'], 'used' => $r['used_by'] !== null || ((int)$r['uses'] >= (int)$r['max_uses']),
-        'url' => base_url() . '?davet=' . $r['token']];
+        'url' => base_url() . '?davet=' . $r['token'] . nm_link_param()];
 }
 
 function a_invites_list(): void
@@ -470,7 +470,7 @@ function a_passkey_reg_begin(): void
     out(['publicKey' => [
         'challenge' => wa_b64u_enc($challenge),
         'rp' => ['name' => setting('org_name', 'dupcii'), 'id' => wa_rp_id_from_server()],
-        'user' => ['id' => wa_b64u_enc('u' . $me['id']), 'name' => $me['email'], 'displayName' => $me['name']],
+        'user' => ['id' => wa_b64u_enc(nm_passkey_handle((int)$me['id'])), 'name' => $me['email'], 'displayName' => $me['name']],
         'pubKeyCredParams' => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
         'authenticatorSelection' => ['residentKey' => 'required', 'requireResidentKey' => true, 'userVerification' => 'required'],
         'attestation' => 'none',
@@ -539,7 +539,7 @@ function a_passkey_login_finish(): void
     $pk = $cid !== '' ? one('SELECT * FROM passkeys WHERE credential_id = ?', [wa_b64u_enc(wa_b64u_dec($cid))]) : null;
     if (!$pk) fail('Bu cihaz için kayıtlı bir giriş bulunamadı. Önce şifreyle girip Hesabım sayfasından parmak izini ekleyin.', 404);
     $uh = s('userHandle', 200);
-    if ($uh !== '' && wa_b64u_dec($uh) !== 'u' . $pk['user_id']) fail('Doğrulama başarısız.', 401);
+    if ($uh !== '' && !in_array(wa_b64u_dec($uh), ['u' . $pk['user_id'], nm_passkey_handle((int)$pk['user_id'])], true)) fail('Doğrulama başarısız.', 401);
     try {
         $count = wa_verify_assertion(wa_b64u_dec(s('clientDataJSON', 20000)), wa_b64u_dec(s('authenticatorData', 5000)), wa_b64u_dec(s('signature', 2000)), passkey_take_challenge('login'), wa_origin_from_server(), wa_rp_id_from_server(), $pk['public_key'], (int)$pk['sign_count']);
     } catch (Throwable $e) { fail($e->getMessage(), 401); }
@@ -636,7 +636,7 @@ function avatar_url(array $u): ?string
 
 function avatar_dir(): string
 {
-    $d = NM_ROOT . '/uploads/avatars';
+    $d = nm_upload_dir() . '/avatars';
     if (!is_dir($d)) @mkdir($d, 0775, true);
     return $d;
 }
@@ -708,7 +708,10 @@ function a_me_email(): void
     if (!password_verify((string)($IN['current'] ?? ''), $me['password_hash'])) fail('Şifre hatalı.');
     if ($email === mb_strtolower((string)$me['email'])) out(['email' => $email]);
     if (one('SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?', [$email, $me['id']])) fail('Bu e-posta başka bir hesapta kullanılıyor.', 409);
+    nm_email_guard($email);
     q('UPDATE users SET email = ? WHERE id = ?', [$email, $me['id']]);
+    nm_dir_del((string)$me['email']);
+    nm_dir_put($email);
     audit($me, 'user.edit', $me['name'], 'E-posta değişti: ' . $me['email'] . ' → ' . $email);
     out(['email' => $email]);
 }
@@ -720,7 +723,7 @@ const BRAND_KINDS = ['logo', 'logo_dark', 'icon', 'icon192', 'icon512'];
 
 function brand_dir(): string
 {
-    $d = NM_ROOT . '/uploads/brand';
+    $d = nm_upload_dir() . '/brand';
     if (!is_dir($d)) @mkdir($d, 0775, true);
     return $d;
 }
@@ -728,7 +731,7 @@ function brand_dir(): string
 function brand_url(string $kind): ?string
 {
     $f = (string)setting('brand_' . $kind, '');
-    return $f !== '' ? 'api.php?action=brand&f=' . $kind . '&v=' . substr(md5($f), 0, 10) : null;
+    return $f !== '' ? 'api.php?action=brand&f=' . $kind . '&v=' . substr(md5($f), 0, 10) . nm_link_param() : null;
 }
 
 /** Herkese açık marka bilgisi (giriş ekranında da gerekir) */

@@ -69,6 +69,8 @@ const POST_SELECT = "SELECT p.*, u.name AS author_name, u.title_id AS author_tit
   LEFT JOIN acks mk ON mk.post_id = p.id AND mk.user_id = :me3";
 
 $action = (string)($_GET['action'] ?? '');
+// Dondurulmuş birimin dosyaları, Google eşitlemesi ve bildirimleri de kapalı
+if (nm_multi() && in_array($action, ['file', 'push.pending', 'avatar', 'backup.download', 'gsync.push', 'gsync.tables'], true) && nm_tenant_frozen()) { http_response_code(423); exit; }
 
 if ($action === 'file') {
     serve_file();
@@ -219,6 +221,11 @@ $routes = [
 
 $routes += $NM_MOD_ROUTES;
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
+// Süper yönetici uçları birim veritabanı açmaz
+if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
+// Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
+nm_route_tenant($action);
+if (nm_multi() && nm_tenant_frozen() && !in_array($action, ['boot', 'auth.logout'], true)) fail('Bu birim geçici olarak kullanıma kapatıldı. Yöneticinizle görüşün.', 423);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 jobs_after_response();
 $routes[$action]();
@@ -358,7 +365,9 @@ function user_out(array $u): array
 function login_user(array $u): void
 {
     session_regenerate_id(true);
+    unset($_SESSION['sa'], $_SESSION['sa_ok'], $_SESSION['tb']);
     $_SESSION['uid'] = (int)$u['id'];
+    $_SESSION['t'] = (string)nm_tenant()['tkey'];
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     q('UPDATE users SET last_seen_at = ? WHERE id = ?', [now(), $u['id']]);
 }
@@ -493,7 +502,8 @@ function a_boot(): void
         $u = request_base_url();
         if ($u !== setting('site_url')) set_setting('site_url', $u);
     }
-    $setup = (int)val('SELECT COUNT(*) FROM users') === 0;
+    $setup = nm_setup_allowed();
+    if ($me && PHP_SAPI !== 'cli' && $me['role'] === 'admin' && nm_multi() && m_setting('site_url') !== request_base_url()) m_q("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('site_url', ?)", [request_base_url()]);
     $data = [
         'csrf' => $_SESSION['csrf'],
         'setup_needed' => $setup,
@@ -503,11 +513,18 @@ function a_boot(): void
             'registration' => setting('registration', 'approval'),
             'brand' => brand_out(),
         ],
+        'tenant' => nm_boot_tenant($me),
+        'sa' => function_exists('sa_boot') ? sa_boot() : null,
         'google_client_id' => GOOGLE_CLIENT_ID,
         'upload_max_mb' => MAX_UPLOAD_MB,
         'chunk_size' => chunk_size(),
         'mail_ready' => mail_ready(),
     ] + lists();
+    // Birden çok birim varken giriş ekranı hiçbir birimin adını/ayarını göstermez (bağlantı ipucu yoksa)
+    if (!$me && !nm_tenant_hinted()) {
+        $data['settings'] = ['org_name' => 'dupcii', 'registration' => 'closed', 'brand' => brand_out_neutral()];
+        $data['titles'] = []; $data['units'] = [];
+    }
     if ($me) {
         $data['settings'] += [
             'banner_on' => setting('banner_on') === '1',
@@ -571,7 +588,7 @@ function validate_email(string $email): string
 
 function a_setup(): void
 {
-    if ((int)val('SELECT COUNT(*) FROM users') > 0) fail('Kurulum zaten tamamlanmış.', 409);
+    if (!nm_setup_allowed()) fail('Kurulum zaten tamamlanmış.', 409);
     $name = s('name', 120);
     $email = validate_email(s('email', 190));
     global $IN;
@@ -579,12 +596,15 @@ function a_setup(): void
     $org = s('org_name', 120);
     if (mb_strlen($name) < 3) fail('Ad soyad girin.');
     validate_password($pw);
+    nm_email_guard($email);
     if ($org !== '') set_setting('org_name', $org);
     $titleId = val('SELECT id FROM titles ORDER BY sort, id LIMIT 1');
     $unitId = val('SELECT id FROM units ORDER BY sort, id LIMIT 1');
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, 'admin', 'active', now()]);
-    login_user(one('SELECT * FROM users WHERE id = ?', [insert_id()]));
+    $nid = insert_id();
+    nm_dir_put($email);
+    login_user(one('SELECT * FROM users WHERE id = ?', [$nid]));
     out();
 }
 
@@ -633,7 +653,7 @@ function a_forgot(): void
         q('INSERT INTO password_resets (user_id, token_hash, expires) VALUES (?, ?, ?)', [$u['id'], hash('sha256', $token), time() + 3600]);
         mail_queue_to([$u], 'Şifre sıfırlama', 'Şifrenizi sıfırlayın',
             ['Portal şifrenizi sıfırlamak için aşağıdaki düğmeye dokunun. Bağlantı 1 saat geçerlidir.', 'Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.'],
-            'Yeni şifre belirle', base_url() . '?reset=' . $token, 'reset', false);
+            'Yeni şifre belirle', base_url() . '?reset=' . $token . nm_link_param(), 'reset', false);
     }
     // Hesabın var olup olmadığını belli etmemek için her durumda aynı yanıt
     out(['message' => 'Bu e-posta ile kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu (ve gereksiz klasörünü) kontrol edin.']);
@@ -671,6 +691,7 @@ function a_register(): void
     if (!valid_id('titles', $titleId)) $titleId = null;
     if (!valid_id('units', $unitId)) $unitId = null;
     if (one('SELECT id FROM users WHERE email = ?', [$email])) fail('Bu e-posta ile zaten bir hesap var.', 409);
+    nm_email_guard($email);
     $status = $mode === 'open' ? 'active' : 'pending';
     $role = 'member';
     if ($inv) {
@@ -682,6 +703,7 @@ function a_register(): void
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now(), setting('default_notify_mode', 'instant')]);
     $newId = insert_id();
+    nm_dir_put($email);
     if ($inv) {
         q('UPDATE invites SET uses = uses + 1, used_by = CASE WHEN kind = \'personal\' THEN ? ELSE used_by END WHERE id = ?', [$newId, $inv['id']]);
         audit(['id' => $newId, 'name' => $name], 'invite.use', $name, $inv['kind'] === 'personal' ? 'Kişisel davet' : 'QR davet');
@@ -720,6 +742,8 @@ function a_google(): void
     }
     $sub = (string)$info['sub'];
     $email = mb_strtolower((string)$info['email']);
+    if (($gt = nm_dir_find($email)) !== null) nm_tenant_use($gt);
+    elseif (!nm_tenant_hinted()) fail('Bu Google hesabıyla kayıtlı bir üye yok. Kayıt için biriminizin davet bağlantısını veya QR kodunu kullanın.', 403);
     $u = one('SELECT * FROM users WHERE google_sub = ?', [$sub]);
     if (!$u && ($byMail = one('SELECT * FROM users WHERE email = ?', [$email]))) {
         // Şifreli hesap Google'a kendiliğinden bağlanmasın (başkası o e-postayla önceden hesap açmış olabilir)
@@ -734,6 +758,7 @@ function a_google(): void
         q('INSERT INTO users (name, email, google_sub, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$name, $email, $sub, 'member', $status, now(), default_notify_mode()]);
         $u = one('SELECT * FROM users WHERE id = ?', [insert_id()]);
+        nm_dir_put($email);
         if ($status === 'pending') notify_pending_user(['name' => $name, 'email' => $email]);
     } elseif (empty($u['google_sub'])) {
         q('UPDATE users SET google_sub = ? WHERE id = ?', [$sub, $u['id']]);
@@ -747,6 +772,7 @@ function a_google(): void
 function a_logout(): void
 {
     $_SESSION = [];
+    unset($GLOBALS['NM_T']);
     session_regenerate_id(true);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     out(['csrf' => $_SESSION['csrf']]);
@@ -964,7 +990,7 @@ function a_posts_save(): void
     foreach (arr('remove_attachment_ids') as $aid) {
         $a = one('SELECT * FROM attachments WHERE id = ? AND post_id = ?', [(int)$aid, $id]);
         if ($a) {
-            @unlink(NM_ROOT . '/uploads/' . $a['stored_name']);
+            @unlink(nm_upload_dir() . '/' . $a['stored_name']);
             q('DELETE FROM attachments WHERE id = ?', [$a['id']]);
         }
     }
@@ -983,7 +1009,7 @@ function a_posts_save(): void
 function delete_post_files(int $id): void
 {
     foreach (all('SELECT stored_name FROM attachments WHERE post_id = ?', [$id]) as $a) {
-        @unlink(NM_ROOT . '/uploads/' . $a['stored_name']);
+        @unlink(nm_upload_dir() . '/' . $a['stored_name']);
     }
     q('DELETE FROM attachments WHERE post_id = ?', [$id]);
 }
@@ -1139,7 +1165,7 @@ function mime_for(string $name): string
 
 function upload_dir(): string
 {
-    $dir = NM_ROOT . '/uploads';
+    $dir = nm_upload_dir();
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     return $dir;
 }
@@ -1240,7 +1266,7 @@ function serve_file(): void
             }
         }
     }
-    $path = $a ? NM_ROOT . '/uploads/' . $a['stored_name'] : '';
+    $path = $a ? nm_upload_dir() . '/' . $a['stored_name'] : '';
     if (!$allowed || !is_file($path)) {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
@@ -1363,7 +1389,7 @@ function delete_attachment_if_unused(int $attId): void
     if ((int)val('SELECT COUNT(*) FROM roster_files WHERE attachment_id = ?', [$attId]) > 0) return;
     $a = one('SELECT * FROM attachments WHERE id = ?', [$attId]);
     if (!$a || $a['post_id'] !== null) return;
-    @unlink(NM_ROOT . '/uploads/' . $a['stored_name']);
+    @unlink(nm_upload_dir() . '/' . $a['stored_name']);
     q('DELETE FROM attachments WHERE id = ?', [$attId]);
 }
 
@@ -1404,8 +1430,8 @@ function a_rosters_upload(): void
     $new = one('SELECT stored_name, size FROM attachments WHERE id = ?', [$attId]);
     $cur = one('SELECT a.id, a.stored_name, a.size FROM roster_files f JOIN attachments a ON a.id = f.attachment_id WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$id]);
     if ($cur && $new && (int)$cur['size'] === (int)$new['size']) {
-        $pa = NM_ROOT . '/uploads/' . $new['stored_name'];
-        $pb = NM_ROOT . '/uploads/' . $cur['stored_name'];
+        $pa = nm_upload_dir() . '/' . $new['stored_name'];
+        $pb = nm_upload_dir() . '/' . $cur['stored_name'];
         if (is_file($pa) && is_file($pb) && hash_file('sha256', $pa) === hash_file('sha256', $pb)) {
             @unlink($pa);
             q('DELETE FROM attachments WHERE id = ?', [$attId]);
@@ -1498,6 +1524,7 @@ function a_admin_user_save(): void
     if (!valid_id('units', $unitId)) $unitId = null;
     $dupe = one('SELECT id FROM users WHERE email = ?', [$email]);
     if ($dupe && (int)$dupe['id'] !== (int)$id) fail('Bu e-posta başka bir hesapta kullanılıyor.', 409);
+    nm_email_guard($email);
 
     if ($id) {
         $u = one('SELECT * FROM users WHERE id = ?', [$id]);
@@ -1507,6 +1534,7 @@ function a_admin_user_save(): void
         if ($losingAdmin && admin_count() <= 1) fail('Sistemde en az bir aktif yönetici kalmalıdır.');
         q('UPDATE users SET name = ?, email = ?, role = ?, status = ?, title_id = ?, unit_id = ? WHERE id = ?',
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
+        if (mb_strtolower((string)$u['email']) !== $email) { nm_dir_del((string)$u['email']); nm_dir_put($email); }
         if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $id]);
         audit($me, $approved ? 'user.approve' : 'user.edit', $name, 'Yetki: ' . $role . ', durum: ' . $status);
         if ($approved) notify_user_approved(['name' => $name, 'email' => $email, 'password_hash' => $u['password_hash'] ?? null, 'google_sub' => $u['google_sub'] ?? null]);
@@ -1522,6 +1550,7 @@ function a_admin_user_save(): void
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now()]);
     $newId = insert_id();
+    nm_dir_put($email);
     q('UPDATE users SET notify_mode = ? WHERE id = ?', [default_notify_mode(), $newId]);
     if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $newId]);
     audit($me, 'user.create', $name, $email);
@@ -1564,6 +1593,7 @@ function a_admin_user_delete(): void
     foreach (['passkeys', 'push_subscriptions', 'notifications'] as $t) q("DELETE FROM $t WHERE user_id = ?", [$id]);
     avatar_delete_file($u);
     q('DELETE FROM users WHERE id = ?', [$id]);
+    nm_dir_del((string)$u['email']);
     audit($me, 'user.delete', $u['name'], $u['email']);
     out();
 }

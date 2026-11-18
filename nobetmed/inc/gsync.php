@@ -187,7 +187,7 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
 
     // Dosyayı kalıcı ek olarak sakla (bu tabloya bağlı listelerin hepsi aynı eki gösterir)
     $stored = date('Ym') . '_' . bin2hex(random_bytes(10)) . '.bin';
-    $dir = NM_ROOT . '/uploads';
+    $dir = nm_upload_dir();
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     if (!@rename($file, $dir . '/' . $stored)) { if (!@copy($file, $dir . '/' . $stored)) { @unlink($file); gs_status($sid, 'Dosya kaydedilemedi (disk dolu olabilir).', false); return ['changed' => false, 'error' => 'Kaydedilemedi']; } @unlink($file); }
     $owner = gs_owner_id();
@@ -304,7 +304,7 @@ function gs_delete_attachment_if_unused(int $attId): void
     if ((int)val('SELECT COUNT(*) FROM roster_files WHERE attachment_id = ?', [$attId]) > 0) return;
     $a = one('SELECT * FROM attachments WHERE id = ?', [$attId]);
     if (!$a || $a['post_id'] !== null) return;
-    @unlink(NM_ROOT . '/uploads/' . $a['stored_name']);
+    @unlink(nm_upload_dir() . '/' . $a['stored_name']);
     q('DELETE FROM attachments WHERE id = ?', [$attId]);
 }
 
@@ -484,7 +484,7 @@ function gs_grid_to_xlsx(array $grid, string $path): void
 
 function gs_tmp(): string
 {
-    $dir = NM_ROOT . '/data/tmp';
+    $dir = nm_data_dir() . '/tmp';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     return $dir . '/gs_' . bin2hex(random_bytes(8)) . '.xlsx';
 }
@@ -613,7 +613,7 @@ function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
     if (!is_file($file)) {
         $att = $src['att_id'] ? one('SELECT stored_name FROM attachments WHERE id = ?', [(int)$src['att_id']]) : null;
         if (!$att) return null;
-        $file = NM_ROOT . '/uploads/' . $att['stored_name'];
+        $file = nm_upload_dir() . '/' . $att['stored_name'];
         if (!is_file($file)) return null;
     }
     $tmp = gs_tmp();
@@ -778,7 +778,7 @@ function gs_mask_xlsx(string $path, array $headers, string $mode): int
 
 function gs_raw_path(int $sid): string
 {
-    $dir = NM_ROOT . '/data/gs';
+    $dir = nm_data_dir() . '/gs';
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     return $dir . '/kaynak-' . $sid . '.xlsx';
 }

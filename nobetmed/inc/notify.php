@@ -339,7 +339,7 @@ function job_review(): int
 
 function backup_dir(): string
 {
-    $d = NM_ROOT . '/data/backups';
+    $d = nm_data_dir() . '/backups';
     if (!is_dir($d)) mkdir($d, 0755, true);
     if (!is_file($d . '/.htaccess')) file_put_contents($d . '/.htaccess', "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Deny from all\n</IfModule>\n");
     return $d;
@@ -406,10 +406,10 @@ function backup_create(bool $withFiles, bool $keep, bool $auto = false): string
     $zip->addFile($dbFile, basename($dbFile));
     $zip->addFromString('BENIOKU.txt', "dupcii yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: data/.dbname.php dosyasında yazan adı bulun (ör. nm-....sqlite). Bu yedekteki dupcii-veritabani.sqlite dosyasını o adla yeniden adlandırıp data/ klasöründeki dosyanın yerine koyun; varsa aynı adlı -wal ve -shm dosyalarını silin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
     if ($withFiles) {
-        foreach (glob(NM_ROOT . '/uploads/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
-        foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
-        foreach (glob(NM_ROOT . '/uploads/avatars/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/avatars/' . basename($f));
-        foreach (glob(NM_ROOT . '/uploads/brand/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/brand/' . basename($f));
+        foreach (glob(nm_upload_dir() . '/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
+        foreach (glob(nm_upload_dir() . '/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
+        foreach (glob(nm_upload_dir() . '/avatars/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/avatars/' . basename($f));
+        foreach (glob(nm_upload_dir() . '/brand/*') ?: [] as $f) if (is_file($f)) $zip->addFile($f, 'uploads/brand/' . basename($f));
     }
     $zip->close();
     @unlink($dbFile);

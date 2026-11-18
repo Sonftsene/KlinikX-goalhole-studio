@@ -235,3 +235,17 @@ Cron kurmasanız da bu görevler site ziyaret edildikçe arka planda çalışır
 - **İşlem günlüğü:** Kim, ne zaman, ne yaptı (giriş, yayın, silme, liste yükleme, ayar değişikliği…).
 - **Belge içinde arama:** Arama kutusu PDF, Word ve Excel eklerinin içindeki metni de arar.
 - **WhatsApp ile paylaş:** İçerik ekranındaki WhatsApp düğmesi, portal bağlantısını gruba gönderir (içerik yine yalnızca giriş yapanlara açıktır).
+
+## 16. Birden çok hastane ve birim (4.0)
+
+Aynı siteyi başka birimler ve başka hastaneler de kullanabilir. **Kod tek, veriler ayrı:** her birimin kendi veritabanı ve dosya klasörü vardır; bir birimin kullanıcısı başka birimin kişilerini, nöbetlerini, hasta listelerini, dosyalarını ve bildirimlerini göremez.
+
+1. **Sistem yöneticisi hesabı (bir kez):** İlk birimin yöneticisi **Yönetim → Ayarlar → Güvenlik → Sistem yönetimi** kartından hesabı oluşturur. Telefonunuza Google Authenticator veya Microsoft Authenticator kurun, ekrandaki QR kodu okutun ve uygulamanın verdiği 6 haneli kodu girin. Anahtarı güvenli bir yere not edin.
+2. **Giriş:** Giriş ekranının altındaki **Sistem yönetimi** bağlantısı → e-posta + şifre + uygulamadaki kod. Bu hesap birimlerin içeriğini görmez; 30 dakika işlem yapılmazsa oturum kapanır.
+3. **Hastane ve birim ekleme:** Sistem yönetimi → **Hastane ekle** → hastanenin altında **Birim ekle** → **Yönetici ekle** (ad, e-posta). Geçici şifre bir kez gösterilir; ilk girişte değiştirilir. İsterseniz e-posta (SMTP) ayarları başka bir birimden kopyalanır.
+4. **Herkes aynı adresten girer:** E-posta ve şifre kişiyi kendi birimine götürür. Bir kişi yalnız bir birimde hesap açabilir. Birim yöneticisi ekibini kendi biriminden davet eder (QR ve davet bağlantıları birime özeldir).
+5. **Dondurma:** Bir birim veya hastanenin tüm birimleri geçici olarak kapatılabilir; veriler silinmez, açınca kaldığı yerden devam eder.
+6. **Cron:** Tek cron görevi yeterlidir; her birim ayrı ayrı çalıştırılır.
+
+Mevcut kurulumunuz güncellemede hiçbir şey taşınmadan **ilk birim** olarak kaydolur; adresler, şifreler ve veriler aynen kalır. (Çok birimli yapı SQLite ile çalışır; MySQL kurulumları tek birimli kalır.)
+

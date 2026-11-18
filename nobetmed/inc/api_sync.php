@@ -21,8 +21,8 @@ function gs_admin_out(): array
     return [
         'mode' => setting('gs_mode', 'push'),
         'token' => setting('gs_token'),
-        'push_url' => base_url() . 'api.php?action=gsync.push',
-        'tables_url' => base_url() . 'api.php?action=gsync.tables',
+        'push_url' => base_url() . 'api.php?action=gsync.push' . nm_link_param(),
+        'tables_url' => base_url() . 'api.php?action=gsync.tables' . nm_link_param(),
         'tables_at' => setting('gs_tables_at') ?: null,
         'script_v' => (int)setting('gs_script_v', '1'),
         'parser' => gs_load_parser(),

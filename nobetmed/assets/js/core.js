@@ -632,6 +632,8 @@ function setTheme(t) {
 }
 const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
 function appBaseUrl() { return location.origin + location.pathname.replace(/[^/]*$/, ''); }
+/** Çok birimli kurulumda bağlantıya eklenecek birim ipucu (varsayılan birimde boş) */
+function tenantQ() { return S.tenant && S.tenant.b ? '&b=' + encodeURIComponent(S.tenant.b) : ''; }
 function pwField(name, placeholder, autocomplete) {
   return html`<div class="pw-wrap"><input class="input" type="password" name="${name}" placeholder="${placeholder}" autocomplete="${autocomplete}" required minlength="${name === 'current' ? 1 : 8}"><button type="button" data-act="toggle-pw" aria-label="Şifreyi göster">${icon('eye')}</button></div>`;
 }

@@ -12,10 +12,11 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.11.0';
+const NM_VERSION = '4.0.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 12;
 const NM_ROOT = __DIR__ . '/..';
+require_once __DIR__ . '/tenant.php';
 
 // data/ (veritabanı) ve uploads/ (dosyalar) pakette yoktur; güncellemede üzerine yazılmasın diye ilk açılışta burada oluşur
 foreach (['data', 'uploads'] as $nmDir) {
@@ -81,6 +82,8 @@ function db(): PDO
     if (DB_DRIVER === 'mysql') {
         $pdo = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS, $opts);
     } else {
+        nm_tenant(); // birim bu noktada kesinleşir; bu istek başka birimin veritabanını açamaz
+        $GLOBALS['NM_DB_OPEN'] = true;
         $pdo = new PDO('sqlite:' . sqlite_path(), null, null, $opts);
         $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA foreign_keys = ON');
@@ -89,9 +92,9 @@ function db(): PDO
         // oluşturulmuş) olabilir: klasörde daha çok kullanıcısı olan eski veritabanı varsa ona geri dön
         if (($cnt = sqlite_user_count($pdo)) <= 1 && ($old = sqlite_find_existing(basename(sqlite_path()), $cnt))) {
             $pdo = null;
-            file_put_contents(NM_ROOT . '/data/.dbname.php', "<?php return '$old';\n");
+            file_put_contents(nm_data_dir() . '/.dbname.php', "<?php return '$old';\n");
             error_log('[dupcii] boş veritabanı yerine mevcut veriler kullanılıyor: ' . $old);
-            $pdo = new PDO('sqlite:' . NM_ROOT . '/data/' . $old, null, null, $opts);
+            $pdo = new PDO('sqlite:' . nm_data_dir() . '/' . $old, null, null, $opts);
             $pdo->exec('PRAGMA journal_mode = WAL');
             $pdo->exec('PRAGMA foreign_keys = ON');
             $pdo->exec('PRAGMA busy_timeout = 5000');
@@ -107,7 +110,7 @@ function db(): PDO
  */
 function sqlite_path(): string
 {
-    $dir = NM_ROOT . '/data';
+    $dir = nm_data_dir();
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $nameFile = $dir . '/.dbname.php';
     $name = is_file($nameFile) ? (string)(include $nameFile) : '';
@@ -141,7 +144,8 @@ function sqlite_find_existing(string $except, int $minUsers = 0): ?string
 {
     $best = null;
     $bestKey = [0, 0];
-    foreach (glob(NM_ROOT . '/data/{nm-*.sqlite,nobetmed.sqlite}', GLOB_BRACE) ?: [] as $f) {
+    $dir = nm_data_dir();
+    foreach (glob($dir . '/{nm-*.sqlite,nobetmed.sqlite}', GLOB_BRACE) ?: [] as $f) {
         $n = basename($f);
         if ($n === $except || !preg_match('/^(nm-[a-f0-9]{24}|nobetmed)\.sqlite$/', $n)) continue;
         try {
@@ -154,7 +158,7 @@ function sqlite_find_existing(string $except, int $minUsers = 0): ?string
     }
     if ($best === 'nobetmed.sqlite') {
         $name = 'nm-' . bin2hex(random_bytes(12)) . '.sqlite';
-        foreach (['', '-wal', '-shm'] as $sfx) if (is_file(NM_ROOT . '/data/nobetmed.sqlite' . $sfx)) @rename(NM_ROOT . '/data/nobetmed.sqlite' . $sfx, NM_ROOT . '/data/' . $name . $sfx);
+        foreach (['', '-wal', '-shm'] as $sfx) if (is_file($dir . '/nobetmed.sqlite' . $sfx)) @rename($dir . '/nobetmed.sqlite' . $sfx, $dir . '/' . $name . $sfx);
         $best = $name;
     }
     return $best;
@@ -495,6 +499,7 @@ function base_url(): string
     if (defined('APP_URL') && APP_URL !== '') return rtrim((string)APP_URL, '/') . '/';
     $s = (string)setting('site_url', '');
     if ($s !== '') return $s;
+    if (nm_multi() && ($m = m_setting('site_url')) !== '') return $m; // yeni birim: sitenin adresi merkezden
     if (PHP_SAPI === 'cli') return 'http://localhost/';
     return request_base_url();
 }
@@ -530,6 +535,7 @@ function ensure_initial_admin(): void
 {
     if (!defined('INITIAL_ADMIN_EMAIL') || INITIAL_ADMIN_EMAIL === '' || !defined('INITIAL_ADMIN_PASSWORD_HASH') || INITIAL_ADMIN_PASSWORD_HASH === '') return;
     if (setting('initial_admin_done') === '1') return;
+    if (nm_multi() && (int)nm_tenant()['is_default'] !== 1) return; // config.php'deki ilk yönetici yalnız ilk (varsayılan) birim içindir
     $email = mb_strtolower(trim(INITIAL_ADMIN_EMAIL));
     if (!one('SELECT id FROM users WHERE email = ?', [$email])) {
         $name = defined('INITIAL_ADMIN_NAME') && INITIAL_ADMIN_NAME !== '' ? INITIAL_ADMIN_NAME : 'Yönetici';
@@ -537,6 +543,7 @@ function ensure_initial_admin(): void
         $unitId = val('SELECT id FROM units ORDER BY sort, id LIMIT 1');
         q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
             [$name, $email, INITIAL_ADMIN_PASSWORD_HASH, $titleId ?: null, $unitId ?: null, 'admin', 'active', now()]);
+        nm_dir_put($email);
     }
     if (defined('INITIAL_ORG_NAME') && INITIAL_ORG_NAME !== '' && setting('org_name', 'Klinik Portalı') === 'Klinik Portalı') {
         set_setting('org_name', INITIAL_ORG_NAME);
@@ -550,6 +557,12 @@ function current_user(): ?array
     if ($user !== false) return $user;
     nm_session();
     $user = null;
+    // Oturum yalnız açıldığı birimde geçerlidir; dondurulmuş birimde kimse giremez
+    if (!empty($_SESSION['uid']) && nm_multi()) {
+        $t = nm_tenant();
+        if (empty($_SESSION['t'])) { if ((int)$t['is_default'] === 1) $_SESSION['t'] = $t['tkey']; }
+        if ((string)($_SESSION['t'] ?? '') !== (string)$t['tkey'] || nm_tenant_frozen($t)) return $user;
+    }
     if (!empty($_SESSION['uid'])) {
         $u = one('SELECT * FROM users WHERE id = ?', [(int)$_SESSION['uid']]);
         if ($u && $u['status'] === 'active') {

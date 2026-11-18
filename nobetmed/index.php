@@ -36,7 +36,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
 <body>
   <div id="app"><div class="boot-splash"><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
-<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'pwa', 'main'] as $js): ?>
+<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'pwa', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>
 <?php endforeach; ?>
 </body>

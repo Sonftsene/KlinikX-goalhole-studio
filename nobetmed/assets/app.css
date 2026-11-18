@@ -1253,3 +1253,12 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .gs-src .tiny.ellipsis { white-space: normal; }
 .gs-wait { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border-radius: 10px; background: var(--warn-soft); color: var(--text); }
 .gs-wait svg.i { flex-shrink: 0; margin-top: 2px; }
+
+/* Sistem yönetimi (süper yönetici) */
+.sys { min-height: 100vh; min-height: 100dvh; background: var(--bg); }
+.sys-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--border); }
+.sys-top .brand-img { max-height: 28px; }
+.sys-main { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+.sys-h.frozen, .sys-t.frozen { opacity: .65; }
+.sys-t .mk-act { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) { .sys-who, .sys-top .btn span { display: none; } .sys-t { flex-wrap: wrap; } .sys-t .mk-act { width: 100%; justify-content: flex-start; } }

@@ -630,7 +630,7 @@ ACT.share = () => {
   const canGuest = S.settings.allow_guest && (isPublisher() || p.author_id === S.me.id);
   const m = openModal({ title: 'Paylaş', size: 'narrow' });
   const render = () => {
-    const link = p.share ? appBaseUrl() + '?s=' + encodeURIComponent(p.share.token) : '';
+    const link = p.share ? appBaseUrl() + '?s=' + encodeURIComponent(p.share.token) + tenantQ() : '';
     m.setBody(html`
       <div class="stack" style="gap:18px">
         <div class="stack" style="gap:8px">
@@ -660,7 +660,7 @@ ACT.share = () => {
         const r = await api('posts.share', { id: p.id, days: +b.dataset.shareDays });
         p.share = r.share;
         render();
-        if (r.share) toast((await copyText(appBaseUrl() + '?s=' + encodeURIComponent(r.share.token))) ? 'Misafir bağlantısı oluşturuldu ve kopyalandı' : 'Misafir bağlantısı oluşturuldu');
+        if (r.share) toast((await copyText(appBaseUrl() + '?s=' + encodeURIComponent(r.share.token) + tenantQ())) ? 'Misafir bağlantısı oluşturuldu ve kopyalandı' : 'Misafir bağlantısı oluşturuldu');
         else toast('Misafir bağlantısı iptal edildi');
       } catch (err) { toast(err.message, 'err'); }
     });

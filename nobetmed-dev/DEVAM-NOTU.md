@@ -23,19 +23,19 @@ Bu dosya, önceki geliştirme sohbetinin özetidir. Yeni oturumda önce bunu, so
 - Google E-Tablolar: kullanıcının Apps Script kodu (`assets/js/taraf.js` → `gsScript`) tabloları siteye gönderir (`inc/gsync.php`). Nöbet tablolarında çıkarılan sekmeler, hasta listesinde seçilen sekmeler saklanır; hasta adı koruması `gs_mask_guard()`.
 
 ## Durum
-- Son yayımlanan paket: **3.11.0** (`dist/dupcii-hostinger.zip`, kullanıcıya gönderildi).
-- 3.11.0: `callout.delete` (yönetici/yayıncı; gelecekteki çağrıda gönüllülere bildirim), Değişim geçmişinde her kayıtta sil düğmesi (`hist-del` → listing/swap/callout delete), yayıncıya sorulan çağrıda kendi yanıtı (`callout.get` → `me`), “Gelemez” yanıtı da çağrıyı açana bildirilir. Test: e2e-market sonunda silme adımı.
-- **Büyük proje başladı:** çok hastaneli, modüllü portal — plan `YOL-HARITASI.md` (4.x). Sıradaki: 4.0 çok hastaneli altyapı (merkez/hastane/birim veri ayrımı, tek giriş, süper yönetici). Tasarım notları: tüm DB erişimi `db()`'den; 25 dosya yolu (`NM_ROOT . '/data'`, `'/uploads'`) birim yardımcısına bağlanacak; mevcut kurulum yerinde kalıp 1. birim olur; anahtarlı herkese açık uçlar (gsync token, davet/QR, misafir, şifre sıfırlama, ICS, passkey girişi) birime yönlendirilmeli.
-- 3.10.4: telefon bildirimlerinde Android durum çubuğu simgesi için şeffaf tek renk `assets/badge-96.png` (`sw.js` badge); yöneticinin yüklediği uygulama simgesi (`brand icon192`) `push.pending` ile bildirim simgesi olur. iPhone bildirimde her zaman ana ekrandaki uygulama simgesini gösterir (değiştirilemez).
-- 3.10.3 içeriği:
-  - Google kodu her dakika kontrol eder (`everyMinutes(1)`, `SURUM = 2`, `X-Script` → `gs_script_v`; eski kod için ayarlarda uyarı). Kullanıcı Google'daki kodu yenisiyle değiştirip `kur`'u bir kez çalıştırmalı.
-  - Ana sayfa/takvim dakikada bir ve uygulamaya dönünce liste değişikliğini alır (`rosters.js` → `rosterAutoSync`).
-  - Hasta adı koruması (`gs_mask_guard`): yalnız gösterilen sekmeler; altında veri olan ayarsız "Hasta…" sütunu → durdur; ayarlı başlık gösterilen sekmelerde yok ve o sekmelerde veri var → durdur; yalnız başlıklı sekme durdurmaz. Birim testi `php nobetmed-dev/gsync-guard-test.php`.
-  - Telefonda Excel tablo kutusu üst çubuk ile alt menü arasını doldurur; tablo kaydırılmaya başlanınca sayfa tablonun başına oturur (`rsAlignView`), iç içe kaydırma hissi kalmaz.
-- 3.10.3 testleri: SQLite + MySQL (katı mod) tam takım, güncelleme testi (3.10.2 verisi üstüne), e-posta, shiftparse, push/SW, webauthn, guard — hepsi geçti, sunucu günlüğünde uyarı yok.
-- **Sıradaki iş:** kullanıcının canlı sitesini incele (bu bulut oturumu Chrome'a erişemez; kullanıcı bilgisayarını bağlamalı ya da adres vermeli), Hostinger e-posta/SMTP + cron ayarlarında yardım.
-- Kullanıcıya verilen öneriler: Google'daki kodda `everyMinutes(1)` + `kur`; Hostinger'da e-posta hesabı + dupcii SMTP (smtp.hostinger.com, 465, SSL), PHP 8.1+, HTTPS'ye zorla, 5 dakikalık cron.
-- Bilinçli olarak yapılmayanlar: yılı belirsiz ay sekmelerinde yıl tahmini (gün satırı varsa sorun yok); tarayıcı saat dilimi Türkiye dışındaysa geri sayım kayması.
+- Son paket: **4.0.0** (çok hastaneli altyapı). Önceki: 3.11.0 (silme yetkileri), 3.10.4 (bildirim simgesi), 3.10.3.
+- Kullanıcının sitesi **SQLite** (config.php `DB_DRIVER sqlite`) → çok birimli yapı etkin olacak.
+- 4.0 mimarisi (ayrıntı `MODUL-REHBERI.md` › Çok birimli yapı, kullanıcı için `KURULUM.md` §16):
+  - `inc/tenant.php`: merkez SQLite (`data/merkez/`: hospitals, tenants, dir_email (HMAC), superadmins, sa_audit, sa_attempts, m_settings), `nm_tenant()` istek başına tek birim (oturum `t` → bağlantı `b`/oturum `tb` → varsayılan), `nm_tenant_use()` yalnız db açılmadan, `nm_data_dir()/nm_upload_dir()`, `nm_link_param()`, dizin `nm_dir_put/del/find`, `nm_email_guard`.
+  - Eski kurulum yerinde kalır = varsayılan birim (`dir=''`); yeni birimler `data/b/<anahtar>/`, `uploads/b/<anahtar>/`.
+  - Giriş: `nm_route_tenant()` (auth.login/forgot → e-posta dizini; passkey → userHandle `u<id>@<anahtar>`; Google → a_google içinde). Oturum birime bağlı (`$_SESSION['t']`); dondurulmuş birim 423.
+  - Birden çok birim varken oturumsuz açılış tarafsız (org_name "dupcii", kayıt kapalı) — bağlantıda `?b=` yoksa.
+  - `inc/mod_sistem.php` (`sa.*`): ilk birimin yöneticisi Ayarlar › Güvenlik'ten bir kez sistem yöneticisi açar (TOTP zorunlu, kod tekrar kullanılamaz, 30 dk boşta kapanır); panel: hastane/birim ekle, birim yöneticisi (geçici şifre, SMTP kopyalama), dondur, günlük. İçerik görmez.
+  - `cron.php`: birden çok birimde her birim ayrı süreç (`--tenant=`); proc_open yoksa sırayla bir birim.
+  - Test: `nobetmed-dev/e2e-tenant.mjs` (diğer testlerden sonra).
+- **Sıradaki iş (YOL-HARITASI):** 4.1 modüller + yetkiler (süper yönetici modül aç/kapat; rol × modül izinleri), 4.2 hastane ortak rehber/belgeler (hastane DB'si), 4.3–4.4 mesajlaşma, 4.5 Excel'siz çizelge + aktarım, 4.6 ek modüller.
+- Kullanıcı kararları: kişi tek birimde; hastane içinde rehber ortak, protokoller hastane geneli/birime özel; tek adres; birkaç hastane ile başlanacak.
+- Bilinçli olarak yapılmayanlar: yılı belirsiz ay sekmelerinde yıl tahmini; tarayıcı saat dilimi Türkiye dışındaysa geri sayım kayması; MySQL'de çok birim.
 
 ## Test
 - Temel + özellikler: `bash fullrun.sh <n> <port>` benzeri: siteyi `data/` ve `uploads/` hariç geçici klasöre kopyala, `php -S localhost:<port> -t <klasör>`, sonra sırayla

@@ -26,6 +26,7 @@ async function start() {
   if (typeof prefsOnBoot === 'function') { try { prefsOnBoot(); } catch (e) { /* */ } }
   document.title = 'dupcii · ' + (S.settings.org_name || 'Klinik Portalı');
   applyBrand();
+  if (r.sa && typeof renderSistem === 'function') return renderSistem();
   if (r.setup_needed) return renderSetup();
   if (BOOT.reset && !start.resetShown) {
     start.resetShown = true;

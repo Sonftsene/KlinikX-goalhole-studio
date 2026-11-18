@@ -52,6 +52,15 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - **Kayıt noktaları (core.js `NM_EXT`):** `routes`, `nav`, `hubTabs`, `homeCards` ({id, title, icon, order, place: 'top'|'side', render: async (el) => {}}), `settingsCards` ({sec: 'nobet', html: (A) => html, mount}), `dayActions` ((entry, tarih) => html — Takvimim'de kendi nöbet satırına düğme), `notif[tur] = [renkTonu, ikon]`, `audit[eylem] = 'etiket'`.
 - Mevcut stil sınıfları: card, card-pad, card-head, list, list-row, lr-t, lr-s, btn (primary, sm, icon, ghost, danger), badge (brand, success, warn, danger, info), seg, sec-title, field, input, select, textarea, switch, grid2, row, wrap, stack, small, tiny, muted, faint, empty, tone-* renkleri. Değişkenler: --brand, --violet, --surface, --surface-2, --border, --text-2, --danger, --c-emerald, --c-indigo, --c-amber … Koyu temada da düzgün görünmeli; telefon (390 px) önce.
 
+## Çok birimli yapı (4.0) — her modül için kurallar
+- Bir istek yalnız TEK birimin veritabanını açar (`db()` ilk çağrıda `nm_tenant()` ile kesinleşir). Modül kodu birim seçmez, başka birimin verisine bakmaz.
+- Dosya yolları için **her zaman** `nm_data_dir()` (veritabanı yanındaki dosyalar, yedek, geçici) ve `nm_upload_dir()` (ekler, fotoğraflar) kullanın; `NM_ROOT . '/data'` / `'/uploads'` YAZMAYIN.
+- Oturumsuz bağlantı üreten yerler (e-posta bağlantıları, davet, misafir, dış sistemin çağıracağı adres) sona `nm_link_param()` ekler (istemcide `tenantQ()`).
+- Kullanıcı ekleyen / e-posta değiştiren / silen kod: önce `nm_email_guard($email)`, sonra `nm_dir_put($email)` / `nm_dir_del($email)` (e-posta → birim dizini).
+- Önbellek (`static`) serbesttir: bir PHP süreci tek birimle çalışır (cron her birimi ayrı süreçte çalıştırır).
+- Süper yönetici uçları `inc/mod_sistem.php` (`sa.*`); birim içeriği görmez, `nm_tenant_peek()` yalnız sayılar ve ayar kopyalama içindir.
+- Test: `nobetmed-dev/e2e-tenant.mjs` (diğer testlerden SONRA çalışır; ikinci birim açar).
+
 ## Gizlilik ve güvenlik
 - Depo HERKESE AÇIK: gerçek kişi/hastane adı, e-posta, şifre, gerçek Excel dosyaları depoya girmez. Testlerde uydurma adlar kullanın.
 - Her uçta yetki denetimi; yalnız yetkili kişiye görünmesi gereken bilgiyi sunucu hiç göndermesin (istemcide gizlemek yetmez).
