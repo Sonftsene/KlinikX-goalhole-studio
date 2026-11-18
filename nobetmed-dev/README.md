@@ -26,3 +26,6 @@ Bu klasör sunucuya **yüklenmez**; yalnızca test ve önizleme içindir.
 - `build-preview.mjs` — Uygulamayı demo API ile tek HTML dosyasına paketler: `node build-preview.mjs onizleme.html [liste-klasörü]`
   (ikinci argüman verilirse o klasördeki .xlsx dosyaları önizlemede nöbet listesi olarak kullanılır; gerçek isimli listeler repoya konmaz)
 - `package.sh` — Hostinger'a yüklenecek ZIP'i üretir.
+
+## Güncelleme testi (her sürümden önce)
+Önceki sürümün commit'inden bir çalışma ağacı açın, onun `e2e.mjs`'i ile veri oluşturun, sonra yeni `dist/dupcii-hostinger.zip`'i aynı klasöre açıp yeni `e2e-features.mjs` ve modül testlerini çalıştırın. Sunucu günlüğünde “no such column” olmamalı.

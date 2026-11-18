@@ -134,6 +134,14 @@ Tablo “bağlantıya sahip herkes görüntüleyebilir” olarak paylaşıldıys
 
 **Nöbet › Taraf / Bloklar** sayfasında yayıncı ve yönetici o günkü nöbetçileri bloklara yerleştirir: **Otomatik dağıt** gereken sayılara göre önce herkesi kendi tarafına koyar, eksik taraf için diğer taraftan en az geçmiş kişiler arasından kura çeker (muaflar hariç; 24 saat tutan kişi gün boyu aynı blokta kalır). Sonuç **Kaydet**'le kesinleşir; elle de düzenlenebilir. Son yerleşim ana sayfada herkese görünür, her adın yanında parantez içinde karşı tarafa geçiş sayısı yazar. Herkes geçmiş veya ileri bir günü seçip o günün yerleşimine bakabilir. Geçmişe dönük geçiş sayıları yayıncı/yönetici tarafından elle girilebilir. Gereken nöbetçi sayıları ve muafiyetler **Ayarlar › Nöbet**'tedir.
 
+- **Sorumlular ekibi:** Taraf sayfasındaki “Sorumlular ekibi · sabit kişiler” kartından sabit kişileri seçin. Nöbetteyseler her zaman Sorumlular'a yerleşir, otomatik dağıtımda A/B/C'ye ve kuraya girmez. İstisna olarak bir kişi aynı gün en fazla 2 yerde olabilir (ör. 08-16 Sorumlular, 16-08 A blok); saatler çakışamaz.
+- **Elle düzenleme:** Kişiye dokunup başka bloğa/tarafa/Sorumlular'a taşıyın, gündüz-gece bölün.
+- **Oflama:** Gündüz, gece veya 24 saat “oflandı” işaretlenir; oflanan kısım blok sayısına ve karşıya geçişe dahil olmaz.
+- **Çağrılan kişi:** Eksik olunca o gün listede olmayan birini bloğa veya Sorumlular'a ekleyin; hesaba dahil olur.
+- **Nöbete gelecek kişi:** (ör. hasta yatışı olursa gelecek kişi) A/B/C'den ayrı satırda görünür, hesaba girmez; gelince “Geldi” ile bir yere alınır.
+- **WhatsApp'ta paylaş:** Yönetici ve yayıncı kaydedilmiş günü **Paylaş** ile tablo görseli olarak WhatsApp'a gönderebilir (veya metin olarak kopyalayabilir).
+- **Nöbet hesaplarına dahil edilmeyenler:** Listede adı olup nöbet düzenine girmeyen kişiler (ör. yaşlı bakım personeli) Kullanıcılar menüsünden veya Ayarlar › Nöbet'ten işaretlenir; yerleşime, kuraya, sayımlara, çağrıya ve değişime hiç girmez.
+
 Eski yöntem: **Nöbet › Taraf** sayfasında taraflar tanımlanır (ör. 3. Basamak → B blok, 2. Basamak → A blok ve C blok) ve her taraf bir nöbet listesine bağlanır. Bir gün karşı tarafa personel gerekince o gün nöbetçi olanlar arasından **Kura çek** denir: önce hiç ya da en az geçmiş olanlar seçilir, eşitlik varsa aralarında kura çekilir. Gece içeren nöbetler (16-08, 08-08) 1 geçiş sayılır; 08-16 sayılmaz. Sayfada aylık tablo (kim hangi gün nerede), kişi başı aylık ve toplam geçiş sayısı, adaylar ve kura sonucu kayıtlı görünür. Kura başka yerde çekildiyse **Elle kaydet** kullanılır. Kaydı o gün nöbette olanlar veya sorumlular yapabilir.
 
 ### 8c. Nöbet değişimi ve devri

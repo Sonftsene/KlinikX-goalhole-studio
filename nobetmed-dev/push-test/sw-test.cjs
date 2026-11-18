@@ -117,6 +117,9 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   check(versioned.some((u) => /core\.js\?v=/.test(u)), 'sürümlü anahtar saklandı: ' + versioned.join(', '));
 
   // ---------- (c) dosya önbelleği ----------
+  // Uygulama açılışı bitsin: girişsiz açılışta kişisel dosya önbelleği bilerek temizlenir (yarış olmasın)
+  await page.waitForFunction(() => !document.querySelector('#app .boot-splash'), null, { timeout: 15000 }).catch(() => {});
+  await sleep(400);
   const f1 = await page.evaluate(async () => {
     const r = await fetch('api.php?action=file&id=1');
     const b = await r.arrayBuffer();

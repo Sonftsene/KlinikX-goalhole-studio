@@ -67,3 +67,7 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - `holidayMapOrNull()` → `{ 'YYYY-MM-DD': { name, half, kind: 'resmi'|'bayram' } }` (S.holidays'ten); `summarizeMonth(entries, y, m, holidays)` tatilleri zorunlu saatten düşer.
 - Ana sayfa kartları kişinin “Ana sayfam” ayarına göre gizlenir/sıralanır (`homePrefs()`); yerleşik bloklar `data-home` ile işaretlidir.
 - Profil sekmesi eklemek: `NM_EXT.profileTabs.push({ key, label, icon, html, mount })`.
+
+## Veritabanı değişikliği yaparken
+- `inc/bootstrap.php`'de tablo veya sütun eklediyseniz **`NM_SCHEMA` sabitini bir artırın**. Artırılmazsa yeni kurulumlarda çalışır ama mevcut sitelerde güncelleme adımı atlanır ve “no such column” hatası çıkar.
+- Bunu yakalayan test: önceki sürümle veri oluşturup yeni paketi üzerine açmak, ardından yeni testleri çalıştırmak (bkz. README “Güncelleme testi”).
