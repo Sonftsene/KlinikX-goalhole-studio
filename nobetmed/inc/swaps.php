@@ -41,6 +41,8 @@ function swap_timeline(int $rid, string $from, string $to): array
     $rows = all('SELECT s.* FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.roster_id = ? AND s.date >= ? AND s.date <= ? ORDER BY s.date', [$rid, $from, $to]);
     $tl = [];
     foreach ($rows as $r) {
+        // "Nöbet hesaplarına dahil etme" işaretli kişi hiçbir hesaba, yerleşime, çağrıya, değişime girmez
+        if (function_exists('rules_is_excluded') && rules_is_excluded((string)$r['name'])) continue;
         $k = swap_key((string)$r['name']);
         if (!isset($tl[$k])) $tl[$k] = ['name' => $r['name'], 'title' => $r['title'], 'days' => []];
         if (!isset($tl[$k]['days'][$r['date']]) || $r['kind'] === 'shift') $tl[$k]['days'][$r['date']] = $r;

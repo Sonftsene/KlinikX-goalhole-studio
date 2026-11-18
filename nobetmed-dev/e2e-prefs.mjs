@@ -183,6 +183,37 @@ try {
   }
   await a.screenshot({ path: path.join(OUT, 'p-ayarlar-nobet.png'), fullPage: true });
   step('ayarlar › nöbet: muafiyet eklendi, tatil eklendi/silindi');
+
+  // 8) Nöbet hesaplarına dahil edilmeyen kişi: değişim seçeneklerinde, adaylarda hiç çıkmaz
+  const future = (my.entries || []).filter((e) => e.kind === 'shift' && e.date > new Date().toISOString().slice(0, 10)).map((e) => e.date);
+  let optDate = null, victim = null;
+  for (const d of future) {
+    const o = await apiCall(m, 'swap.options', { date: d }).catch(() => null);
+    const cand = o && [...(o.swap || []), ...(o.give || [])][0];
+    if (cand) { optDate = d; victim = cand.name; break; }
+  }
+  if (victim) {
+    await a.goto(BASE + '#/yonetim/ayarlar/nobet');
+    await a.locator('#exclCard #exclName').waitFor();
+    if (!(await a.locator('#exclNames option').count())) fail('ad önerileri boş');
+    await a.fill('#exclName', victim);
+    await a.click('[data-act=excl-add]');
+    await a.locator('#exclCard .ex-row').first().waitFor();
+    const o2 = await apiCall(m, 'swap.options', { date: optDate });
+    if ([...(o2.swap || []), ...(o2.give || [])].some((p) => p.name === victim)) fail('hesap dışı kişi değişim seçeneklerinde: ' + victim);
+    await a.click('#exclCard [data-act=excl-del]');
+    await a.getByText('Yeniden dahil edildi').waitFor();
+    const o3 = await apiCall(m, 'swap.options', { date: optDate });
+    if (![...(o3.swap || []), ...(o3.give || [])].some((p) => p.name === victim)) fail('yeniden dahil edilen kişi seçeneklere dönmedi');
+    // Kullanıcı hesabından işaret: Kullanıcılar menüsü
+    const uid = (await apiCall(a, 'admin.users')).users.find((u) => u.email === 'elif@test.com').id;
+    const r1 = await apiCall(a, 'rules.excluded.save', { user_id: uid, on: true });
+    if (!r1.excluded.some((x) => x.user_id === uid)) fail('kullanıcı işareti kaydedilmedi');
+    await a.goto(BASE + '#/yonetim/kullanicilar');
+    await a.getByText('Nöbet hesabı dışı').first().waitFor();
+    await apiCall(a, 'rules.excluded.save', { user_id: uid, on: false });
+    step('hesap dışı kişi: "' + victim + '" değişim seçeneklerinden çıktı, geri alınınca döndü; kullanıcı rozeti görünüyor');
+  } else step('hesap dışı kişi: uygun değişim seçeneği bulunamadı (atlandı)');
   const ex = await apiCall(a, 'rules.get');
   for (const x of ex.exempt) await apiCall(a, 'rules.exempt.delete', { id: x.id });
   await apiCall(m, 'me.prefs.save', { kind: 'pay', value: {} });

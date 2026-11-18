@@ -99,6 +99,24 @@ function gs_dict(): ?array
     return is_array($j) && $j ? $j : null;
 }
 
+/** Dosyanın içerik özeti: kaydetme zamanı gibi belge bilgileri (docProps) hariç — içerik aynıysa "değişti" sayılmaz */
+function gs_content_hash(string $file): string
+{
+    if (class_exists('ZipArchive')) {
+        $z = new ZipArchive();
+        if ($z->open($file) === true) {
+            $names = [];
+            for ($i = 0; $i < $z->numFiles; $i++) { $n = (string)$z->getNameIndex($i); if (!str_starts_with($n, 'docProps/')) $names[] = $n; }
+            sort($names);
+            $ctx = hash_init('sha256');
+            foreach ($names as $n) { hash_update($ctx, $n . "\0"); hash_update($ctx, (string)$z->getFromName($n)); }
+            $z->close();
+            if ($names) return 'c' . hash_final($ctx);
+        }
+    }
+    return hash_file('sha256', $file) ?: '';
+}
+
 function gs_sources(): array
 {
     return all('SELECT * FROM gs_sources ORDER BY id');
@@ -127,7 +145,7 @@ function gs_status(int $sid, string $msg, bool $ok = true): void
 function gs_ingest(array $src, string $file, string $title = '', bool $force = false, ?int $onlyRoster = null): array
 {
     $sid = (int)$src['id'];
-    $hash = hash_file('sha256', $file) ?: '';
+    $hash = gs_content_hash($file);
     gs_src_set($sid, ['seen' => now()]);
     if (!$force && $hash !== '' && $hash === (string)$src['hash']) {
         @unlink($file);

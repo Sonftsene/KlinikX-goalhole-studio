@@ -45,7 +45,7 @@ await login(m, 'elif@test.com', 'YeniSifre99');
 await m.goto(BASE + '#/');
 await m.locator('#heroShift .hs-t').waitFor();
 const kpi = await m.locator('#heroShift').innerText();
-if (!/nöbetin var|nöbettesin/.test(kpi)) fail('Bugün kartı: ' + kpi);
+if (!/nöbetin var|nöbettesin|nöbetin başlıyor/.test(kpi)) fail('Bugün kartı: ' + kpi);
 if (!(await m.locator('.hero .hchip[href="#/okunacak"]').count())) fail('okunacak çipi yok');
 await m.locator('#todayCard .duty-chip').first().waitFor({ timeout: 8000 }).catch(() => fail('bugün nöbette kartı boş'));
 await m.screenshot({ path: path.join(OUT, 'f-home-mobile.png') });

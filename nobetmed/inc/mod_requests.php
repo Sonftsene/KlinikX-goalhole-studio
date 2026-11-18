@@ -120,12 +120,13 @@ function rq_roster_people(array $rids, string $ym): array
     $sql = "SELECT DISTINCT s.roster_id, s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id
         WHERE s.roster_id IN (%s) AND s.date >= ? AND s.date <= ?";
     $out = [];
-    foreach (all(sprintf($sql, $in), [$ym . '-01', rq_month_end($ym)]) as $r) $out[(int)$r['roster_id']][swap_key((string)$r['name'])] = (string)$r['name'];
+    $excl = fn($n) => function_exists('rules_is_excluded') && rules_is_excluded((string)$n); // nöbet hesabı dışı kişiler sayılmaz
+    foreach (all(sprintf($sql, $in), [$ym . '-01', rq_month_end($ym)]) as $r) if (!$excl($r['name'])) $out[(int)$r['roster_id']][swap_key((string)$r['name'])] = (string)$r['name'];
     $missing = array_values(array_diff($rids, array_keys($out)));
     if ($missing) {
         $from = date('Y-m-01', strtotime($ym . '-01 -2 months'));
         $to = date('Y-m-d', strtotime($ym . '-01 -1 day'));
-        foreach (all(sprintf($sql, implode(',', $missing)), [$from, $to]) as $r) $out[(int)$r['roster_id']][swap_key((string)$r['name'])] = (string)$r['name'];
+        foreach (all(sprintf($sql, implode(',', $missing)), [$from, $to]) as $r) if (!$excl($r['name'])) $out[(int)$r['roster_id']][swap_key((string)$r['name'])] = (string)$r['name'];
     }
     return $out;
 }
@@ -147,6 +148,7 @@ function rq_month_shifts(array $rids, string $ym): array
     $out = [];
     foreach (all("SELECT s.name, s.date, s.code FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id
         WHERE s.roster_id IN (" . implode(',', $rids) . ") AND s.kind = 'shift' AND s.date >= ? AND s.date <= ?", [$ym . '-01', rq_month_end($ym)]) as $r) {
+        if (function_exists('rules_is_excluded') && rules_is_excluded((string)$r['name'])) continue;
         $out[swap_key((string)$r['name'])][$r['date']] = (string)$r['code'];
     }
     return $out;

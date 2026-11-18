@@ -62,7 +62,7 @@ async function drawUsers(body) {
     <div class="card"><div class="table-wrap"><table class="t users-t">
       <thead><tr><th>Kişi</th><th>Ünvan / Birim</th><th>Yetki</th><th>Durum</th><th>Son giriş</th><th></th></tr></thead>
       <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}">
-        <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
+        <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
         <td><div class="small">${titleName(u.title_id) || html`<span class="faint">—</span>`}</div><div class="tiny faint">${unitName(u.unit_id)}</div></td>
         <td><span class="badge ${u.role === 'admin' ? 'brand' : u.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[u.role]}</span></td>
         <td>${u.status === 'pending' ? html`<span class="badge warn">Onay bekliyor</span>` : u.status === 'active' ? html`<span class="badge success">Aktif</span>` : html`<span class="badge">Pasif</span>`}</td>
@@ -100,7 +100,8 @@ ACT['u-approve'] = (el) => busy(el, async () => {
 ACT['u-menu'] = (el) => {
   const u = AD.users.find((x) => x.id === +el.dataset.id);
   const items = [{ id: 'e', icon: 'edit', label: 'Düzenle', run: () => userModal(u) },
-    { id: 'p', icon: 'key', label: 'Geçici şifre oluştur', run: () => resetPw(u) }];
+    { id: 'p', icon: 'key', label: 'Geçici şifre oluştur', run: () => resetPw(u) },
+    { id: 'n', icon: u.no_duty ? 'checkCircle' : 'eyeOff', label: u.no_duty ? 'Nöbet hesaplarına yeniden dahil et' : 'Nöbet hesaplarına dahil etme', run: () => setNoDuty(u, !u.no_duty) }];
   if (u.avatar) items.push({ id: 'a', icon: 'user', label: 'Profil fotoğrafını kaldır', run: async () => {
     if (!(await confirmDialog({ title: 'Fotoğraf kaldırılsın mı?', text: `${u.name} kullanıcısının profil fotoğrafı kaldırılacak.`, ok: 'Kaldır', danger: true }))) return;
     try { await api('me.avatar', { user_id: u.id, remove: true }); toast('Profil fotoğrafı kaldırıldı'); await refreshPeople(); afterUserChange(); } catch (e) { toast(e.message, 'err'); }
@@ -113,6 +114,11 @@ ACT['u-menu'] = (el) => {
   }
   openMenu(el, items);
 };
+/** Ör. yaşlı bakım personeli: blok yerleşimi, kura, eksik çağrısı, değişim ve sayımların hiçbirine girmez */
+async function setNoDuty(u, on) {
+  if (on && !(await confirmDialog({ title: `${u.name} nöbet hesaplarına dahil edilmesin mi?`, text: 'Blok yerleşimine, kuraya, eksik personel çağrısına, nöbet değişimine ve sayımlara hiç girmez. Kendi takvimini ve listeleri görmeye devam eder.', ok: 'Dahil etme' }))) return;
+  try { await api('rules.excluded.save', { user_id: u.id, on }); toast(on ? 'Artık nöbet hesaplarına dahil edilmiyor' : 'Nöbet hesaplarına yeniden dahil edildi'); afterUserChange(); } catch (e) { toast(e.message, 'err'); }
+}
 async function setStatus(u, status) {
   try { await saveUser(u, { status }); toast(status === 'active' ? 'Kullanıcı etkinleştirildi' : 'Kullanıcı pasifleştirildi; artık giriş yapamaz'); afterUserChange(); } catch (e) { toast(e.message, 'err'); }
 }

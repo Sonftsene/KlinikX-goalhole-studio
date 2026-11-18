@@ -466,13 +466,14 @@ const SCOPE_LABEL = { all: 'Tümünden', kura: 'Blok kurasından', kaydirma: 'Ka
 NM_EXT.settingsCards.push({
   sec: 'nobet', admin: true,
   html: () => html`<div class="card card-pad stack" data-sec="nobet" id="rulesCard"><h3 style="font-size:15px">${icon('users', 'sm')} Gereken nöbetçi sayıları</h3><div class="skel" style="height:14px;width:60%"></div></div>
+    <div class="card card-pad stack" data-sec="nobet" id="exclCard"><h3 style="font-size:15px">${icon('eyeOff', 'sm')} Nöbet hesaplarına dahil edilmeyenler</h3><div class="skel" style="height:14px;width:50%"></div></div>
     <div class="card card-pad stack" data-sec="nobet" id="exemptCard"><h3 style="font-size:15px">${icon('shield', 'sm')} Muafiyetler</h3><div class="skel" style="height:14px;width:50%"></div></div>
     <div class="card card-pad stack" data-sec="nobet" id="holCard"><h3 style="font-size:15px">${icon('calendar', 'sm')} Resmî tatiller ve bayramlar</h3><div class="skel" style="height:14px;width:50%"></div></div>`,
   mount: () => loadRulesCards(),
 });
 async function loadRulesCards() {
   try { RL.data = await api('rules.get'); } catch (e) { const c = $('#rulesCard'); if (c) setHTML(c, html`<p class="small muted">${e.message}</p>`); return; }
-  drawNeeds(); drawExempt(); drawHolidays();
+  drawNeeds(); drawExcluded(); drawExempt(); drawHolidays();
 }
 function drawNeeds() {
   const c = $('#rulesCard'); if (!c || !RL.data) return;
@@ -491,13 +492,35 @@ ACT['needs-save'] = (el) => busy(el, async () => {
   $$('[data-nd]').forEach((i) => { const [u, dt, pr] = i.dataset.nd.split('|'); ((needs[u] = needs[u] || {})[dt] = needs[u][dt] || {})[pr] = +i.value || 0; });
   try { const r = await api('rules.needs.save', { needs }); RL.data.needs = r.needs; toast('Gereken sayılar kaydedildi'); } catch (e) { toast(e.message, 'err'); }
 });
+/** Ad önerileri: kullanıcılar + listelerde adı geçen herkes */
+function rlNameOptions() {
+  const seen = new Set(), out = [];
+  [...(S.people || []).map((p) => p.name), ...((RL.data && RL.data.names) || [])].forEach((n) => { const k = n.toLocaleLowerCase('tr'); if (!seen.has(k)) { seen.add(k); out.push(n); } });
+  return out.map((n) => html`<option value="${n}"></option>`);
+}
+function drawExcluded() {
+  const c = $('#exclCard'); if (!c || !RL.data) return;
+  const list = RL.data.excluded || [];
+  setHTML(c, html`<div><h3 style="font-size:15px">${icon('eyeOff', 'sm')} Nöbet hesaplarına dahil edilmeyenler</h3><p class="small muted">Listede adı olsa da hemşire nöbet düzenine girmeyen kişiler (ör. yaşlı bakım personeli). Blok yerleşimine, kuraya, karşıya geçiş sayılarına, eksik personel çağrısına ve nöbet değişimine hiç girmezler. Hesabı olanları <a href="#/yonetim/kullanicilar">Kullanıcılar</a> sayfasından da işaretleyebilirsiniz.</p></div>
+    ${list.length ? html`<div>${list.map((x) => html`<div class="ex-row"><span class="grow"><b>${x.name}</b><span class="tiny faint" style="display:block">${x.source === 'user' ? 'Kullanıcı hesabından işaretli' : 'Ad ile eklendi'}</span></span><button type="button" class="btn ghost icon sm" data-act="excl-del" data-uid="${x.user_id || ''}" data-name="${x.name}" aria-label="Yeniden dahil et" title="Yeniden dahil et">${icon('x', 'sm')}</button></div>`)}</div>` : html`<p class="tiny faint">Herkes nöbet hesaplarına dahil.</p>`}
+    <div class="row wrap" style="gap:8px"> <datalist id="exclNames">${rlNameOptions()}</datalist><input class="input grow" id="exclName" list="exclNames" placeholder="Listedeki adı (ör. hesabı olmayan kişi)" style="min-width:200px"><button type="button" class="btn" data-act="excl-add">${icon('plus', 'sm')}Ekle</button></div>`);
+}
+ACT['excl-add'] = (el) => busy(el, async () => {
+  const name = $('#exclName').value.trim();
+  if (name.length < 3) { toast('Kişinin adını yazın.', 'err'); return; }
+  const p = (S.people || []).find((x) => x.name.toLocaleLowerCase('tr') === name.toLocaleLowerCase('tr'));
+  try { const r = await api('rules.excluded.save', p ? { user_id: p.id, on: true } : { name, on: true }); RL.data.excluded = r.excluded; drawExcluded(); toast('Nöbet hesaplarından çıkarıldı'); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['excl-del'] = (el) => busy(el, async () => {
+  try { const r = await api('rules.excluded.save', el.dataset.uid ? { user_id: +el.dataset.uid, on: false } : { name: el.dataset.name, on: false }); RL.data.excluded = r.excluded; drawExcluded(); toast('Yeniden dahil edildi'); } catch (e) { toast(e.message, 'err'); }
+});
 function drawExempt() {
   const c = $('#exemptCard'); if (!c || !RL.data) return;
   const list = RL.data.exempt || [];
   setHTML(c, html`<div><h3 style="font-size:15px">${icon('shield', 'sm')} Muafiyetler</h3><p class="small muted">Gebelik, sağlık raporu, sendika temsilciliği gibi durumlarda kişiyi blok kurasından, kaydırmadan veya eksik personel çağrısından muaf tutun. Bitiş tarihi geçince muafiyet kendiliğinden kalkar.</p></div>
     ${list.length ? html`<div>${list.map((x) => html`<div class="ex-row"><span class="grow"><b>${x.name}</b><span class="tiny faint" style="display:block">${SCOPE_LABEL[x.scope] || x.scope} muaf${x.until ? ` · ${fmtDate(x.until, true)} tarihine kadar` : ''}${x.note ? ' · ' + x.note : ''}</span></span>${x.active ? html`<span class="badge success">Etkin</span>` : html`<span class="badge">Süresi doldu</span>`}<button type="button" class="btn ghost icon sm" data-act="ex-del" data-id="${x.id}" aria-label="Kaldır">${icon('trash', 'sm')}</button></div>`)}</div>` : html`<p class="tiny faint">Muaf kişi yok.</p>`}
     <div class="stack" style="gap:8px">
-      <div class="grid2"><div class="field"><label for="exName">Kişi</label><input class="input" id="exName" list="exPeople" minlength="3" placeholder="Ad soyad"><datalist id="exPeople">${(S.people || []).map((p) => html`<option value="${p.name}"></option>`)}</datalist></div>
+      <div class="grid2"><div class="field"><label for="exName">Kişi</label><input class="input" id="exName" list="exPeople" minlength="3" placeholder="Ad soyad"><datalist id="exPeople">${rlNameOptions()}</datalist></div>
         <div class="field"><label for="exScope">Neyden muaf</label><select class="select" id="exScope">${Object.entries(SCOPE_LABEL).map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></div></div>
       <div class="grid2"><div class="field"><label for="exUntil">Bitiş tarihi (isteğe bağlı)</label><input class="input" type="date" id="exUntil"></div><div class="field"><label for="exNote">Not</label><input class="input" id="exNote" maxlength="200" placeholder="ör. rapor"></div></div>
       <div><button class="btn" type="button" data-act="ex-add">${icon('plus', 'sm')}Muafiyet ekle</button></div>

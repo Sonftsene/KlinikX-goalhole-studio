@@ -103,6 +103,50 @@ function shift_periods(array $row): array
 /* Muafiyet                                                            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Hesaplara hiç dahil edilmeyenler (ör. yaşlı bakım personeli)        */
+/* ------------------------------------------------------------------ */
+
+/** [['name', 'user_id'|null, 'source' => 'user'|'name']] — kullanıcı işareti + hesabı olmayanlar için ad listesi */
+function rules_excluded_list(): array
+{
+    $out = [];
+    foreach (all("SELECT id, name FROM users WHERE no_duty = 1 ORDER BY name") as $u) $out[] = ['name' => $u['name'], 'user_id' => (int)$u['id'], 'source' => 'user'];
+    $names = json_decode(setting('duty_excluded', '[]'), true);
+    foreach (is_array($names) ? $names : [] as $n) if (is_string($n) && trim($n) !== '') $out[] = ['name' => $n, 'user_id' => null, 'source' => 'name'];
+    return $out;
+}
+
+function rules_is_excluded(string $name): bool
+{
+    static $list = null;
+    if ($list === null) $list = array_column(rules_excluded_list(), 'name');
+    if (!$list || trim($name) === '') return false;
+    foreach ($list as $n) if (names_match((string)$n, $name)) return true;
+    return false;
+}
+
+/** {user_id, on} → kullanıcı işareti; {name, on} → hesabı olmayan kişi ad listesi */
+function a_rules_excluded_save(): void
+{
+    $me = need_publisher();
+    $on = b('on');
+    if (i('user_id')) {
+        $u = one('SELECT id, name FROM users WHERE id = ?', [(int)i('user_id')]) ?? fail('Kullanıcı bulunamadı.', 404);
+        q('UPDATE users SET no_duty = ? WHERE id = ?', [$on ? 1 : 0, $u['id']]);
+        $name = $u['name'];
+    } else {
+        $name = s('name', 120);
+        if (mb_strlen($name) < 3) fail('Kişinin adını yazın.');
+        $names = json_decode(setting('duty_excluded', '[]'), true);
+        $names = array_values(array_filter(is_array($names) ? $names : [], fn($n) => is_string($n) && !names_match($n, $name)));
+        if ($on) $names[] = $name;
+        set_setting('duty_excluded', json_encode($names, JSON_UNESCAPED_UNICODE));
+    }
+    audit($me, 'settings.save', ($on ? 'Nöbet hesaplarına dahil değil: ' : 'Nöbet hesaplarına yeniden dahil: ') . $name);
+    out(['excluded' => rules_excluded_list()]);
+}
+
 function rules_exempt_list(): array
 {
     $today = date('Y-m-d');
@@ -194,10 +238,25 @@ function rules_units(): array
     return $u;
 }
 
+/** Güncel listelerde adı geçen herkes (hesabı olmasa da) — ad önerileri için */
+function rules_roster_names(): array
+{
+    $from = date('Y-m-d', strtotime('-60 days')); $to = date('Y-m-d', strtotime('+60 days'));
+    $seen = [];
+    foreach (all("SELECT DISTINCT s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ? AND s.date <= ? AND s.kind IN ('shift', 'leave', 'off', 'role')", [$from, $to]) as $r) {
+        $n = trim((string)$r['name']);
+        if ($n !== '') $seen[swap_key($n)] = $n;
+    }
+    $out = array_values($seen);
+    usort($out, fn($a, $b) => strcmp(mb_strtolower($a), mb_strtolower($b)));
+    return array_slice($out, 0, 600);
+}
+
 function a_rules_get(): void
 {
     need_user();
-    out(['rules' => rules_cfg(), 'needs' => (object)needs_all(), 'units' => rules_units(), 'exempt' => is_publisher(current_user()) ? rules_exempt_list() : [],
+    $pub = is_publisher(current_user());
+    out(['rules' => rules_cfg(), 'needs' => (object)needs_all(), 'units' => rules_units(), 'exempt' => $pub ? rules_exempt_list() : [], 'excluded' => $pub ? rules_excluded_list() : [], 'names' => $pub ? rules_roster_names() : [],
         'holidays' => array_map(fn($d, $h) => ['date' => $d] + $h, array_keys($hh = holidays_between(date('Y-01-01'), date('Y-12-31', strtotime('+1 year')))), $hh)]);
 }
 
