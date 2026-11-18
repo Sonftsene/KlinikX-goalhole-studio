@@ -576,7 +576,8 @@ label.btn { cursor: pointer; }
   .drawer .modal { height: 100%; max-height: 100%; border-radius: 0; }
   .auth { grid-template-columns: 1fr; }
   .auth-art { display: none; }
-  .rs-view { height: calc(100vh - var(--topbar) - 250px); height: calc(100dvh - var(--topbar) - 250px); min-height: 380px; }
+  /* Telefonda tablo, üst çubuk ile alt menü arasını tam doldurur (kaydırınca sayfa tablonun başına oturur) */
+  .rs-view { height: calc(100vh - var(--topbar) - 120px); height: calc(100dvh - var(--topbar) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 108px); min-height: 380px; }
   .rs-title { font-size: 18px; }
   .rs-info { flex-direction: column; align-items: stretch; gap: 8px; }
   .rs-file { display: none; }

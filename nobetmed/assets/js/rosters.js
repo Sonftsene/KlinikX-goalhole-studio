@@ -108,6 +108,15 @@ function drawRosterInfo() {
     </div>`);
 }
 
+/** Telefonda tablo kaydırılmaya başlanınca sayfayı tablonun başına getirir: tablo ekranı tam doldurur, iç içe kaydırma olmaz */
+function rsAlignView(ev) {
+  if (window.innerWidth > 900 || !ev.target.closest || !ev.target.closest('.xv-scroll')) return;
+  const el = ev.currentTarget;
+  const tb = document.querySelector('.topbar');
+  const gap = el.getBoundingClientRect().top - ((tb ? tb.getBoundingClientRect().bottom : 0) + 8);
+  if (gap > 4) window.scrollBy({ top: gap, behavior: 'smooth' });
+}
+
 function showRoster(id) {
   const r = rosterById(id);
   if (!r || !RS.stage) return;
@@ -124,6 +133,8 @@ function showRoster(id) {
   if (!v) {
     const el = document.createElement('div');
     el.className = 'rs-view';
+    el.addEventListener('touchmove', rsAlignView, { passive: true });
+    el.addEventListener('wheel', rsAlignView, { passive: true });
     RS.stage.appendChild(el);
     v = { el, fileId };
     RS.views.set(id, v);
