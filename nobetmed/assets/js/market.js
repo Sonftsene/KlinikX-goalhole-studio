@@ -4,12 +4,12 @@
 /* =================================================================== */
 /* Kayıtlar                                                             */
 /* =================================================================== */
-NM_EXT.hubTabs.push({ key: 'ilan', href: '#/ilanlar', icon: 'megaphone', label: 'İlanlar' });
+NM_EXT.hubTabs.push({ key: 'ilan', mod: 'ilan', href: '#/ilanlar', icon: 'megaphone', label: 'İlanlar' });
 NM_EXT.routes.ilanlar = (view, r) => mkPage(view, r[1]);
 NM_EXT.routes.eksik = (view, r) => (r[1] && /^\d+$/.test(r[1]) ? coDetailPage(view, +r[1]) : coListPage(view));
 NM_EXT.routes.gecmis = (view) => { if (isPublisher()) histPage(view); else location.hash = '#/'; };
-NM_EXT.nav.push({ sec: 'yonetim', href: '#/eksik', icon: 'alert', label: 'Eksik personel', match: (r) => r[0] === 'eksik', count: () => (S.market && S.market.yes) || 0 });
-NM_EXT.nav.push({ sec: 'yonetim', href: '#/gecmis', icon: 'history', label: 'Değişim geçmişi', match: (r) => r[0] === 'gecmis' });
+NM_EXT.nav.push({ sec: 'yonetim', mod: 'eksik', href: '#/eksik', icon: 'alert', label: 'Eksik personel', match: (r) => r[0] === 'eksik', count: () => (S.market && S.market.yes) || 0 });
+NM_EXT.nav.push({ sec: 'yonetim', mod: 'gecmis', href: '#/gecmis', icon: 'history', label: 'Değişim geçmişi', match: (r) => r[0] === 'gecmis' });
 NM_EXT.dayActions.push((e, date) => (e.kind === 'shift' && date >= ymd(new Date())
   ? html`<button class="btn sm" data-act="mk-post" data-d="${date}">${icon('megaphone', 'sm')}<span>İlana koy</span></button>` : ''));
 NM_EXT.notif.listing = ['violet', 'megaphone'];
@@ -20,7 +20,7 @@ Object.assign(NM_EXT.audit, {
   'callout.create': 'Eksik personel çağrısı açtı', 'callout.ask': 'Çağrıyı başka kişilere de sordu', 'callout.answer': 'Çağrıya yanıt verdi',
   'callout.choose': 'Çağrıda kişi seçti', 'callout.cancel': 'Çağrıyı iptal etti', 'callout.delete': 'Çağrıyı sildi', 'callout.draw': 'Çağrıda kura çekti',
 });
-NM_EXT.homeCards.push({ id: 'market', title: 'İlan ve eksik çağrıları', icon: 'megaphone', order: 15, place: 'top', render: (el) => mkHomeCard(el) });
+NM_EXT.homeCards.push({ id: 'market', mod: ['ilan', 'eksik'], title: 'İlan ve eksik çağrıları', icon: 'megaphone', order: 15, place: 'top', render: (el) => mkHomeCard(el) });
 
 /* =================================================================== */
 /* Ortak yardımcılar                                                    */

@@ -226,6 +226,8 @@ if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
 // Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
 nm_route_tenant($action);
 if (nm_multi() && nm_tenant_frozen() && !in_array($action, ['boot', 'auth.logout'], true)) fail('Bu birim geçici olarak kullanıma kapatıldı. Yöneticinizle görüşün.', 423);
+// Modül kapalıysa / kişinin bu modülde yetkisi yoksa dur; is_publisher() bu modülün yetkisine göre karar verir
+if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 jobs_after_response();
 $routes[$action]();
@@ -293,7 +295,12 @@ function is_admin(?array $u): bool
 
 function is_publisher(?array $u): bool
 {
-    return $u && ($u['role'] === 'admin' || $u['role'] === 'editor');
+    if (!$u) return false;
+    if ($u['role'] === 'admin') return true;
+    // Modüle bağlı eylemde: kişinin (rolüne göre) o modüldeki yetkisi "Yönetir" mi
+    $m = $GLOBALS['NM_MOD'] ?? null;
+    if ($m !== null && function_exists('user_perm')) return user_perm($u, $m) === 'manage';
+    return $u['role'] === 'editor';
 }
 
 function need_admin(): array
@@ -359,6 +366,7 @@ function user_out(array $u): array
         'extension' => $u['extension'] ?? null,
         'avatar' => avatar_url($u),
         'must_change' => (int)($u['must_change'] ?? 0) === 1,
+        'role_id' => isset($u['role_id']) && $u['role_id'] !== null ? (int)$u['role_id'] : null,
     ];
 }
 
@@ -514,6 +522,8 @@ function a_boot(): void
             'brand' => brand_out(),
         ],
         'tenant' => nm_boot_tenant($me),
+        'mods' => function_exists('nm_mods') ? nm_mods() : null,
+        'perm' => $me && function_exists('user_perms') ? user_perms($me) : null,
         'sa' => function_exists('sa_boot') ? sa_boot() : null,
         'google_client_id' => GOOGLE_CLIENT_ID,
         'upload_max_mb' => MAX_UPLOAD_MB,
@@ -1536,6 +1546,7 @@ function a_admin_user_save(): void
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
         if (mb_strtolower((string)$u['email']) !== $email) { nm_dir_del((string)$u['email']); nm_dir_put($email); }
         if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $id]);
+        user_save_role($id);
         audit($me, $approved ? 'user.approve' : 'user.edit', $name, 'Yetki: ' . $role . ', durum: ' . $status);
         if ($approved) notify_user_approved(['name' => $name, 'email' => $email, 'password_hash' => $u['password_hash'] ?? null, 'google_sub' => $u['google_sub'] ?? null]);
         out(['id' => $id]);
@@ -1553,9 +1564,20 @@ function a_admin_user_save(): void
     nm_dir_put($email);
     q('UPDATE users SET notify_mode = ? WHERE id = ?', [default_notify_mode(), $newId]);
     if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $newId]);
+    user_save_role($newId);
     audit($me, 'user.create', $name, $email);
     $mailed = b('send_email') ? send_credentials(['name' => $name, 'email' => $email], $pw, true) : 0;
     out(['id' => $newId, 'password' => $generated, 'mailed' => $mailed]);
+}
+
+/** Kullanıcı formundaki birime özel rol (boş = temel yetki) */
+function user_save_role(int $id): void
+{
+    global $IN;
+    if (!array_key_exists('role_id', $IN)) return;
+    $rid = i('role_id');
+    if ($rid && !one('SELECT id FROM roles WHERE id = ?', [$rid])) $rid = null;
+    q('UPDATE users SET role_id = ? WHERE id = ?', [$rid ?: null, $id]);
 }
 
 function send_credentials(array $u, string $pw, bool $new): int

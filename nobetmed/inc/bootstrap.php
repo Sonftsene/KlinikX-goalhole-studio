@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.0.0';
+const NM_VERSION = '4.1.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 12;
+const NM_SCHEMA = 13;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -209,6 +209,8 @@ function nm_migrate(PDO $pdo): void
 
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
+        // Sürüm 13: birime özel roller (modül başına Göremez / Kullanır / Yönetir)
+        "CREATE TABLE IF NOT EXISTS roles (id $pk, name VARCHAR(80) NOT NULL, perms TEXT NULL, sort INT NOT NULL DEFAULT 0, created_at VARCHAR(19) NOT NULL)$end",
         "CREATE TABLE IF NOT EXISTS units (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS titles (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS categories (id $pk, name VARCHAR(100) NOT NULL, icon VARCHAR(30) NOT NULL DEFAULT 'folder', color VARCHAR(20) NOT NULL DEFAULT 'teal', sort INT NOT NULL DEFAULT 0)$end",
@@ -381,7 +383,9 @@ function nm_migrate(PDO $pdo): void
             // Sürüm 11: kişiye özel ücretler (yalnız kişi görür), hatırlatma ve görünüm tercihleri
             'pay_rates TEXT NULL', 'remind_prefs TEXT NULL', 'ui_prefs TEXT NULL',
             // Sürüm 12: nöbet hesaplarına hiç dahil edilmeyen kişi (ör. yaşlı bakım personeli)
-            'no_duty INT NOT NULL DEFAULT 0'],
+            'no_duty INT NOT NULL DEFAULT 0',
+            // Sürüm 13: birime özel rol (boşsa temel yetkiye göre)
+            'role_id INT NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],

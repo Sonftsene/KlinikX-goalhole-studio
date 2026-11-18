@@ -76,7 +76,7 @@ async function sysLoad() {
 const SYS_ACT = {
   login: 'Giriş', logout: 'Çıkış', password: 'Şifre değişti', 'sa.created': 'Hesap etkinleşti', 'hospital.create': 'Hastane eklendi', 'hospital.rename': 'Hastane adı değişti',
   'hospital.freeze': 'Hastane donduruldu', 'hospital.unfreeze': 'Hastane açıldı', 'tenant.create': 'Birim eklendi', 'tenant.rename': 'Birim düzenlendi',
-  'tenant.freeze': 'Birim donduruldu', 'tenant.unfreeze': 'Birim açıldı', 'tenant.admin': 'Birim yöneticisi açıldı',
+  'tenant.freeze': 'Birim donduruldu', 'tenant.unfreeze': 'Birim açıldı', 'tenant.admin': 'Birim yöneticisi açıldı', modules: 'Modüller değişti',
 };
 function sysTenantRow(t) {
   return html`<div class="list-row sys-t ${t.status === 'frozen' ? 'frozen' : ''}"><div class="grow">
@@ -97,6 +97,7 @@ ACT['sys-t-new'] = (el) => {
 ACT['sys-h-menu'] = (el) => {
   const h = SYS.data.hospitals.find((x) => x.id === +el.dataset.h);
   sysMenu(el, [
+    { label: 'Modüller (hastane geneli)', icon: 'layers', run: () => sysModules('hospital', h.id, h.name) },
     { label: 'Adını değiştir', icon: 'edit', run: () => sysNameModal('Hastane adı', 'Hastane adı', h.name, async (name) => { await api('sa.hospital.save', { id: h.id, name }); sysLoad(); }) },
     h.status === 'frozen'
       ? { label: 'Hastaneyi aç', icon: 'checkCircle', run: () => sysStatus('hospital', h.id, 'active') }
@@ -106,6 +107,7 @@ ACT['sys-h-menu'] = (el) => {
 ACT['sys-t-menu'] = (el) => {
   const [, t] = sysFind(+el.dataset.id);
   sysMenu(el, [
+    { label: 'Modüller (bu birim)', icon: 'layers', run: () => sysModules('tenant', t.id, t.name) },
     { label: 'Giriş bağlantısını kopyala', icon: 'link', run: async () => toast((await copyText(t.link)) ? 'Bağlantı kopyalandı' : t.link) },
     { label: 'Adını / notunu değiştir', icon: 'edit', run: () => sysNameModal('Birim adı', 'Birim adı', t.name, async (name) => { await api('sa.tenant.save', { id: t.id, name, note: t.note }); sysLoad(); }) },
     t.status === 'frozen'

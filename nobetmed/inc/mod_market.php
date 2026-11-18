@@ -48,12 +48,12 @@ function mk_full_users(array $ids): array
 function mk_pubs(array $exclude = []): array
 {
     $ex = array_map('intval', $exclude);
-    return array_values(array_filter(active_users_sql("AND role IN ('admin', 'editor')"), fn($u) => !in_array((int)$u['id'], $ex, true)));
+    return array_values(array_filter(module_managers(), fn($u) => !in_array((int)$u['id'], $ex, true)));
 }
 
 function mk_is_pub(array $u): bool
 {
-    return in_array($u['role'] ?? '', ['admin', 'editor'], true);
+    return is_publisher($u);
 }
 
 function mk_first(string $name): string

@@ -249,3 +249,9 @@ Aynı siteyi başka birimler ve başka hastaneler de kullanabilir. **Kod tek, ve
 
 Mevcut kurulumunuz güncellemede hiçbir şey taşınmadan **ilk birim** olarak kaydolur; adresler, şifreler ve veriler aynen kalır. (Çok birimli yapı SQLite ile çalışır; MySQL kurulumları tek birimli kalır.)
 
+## 17. Modüller ve roller (4.1)
+
+**Modülleri açıp kapatmak (sistem yöneticisi):** Sistem yönetimi → hastanenin ⋯ menüsü → **Modüller (hastane geneli)**, ya da birimin ⋯ menüsü → **Modüller (bu birim)**. Birim için “Hastaneye uy / Açık / Kapalı” seçilir. Modüller: Nöbet listeleri ve takvim, Taraf / blok yerleşimi, Nöbet istekleri, Nöbet ilanı ve değişim, Eksik personel çağrısı, Değişim geçmişi, Telefon rehberi, Fazla mesai ücreti. Nöbet listeleri kapanırsa ona bağlı modüller de kapanır. Kapalı modül menüde görünmez ve sunucuda da kapanır; veriler silinmez, açınca geri gelir. Duyurular, belgeler, okuma takibi ve kullanıcılar her zaman açıktır.
+
+**Roller (birim yöneticisi):** Yönetim → Ayarlar → **Güvenlik → Roller ve yetkiler → Rol ekle**. Her modül için kişinin **Göremez / Kullanır / Yönetir** olacağını seçin (ör. “Eksik sorumlusu”: Eksik personel çağrısı = Yönetir). Rolü kişiye **Kullanıcılar → Düzenle → Birime özel rol** ile verin. Rolü olmayan kişide temel yetki geçerlidir: Yayıncı yönetir, Üye kullanır. Yönetici her zaman tam yetkilidir. “Yönetir” verilen kişiye o modülün sorumlu bildirimleri de gider.
+

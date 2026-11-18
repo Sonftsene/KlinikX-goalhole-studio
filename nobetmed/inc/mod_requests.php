@@ -765,7 +765,7 @@ function rq_job(bool $force): ?array
     $done = [];
     $publishers = null;
     $pubs = function () use (&$publishers) {
-        if ($publishers === null) $publishers = active_users_sql("AND role IN ('admin', 'editor')");
+        if ($publishers === null) $publishers = module_managers('istekler');
         return $publishers;
     };
     foreach (all("SELECT * FROM req_periods WHERE status = 'open' AND deadline IS NOT NULL") as $p) {

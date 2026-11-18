@@ -391,7 +391,23 @@ const ROLE_HINT = {
   member: 'Görüntüleme; eklediği içerikler onaya gider',
 };
 const isAdmin = () => S.me && S.me.role === 'admin';
-const isPublisher = () => S.me && (S.me.role === 'admin' || S.me.role === 'editor');
+const isPublisherBase = () => S.me && (S.me.role === 'admin' || S.me.role === 'editor');
+/* Modüller ve yetkiler (4.1): S.mods = birimde açık modüller, S.perm = kişinin modül başına yetkisi (off | use | manage) */
+const ROUTE_MOD = { nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber' };
+function modOn(m) {
+  if (!m) return true;
+  if (S.mods && S.mods[m] === false) return false;
+  return !(S.perm && S.perm[m] === 'off');
+}
+function canManage(m) {
+  if (!S.me) return false;
+  if (S.me.role === 'admin') return true;
+  if (m && S.perm && S.perm[m]) return S.perm[m] === 'manage';
+  return S.me.role === 'editor';
+}
+function routeMod() { return ROUTE_MOD[(location.hash || '').replace(/^#\/?/, '').split(/[/?]/)[0]] || null; }
+/** Yayıncı mı? Modül sayfasında o modüldeki yetkiye göre (ör. üyeye “Eksik personel: Yönetir” verilmiş olabilir) */
+const isPublisher = () => { const m = routeMod(); return m ? canManage(m) : isPublisherBase(); };
 function catIcon(cat, size = '') {
   return html`<span class="cat-ico ${size} tone-${cat.color}">${icon(cat.icon)}</span>`;
 }

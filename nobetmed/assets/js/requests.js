@@ -12,11 +12,11 @@ const RQ_ST = { pending: ['Beklemede', 'warn'], approved: ['Onaylandı', 'succes
 const RQ_LV = { over: ['Yetersiz', 'danger'], tight: ['Sıkışık', 'warn'], ok: ['Rahat', 'success'], na: ['Gereken girilmemiş', ''] };
 
 /* ---------------- Kayıt noktaları ---------------- */
-NM_EXT.hubTabs.push({ key: 'istek', href: '#/istekler', icon: 'calendar', label: 'İstekler' });
+NM_EXT.hubTabs.push({ key: 'istek', mod: 'istekler', href: '#/istekler', icon: 'calendar', label: 'İstekler' });
 NM_EXT.routes.istekler = (view, r) => renderRequests(view, r[1]);
 NM_EXT.notif.request = ['amber', 'calendar'];
 Object.assign(NM_EXT.audit, { 'req.period': 'İstek dönemi', 'req.save': 'Nöbet isteği', 'req.delete': 'İstek silindi', 'req.decide': 'İstek kararı', 'req.draw': 'İstek kurası' });
-NM_EXT.homeCards.push({ id: 'istekler', title: 'Nöbet istekleri', icon: 'calendar', order: 30, place: 'side', render: rqHomeCard });
+NM_EXT.homeCards.push({ id: 'istekler', mod: 'istekler', title: 'Nöbet istekleri', icon: 'calendar', order: 30, place: 'side', render: rqHomeCard });
 
 /* ---------------- Yardımcılar ---------------- */
 /** Listedeki BÜYÜK HARFLİ adları okunur yapar: "DENİZ ŞAHİN" → "Deniz Şahin" */

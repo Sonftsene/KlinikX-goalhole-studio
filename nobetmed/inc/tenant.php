@@ -14,7 +14,7 @@
  */
 declare(strict_types=1);
 
-const NM_MERKEZ_SCHEMA = 1;
+const NM_MERKEZ_SCHEMA = 2;
 
 /** Çok birimli yapı etkin mi (SQLite) */
 function nm_multi(): bool
@@ -61,6 +61,8 @@ function merkez_migrate(PDO $pdo): void
     $pdo->exec('CREATE TABLE IF NOT EXISTS sa_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, sa_id INTEGER, action TEXT NOT NULL, target TEXT, detail TEXT, ip TEXT, at TEXT NOT NULL)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS sa_attempts (ip TEXT NOT NULL, email TEXT NOT NULL, at INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS sa_attempts_at ON sa_attempts (at)');
+    // Şema 2: modül aç/kapat — scope 'h' (hastane) | 't' (birim); birim kaydı yoksa hastaneye uyar
+    $pdo->exec('CREATE TABLE IF NOT EXISTS module_cfg (scope TEXT NOT NULL, sid INTEGER NOT NULL, module TEXT NOT NULL, on_ INTEGER NOT NULL, PRIMARY KEY (scope, sid, module))');
     $st = $pdo->prepare("INSERT OR IGNORE INTO m_settings (k, v) VALUES ('secret', ?)");
     $st->execute([bin2hex(random_bytes(32))]);
     $pdo->prepare("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('schema', ?)")->execute([(string)NM_MERKEZ_SCHEMA]);

@@ -267,7 +267,18 @@ function smtp_send_one($fp, array $m): void
 
 function active_users_sql(string $extra = ''): array
 {
-    return all("SELECT id, name, email, email_notify, notify_mode, push_on, role, unit_id FROM users WHERE status = 'active' $extra");
+    return all("SELECT id, name, email, email_notify, notify_mode, push_on, role, role_id, unit_id FROM users WHERE status = 'active' $extra");
+}
+
+/**
+ * Modülü yönetenler (bildirim alıcıları): yöneticiler + rolüne göre o modülde "Yönetir" olanlar.
+ * Modül verilmezse (veya izin sistemi yoksa) yöneticiler ve yayıncılar.
+ */
+function module_managers(?string $m = null): array
+{
+    $m = $m ?? ($GLOBALS['NM_MOD'] ?? null);
+    return array_values(array_filter(active_users_sql(), fn($u) => $u['role'] === 'admin'
+        || ($m !== null && function_exists('user_perm') ? user_perm($u, $m) === 'manage' : $u['role'] === 'editor')));
 }
 
 function notify_post_published(int $postId, int $exceptUserId): int

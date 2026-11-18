@@ -970,7 +970,7 @@ ACT['pl-setup'] = async () => {
 
 /* ---------------- Ana sayfa kartı: bugün bloklar ---------------- */
 NM_EXT.homeCards.push({
-  id: 'bloklar', title: 'Bugün bloklar', icon: 'layers', order: 10, place: 'top',
+  id: 'bloklar', mod: 'taraf', title: 'Bugün bloklar', icon: 'layers', order: 10, place: 'top',
   render: async (el) => {
     let r;
     try { r = await api('placement.today'); } catch (e) { el.remove(); return; }

@@ -418,7 +418,7 @@ async function renderPayPreview() {
     return payBoxHtml(y, m, list, sm);
   })}`);
 }
-NM_EXT.profileTabs.push({ key: 'ucret', label: 'Ücretim', icon: 'wallet', html: payTabHtml, mount: renderPayPreview });
+NM_EXT.profileTabs.push({ key: 'ucret', mod: 'ucret', label: 'Ücretim', icon: 'wallet', html: payTabHtml, mount: renderPayPreview });
 
 /* =================================================================== */
 /* Kişisel hatırlatma saati (Profil › Bildirimler)                     */

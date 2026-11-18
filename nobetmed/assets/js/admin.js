@@ -64,7 +64,7 @@ async function drawUsers(body) {
       <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}">
         <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
         <td><div class="small">${titleName(u.title_id) || html`<span class="faint">—</span>`}</div><div class="tiny faint">${unitName(u.unit_id)}</div></td>
-        <td><span class="badge ${u.role === 'admin' ? 'brand' : u.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[u.role]}</span></td>
+        <td><span class="badge ${u.role === 'admin' ? 'brand' : u.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[u.role]}</span>${u.role_id && u.role !== 'admin' && (S.roles || []).some((ro) => ro.id === u.role_id) ? html` <span class="badge tone-violet">${S.roles.find((ro) => ro.id === u.role_id).name}</span>` : ''}</td>
         <td>${u.status === 'pending' ? html`<span class="badge warn">Onay bekliyor</span>` : u.status === 'active' ? html`<span class="badge success">Aktif</span>` : html`<span class="badge">Pasif</span>`}</td>
         <td class="small muted nowrap">${u.last_seen_at ? fmtRel(u.last_seen_at) : 'Hiç'}</td>
         <td style="text-align:right" class="nowrap">
@@ -165,6 +165,8 @@ function userModal(u) {
       <div class="field"><label>Yetki</label>
         <div class="stack" style="gap:8px">${['member', 'editor', 'admin'].map((r) => html`<label class="pick" style="border:1px solid var(--border);border-radius:10px"><input type="radio" name="role" value="${r}" ${(u ? u.role : 'member') === r ? raw('checked') : ''}><div><div class="small"><b>${ROLE_LABEL[r]}</b></div><div class="tiny faint">${ROLE_HINT[r]}</div></div></label>`)}</div>
       </div>
+      ${(S.roles || []).length ? html`<div class="field"><label>Birime özel rol <span class="faint">(isteğe bağlı)</span></label><select class="select" name="role_id"><option value="">Yok — yukarıdaki yetki geçerli</option>${S.roles.map((ro) => html`<option value="${ro.id}" ${u && u.role_id === ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
+        <p class="hint">Rol, modül modül neyi göreceğini / yöneteceğini belirler (Ayarlar › Güvenlik › Roller). Yönetici her zaman tam yetkilidir.</p></div>` : ''}
       ${u ? html`<div class="field"><label>Durum</label><select class="select" name="status">${[['active', 'Aktif'], ['pending', 'Onay bekliyor'], ['disabled', 'Pasif']].map(([k, l]) => html`<option value="${k}" ${u.status === k ? raw('selected') : ''}>${l}</option>`)}</select></div>`
         : html`<div class="field"><label>Geçici şifre (isteğe bağlı)</label><input class="input" name="password" type="text" minlength="8" placeholder="Boş bırakırsanız otomatik oluşturulur" autocomplete="off"><p class="hint">Kişi ilk girişte kendi şifresini belirler.</p></div>
           ${S.settings.mail_ready ? html`<label class="switch"><input type="checkbox" name="send_email" checked><span class="track"></span><span class="s-text"><b>Giriş bilgilerini e-postayla gönder</b><span>E-posta adresi ve geçici şifre kişiye iletilir.</span></span></label>` : ''}`}
@@ -178,6 +180,7 @@ function userModal(u) {
 FORMS.user = (f) => submitForm(f, async (d) => {
   const u = f._u;
   const payload = { ...d, id: u ? u.id : null, title_id: d.title_id ? +d.title_id : null, unit_id: d.unit_id ? +d.unit_id : null, status: u ? d.status : 'active' };
+  if ('role_id' in d) payload.role_id = d.role_id ? +d.role_id : null;
   const r = await api('admin.user.save', payload);
   f._m.close();
   toast(u ? 'Kullanıcı güncellendi' : 'Kullanıcı eklendi');

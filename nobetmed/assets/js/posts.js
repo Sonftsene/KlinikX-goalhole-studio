@@ -61,21 +61,21 @@ function renderNav() {
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
-    ${navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon')}
-    <div class="nav-sec">Nöbet</div>
+    ${modOn('rehber') ? navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon') : ''}
+    ${modOn('nobet') ? html`<div class="nav-sec">Nöbet</div>
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
-    ${navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf')}
-    ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && (!n.pub || isPublisher()) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
+    ${modOn('taraf') ? navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf') : ''}
+    ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && modOn(n.mod) && (!n.pub || canManage(n.mod)) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
     ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
-    ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">Tablolar</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}
+    ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">Tablolar</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}` : ''}
     <div class="nav-sec">Bölümler</div>
     ${S.categories.map((cat) => navItem('#/b/' + cat.id, html`<span class="cat-ico sm tone-${cat.color}">${icon(cat.icon)}</span>`, cat.name, (c.unread_by_cat || {})[cat.id] || 0, r[0] === 'b' && +r[1] === cat.id, 'muted'))}
-    ${isPublisher() ? html`
+    ${isPublisherBase() || mgmtNav().length ? html`
       <div class="nav-sec">Yönetim</div>
-      ${navItem('#/yonetim/onaylar', icon('inbox'), 'Onay bekleyenler', c.pending_posts, r[0] === 'yonetim' && (r[1] || 'onaylar') === 'onaylar', 'warn')}
-      ${NM_EXT.nav.filter((n) => n.sec === 'yonetim' && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
+      ${isPublisherBase() ? navItem('#/yonetim/onaylar', icon('inbox'), 'Onay bekleyenler', c.pending_posts, r[0] === 'yonetim' && (r[1] || 'onaylar') === 'onaylar', 'warn') : ''}
+      ${mgmtNav().map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
       ${isAdmin() ? html`
         ${navItem('#/yonetim/kullanicilar', icon('users'), 'Kullanıcılar', c.pending_users, r[0] === 'yonetim' && r[1] === 'kullanicilar', 'warn')}
         ${navItem('#/yonetim/yapi', icon('layers'), 'Bölüm ve birimler', 0, r[0] === 'yonetim' && r[1] === 'yapi')}
@@ -89,10 +89,10 @@ function renderNav() {
   const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0)}
+    ${modOn('nobet') ? tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0) : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
-    ${isPublisher() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
+    ${isPublisherBase() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
 }
 
 ACT.go = (el) => { location.hash = el.dataset.href; };
@@ -160,6 +160,9 @@ async function refreshCounts() {
   } catch (e) { /* sessiz */ }
 }
 
+/** Yönetim menüsündeki modül sayfaları: kişinin o modülde “Yönetir” yetkisi olanlar */
+function mgmtNav() { return NM_EXT.nav.filter((n) => n.sec === 'yonetim' && modOn(n.mod) && (n.mod ? canManage(n.mod) : isPublisherBase()) && (!n.admin || isAdmin())); }
+
 /* ================= Yönlendirme ================= */
 function route() {
   if (!S.me || !$('#view')) return;
@@ -173,6 +176,8 @@ function route() {
   const view = $('#view');
   const si = $('#searchInput');
   if (si && r[0] !== 'ara') si.value = '';
+  // Kapalı modülün / yetkisi olmayan bölümün sayfası açılmaz
+  if (r[0] && ROUTE_MOD[r[0]] && !modOn(ROUTE_MOD[r[0]])) { toast('Bu bölüm biriminizde kapalı veya yetkiniz yok', 'err'); location.hash = '#/'; return; }
   // Modül sayfaları yerleşik sayfaların yerine geçebilir (ör. #/taraf -> blok yerleşimi)
   if (r[0] && NM_EXT.routes[r[0]]) { NM_EXT.routes[r[0]](view, r); renderNav(); window.scrollTo(0, 0); return; }
   switch (r[0]) {
@@ -187,7 +192,7 @@ function route() {
       if (RS.stage && document.body.contains(RS.stage) && rosterById(+r[1]) && (rosterById(+r[1]).kind === 'tablo' ? 'tablo' : 'nobet') === RS.group) { showRoster(+r[1]); return; }
       renderRosters(view, +r[1] || null);
       break;
-    case 'yonetim': if (isPublisher()) { renderAdmin(view, r[1] || 'onaylar'); } else location.hash = '#/'; break;
+    case 'yonetim': if (isPublisherBase()) { renderAdmin(view, r[1] || 'onaylar'); } else location.hash = '#/'; break;
     case 'profil': renderProfile(view); break;
     case 'nobetim': renderMyShifts(view); break;
     case 'rehber': renderDirectory(view); break;
@@ -223,8 +228,8 @@ function renderHome(view) {
         ${isAdmin() ? html`<div id="setupBox"></div>` : ''}
         <div id="homeExtSide"></div>
         <div id="homeTips" data-home="tips"></div>
-        <div class="card" data-home="today" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
-        <div class="card" data-home="rosters" id="rosterCard">${rosterCard()}</div>
+        ${modOn('nobet') ? html`<div class="card" data-home="today" id="todayCard"><div class="card-head"><h3>${icon('users', 'sm')} Bugün nöbette</h3></div><div class="list-row"><div class="skel" style="height:14px;width:70%"></div></div></div>
+        <div class="card" data-home="rosters" id="rosterCard">${rosterCard()}</div>` : ''}
       </aside>
     </div>`);
   mountFeed($('#feedHost'), { filter: 'all' });
@@ -242,7 +247,7 @@ function mountHomeExt() {
   const top = $('#homeExtTop'), side = $('#homeExtSide');
   if (!top || !side) return;
   const prefs = typeof homePrefs === 'function' ? homePrefs() : { hidden: [], order: [] };
-  const cards = NM_EXT.homeCards.filter((c) => !prefs.hidden.includes(c.id) && (!c.visible || c.visible()))
+  const cards = NM_EXT.homeCards.filter((c) => !prefs.hidden.includes(c.id) && (!c.mod || [].concat(c.mod).some(modOn)) && (!c.visible || c.visible()))
     .sort((a, b) => { const ia = prefs.order.indexOf(a.id), ib = prefs.order.indexOf(b.id); return (ia < 0 ? 100 + (a.order || 50) : ia) - (ib < 0 ? 100 + (b.order || 50) : ib); });
   top.innerHTML = ''; side.innerHTML = '';
   cards.forEach((c) => {

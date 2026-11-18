@@ -27,14 +27,14 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 3.11.0 — Silme yetkileri ✓
 - Eksik çağrısı tamamen silme (yanıtlarıyla; gelecekteki çağrıda gönüllülere haber), Değişim geçmişinden ilan/değişim/devir/çağrı silme (yönetici/yayıncı), yayıncıya sorulan çağrıya kendi yanıtı, "Gelemez" yanıtı da çağrıyı açana bildirilir.
 
-### 4.0 — Çok hastaneli altyapı
+### 4.0 — Çok hastaneli altyapı ✓ (4.0.0)
 - Merkez/hastane/birim veri ayrımı, tek giriş (e-posta → birim), birim başına oturum.
 - Süper yönetici paneli: hastane ve birim ekle/düzenle/dondur, birim yöneticisi davet et, birim sayıları (kişi, depolama), toplu yedek. Hasta/kişi içeriği görmez.
 - Süper yönetici hesabında iki adımlı doğrulama zorunlu (uygulama kodu veya parmak izi).
 - Mevcut kurulum kendiliğinden "1. hastane / 1. birim" olur; adresler, şifreler, veriler aynen kalır.
 - Testler: A biriminin kullanıcısı B'nin dosyasına, nöbetine, hasta listesine, bildirimine, yedeğine ulaşamaz; aynı e-posta iki birimde açılamaz.
 
-### 4.1 — Modüller ve yetkiler
+### 4.1 — Modüller ve yetkiler ✓ (4.1.0: modül aç/kapat hastane+birim, roller Göremez/Kullanır/Yönetir; ince ayrım (ekle/sil/onayla ayrı) gerekirse sonra)
 - Modül kayıt defteri: her modül hastane ve birim düzeyinde açılır/kapanır (kapalı modülün uçları sunucuda da kapalı).
 - Rol + modül bazlı izinler: görüntüle / ekle / düzenle / sil / onayla. Hazır roller (birim yöneticisi, sorumlu, yayıncı, eğitim hemşiresi, üye) + birime özel rol. Süper yönetici şablon verir, birim yöneticisi kendi biriminde (izin verilen kadarını) düzenler.
 

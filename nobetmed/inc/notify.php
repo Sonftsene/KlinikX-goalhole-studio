@@ -180,7 +180,7 @@ function run_jobs(bool $force = false): array
         set_setting('digest_last', $today);
         $done['digest'] = job_digest();
     }
-    if (setting('shift_remind_on', '1') === '1' && $hour >= (int)setting('shift_remind_hour', '18') && setting('shift_remind_last') !== $today) {
+    if (setting('shift_remind_on', '1') === '1' && (!function_exists('nm_mod_on') || nm_mod_on('nobet')) && $hour >= (int)setting('shift_remind_hour', '18') && setting('shift_remind_last') !== $today) {
         set_setting('shift_remind_last', $today);
         $done['shift_remind'] = job_shift_remind();
     }
@@ -199,10 +199,13 @@ function run_jobs(bool $force = false): array
         set_setting('backup_last', (string)time());
         try { $done['backup'] = basename(backup_create(false, true, true)); } catch (Throwable $e) { error_log('[dupcii] yedek: ' . $e->getMessage()); }
     }
-    if (function_exists('gs_job')) { try { $g = gs_job(); if ($g !== null) $done['gsync'] = $g; } catch (Throwable $e) { error_log('[dupcii] gsync: ' . $e->getMessage()); } }
+    if (function_exists('gs_job') && (!function_exists('nm_mod_on') || nm_mod_on('nobet'))) { try { $g = gs_job(); if ($g !== null) $done['gsync'] = $g; } catch (Throwable $e) { error_log('[dupcii] gsync: ' . $e->getMessage()); } }
     if (function_exists('swap_expire')) { try { swap_expire(); } catch (Throwable $e) { error_log('[dupcii] swap: ' . $e->getMessage()); } }
     // Modül görevleri: $GLOBALS['NM_JOBS'][ad] = işlev (dönen değer kayda yazılır)
-    foreach ($GLOBALS['NM_JOBS'] ?? [] as $jn => $jf) { try { $r = $jf($force); if ($r !== null) $done[$jn] = $r; } catch (Throwable $e) { error_log('[dupcii] görev ' . $jn . ': ' . $e->getMessage()); } }
+    foreach ($GLOBALS['NM_JOBS'] ?? [] as $jn => $jf) {
+        // Kapalı modülün görevi çalışmaz (ör. istekler kapalıysa dönem hatırlatması gitmez)
+        if (($jm = $GLOBALS['NM_JOB_MODULE'][$jn] ?? null) && function_exists('nm_mod_on') && !nm_mod_on($jm)) continue;
+        try { $r = $jf($force); if ($r !== null) $done[$jn] = $r; } catch (Throwable $e) { error_log('[dupcii] görev ' . $jn . ': ' . $e->getMessage()); } }
     if (mail_ready()) $done['mail'] = mail_flush(60);
     return $done;
 }

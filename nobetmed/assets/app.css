@@ -1262,3 +1262,11 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .sys-h.frozen, .sys-t.frozen { opacity: .65; }
 .sys-t .mk-act { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 560px) { .sys-who, .sys-top .btn span { display: none; } .sys-t { flex-wrap: wrap; } .sys-t .mk-act { width: 100%; justify-content: flex-start; } }
+
+/* Roller ve modüller */
+.role-grid { display: flex; flex-direction: column; gap: 10px; }
+.role-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.role-seg { flex: none; }
+.role-seg button { padding: 6px 10px; font-size: 12.5px; }
+.role-perms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+@media (max-width: 560px) { .role-row { flex-direction: column; align-items: stretch; } .role-seg { display: flex; } .role-seg button { flex: 1; } }

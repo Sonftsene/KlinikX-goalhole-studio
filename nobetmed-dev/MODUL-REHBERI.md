@@ -61,6 +61,12 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Süper yönetici uçları `inc/mod_sistem.php` (`sa.*`); birim içeriği görmez, `nm_tenant_peek()` yalnız sayılar ve ayar kopyalama içindir.
 - Test: `nobetmed-dev/e2e-tenant.mjs` (diğer testlerden SONRA çalışır; ikinci birim açar).
 
+## Modüller ve yetkiler (4.1) — yeni modül eklerken
+- Sunucu: `inc/mod_yetki.php` › `NM_MODULES` (anahtar, ad, açıklama, bağlı modül) ve `NM_ACTION_MODULE` (eylem öneki → modül). Dağıtıcı `nm_perm_gate()` modül kapalıysa / kişi "Göremez" ise durdurur ve `$GLOBALS['NM_MOD']` ayarlar; bu sayede modül içindeki `is_publisher()` / `need_publisher()` kişinin o modüldeki "Yönetir" yetkisine göre çalışır. Sorumlu bildirimleri için `module_managers('<modül>')` kullanın (`role IN ('admin','editor')` YAZMAYIN).
+- Zamanlanmış görev bir modüle aitse `$GLOBALS['NM_JOB_MODULE']['<görev>'] = '<modül>'` (kapalıyken çalışmaz).
+- İstemci: `modOn(m)`, `canManage(m)`, `ROUTE_MOD` (rota → modül; `isPublisher()` modül sayfasında o modüle göre). `NM_EXT` kayıtlarına `mod: '<modül>'` ekleyin (nav, hubTabs, homeCards (dizi olabilir), profileTabs).
+- Test: `nobetmed-dev/e2e-yetki.mjs` (e2e-tenant'tan sonra).
+
 ## Gizlilik ve güvenlik
 - Depo HERKESE AÇIK: gerçek kişi/hastane adı, e-posta, şifre, gerçek Excel dosyaları depoya girmez. Testlerde uydurma adlar kullanın.
 - Her uçta yetki denetimi; yalnız yetkili kişiye görünmesi gereken bilgiyi sunucu hiç göndermesin (istemcide gizlemek yetmez).

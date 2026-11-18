@@ -523,7 +523,7 @@ function a_swap_respond(): void
         q("UPDATE swap_requests SET status = 'accepted', decided_at = ? WHERE id = ?", [now(), $r['id']]);
         $r['status'] = 'accepted';
         if ($from) notify_users([$from], 'swap', 'İsteğin kabul edildi', swap_req_text($r) . ' · Sorumlu Excel’de güncelleyince listene işlenir.', '#/nobetim', null);
-        $pubs = array_filter(active_users_sql("AND role IN ('admin', 'editor')"), fn($u) => (int)$u['id'] !== (int)$me['id'] && (int)$u['id'] !== (int)$r['from_user']);
+        $pubs = array_filter(module_managers('ilan'), fn($u) => (int)$u['id'] !== (int)$me['id'] && (int)$u['id'] !== (int)$r['from_user']);
         if ($pubs) notify_users($pubs, 'swap', 'Excel’e işlenecek nöbet değişimi', swap_req_text($r), '#/nobetim', [
             'subject' => 'Excel’e işlenecek nöbet değişimi', 'heading' => 'İki kişi nöbet değişiminde anlaştı',
             'lines' => [swap_req_text($r), 'Excel listesinde güncellediğinizde uygulama değişimi kendiliğinden işler.'], 'button' => 'Uygulamada gör',
