@@ -88,7 +88,8 @@ async function afterUserChange() {
   AD.users = null;
   await refreshPeople();
   await refreshCounts();
-  if ($('#adminBody')) renderAdmin($('#view'), 'kullanicilar');
+  // Bu arada başka sayfaya geçildiyse o sayfanın üzerine Kullanıcılar çizilmesin
+  if ($('#adminBody') && currentRoute()[0] === 'yonetim' && (currentRoute()[1] || 'onaylar') === 'kullanicilar') renderAdmin($('#view'), 'kullanicilar');
 }
 async function refreshPeople() {
   try { const r = await api('boot'); S.people = r.people || S.people; } catch (e) { /* */ }

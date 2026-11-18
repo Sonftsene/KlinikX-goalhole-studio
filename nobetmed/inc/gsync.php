@@ -111,7 +111,7 @@ function gs_content_hash(string $file): string
             $ctx = hash_init('sha256');
             foreach ($names as $n) { hash_update($ctx, $n . "\0"); hash_update($ctx, (string)$z->getFromName($n)); }
             $z->close();
-            if ($names) return 'c' . hash_final($ctx);
+            if ($names) return hash_final($ctx);
         }
     }
     return hash_file('sha256', $file) ?: '';
