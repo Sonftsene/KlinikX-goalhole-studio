@@ -16,7 +16,7 @@ NM_EXT.notif.listing = ['violet', 'megaphone'];
 NM_EXT.notif.callout = ['rose', 'alert'];
 Object.assign(NM_EXT.audit, {
   'listing.create': 'Nöbet ilanı açtı', 'listing.apply': 'İlana başvurdu', 'listing.withdraw': 'İlan başvurusunu geri çekti',
-  'listing.choose': 'İlanda başvuru seçti', 'listing.cancel': 'İlanı geri çekti',
+  'listing.choose': 'İlanda başvuru seçti', 'listing.cancel': 'İlanı geri çekti', 'listing.delete': 'İlanı sildi',
   'callout.create': 'Eksik personel çağrısı açtı', 'callout.ask': 'Çağrıyı başka kişilere de sordu', 'callout.answer': 'Çağrıya yanıt verdi',
   'callout.choose': 'Çağrıda kişi seçti', 'callout.cancel': 'Çağrıyı iptal etti', 'callout.draw': 'Çağrıda kura çekti',
 });
@@ -123,7 +123,7 @@ function mkMineItem(L) {
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
     </div>
     <div class="mk-act">${L.status === 'open' ? html`<button class="btn sm ${L.apps_n ? 'primary' : ''}" data-act="mk-open" data-id="${L.id}">${icon('users', 'sm')}<span>${L.apps_n ? 'Başvuranlar' : 'Ayrıntı'}</span></button><button class="btn sm ghost danger" data-act="mk-cancel" data-id="${L.id}">Geri çek</button>`
-      : html`<button class="btn sm ghost" data-act="mk-open" data-id="${L.id}">Ayrıntı</button>`}</div>
+      : html`<button class="btn sm ghost" data-act="mk-open" data-id="${L.id}">Ayrıntı</button>`}<button class="btn sm ghost icon" data-act="mk-del" data-id="${L.id}" data-open="${L.status === 'open' ? 1 : 0}" aria-label="İlanı sil" title="İlanı sil">${icon('trash', 'sm')}</button></div>
   </div>`;
 }
 function mkMineHtml(D) {
@@ -252,6 +252,11 @@ ACT['mk-cancel'] = async (el) => {
   if (!(await confirmDialog({ title: 'İlan geri çekilsin mi?', text: 'Başvuranlara ilanın kapandığı bildirilir.', ok: 'Geri çek', danger: true }))) return;
   try { await api('listing.cancel', { id: +el.dataset.id }); toast('İlan geri çekildi'); const ov = el.closest('.overlay'); if (ov) { const mm = modalStack.find((x) => x.el === ov); if (mm) mm.close(); } mkReloadAny(); } catch (e) { toast(e.message, 'err'); }
 };
+ACT['mk-del'] = async (el) => {
+  const open = el.dataset.open === '1';
+  if (!(await confirmDialog({ title: 'İlan silinsin mi?', text: open ? 'İlan kalıcı olarak silinir; başvuranlara ilanın kaldırıldığı bildirilir.' : 'İlan listeden kalıcı olarak silinir. Seçimle oluşmuş nöbet değişimi kaydı varsa o korunur.', ok: 'Sil', danger: true }))) return;
+  try { await api('listing.delete', { id: +el.dataset.id }); toast('İlan silindi'); const ov = el.closest('.overlay'); if (ov) { const mm = modalStack.find((x) => x.el === ov); if (mm) mm.close(); } mkReloadAny(); } catch (e) { toast(e.message, 'err'); }
+};
 function mkReloadAny() { if ($('#mkBody')) mkLoad(); const h = $('#homeExtTop .home-ext-market'); if (h) mkHomeCard(h); }
 
 /* ---- İlan ayrıntısı: başvuranlar (yalnız ilan sahibi / sorumlu) ---- */
@@ -290,6 +295,7 @@ async function mkOpenListing(id) {
     const canApply = !L.manage && L.status === 'open' && L.elig && L.elig.ok && (!L.my_app || L.my_app.status === 'withdrawn');
     m.setFoot(html`<button class="btn" data-act="close-modal">Kapat</button>
       ${(L.mine || L.manage) && L.status === 'open' ? html`<button class="btn danger" data-act="mk-cancel" data-id="${L.id}">İlanı geri çek</button>` : ''}
+      ${L.mine || L.manage ? html`<button class="btn ghost" data-act="mk-del" data-id="${L.id}" data-open="${L.status === 'open' ? 1 : 0}">${icon('trash', 'sm')}Sil</button>` : ''}
       ${canApply ? html`<button class="btn primary" data-ap="1">${L.kind === 'swap' ? 'Değiş öner' : 'Başvur'}</button>` : ''}
       ${!L.manage && L.my_app && L.my_app.status === 'applied' && L.status === 'open' ? html`<button class="btn" data-act="mk-withdraw" data-id="${L.id}">Başvurumu geri çek</button>` : ''}`);
     m.L = L;

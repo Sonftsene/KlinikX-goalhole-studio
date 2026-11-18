@@ -169,6 +169,8 @@ function mk_eligible(array $tl, array $L, string $uk, string $who = 'Senin'): ar
     $row = $tl[$pk]['days'][$date] ?? null;
     if (!$row || $row['kind'] !== 'shift') return ['ok' => false, 'reason' => 'İlan sahibinin bu nöbeti listede artık görünmüyor.', 'offers' => []];
     if (!isset($tl[$uk])) return ['ok' => false, 'reason' => 'Bu nöbet listesinde adın yok.', 'offers' => []];
+    // Yalnız ilanın ayındaki listede adı geçenler (önceki ayın listesinden kalanlar değil)
+    if (!array_filter(array_keys($tl[$uk]['days']), fn($d) => strncmp((string)$d, substr($date, 0, 7), 7) === 0)) return ['ok' => false, 'reason' => 'Bu ayın listesinde adın yok.', 'offers' => []];
     if ($uk === $pk) return ['ok' => false, 'reason' => 'Kendi ilanın.', 'offers' => []];
     $P = $tl[$pk]['days'];
     $U = $tl[$uk]['days'];
@@ -500,6 +502,24 @@ function a_listing_cancel(): void
     out(['ok' => true]);
 }
 
+/** İlanı tamamen sil (ilan sahibi veya sorumlu). Açıksa başvuranlara bildirilir; seçimle oluşan değişim kaydı korunur. */
+function a_listing_delete(): void
+{
+    $me = need_user();
+    $L = mk_listing((int)i('id'));
+    $own = (int)$L['user_id'] === (int)$me['id'];
+    if (!$own && !is_publisher($me)) fail('Bu ilanı yalnız sahibi veya sorumlu silebilir.', 403);
+    $d = swap_fmt_date((string)$L['date']);
+    if ($L['status'] === 'open') {
+        $ids = array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM listing_apps WHERE listing_id = ? AND status = 'applied'", [$L['id']]));
+        if ($ids) notify_users(mk_full_users($ids), 'listing', 'İlan kaldırıldı', $d . ' (' . $L['code'] . ') ilanı kaldırıldı.', '#/ilanlar', null);
+    }
+    q('DELETE FROM listing_apps WHERE listing_id = ?', [$L['id']]);
+    q('DELETE FROM listings WHERE id = ?', [$L['id']]);
+    audit($me, 'listing.delete', $d . ' (' . $L['code'] . ')', $own ? '' : 'İlan sahibi: ' . $L['name']);
+    out(['ok' => true]);
+}
+
 /* =================================================================== */
 /* Eksik personel çağrısı                                               */
 /* =================================================================== */
@@ -710,6 +730,9 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
             'have' => ['day' => co_count_on($tl, $date, ['day']), 'night' => co_count_on($tl, $date, ['night'])], 'need' => $need];
         foreach ($tl as $k => $p) {
             if (isset($seen[$k])) continue;
+            // Aday yalnızca çağrının ayındaki listede adı geçen kişidir (önceki/sonraki ayın listesindekiler değil);
+            // dinlenme / 48 saat denetimi için komşu günler yine okunur
+            if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, $ym, 7) === 0)) continue;
             $seen[$k] = true;
             $days = $p['days'];
             $dRow = $days[$date] ?? null;
@@ -1256,6 +1279,7 @@ return [
     'listing.withdraw' => 'a_listing_withdraw',
     'listing.choose' => 'a_listing_choose',
     'listing.cancel' => 'a_listing_cancel',
+    'listing.delete' => 'a_listing_delete',
     'callout.meta' => 'a_callout_meta',
     'callout.candidates' => 'a_callout_candidates',
     'callout.create' => 'a_callout_create',

@@ -171,6 +171,14 @@ const bur = byName('BURAK DEMİR'), eli = byName('ELİF YILMAZ');
 if (cand.row.code !== '16 8') fail('gece kodu: ' + cand.row.code);
 if (!bur || !bur.ok) fail('Burak uygun aday olmalı: ' + JSON.stringify(bur && bur.why));
 if (!eli || eli.ok || eli.c.rest !== false) fail('Elif dinlenme yüzünden elenmeli (24 saat çıkışı): ' + JSON.stringify(eli && eli.c));
+// Yalnız önceki ayın listesinde adı olan kişi (ör. bölümden ayrılan) bu ayın çağrısında aday olmamalı
+const insOld = (sql) => execFileSync('php', ['-r', `chdir(${JSON.stringify(SITE)}); require 'inc/bootstrap.php'; ${sql}`], { encoding: 'utf8' });
+const prevYm = (() => { const d = new Date(ym1.y, ym1.m - 2, 1); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`; })();
+insOld(`$r = one("SELECT r.id, r.parsed_file_id FROM rosters r JOIN roster_shifts s ON s.roster_id = r.id WHERE s.name = 'BURAK DEMİR' LIMIT 1"); q("INSERT INTO roster_shifts (roster_id, file_id, name, date, code, kind, hours, start_time, end_time) VALUES (?, ?, 'ESKİ AYLI KİŞİ', ?, '8 16', 'shift', 8, '08:00', '16:00')", [$r['id'], $r['parsed_file_id'], '${prevYm}-28']);`);
+const candOld = await apiCall(a, 'callout.candidates', { date: d1(11), shift: 'night', side: 's3' });
+if ([...candOld.people, ...(candOld.moves || [])].some((x) => x.name === 'ESKİ AYLI KİŞİ')) fail('önceki ayın listesindeki kişi bu ayın çağrısında aday çıktı');
+insOld(`q("DELETE FROM roster_shifts WHERE name = 'ESKİ AYLI KİŞİ'");`);
+step('eksik personel: yalnız önceki ayın listesindeki kişi bu ayın adaylarında yok');
 const okList = cand.people.filter((x) => x.ok);
 for (let i = 1; i < okList.length; i++) {
   const p = okList[i - 1], q = okList[i];
@@ -344,6 +352,14 @@ const cancelled = (await apiCall(m, 'listing.list')).mine.find((x) => x.id === s
 if (cancelled.status !== 'cancelled') fail('ilan geri çekilmedi');
 await m.screenshot({ path: path.join(OUT, 'mk-mine-mobile.png'), fullPage: true });
 await noOverflow(m, 'ilanlarım');
+// İlan silme: geri çekilmiş ilan kalıcı olarak silinir; başkası silemez
+const delOther = await apiCall(bp, 'listing.delete', { id: swapL.id }).then(() => 'silindi', (e) => e.message);
+if (delOther === 'silindi') fail('başkasının ilanı silinebildi');
+await m.locator(`.mk-item[data-lid="${swapL.id}"] [data-act=mk-del]`).click();
+await confirmOk(m);
+await expectText(m, 'İlan silindi');
+if ((await apiCall(m, 'listing.list')).mine.some((x) => x.id === swapL.id)) fail('silinen ilan listede kaldı');
+step('ilan silme: sahibi sildi, listeden kalktı; başkası silemiyor');
 // Yeni çağrı → Burak'ın ana sayfasında yanıt kartı
 const c2 = await apiCall(a, 'callout.create', { date: d1(9), shift: 'day', side: 's3', need: 1, filters: ['free', 'leave', 'rest', 'cont', 'gap', 'exempt', 'req'], asks: [{ name: 'BURAK DEMİR', from: '' }] }).catch((e) => ({ err: e.message }));
 if (c2.err) fail('ikinci çağrı: ' + c2.err);

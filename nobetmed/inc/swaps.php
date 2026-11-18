@@ -172,6 +172,8 @@ function swap_options(array $me, string $date): array
     $blocked = [];
     foreach ($tl as $k => $p) {
         if ($k === $mk) continue;
+        // Yalnız o ayın listesinde adı geçenler (önceki ayın listesinden kalanlar seçenek olmaz)
+        if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, substr($date, 0, 7), 7) === 0)) continue;
         $u = swap_user_for((string)$p['name'], $users);
         $person = ['name' => $p['name'], 'title' => $p['title'], 'user_id' => $u ? (int)$u['id'] : null, 'phone' => $u['phone'] ?? null];
         $pd = $p['days'];
