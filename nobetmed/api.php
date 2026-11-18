@@ -70,7 +70,7 @@ const POST_SELECT = "SELECT p.*, u.name AS author_name, u.title_id AS author_tit
 
 $action = (string)($_GET['action'] ?? '');
 // Dondurulmuş birimin dosyaları, Google eşitlemesi ve bildirimleri de kapalı
-if (nm_multi() && in_array($action, ['file', 'hfile', 'push.pending', 'avatar', 'backup.download', 'gsync.push', 'gsync.tables'], true) && nm_tenant_frozen()) { http_response_code(423); exit; }
+if (nm_multi() && in_array($action, ['file', 'hfile', 'cfile', 'push.pending', 'avatar', 'backup.download', 'gsync.push', 'gsync.tables'], true) && nm_tenant_frozen() && empty($_SESSION['sa_in'])) { http_response_code(423); exit; }
 
 if ($action === 'file') {
     serve_file();
@@ -225,7 +225,9 @@ if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
 // Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
 nm_route_tenant($action);
-if (nm_multi() && nm_tenant_frozen() && !in_array($action, ['boot', 'auth.logout'], true)) fail('Bu birim geçici olarak kullanıma kapatıldı. Yöneticinizle görüşün.', 423);
+// Birimdeki sistem yöneticisi kişi değildir: kişisel hesap işlemleri ve birim adına mesaj kapalı
+if (!empty($_SESSION['sa_in']) && preg_match('/^(me\.|passkey\.|push\.(subscribe|unsubscribe)|chat\.)/', $action) && ($vu = current_user()) && !empty($vu['sa_virtual'])) fail('Sistem yöneticisi bu işlemi birimde yapamaz (birimin bir kişisi değildir).', 403);
+if (nm_multi() && nm_tenant_frozen() && empty($_SESSION['sa_in']) && !in_array($action, ['boot', 'auth.logout'], true)) fail('Bu birim geçici olarak kullanıma kapatıldı. Yöneticinizle görüşün.', 423);
 // Modül kapalıysa / kişinin bu modülde yetkisi yoksa dur; is_publisher() bu modülün yetkisine göre karar verir
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();

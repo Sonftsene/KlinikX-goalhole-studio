@@ -80,7 +80,7 @@ function sa_audit(?array $sa, string $action, string $target = '', string $detai
 function sa_boot(): ?array
 {
     $u = sa_current();
-    return $u ? ['id' => (int)$u['id'], 'name' => $u['name'], 'email' => $u['email']] : null;
+    return $u ? ['id' => (int)$u['id'], 'name' => $u['name'], 'email' => $u['email'], 'in' => (string)($_SESSION['sa_in'] ?? '') ?: null] : null;
 }
 
 /* ---------------- Hesap oluşturma (bir kez; ilk birimin yöneticisi) ---------------- */
@@ -312,6 +312,50 @@ function a_sa_tenant_admin(): void
     out(['password' => $pw, 'mailed' => $mailed, 'link' => sa_tenant_out(m_one('SELECT t.*, h.name AS hospital_name, h.status AS hospital_status FROM tenants t JOIN hospitals h ON h.id = t.hospital_id WHERE t.id = ?', [(int)$t['id']]))['link']]);
 }
 
+/**
+ * Birime gir: sistem yöneticisi birimde birim yöneticisi yetkisiyle çalışır (sanal kullanıcı, kişi listelerine girmez).
+ * Giriş ve çıkış hem sistem günlüğüne hem birimin kendi işlem günlüğüne yazılır.
+ */
+function a_sa_enter(): void
+{
+    $sa = need_sa();
+    $t = nm_tenant_by_key(s('key', 16)) ?? fail('Birim bulunamadı.', 404);
+    nm_tenant_use($t);
+    db();
+    audit(['id' => null, 'name' => 'Sistem yöneticisi (' . $sa['name'] . ')'], 'sa.enter', (string)$t['name'], 'Sistem yöneticisi birime girdi');
+    sa_audit($sa, 'tenant.enter', $t['name']);
+    unset($_SESSION['uid']);
+    $_SESSION['sa_in'] = (string)$t['tkey'];
+    $_SESSION['t'] = (string)$t['tkey'];
+    out(['ok' => true]);
+}
+
+function a_sa_exit(): void
+{
+    $sa = need_sa();
+    $k = (string)($_SESSION['sa_in'] ?? '');
+    if ($k !== '' && ($t = nm_tenant_by_key($k))) {
+        nm_tenant_use($t);
+        audit(['id' => null, 'name' => 'Sistem yöneticisi (' . $sa['name'] . ')'], 'sa.exit', (string)$t['name'], 'Sistem yöneticisi birimden çıktı');
+        sa_audit($sa, 'tenant.exit', $t['name']);
+    }
+    unset($_SESSION['sa_in'], $_SESSION['t'], $_SESSION['uid']);
+    out(['ok' => true]);
+}
+
+/** Birimde sistem yöneticisi: sanal yönetici (veritabanında kişi değil) */
+function sa_virtual_user(): ?array
+{
+    if (!nm_multi() || empty($_SESSION['sa_in'])) return null;
+    $t = nm_tenant();
+    if ((string)$_SESSION['sa_in'] !== (string)$t['tkey']) return null;
+    $sa = sa_current();
+    if (!$sa) return null;
+    return ['id' => 0, 'name' => 'Sistem yöneticisi', 'email' => (string)$sa['email'], 'role' => 'admin', 'role_id' => null, 'status' => 'active', 'title_id' => null, 'unit_id' => null,
+        'created_at' => (string)$sa['created_at'], 'last_seen_at' => null, 'password_hash' => null, 'google_sub' => null, 'no_duty' => 1, 'email_notify' => 0, 'notify_mode' => 'off',
+        'push_on' => 0, 'phone' => null, 'extension' => null, 'avatar' => null, 'must_change' => 0, 'sa_virtual' => true];
+}
+
 function a_sa_audit(): void
 {
     need_sa();
@@ -332,4 +376,6 @@ return [
     'sa.status' => 'a_sa_status',
     'sa.tenant.admin' => 'a_sa_tenant_admin',
     'sa.audit' => 'a_sa_audit',
+    'sa.enter' => 'a_sa_enter',
+    'sa.exit' => 'a_sa_exit',
 ];

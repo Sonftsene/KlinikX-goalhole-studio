@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.2.0';
+const NM_VERSION = '4.3.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 13;
 const NM_ROOT = __DIR__ . '/..';
@@ -561,6 +561,8 @@ function current_user(): ?array
     if ($user !== false) return $user;
     nm_session();
     $user = null;
+    // Sistem yöneticisi birime girdiyse: sanal yönetici (dondurulmuş birime de girebilir)
+    if (function_exists('sa_virtual_user') && ($v = sa_virtual_user())) { $user = $v; return $user; }
     // Oturum yalnız açıldığı birimde geçerlidir; dondurulmuş birimde kimse giremez
     if (!empty($_SESSION['uid']) && nm_multi()) {
         $t = nm_tenant();

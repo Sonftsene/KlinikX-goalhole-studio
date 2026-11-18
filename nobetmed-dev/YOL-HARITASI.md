@@ -41,7 +41,7 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.2 — Hastane ortak alanları ✓ (4.2.0: hastane veritabanı, ortak rehber, hastane belgeleri; hastane duyurusu = belge türü 'Duyuru')
 - Ortak rehber (birim rehberleri + hastane geneli numaralar), hastane geneli belge kütüphanesi (protokol: hastane geneli / birime özel / ikisi), hastane duyurusu.
 
-### 4.3–4.4 — Mesajlaşma (WhatsApp'sız)
+### 4.3–4.4 — Mesajlaşma (WhatsApp'sız) — 4.3.0 ✓ (birim grubu, gruplar, birebir, fotoğraf/dosya, yanıt, sil, kim okudu, grup yöneticisi, sessize al, T.C. kimlik engeli); 4.4: sesli mesaj, video önizleme, anket, tepki, ilet, sabitle, @bahsetme, davet bağlantısı, saklama süresi
 - Her birime otomatik birim grubu; özel gruplar; birebir sohbet; hastane geneli "sorumlular/yöneticiler" grupları (birimler arası, yalnız davetle).
 - Metin, fotoğraf (telefonda sıkıştırılarak), video, sesli mesaj, dosya, bağlantı önizleme; yanıtla, ilet, tepki, sabitle, @bahsetme, okundu bilgisi (kimler okudu), arama, anket, duyuru modu.
 - Grup yöneticisi: üye ekle/çıkar, yönetici yap, yalnız yöneticiler yazsın, grup bilgisi/fotoğrafı düzenlesin, davet bağlantısı (süreli), herkesten mesaj silme, sessize alma.

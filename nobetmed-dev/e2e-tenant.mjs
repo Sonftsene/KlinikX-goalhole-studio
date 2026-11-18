@@ -186,6 +186,30 @@ await apiCall(SA.p, 'sa.status', { kind: 'tenant', id: tB.id, status: 'active' }
 await login(K2.p, 'kerem@test.com', 'KeremSifre123');
 step('dondurma: B dondurulunca açık oturum ve yeni giriş durdu, A çalışmaya devam etti; açılınca giriş yapıldı');
 
+// ---- 6b) Sistem yöneticisi birime girer (her şeyi yönetir, kayıt altında) ----
+await SA.p.reload();
+await SA.p.locator('.sys-t', { hasText: 'Acil Servis' }).locator('[data-act=sys-enter]').click();
+await SA.p.locator('.modal [data-ok]').last().click();
+await SA.p.locator('.banner.sys-in').waitFor();
+const inB = await SA.p.evaluate(() => ({ me: S.me, t: S.tenant, people: S.people.length }));
+if (inB.me.role !== 'admin' || inB.t.name !== 'Acil Servis' || inB.people !== 1) fail('birime girişte yönetici değil / yanlış birim: ' + JSON.stringify(inB));
+const saUsers = (await apiCall(SA.p, 'admin.users')).users;
+if (!saUsers.some((u) => u.email === 'kerem@test.com') || saUsers.some((u) => /Sistem/.test(u.name))) fail('sistem yöneticisi kullanıcıları göremedi ya da kişi olarak eklendi');
+const created = await apiCall(SA.p, 'admin.user.save', { name: 'Derya Kaplan', email: 'derya@test.com', role: 'member', status: 'active' });
+if (!created.id) fail('sistem yöneticisi birimde kullanıcı açamadı');
+if (!/yapamaz/.test(await apiErr(SA.p, 'me.password', { password: 'Deneme12345' }))) fail('sanal yöneticiye kişisel hesap işlemi açık');
+if ((await apiErr(SA.p, 'rosters.list')) !== 'kabul') fail('sistem yöneticisi birimde nöbet listelerini açamadı');
+// Dondurulmuş birime de girilebilir
+await apiCall(SA.p, 'sa.status', { kind: 'tenant', id: tB.id, status: 'frozen' });
+if ((await apiErr(SA.p, 'admin.users')) !== 'kabul') fail('sistem yöneticisi dondurulmuş birimde çalışamadı');
+await apiCall(SA.p, 'sa.status', { kind: 'tenant', id: tB.id, status: 'active' });
+await SA.p.click('[data-act=sys-exit]');
+await SA.p.locator('.sys-main').waitFor();
+if ((await apiErr(SA.p, 'admin.users')) === 'kabul') fail('birimden çıkınca birim içeriği hâlâ açık');
+const kAudit = (await apiCall(K2.p, 'audit.list', {})).items || [];
+if (!kAudit.some((x) => x.action === 'sa.enter') || !kAudit.some((x) => x.action === 'sa.exit') || !kAudit.some((x) => x.action === 'user.create' && /Sistem yöneticisi/.test(x.user || ''))) fail('birim günlüğünde sistem yöneticisi kaydı yok: ' + JSON.stringify(kAudit.slice(0, 5)));
+step('birime gir: sistem yöneticisi “Acil Servis”e yönetici yetkisiyle girdi (şerit), kullanıcıları gördü, kişi açtı, nöbet listelerine baktı, dondurulmuşken de çalıştı; kişisel hesap işlemi kapalı; çıkınca erişim kapandı; birimin günlüğünde giriş/çıkış/işlem kayıtlı');
+
 // ---- 7) Cron: her birim ayrı süreçte ----
 if (SITE) {
   const out = execFileSync('php', [path.join(SITE, 'cron.php'), '--force'], { encoding: 'utf8' });

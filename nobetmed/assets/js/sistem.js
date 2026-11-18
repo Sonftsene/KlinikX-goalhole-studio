@@ -41,7 +41,7 @@ async function renderSistem() {
       <button class="btn sm ghost" data-act="sys-pw">${icon('key', 'sm')}<span>Şifre</span></button>
       <button class="btn sm" data-act="sys-out">${icon('logout', 'sm')}<span>Çıkış</span></button></header>
     <main class="sys-main">
-      <div class="page-head"><div><h1>Hastaneler ve birimler</h1><p>Her birimin verisi ayrı tutulur. Buradan birimlerin içeriği (kişiler, nöbetler, hasta listeleri) görülmez.</p></div>
+      <div class="page-head"><div><h1>Hastaneler ve birimler</h1><p>Her birimin verisi ayrı tutulur. Birimin içini yönetmek için <b>Birime gir</b>: yönetici yetkisiyle girersiniz; giriş, çıkış ve her işlem birimin günlüğüne de yazılır.</p></div>
         <button class="btn primary" data-act="sys-h-new">${icon('plus', 'sm')}<span>Hastane ekle</span></button></div>
       <div class="seg" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
       <div id="sysBody"><div class="empty"><div class="spinner"></div></div></div>
@@ -76,13 +76,14 @@ async function sysLoad() {
 const SYS_ACT = {
   login: 'Giriş', logout: 'Çıkış', password: 'Şifre değişti', 'sa.created': 'Hesap etkinleşti', 'hospital.create': 'Hastane eklendi', 'hospital.rename': 'Hastane adı değişti',
   'hospital.freeze': 'Hastane donduruldu', 'hospital.unfreeze': 'Hastane açıldı', 'tenant.create': 'Birim eklendi', 'tenant.rename': 'Birim düzenlendi',
-  'tenant.freeze': 'Birim donduruldu', 'tenant.unfreeze': 'Birim açıldı', 'tenant.admin': 'Birim yöneticisi açıldı', modules: 'Modüller değişti',
+  'tenant.enter': 'Birime girdi', 'tenant.exit': 'Birimden çıktı', 'tenant.freeze': 'Birim donduruldu', 'tenant.unfreeze': 'Birim açıldı', 'tenant.admin': 'Birim yöneticisi açıldı', modules: 'Modüller değişti',
 };
 function sysTenantRow(t) {
   return html`<div class="list-row sys-t ${t.status === 'frozen' ? 'frozen' : ''}"><div class="grow">
       <div class="lr-t">${t.name}${t.is_default ? html` <span class="badge">ilk kurulum</span>` : ''}${t.status === 'frozen' ? html` <span class="badge warn">dondurulmuş</span>` : ''}${!t.users ? html` <span class="badge info">yönetici bekliyor</span>` : ''}</div>
       <div class="lr-s">${t.active_users} etkin kişi · ${t.disk_mb} MB dosya${t.last_seen ? ' · son etkinlik ' + fmtRel(t.last_seen) : ''}${t.note ? ' · ' + t.note : ''}</div></div>
-    <div class="mk-act"><button class="btn sm" data-act="sys-t-admin" data-k="${t.key}" data-n="${t.name}">${icon('user', 'sm')}<span>Yönetici ekle</span></button>
+    <div class="mk-act"><button class="btn sm primary" data-act="sys-enter" data-k="${t.key}" data-n="${t.name}">${icon('logout', 'sm')}<span>Birime gir</span></button>
+      <button class="btn sm" data-act="sys-t-admin" data-k="${t.key}" data-n="${t.name}">${icon('user', 'sm')}<span>Yönetici ekle</span></button>
       <button class="btn sm icon ghost" data-act="sys-t-menu" data-id="${t.id}" aria-label="Birim işlemleri">${icon('more', 'sm')}</button></div></div>`;
 }
 function sysFind(id) { for (const h of SYS.data.hospitals) for (const t of h.tenants) if (t.id === id) return [h, t]; return [null, null]; }
@@ -154,6 +155,14 @@ ACT['sys-t-admin'] = (el) => {
       sysLoad();
     });
   });
+};
+ACT['sys-enter'] = async (el) => {
+  if (!(await confirmDialog({ title: `${el.dataset.n} birimine girilsin mi?`, text: 'Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, hasta listeleri dahil). Giriş, çıkış ve yaptığınız her işlem birimin kendi işlem günlüğüne de yazılır. Hasta bilgisine yalnız gerektiğinde bakın.', ok: 'Birime gir' }))) return;
+  try { await api('sa.enter', { key: el.dataset.k }); location.hash = '#/'; start(); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['sys-exit'] = async () => {
+  try { await api('sa.exit'); } catch (e) { /* oturum düştüyse de panele dön */ }
+  location.hash = ''; start();
 };
 ACT['sys-out'] = async () => { try { const r = await api('sa.logout'); S.csrf = r.csrf || S.csrf; } catch (e) { /* */ } S.sa = null; start(); };
 ACT['sys-pw'] = () => {

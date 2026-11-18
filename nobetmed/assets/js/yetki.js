@@ -3,7 +3,7 @@
 
 const PERM_LBL = { off: ['Göremez', ''], use: ['Kullanır', 'info'], manage: ['Yönetir', 'brand'] };
 const YT = { roles: [], modules: [] };
-Object.assign(NM_EXT.audit, { 'role.create': 'Rol ekledi', 'role.save': 'Rolü düzenledi', 'role.delete': 'Rolü kaldırdı', 'role.assign': 'Kişiye rol verdi', 'sa.create': 'Sistem yöneticisi hesabı açtı' });
+Object.assign(NM_EXT.audit, { 'role.create': 'Rol ekledi', 'role.save': 'Rolü düzenledi', 'role.delete': 'Rolü kaldırdı', 'role.assign': 'Kişiye rol verdi', 'sa.create': 'Sistem yöneticisi hesabı açtı', 'sa.enter': 'Sistem yöneticisi birime girdi', 'sa.exit': 'Sistem yöneticisi birimden çıktı' });
 
 /* ---------------- Ayarlar › Güvenlik: roller ---------------- */
 NM_EXT.settingsCards.push({

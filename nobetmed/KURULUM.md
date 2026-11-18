@@ -263,3 +263,18 @@ Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini g�
 
 **Hastane belgeleri:** Soldaki menüde **Hastane belgeleri** (sistem yöneticisi modülü kapatmadıysa). Yayıncı/yönetici **Belge ekle** ile protokol, talimat, form veya duyuru yayımlar; PDF, Word, Excel, resim eklenebilir, isteğe bağlı “Okudum, anladım” onayı istenir. Belge hastanedeki tüm birimlerde görünür ve diğer birimlere bildirim gider. Belgeyi yalnız yayımlayan birim düzenler veya kaldırır. **Okuma raporu**nda kendi biriminizin kişileri adıyla, diğer birimler yalnız sayıyla görünür (başka birimin personel adları gösterilmez). Hasta bilgisi içeren belge eklemeyin.
 
+## 19. Mesajlaşma (4.3)
+
+Üst çubuktaki konuşma balonu (veya soldaki **Mesajlar**). Her birimin **birim grubu** kendiliğinden vardır; birimin tüm etkin kişileri içindedir.
+
+- **Birebir sohbet:** Yeni sohbet → kişiyi seçin. Kendi biriminizdeki kişilerle ve aynı grupta olduğunuz kişilerle yazışabilirsiniz.
+- **Grup:** Yönetici / yayıncı (ya da rolünde “Mesajlaşma: Yönetir” olan) **Yeni grup kur** ile grup açar. Kendi biriminden herkesi; hastanenin diğer birimlerinden yönetici ve sorumluları ekleyebilir (ör. “Sorumlu hemşireler” grubu).
+- **Grup yöneticisi:** grup bilgisinden ad/açıklama, “Yalnız yöneticiler yazsın” (duyuru grubu), üye ekle/çıkar, yönetici yap; herkesten mesaj silme. Herkes kendi mesajını herkesten silebilir, sohbeti sessize alabilir, gruptan çıkabilir.
+- Fotoğraf (telefonda küçültülerek), PDF/Word/Excel ve diğer dosyalar (en fazla 25 MB) gönderilir; yalnız sohbetin üyeleri açabilir. Yanıtla, metni kopyala, kimler okudu.
+- **KVKK:** T.C. kimlik numarası içeren mesaj gönderilmeden reddedilir. Hasta adı ve hasta bilgisi paylaşmayın.
+- Bildirim: aynı birimdeki kişiye anında; başka birimdeki grup üyesine en geç ~5 dakika içinde (zamanlanmış görev). Sohbet açıkken yeni mesajlar birkaç saniyede gelir.
+
+## 20. Sistem yöneticisinin birime girmesi
+
+Sistem yönetimi → birimin satırında **Birime gir**. Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, ayarlar, roller, belgeler); dondurulmuş birime de girilebilir. Ekranın üstünde “Sistem yöneticisi olarak … birimindesiniz” şeridi görünür; **Sistem paneline dön** ile çıkılır. Giriş, çıkış ve yapılan her işlem birimin kendi **İşlem günlüğü**ne “Sistem yöneticisi” adıyla yazılır. Sistem yöneticisi birimde bir kişi olmadığı için kişi listelerinde görünmez, bildirim almaz, birim adına mesaj yazmaz.
+

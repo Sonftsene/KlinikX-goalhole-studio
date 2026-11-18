@@ -18,6 +18,7 @@ const NM_MODULES = [
     'eksik' => ['Eksik personel çağrısı', 'Eksik vardiya için uygun kişilere sorma, gönüllü seçme', 'nobet'],
     'gecmis' => ['Değişim geçmişi', 'Değişim, devir, ilan ve çağrı kayıtları (yönetenler)', 'nobet'],
     'rehber' => ['Telefon rehberi', 'Dahili numaralar, santral, acil numaralar (birim + hastane ortak rehberi)', null],
+    'mesaj' => ['Mesajlaşma', 'Birim grubu, özel gruplar (birimler arası olabilir), birebir sohbet, dosya ve fotoğraf', null],
     'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okudum onayı', null],
     'ucret' => ['Fazla mesai ücreti', 'Kişinin kendi ücretini girip tahmini tutarı görmesi (yalnız kendisi görür)', 'nobet'],
 ];
@@ -32,6 +33,7 @@ const NM_ACTION_MODULE = [
     'history.' => 'gecmis',
     'phonebook.' => 'rehber',
     'hdoc.' => 'hbelge',
+    'chat.' => 'mesaj',
 ];
 
 function nm_action_module(string $action): ?string

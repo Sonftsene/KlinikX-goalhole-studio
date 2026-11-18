@@ -26,7 +26,7 @@ async function start() {
   if (typeof prefsOnBoot === 'function') { try { prefsOnBoot(); } catch (e) { /* */ } }
   document.title = 'dupcii · ' + (S.settings.org_name || 'Klinik Portalı');
   applyBrand();
-  if (r.sa && typeof renderSistem === 'function') return renderSistem();
+  if (r.sa && !r.sa.in && typeof renderSistem === 'function') return renderSistem();
   if (r.setup_needed) return renderSetup();
   if (BOOT.reset && !start.resetShown) {
     start.resetShown = true;
@@ -41,7 +41,12 @@ async function start() {
   if (!S.me) return renderAuth('login');
   if (S.me.must_change) return renderForceChange();
   renderShell();
-  if (!window.NM_DEMO_API && typeof registerSW === 'function') {
+  // Sistem yöneticisi birimde: her sayfada görünen şerit
+  if (S.sa && S.sa.in) {
+    const bs = $('#bannerSlot');
+    if (bs) setHTML(bs, html`<div class="banner warn sys-in">${icon('shield', 'sm')}<span class="grow">Sistem yöneticisi olarak <b>${S.settings.org_name}</b> birimindesiniz. Yaptığınız her işlem birimin işlem günlüğüne yazılır.</span><button class="btn sm" data-act="sys-exit">Sistem paneline dön</button></div>`);
+  }
+  if (!window.NM_DEMO_API && typeof registerSW === 'function' && !(S.sa && S.sa.in)) {
     registerSW();
     if (S.settings.push_ready && S.me.push_on !== false) setTimeout(() => pushSync().catch(() => {}), 3000);
   }

@@ -393,7 +393,7 @@ const ROLE_HINT = {
 const isAdmin = () => S.me && S.me.role === 'admin';
 const isPublisherBase = () => S.me && (S.me.role === 'admin' || S.me.role === 'editor');
 /* Modüller ve yetkiler (4.1): S.mods = birimde açık modüller, S.perm = kişinin modül başına yetkisi (off | use | manage) */
-const ROUTE_MOD = { nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber', hastane: 'hbelge' };
+const ROUTE_MOD = { nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber', hastane: 'hbelge', mesaj: 'mesaj' };
 function modOn(m) {
   if (!m) return true;
   if (S.mods && S.mods[m] === false) return false;
