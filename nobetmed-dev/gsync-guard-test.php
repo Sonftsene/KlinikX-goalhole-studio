@@ -29,7 +29,8 @@ ok(gs_mask_guard(['sheets' => [$b, $diag]], $H) === null, '"Hasta Tanısı" ad s
 ok(is_string(gs_mask_guard(['sheets' => [$b, $aData]], $H)), 'altında ad olan "Hasta" sütunu → durdur');
 ok(gs_mask_guard(['sheets' => [$b, $aData]], $H, ['B BLOK']) === null, 'riskli sütun gösterilmeyen sekmede → uygun');
 ok(is_string(gs_mask_guard(['sheets' => [$renamed]], $H)), 'sütun adı değişmiş ("Adı Soyadı") → durdur');
-ok(is_string(gs_mask_guard(['sheets' => [$b, $renamed]], $H, ['B BLOK2'])), 'gösterilen sekmelerde ayarlı başlık yok → durdur');
+ok(gs_mask_guard(['sheets' => [$b, $aEmpty]], $H, ['A BLOK']) === null, 'yalnız başlık olan sekme gösteriliyor (hasta yok) → uygun');
+ok(is_string(gs_mask_guard(['sheets' => [$b, $aData]], $H, ['A BLOK'])), 'gösterilen sekmede ayarsız ad sütununda veri var → durdur');
 ok(is_string(gs_mask_guard(['sheets' => [$renamed, $b]], $H, [])) === false, 'başka sekmede ayarlı başlık var → uygun (sekme seçimi yok)');
 ok(is_string(gs_mask_guard(['sheets' => [$renamed, $b]], $H, ['B BLOK'])) === false, 'gösterilen sekmede başlık var');
 

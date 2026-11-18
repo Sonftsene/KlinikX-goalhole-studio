@@ -654,8 +654,16 @@ function gs_mask_guard(array $model, array $headers, array $keep = []): ?string
             }
         }
     }
-    // Ayarlı başlık gösterilen sekmelerin hiçbirinde yoksa (ör. sütunun adı "Adı Soyadı" yapılmış) adlar kısaltılamaz
-    if (!$found) return '“' . implode('”, “', $headers) . '” başlıklı sütun gösterilen sekmelerde bulunamadı.';
+    // Ayarlı başlık gösterilen sekmelerin hiçbirinde yoksa (ör. sütunun adı "Adı Soyadı" yapılmış) adlar kısaltılamaz.
+    // Gösterilen sekmeler yalnız başlıktan ibaretse (henüz hasta yok) kaydedilecek ad da yoktur: durdurmaya gerek yok.
+    if (!$found) {
+        foreach ($model['sheets'] ?? [] as $sh) {
+            if ($keep && !in_array((string)$sh['name'], $keep, true)) continue;
+            $rows = [];
+            foreach ($sh['cells'] ?? [] as $k => $cell) if (trim((string)($cell['text'] ?? '')) !== '') $rows[intdiv((int)$k, 100000)] = true;
+            if (count($rows) > 1) return '“' . implode('”, “', $headers) . '” başlıklı sütun gösterilen sekmelerde bulunamadı.';
+        }
+    }
     return null;
 }
 
