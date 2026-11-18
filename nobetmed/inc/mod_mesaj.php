@@ -10,9 +10,9 @@
  */
 declare(strict_types=1);
 
-const C_SCHEMA = 2;
+const C_SCHEMA = 3;
 const C_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-const C_RETENTION = [0, 30, 90, 180, 365, 730];
+const C_RETENTION = [0, 1, 7, 30, 90, 180, 365, 730];
 const C_MAX_BODY = 4000;
 const C_MAX_FILE = 25 * 1048576;
 
@@ -44,6 +44,19 @@ function cdb(): ?PDO
             foreach ($cols as $col) { try { $p->exec("ALTER TABLE $tb ADD COLUMN $col"); } catch (Throwable $e) { /* zaten var */ } }
         }
         $p->exec('CREATE INDEX IF NOT EXISTS c_msgs_upd ON c_msgs (chat_id, upd)');
+        // Şema 3 (4.6): gizlilik tercihleri, engellenenler, benden sil, yıldızlı, katılma istekleri; sohbet başına durum; grup izinleri
+        $p->exec("CREATE TABLE IF NOT EXISTS c_prefs (tkey TEXT NOT NULL, user_id INTEGER NOT NULL, name TEXT NOT NULL DEFAULT '', unit_name TEXT NOT NULL DEFAULT '',
+            about TEXT NOT NULL DEFAULT '', about_vis TEXT NOT NULL DEFAULT 'all', seen_vis TEXT NOT NULL DEFAULT 'contacts', receipts INTEGER NOT NULL DEFAULT 1,
+            add_groups TEXT NOT NULL DEFAULT 'all', findable INTEGER NOT NULL DEFAULT 0, dm_from TEXT NOT NULL DEFAULT 'all', ret_default INTEGER NOT NULL DEFAULT 0,
+            last_seen TEXT NULL, typing_chat INTEGER NULL, typing_at TEXT NULL, PRIMARY KEY (tkey, user_id))");
+        $p->exec('CREATE TABLE IF NOT EXISTS c_blocks (tkey TEXT NOT NULL, user_id INTEGER NOT NULL, btkey TEXT NOT NULL, buid INTEGER NOT NULL, bname TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (tkey, user_id, btkey, buid))');
+        $p->exec('CREATE TABLE IF NOT EXISTS c_hidden (msg_id INTEGER NOT NULL, tkey TEXT NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY (msg_id, tkey, user_id))');
+        $p->exec('CREATE TABLE IF NOT EXISTS c_stars (msg_id INTEGER NOT NULL, tkey TEXT NOT NULL, user_id INTEGER NOT NULL, at TEXT NOT NULL, PRIMARY KEY (msg_id, tkey, user_id))');
+        $p->exec('CREATE TABLE IF NOT EXISTS c_joinreq (chat_id INTEGER NOT NULL, tkey TEXT NOT NULL, user_id INTEGER NOT NULL, name TEXT NOT NULL, unit_name TEXT NOT NULL DEFAULT \'\', at TEXT NOT NULL, PRIMARY KEY (chat_id, tkey, user_id))');
+        foreach (['c_members' => ['pinned_at TEXT NULL', 'archived INTEGER NOT NULL DEFAULT 0', 'mute_until TEXT NULL', 'cleared_id INTEGER NOT NULL DEFAULT 0', 'unread_mark INTEGER NOT NULL DEFAULT 0', 'deleted INTEGER NOT NULL DEFAULT 0'],
+            'c_msgs' => ['edited_at TEXT NULL'], 'c_chats' => ["perm_edit TEXT NOT NULL DEFAULT 'admins'", "perm_add TEXT NOT NULL DEFAULT 'admins'", 'approve_join INTEGER NOT NULL DEFAULT 0', 'photo_file_id INTEGER NULL']] as $tb => $cols) {
+            foreach ($cols as $col) { try { $p->exec("ALTER TABLE $tb ADD COLUMN $col"); } catch (Throwable $e) { /* zaten var */ } }
+        }
         $p->prepare("INSERT OR REPLACE INTO h_settings (k, v) VALUES ('chat_schema', ?)")->execute([(string)C_SCHEMA]);
     }
     $ok = true;
@@ -80,9 +93,11 @@ function c_access(array $me, int $id): array
             h_q('INSERT OR IGNORE INTO c_members (chat_id, tkey, user_id, name, unit_name, joined_at, last_read, notified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [$id, c_tk(), $me['id'], $me['name'], c_unit(), now(), (int)$c['last_id'], (int)$c['last_id']]);
             $m = h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$id, c_tk(), (int)$me['id']]);
         }
+        $GLOBALS['C_ME_ROW'] = $m;
         return [$c, $m, is_publisher($me)];
     }
     if (!$m) fail('Bu sohbete erişiminiz yok.', 403);
+    $GLOBALS['C_ME_ROW'] = $m;
     return [$c, $m, $m['role'] === 'admin'];
 }
 
@@ -106,6 +121,7 @@ function c_msg_out(array $r, ?array $files = null): array
         'mine' => $r['tkey'] === c_tk() && (int)$r['user_id'] === (int)(current_user()['id'] ?? 0), 'reply' => $r['reply_to'] ? (int)$r['reply_to'] : null];
     if ($r['deleted_at']) { $o['deleted'] = true; $o['body'] = ''; return $o; }
     $o['body'] = $r['body'];
+    if (!empty($r['edited_at'])) $o['edited'] = true;
     if ($r['file_id']) {
         $f = $files[(int)$r['file_id']] ?? h_one('SELECT * FROM c_files WHERE id = ?', [(int)$r['file_id']]);
         if ($f) $o['file'] = ['id' => (int)$f['id'], 'name' => $f['name'], 'mime' => $f['mime'], 'size' => (int)$f['size'], 'url' => 'api.php?action=cfile&id=' . (int)$f['id'] . nm_link_param()];
@@ -120,10 +136,19 @@ function c_msg_out(array $r, ?array $files = null): array
 /** Mesaj listesi + yanıtlanan mesajların kısa önizlemesi */
 function c_msgs_out(array $rows): array
 {
+    // Benim görünümüm: "benim için temizle" öncesi ve "benden sil" denenler gösterilmez
+    $mr = $GLOBALS['C_ME_ROW'] ?? null;
+    $uid = (int)(current_user()['id'] ?? 0);
+    if ($rows) {
+        $cl = $mr ? (int)($mr['cleared_id'] ?? 0) : 0;
+        $hid = array_flip(array_map('intval', array_column(h_all('SELECT msg_id FROM c_hidden WHERE tkey = ? AND user_id = ? AND msg_id IN (' . implode(',', array_map(fn($r) => (int)$r['id'], $rows)) . ')', [c_tk(), $uid]), 'msg_id')));
+        $rows = array_values(array_filter($rows, fn($r) => (int)$r['id'] > $cl && !isset($hid[(int)$r['id']])));
+    }
+    $stars = $rows ? array_flip(array_map('intval', array_column(h_all('SELECT msg_id FROM c_stars WHERE tkey = ? AND user_id = ? AND msg_id IN (' . implode(',', array_map(fn($r) => (int)$r['id'], $rows)) . ')', [c_tk(), $uid]), 'msg_id'))) : [];
     $fids = array_filter(array_map(fn($r) => (int)$r['file_id'], $rows));
     $files = [];
     if ($fids) foreach (h_all('SELECT * FROM c_files WHERE id IN (' . implode(',', array_map('intval', $fids)) . ')') as $f) $files[(int)$f['id']] = $f;
-    $out = array_map(fn($r) => c_msg_out($r, $files), $rows);
+    $out = array_map(fn($r) => c_msg_out($r, $files) + (isset($stars[(int)$r['id']]) ? ['star' => true] : []), $rows);
     $rids = array_values(array_unique(array_filter(array_map(fn($r) => (int)$r['reply_to'], $rows))));
     $refs = [];
     if ($rids) foreach (h_all('SELECT id, name, body, kind, deleted_at FROM c_msgs WHERE id IN (' . implode(',', $rids) . ')') as $x) {
@@ -181,13 +206,18 @@ function c_other(array $c, array $me): ?array
 
 function c_chat_row(array $c, array $me, array $m): array
 {
-    $last = $c['last_id'] ? h_one('SELECT * FROM c_msgs WHERE id = ?', [(int)$c['last_id']]) : null;
-    $unread = (int)h_val('SELECT COUNT(*) FROM c_msgs WHERE chat_id = ? AND id > ? AND NOT (tkey = ? AND user_id = ?) AND deleted_at IS NULL', [(int)$c['id'], (int)$m['last_read'], c_tk(), (int)$me['id']]);
+    $cl = (int)($m['cleared_id'] ?? 0);
+    $last = $c['last_id'] && (int)$c['last_id'] > $cl ? h_one('SELECT * FROM c_msgs WHERE id = ?', [(int)$c['last_id']]) : null;
+    $unread = (int)h_val('SELECT COUNT(*) FROM c_msgs WHERE chat_id = ? AND id > ? AND NOT (tkey = ? AND user_id = ?) AND deleted_at IS NULL', [(int)$c['id'], max((int)$m['last_read'], $cl), c_tk(), (int)$me['id']]);
     $name = $c['name'];
     $sub = '';
-    if ($c['kind'] === 'direct') { $o = c_other($c, $me); $name = $o['name'] ?? 'Kişi'; $sub = ($o && $o['tkey'] !== c_tk()) ? $o['unit_name'] : ''; }
+    $other = null;
+    if ($c['kind'] === 'direct') { $o = c_other($c, $me); $name = $o['name'] ?? 'Kişi'; $sub = ($o && $o['tkey'] !== c_tk()) ? $o['unit_name'] : ''; if ($o) $other = ['tk' => $o['tkey'], 'uid' => (int)$o['user_id']]; }
+    $mu = (string)($m['mute_until'] ?? '');
     return ['id' => (int)$c['id'], 'kind' => $c['kind'], 'name' => $name, 'sub' => $sub, 'last' => c_preview($last), 'last_at' => $c['last_at'] ?: $c['created_at'],
-        'unread' => $unread, 'muted' => (int)$m['muted'] === 1, 'only_admins' => (int)$c['only_admins'] === 1];
+        'unread' => $unread, 'muted' => (int)$m['muted'] === 1 || ($mu !== '' && $mu > now()), 'mute_until' => $mu !== '' && $mu > now() ? $mu : null,
+        'only_admins' => (int)$c['only_admins'] === 1, 'pinned' => !empty($m['pinned_at']), 'archived' => (int)($m['archived'] ?? 0) === 1, 'unread_mark' => (int)($m['unread_mark'] ?? 0) === 1,
+        'photo' => function_exists('c_photo_url') ? c_photo_url(isset($c['photo_file_id']) ? (int)$c['photo_file_id'] : null) : null, 'other' => $other];
 }
 
 /* ---------------- Uçlar ---------------- */
@@ -202,8 +232,16 @@ function a_chat_list(): void
     foreach ($rows as $c) {
         if ($c['kind'] === 'unit' && $c['tkey'] !== c_tk()) continue;
         $m = h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['id'], c_tk(), (int)$me['id']]);
+        // Silinen sohbet: yeni mesaj gelene kadar listede yok
+        if ((int)($m['deleted'] ?? 0) === 1) {
+            if ((int)$c['last_id'] <= (int)$m['cleared_id']) continue;
+            h_q('UPDATE c_members SET deleted = 0 WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['id'], c_tk(), (int)$me['id']]);
+        }
         $items[] = c_chat_row($c, $me, $m);
     }
+    // Sabitlenenler üstte (sabitleme sırasına göre), sonra son mesaja göre
+    usort($items, function ($a, $b) use ($rows) { return [$b['pinned'] ? 1 : 0, $b['last_at']] <=> [$a['pinned'] ? 1 : 0, $a['last_at']]; });
+    if (function_exists('c_pref_touch')) c_pref_touch($me);
     out(['items' => $items, 'can_group' => is_publisher($me)]);
 }
 
@@ -214,7 +252,9 @@ function a_chat_unread(): void
     $u = c_unit_chat();
     c_access($me, (int)$u['id']);
     $n = (int)h_val('SELECT COUNT(*) FROM c_msgs x JOIN c_members m ON m.chat_id = x.chat_id AND m.tkey = ? AND m.user_id = ? JOIN c_chats c ON c.id = x.chat_id
-        WHERE x.id > m.last_read AND m.muted = 0 AND NOT (x.tkey = ? AND x.user_id = ?) AND x.deleted_at IS NULL AND (c.kind <> \'unit\' OR c.tkey = ?)', [c_tk(), (int)$me['id'], c_tk(), (int)$me['id'], c_tk()]);
+        WHERE x.id > m.last_read AND x.id > m.cleared_id AND m.muted = 0 AND (m.mute_until IS NULL OR m.mute_until < ?) AND NOT (x.tkey = ? AND x.user_id = ?) AND x.deleted_at IS NULL AND (c.kind <> \'unit\' OR c.tkey = ?)', [c_tk(), (int)$me['id'], now(), c_tk(), (int)$me['id'], c_tk()]);
+    $n += (int)h_val('SELECT COUNT(*) FROM c_members WHERE tkey = ? AND user_id = ? AND unread_mark = 1', [c_tk(), (int)$me['id']]);
+    if (function_exists('c_pref_touch')) c_pref_touch($me);
     out(['unread' => $n]);
 }
 
@@ -234,8 +274,18 @@ function a_chat_open(): void
     $row = c_chat_row($c, $me, h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['id'], c_tk(), (int)$me['id']]));
     $inv = null;
     if ($adm && $c['kind'] === 'group' && $c['invite_token'] && (!$c['invite_expires'] || $c['invite_expires'] > now())) $inv = ['token' => $c['invite_token'], 'expires' => $c['invite_expires']];
+    h_q('UPDATE c_members SET unread_mark = 0 WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['id'], c_tk(), (int)$me['id']]);
+    $grp = $c['kind'] === 'group';
+    $peer = null;
+    if ($c['kind'] === 'direct' && ($o = c_other($c, $me))) {
+        $peer = c_profile_out($me, (string)$o['tkey'], (int)$o['user_id']);
+        $peer['blocked_me'] = c_blocked_by((string)$o['tkey'], (int)$o['user_id'], c_tk(), (int)$me['id']);
+    }
     out(['chat' => $row + ['descr' => $c['descr'], 'admin' => $adm, 'can_send' => !((int)$c['only_admins'] === 1 && !$adm),
-            'can_pin' => $adm || $c['kind'] === 'direct', 'retention' => (int)$c['retention_days'], 'invite' => $inv],
+            'can_pin' => $adm || $c['kind'] === 'direct', 'retention' => (int)$c['retention_days'], 'invite' => $inv,
+            'perm_edit' => $c['perm_edit'] ?? 'admins', 'perm_add' => $c['perm_add'] ?? 'admins', 'approve_join' => (int)($c['approve_join'] ?? 0) === 1,
+            'can_edit_info' => $grp && ($adm || ($c['perm_edit'] ?? 'admins') === 'all'), 'can_add' => $grp && ($adm || ($c['perm_add'] ?? 'admins') === 'all'),
+            'joinreqs' => $grp && $adm ? c_joinreqs($c) : [], 'peer' => $peer],
         'members' => $members, 'msgs' => c_msgs_out($rows), 'more' => count($rows) === 60, 'pinned' => c_pinned_out($c), 'emojis' => C_EMOJIS, 'now' => now()]);
 }
 
@@ -280,12 +330,19 @@ function a_chat_poll(): void
     // Kendi son mesajımı kaç kişi okudu (gruplarda)
     $mineLast = (int)h_val('SELECT MAX(id) FROM c_msgs WHERE chat_id = ? AND tkey = ? AND user_id = ? AND deleted_at IS NULL', [(int)$c['id'], c_tk(), (int)$me['id']]);
     $readBy = $mineLast ? (int)h_val('SELECT COUNT(*) FROM c_members WHERE chat_id = ? AND last_read >= ? AND NOT (tkey = ? AND user_id = ?)', [(int)$c['id'], $mineLast, c_tk(), (int)$me['id']]) : 0;
+    // Okundu bilgisi birebirde karşılıklı: biri kapattıysa gösterilmez
+    $peer = null;
+    if ($c['kind'] === 'direct' && ($o = c_other($c, $me))) {
+        if (!(int)c_pref(c_tk(), (int)$me['id'])['receipts'] || !(int)c_pref((string)$o['tkey'], (int)$o['user_id'])['receipts']) $readBy = 0;
+        $peer = c_profile_out($me, (string)$o['tkey'], (int)$o['user_id']);
+    }
+    c_pref_touch($me);
     // Tepki / oy değişen eski mesajlar (son yoklamadan beri)
     $since = s('since', 19);
     $upd = $since !== '' ? h_all('SELECT * FROM c_msgs WHERE chat_id = ? AND upd >= ? AND id <= ? AND deleted_at IS NULL ORDER BY id LIMIT 100', [(int)$c['id'], $since, $after]) : [];
     $c2 = h_one('SELECT * FROM c_chats WHERE id = ?', [(int)$c['id']]);
     out(['msgs' => c_msgs_out($rows), 'deleted' => $del, 'read' => ['id' => $mineLast, 'n' => $readBy], 'upd' => $upd ? c_msgs_out($upd) : [],
-        'pinned' => c_pinned_out($c2), 'now' => now()]);
+        'pinned' => c_pinned_out($c2), 'now' => now(), 'typing' => c_typing_names($c, $me), 'peer' => $peer]);
 }
 
 function a_chat_send(): void
@@ -293,6 +350,7 @@ function a_chat_send(): void
     $me = c_need();
     [$c, $m, $adm] = c_access($me, (int)i('id'));
     if ((int)$c['only_admins'] === 1 && !$adm) fail('Bu grupta yalnız yöneticiler mesaj gönderebilir.', 403);
+    c_send_guard($c, $me);
     $body = trim(str_replace("\r", '', (string)($GLOBALS['IN']['body'] ?? '')));
     if (mb_strlen($body) > C_MAX_BODY) fail('Mesaj en fazla ' . C_MAX_BODY . ' karakter olabilir.');
     if (c_has_tckn($body)) fail('Mesajda T.C. kimlik numarası var. Hasta bilgisi mesajla paylaşılamaz; numarayı silip tekrar gönderin.', 422);
@@ -352,6 +410,14 @@ function c_mentions(array $c, array $me, string $body, int $mid): void
     if ($local) c_push($local, (int)$c['id'], $me['name'] . ' sizden bahsetti', ($c['kind'] === 'direct' ? '' : $c['name'] . ' · ') . mb_substr($body, 0, 160));
 }
 
+/** Birebirde engel: engellediğim kişiye yazamam, beni engelleyene mesaj gitmez */
+function c_send_guard(array $c, array $me): void
+{
+    if ($c['kind'] !== 'direct' || !function_exists('c_blocked_by') || !($o = c_other($c, $me))) return;
+    if (c_blocked_by(c_tk(), (int)$me['id'], (string)$o['tkey'], (int)$o['user_id'])) fail('Bu kişiyi engellediniz. Yazmak için önce engeli kaldırın.', 403);
+    if (c_blocked_by((string)$o['tkey'], (int)$o['user_id'], c_tk(), (int)$me['id'])) fail('Bu kişiye mesaj gönderilemiyor.', 403);
+}
+
 /** Aynı birimdeki alıcılara anında bildirim (sohbet başına tek bildirim, yenilenir) */
 function c_notify_local(array $c, array $me): void
 {
@@ -360,11 +426,11 @@ function c_notify_local(array $c, array $me): void
     $body = c_preview($last);
     if ($c['kind'] === 'unit') {
         $ids = array_map(fn($u) => (int)$u['id'], all("SELECT id FROM users WHERE status = 'active' AND id <> ?", [$me['id']]));
-        $muted = array_map('intval', array_column(h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ? AND muted = 1', [(int)$c['id'], c_tk()]), 'user_id'));
+        $muted = array_map('intval', array_column(h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ? AND (muted = 1 OR (mute_until IS NOT NULL AND mute_until > ?))', [(int)$c['id'], c_tk(), now()]), 'user_id'));
         $ids = array_values(array_diff($ids, $muted));
         h_q('UPDATE c_members SET notified = ? WHERE chat_id = ? AND tkey = ?', [(int)$c['last_id'], (int)$c['id'], c_tk()]);
     } else {
-        $rows = h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id <> ? AND muted = 0', [(int)$c['id'], c_tk(), (int)$me['id']]);
+        $rows = h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id <> ? AND muted = 0 AND (mute_until IS NULL OR mute_until < ?)', [(int)$c['id'], c_tk(), (int)$me['id'], now()]);
         $ids = array_map(fn($r) => (int)$r['user_id'], $rows);
         h_q('UPDATE c_members SET notified = ? WHERE chat_id = ? AND tkey = ?', [(int)$c['last_id'], (int)$c['id'], c_tk()]);
     }
@@ -390,7 +456,7 @@ function c_push(array $userIds, int $chatId, string $title, string $body): void
 $GLOBALS['NM_JOBS']['chat_notify'] = function (bool $force) {
     if (!cdb()) return null;
     $rows = h_all("SELECT m.*, c.kind, c.name AS cname, c.last_id FROM c_members m JOIN c_chats c ON c.id = m.chat_id
-        WHERE m.tkey = ? AND c.kind <> 'unit' AND ((c.last_id > m.notified AND c.last_id > m.last_read AND m.muted = 0) OR (m.mentioned > m.notified AND m.mentioned > m.last_read))", [c_tk()]);
+        WHERE m.tkey = ? AND c.kind <> 'unit' AND ((c.last_id > m.notified AND c.last_id > m.last_read AND m.muted = 0 AND (m.mute_until IS NULL OR m.mute_until < ?)) OR (m.mentioned > m.notified AND m.mentioned > m.last_read))", [c_tk(), now()]);
     $n = 0;
     foreach ($rows as $r) {
         $mention = (int)$r['mentioned'] > (int)$r['notified'] && (int)$r['mentioned'] > (int)$r['last_read'];
@@ -552,6 +618,13 @@ function a_chat_join(): void
     $c = $tok !== '' ? h_one("SELECT * FROM c_chats WHERE kind = 'group' AND invite_token = ? AND (invite_expires IS NULL OR invite_expires > ?)", [$tok, now()]) : null;
     if (!$c) fail('Davet bağlantısı geçersiz ya da süresi dolmuş.', 404);
     if (!h_one('SELECT 1 FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], c_tk(), (int)$me['id']])) {
+        // Katılım onayı açıksa istek yöneticilere düşer
+        if ((int)($c['approve_join'] ?? 0) === 1) {
+            h_q('INSERT OR IGNORE INTO c_joinreq (chat_id, tkey, user_id, name, unit_name, at) VALUES (?, ?, ?, ?, ?, ?)', [$c['id'], c_tk(), (int)$me['id'], $me['name'], c_unit(), now()]);
+            $adm = array_map(fn($r) => (int)$r['user_id'], h_all("SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ? AND role = 'admin'", [$c['id'], c_tk()]));
+            if ($adm) c_push($adm, (int)$c['id'], $c['name'], $me['name'] . ' gruba katılmak istiyor');
+            out(['pending' => true, 'name' => $c['name']]);
+        }
         c_add_members((int)$c['id'], [['tk' => c_tk(), 'uid' => (int)$me['id'], 'name' => $me['name'], 'unit' => c_unit()]]);
         c_system((int)$c['id'], $me, $me['name'] . ' davet bağlantısıyla katıldı');
     }
@@ -579,9 +652,13 @@ function a_chat_readers(): void
     [$c, , $adm] = c_access($me, (int)$x['chat_id']);
     $mine = $x['tkey'] === c_tk() && (int)$x['user_id'] === (int)$me['id'];
     if (!$mine && !$adm) fail('Okuma bilgisi yalnız gönderene görünür.', 403);
-    $read = array_map(fn($r) => ['name' => $r['name'], 'unit' => $r['tkey'] === c_tk() ? '' : $r['unit_name']],
-        h_all('SELECT name, tkey, unit_name FROM c_members WHERE chat_id = ? AND last_read >= ? AND NOT (tkey = ? AND user_id = ?) ORDER BY name', [(int)$c['id'], (int)$x['id'], $x['tkey'], (int)$x['user_id']]));
-    out(['read' => $read]);
+    $rows = h_all('SELECT name, tkey, user_id, unit_name FROM c_members WHERE chat_id = ? AND last_read >= ? AND NOT (tkey = ? AND user_id = ?) ORDER BY name', [(int)$c['id'], (int)$x['id'], $x['tkey'], (int)$x['user_id']]);
+    // Birebirde okundu bilgisi karşılıklı (biri kapattıysa gösterilmez); gruplarda her zaman
+    if ($c['kind'] === 'direct') {
+        if (!(int)c_pref(c_tk(), (int)$me['id'])['receipts']) out(['read' => [], 'off' => true]);
+        $rows = array_values(array_filter($rows, fn($r) => (int)c_pref((string)$r['tkey'], (int)$r['user_id'])['receipts'] === 1));
+    }
+    out(['read' => array_map(fn($r) => ['name' => $r['name'], 'unit' => $r['tkey'] === c_tk() ? '' : $r['unit_name']], $rows)]);
 }
 
 /** Kişi seçimi: kendi birimi + (yetkiliyse) hastanedeki diğer birimlerin yönetici/yayıncıları + aynı grupta olduklarım */
@@ -618,6 +695,8 @@ function c_other_people(array $me): array
     $o = [];
     foreach (h_all("SELECT DISTINCT o.tkey, o.user_id, o.name, o.unit_name FROM c_members mine JOIN c_members o ON o.chat_id = mine.chat_id JOIN c_chats c ON c.id = mine.chat_id
         WHERE mine.tkey = ? AND mine.user_id = ? AND c.kind = 'group' AND o.tkey <> ?", [c_tk(), (int)$me['id'], c_tk()]) as $x) $o[$x['tkey'] . ':' . $x['user_id']] = ['tk' => $x['tkey'], 'uid' => (int)$x['user_id'], 'name' => $x['name'], 'unit' => $x['unit_name']];
+    // Gizlilik ayarında "diğer birimler beni bulabilsin" diyenler
+    if (function_exists('c_findable_people')) $o += c_findable_people($me);
     if (is_publisher($me)) {
         $hid = (int)nm_tenant()['hospital_id'];
         foreach (nm_tenants() as $t) {
@@ -649,14 +728,29 @@ function a_chat_create(): void
     if (!is_publisher($me)) fail('Grup kurmak için yetki gerekir (yönetici / yayıncı ya da “Mesajlaşma: Yönetir”).', 403);
     $name = s('name', 80);
     if (mb_strlen($name) < 2) fail('Grup adını girin.');
-    $people = c_valid_people($me, arr('members'));
-    h_q("INSERT INTO c_chats (kind, name, descr, tkey, created_by, created_at) VALUES ('group', ?, ?, ?, ?, ?)", [$name, s('descr', 500), c_tk(), c_tk() . ':' . $me['id'], now()]);
+    [$people, $skipped] = c_add_policy($me, c_valid_people($me, arr('members')));
+    $ret = function_exists('c_pref') ? (int)c_pref(c_tk(), (int)$me['id'])['ret_default'] : 0;
+    h_q("INSERT INTO c_chats (kind, name, descr, tkey, created_by, created_at, retention_days) VALUES ('group', ?, ?, ?, ?, ?, ?)", [$name, s('descr', 500), c_tk(), c_tk() . ':' . $me['id'], now(), $ret]);
     $id = (int)cdb()->lastInsertId();
     c_add_members($id, [['tk' => c_tk(), 'uid' => (int)$me['id'], 'name' => $me['name'], 'unit' => c_unit()]], 'admin');
     c_add_members($id, $people);
     c_system($id, $me, $me['name'] . ' grubu kurdu');
     audit($me, 'chat.create', $name, count($people) . ' üye');
-    out(['id' => $id]);
+    out(['id' => $id, 'skipped' => $skipped]);
+}
+
+/** "Beni gruplara kim ekleyebilir" gizlilik ayarı: eklenemeyenler davet bağlantısıyla katılabilir */
+function c_add_policy(array $me, array $people): array
+{
+    if (!function_exists('c_pref')) return [$people, []];
+    $ok = []; $skip = [];
+    foreach ($people as $p) {
+        $pr = c_pref((string)$p['tk'], (int)$p['uid']);
+        $allowed = $pr['add_groups'] === 'all' || ($pr['add_groups'] === 'unit' && $p['tk'] === c_tk());
+        if ($allowed && c_blocked_by((string)$p['tk'], (int)$p['uid'], c_tk(), (int)$me['id'])) $allowed = false;
+        if ($allowed) $ok[] = $p; else $skip[] = $p['name'];
+    }
+    return [$ok, $skip];
 }
 
 /** Birebir sohbet (varsa açılır) */
@@ -666,11 +760,15 @@ function a_chat_direct(): void
     $p = c_valid_people($me, [['tk' => s('tk', 16), 'uid' => (int)i('uid')]]);
     if (!$p) fail('Bu kişiyle sohbet başlatamazsınız (kendi biriminiz ya da ortak grubunuzdaki kişiler).', 403);
     $p = $p[0];
+    if (function_exists('c_pref')) {
+        $pr = c_pref((string)$p['tk'], (int)$p['uid']);
+        if ($pr['dm_from'] === 'contacts' && !c_is_contact(c_tk(), (int)$me['id'], (string)$p['tk'], (int)$p['uid'])) fail('Bu kişi yalnız kişilerinden (birimi ve ortak grupları) mesaj alıyor.', 403);
+    }
     $a = c_tk() . ':' . (int)$me['id']; $b = $p['tk'] . ':' . $p['uid'];
     $key = strcmp($a, $b) < 0 ? $a . '|' . $b : $b . '|' . $a;
     $c = h_one('SELECT * FROM c_chats WHERE direct_key = ?', [$key]);
     if (!$c) {
-        h_q("INSERT INTO c_chats (kind, tkey, direct_key, created_by, created_at) VALUES ('direct', ?, ?, ?, ?)", [c_tk(), $key, $a, now()]);
+        h_q("INSERT INTO c_chats (kind, tkey, direct_key, created_by, created_at, retention_days) VALUES ('direct', ?, ?, ?, ?, ?)", [c_tk(), $key, $a, now(), function_exists('c_pref') ? (int)c_pref(c_tk(), (int)$me['id'])['ret_default'] : 0]);
         $id = (int)cdb()->lastInsertId();
         c_add_members($id, [['tk' => c_tk(), 'uid' => (int)$me['id'], 'name' => $me['name'], 'unit' => c_unit()], $p]);
         $c = ['id' => $id];
@@ -697,7 +795,17 @@ function a_chat_update(): void
         }
         if (count($IN) <= 3) { if ($changes) c_system((int)$c['id'], $me, $me['name'] . ' ' . implode(', ', $changes)); out(); }
     }
-    if ($c['kind'] === 'direct' || !$adm) fail('Bu ayarı yalnız grup yöneticisi değiştirebilir.', 403);
+    if ($c['kind'] === 'direct') fail('Birebir sohbette bu ayar yok.', 400);
+    // Grup bilgisi (ad, açıklama): yönetici ya da "herkes düzenleyebilir" ise üyeler; diğer ayarlar yalnız yönetici
+    $canInfo = $adm || ($c['kind'] === 'group' && ($c['perm_edit'] ?? 'admins') === 'all');
+    $adminKeys = array_intersect(array_keys($IN), ['only_admins', 'perm_edit', 'perm_add', 'approve_join']);
+    if (($adminKeys && !$adm) || (!$adminKeys && !$canInfo)) fail('Bu ayarı yalnız grup yöneticisi değiştirebilir.', 403);
+    foreach (['perm_edit' => ['grup bilgisini', 'düzenleyebilir'], 'perm_add' => ['üye', 'ekleyebilir']] as $k => [$what, $verb]) {
+        if (!array_key_exists($k, $IN) || $c['kind'] !== 'group') continue;
+        $v = s($k, 8) === 'all' ? 'all' : 'admins';
+        if ($v !== ($c[$k] ?? 'admins')) { h_q("UPDATE c_chats SET $k = ? WHERE id = ?", [$v, $c['id']]); $changes[] = ($v === 'all' ? 'herkesin ' : 'yalnız yöneticilerin ') . $what . ' ' . $verb . ' olmasını seçti'; }
+    }
+    if (array_key_exists('approve_join', $IN) && $c['kind'] === 'group') { $v = b('approve_join') ? 1 : 0; if ($v !== (int)($c['approve_join'] ?? 0)) { h_q('UPDATE c_chats SET approve_join = ? WHERE id = ?', [$v, $c['id']]); $changes[] = $v ? 'yeni katılımcıların onaylanmasını açtı' : 'katılım onayını kapattı'; } }
     if (array_key_exists('name', $IN) && $c['kind'] === 'group') { $n = s('name', 80); if (mb_strlen($n) < 2) fail('Grup adını girin.'); if ($n !== $c['name']) { h_q('UPDATE c_chats SET name = ? WHERE id = ?', [$n, $c['id']]); $changes[] = 'adı “' . $n . '” yaptı'; } }
     if (array_key_exists('descr', $IN)) h_q('UPDATE c_chats SET descr = ? WHERE id = ?', [s('descr', 500), $c['id']]);
     if (array_key_exists('only_admins', $IN)) { $v = b('only_admins') ? 1 : 0; if ($v !== (int)$c['only_admins']) { h_q('UPDATE c_chats SET only_admins = ? WHERE id = ?', [$v, $c['id']]); $changes[] = $v ? 'yalnız yöneticilerin yazmasını açtı' : 'herkesin yazmasına izin verdi'; } }
@@ -709,15 +817,17 @@ function a_chat_members(): void
 {
     $me = c_need();
     [$c, , $adm] = c_access($me, (int)i('id'));
-    if ($c['kind'] !== 'group' || !$adm) fail('Üyeleri yalnız grup yöneticisi değiştirebilir.', 403);
     $op = s('op', 10);
+    if ($c['kind'] !== 'group') fail('Yalnız gruplarda.', 400);
     if ($op === 'add') {
-        $people = c_valid_people($me, arr('members'));
+        if (!$adm && ($c['perm_add'] ?? 'admins') !== 'all') fail('Bu grupta yalnız yöneticiler üye ekleyebilir.', 403);
+        [$people, $skipped] = c_add_policy($me, c_valid_people($me, arr('members')));
         $new = array_values(array_filter($people, fn($p) => !h_one('SELECT 1 FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], $p['tk'], $p['uid']])));
         c_add_members((int)$c['id'], $new);
         if ($new) c_system((int)$c['id'], $me, $me['name'] . ' ekledi: ' . implode(', ', array_column($new, 'name')));
-        out(['added' => count($new)]);
+        out(['added' => count($new), 'skipped' => $skipped]);
     }
+    if (!$adm) fail('Üyeleri yalnız grup yöneticisi değiştirebilir.', 403);
     $tk = s('tk', 16); $uid = (int)i('uid');
     $t = h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], $tk, $uid]) ?? fail('Üye bulunamadı.', 404);
     if ($op === 'remove') {

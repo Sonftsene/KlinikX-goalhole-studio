@@ -1376,3 +1376,17 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .pl2-cov.bad { color: var(--danger); font-weight: 700; }
 .pl2-h { font-weight: 700; min-width: 44px; }
 @media (max-width: 560px) { .pl2-grid .pl2-name { min-width: 112px; max-width: 120px; } .pl2-wrap { max-height: 62vh; } }
+/* 4.6 sohbet ayarları */
+.ch-filters { margin-bottom: 10px; }
+.ch-ava img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.ch-headbtn { border: 0; background: none; padding: 0; text-align: left; color: inherit; cursor: pointer; font: inherit; }
+.ch-headbtn:disabled { cursor: default; }
+.ch-typing { color: var(--brand-text); font-style: italic; }
+.ch-gphoto { display: flex; align-items: center; gap: 12px; }
+.ch-gphoto img, .ch-gphoto .ch-ava { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+.ch-gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.ch-gal img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+.ch-font-s .ch-text { font-size: 13px; } .ch-font-l .ch-text { font-size: 17px; }
+.ch-bg-dots { background-image: radial-gradient(color-mix(in srgb, var(--text-3) 22%, transparent) 1px, transparent 1px); background-size: 16px 16px; }
+.ch-bg-warm { background: color-mix(in srgb, #f5c27a 14%, var(--bg)); }
+.ch-bg-dark { background: color-mix(in srgb, #000 22%, var(--bg)); }

@@ -125,6 +125,22 @@ if (!/başlatamazsınız/.test(await apiErr(E.p, 'chat.direct', { tk: nilTk, uid
 if ((await apiCall(E.p, 'chat.people')).people.some((p) => p.name === 'Nil Er' || p.name === 'Kerem Acar')) fail('üyenin kişi listesinde başka birim/hastane kişileri var');
 step('birebir: Elif → Burak açıldı (tekrar açınca aynı sohbet), başka birimdeki kişiyle açılamıyor, üyenin listesinde yalnız kendi birimi');
 
+// ---- 4b) 4.6 gizlilik: bulunabilirlik, kimler yazabilir, profil ----
+await apiCall(N.p, 'chat.prefs.save', { findable: true, dm_from: 'contacts', about: 'Dahiliye sorumlu hemşiresi', about_vis: 'all' });
+await apiCall(K.p, 'chat.prefs.save', { findable: true });
+const ePeople2 = (await apiCall(E.p, 'chat.people')).people;
+if (!ePeople2.some((p) => p.name === 'Nil Er' && p.unit === 'Dahiliye')) fail('bulunabilir açan diğer birim kişisi listede yok');
+if (ePeople2.some((p) => p.name === 'Kerem Acar')) fail('başka hastanedeki bulunabilir kişi listede');
+const nilProf = (await apiCall(E.p, 'chat.profile', { tk: nilTk, uid: nilUid })).profile;
+if (nilProf.about !== 'Dahiliye sorumlu hemşiresi' || nilProf.last_seen) fail('profil (hakkımda herkese, son görülme kişilere): ' + JSON.stringify(nilProf));
+if (!/kişilerinden/.test(await apiErr(E.p, 'chat.direct', { tk: nilTk, uid: nilUid }))) fail('“yalnız kişilerim” açıkken yabancı birebir başlattı');
+if (!/T\.C\./.test(await apiErr(E.p, 'chat.prefs.save', { about: 'TC 10000000146' }))) fail('hakkımda alanına T.C. kimlik yazıldı');
+await apiCall(N.p, 'chat.prefs.save', { findable: false, dm_from: 'all' });
+await apiCall(K.p, 'chat.prefs.save', { findable: false });
+if ((await apiCall(E.p, 'chat.people')).people.some((p) => p.name === 'Nil Er')) fail('bulunabilirlik kapanınca kişi listede kaldı');
+if ((await apiErr(E.p, 'chat.profile', { tk: nilTk, uid: nilUid })) === 'kabul') fail('bulunamaz kişinin profili açıldı');
+step('4.6 gizlilik: diğer birimden bulunabilirlik (başka hastane hariç), hakkımda, son görülme kişilere, “yalnız kişilerim yazsın”, hakkımda alanında T.C. engeli');
+
 // ---- 5) Birimler arası grup (yetkili), bildirim görevle ----
 if (!/yetki/.test(await apiErr(E.p, 'chat.create', { name: 'Gizli grup', members: [] }))) fail('üye grup kurabildi');
 const aPeople = (await apiCall(A.p, 'chat.people')).people;
@@ -275,6 +291,153 @@ if (vm.kind !== 'audio' || vm.dur !== 7 || !/audio\/webm/.test(vm.file.mime)) fa
 await E.p.locator(`.ch-msg[data-id="${vm.id}"] audio`).waitFor({ timeout: 10000 }).catch(() => fail('sesli mesaj oynatıcısı görünmedi'));
 if (!/microphone=\(self\)/.test(fs.readFileSync(path.join(SITE, '.htaccess'), 'utf8'))) fail('.htaccess mikrofon izni (self) yok');
 step('4.4: tepki (karşılıklı, menüden), anket (arayüzden; oylar canlı yansıdı, oy verenler yalnız açana), ilet (iletildi etiketi; erişemeyen iletemez), sabitle (yalnız yönetici; üyede çubuk), @bahsetme sessizdeyken de (aynı birim anında, diğer birim görevle), davet bağlantısı (başka hastane ve kapatılan bağlantı çalışmadı), 30 gün saklama (eski mesaj silindi), sesli mesaj');
+
+// ---- 7c) 4.6: engelleme, okundu bilgisi, gruplara ekleme izni, grup izinleri, katılma onayı, fotoğraf ----
+// Engelleme (birebir)
+await apiCall(B.p, 'chat.block', { tk: pElif.tk, uid: pElif.uid, on: true });
+if (!/gönderilemiyor/.test(await apiErr(E.p, 'chat.send', { id: dm.id, body: 'Engelli mi?' }))) fail('engelleyen kişiye mesaj gitti');
+if (!/engellediniz/.test(await apiErr(B.p, 'chat.send', { id: dm.id, body: 'deneme' }))) fail('engelleyen, engellediğine yazabildi');
+if (!(await apiCall(B.p, 'chat.prefs.get')).blocked.some((x) => x.name === 'Elif Yılmaz')) fail('engellenenler listesi');
+await B.p.goto(BASE + '#/mesaj/ayarlar');
+await B.p.locator('[data-act=chs-unblock]').click();
+await B.p.waitForFunction(() => !document.querySelector('[data-act=chs-unblock]'));
+if ((await apiErr(E.p, 'chat.send', { id: dm.id, body: 'Engel kalktı' })) !== 'kabul') fail('engel kaldırılınca yazılamadı');
+// Okundu bilgisi birebirde karşılıklı
+await apiCall(E.p, 'chat.send', { id: dm.id, body: 'Okundu denemesi' });
+await apiCall(B.p, 'chat.open', { id: dm.id });
+const rOn = (await apiCall(E.p, 'chat.poll', { id: dm.id, after: 0 })).read;
+if (rOn.n !== 1) fail('okundu bilgisi açıkken görünmedi: ' + JSON.stringify(rOn));
+await apiCall(B.p, 'chat.prefs.save', { receipts: false });
+if ((await apiCall(E.p, 'chat.poll', { id: dm.id, after: 0 })).read.n !== 0) fail('karşı taraf okundu bilgisini kapattı ama görünüyor');
+await apiCall(B.p, 'chat.prefs.save', { receipts: true });
+// Beni gruplara kim ekleyebilir
+await apiCall(E.p, 'chat.prefs.save', { add_groups: 'none' });
+const g2 = await apiCall(A.p, 'chat.create', { name: 'Eğitim komisyonu', members: [{ tk: elifP.tk, uid: elifP.uid }, { tk: pBurak.tk, uid: pBurak.uid }] });
+if (!(g2.skipped || []).includes('Elif Yılmaz')) fail('gruplara ekleme kapalıyken eklendi: ' + JSON.stringify(g2));
+if ((await apiErr(E.p, 'chat.open', { id: g2.id })) === 'kabul') fail('eklenemeyen kişi gruba erişti');
+await apiCall(E.p, 'chat.prefs.save', { add_groups: 'all' });
+// Grup izinleri: bilgiyi kim düzenler, kim üye ekler
+if ((await apiErr(B.p, 'chat.update', { id: g2.id, name: 'Komisyon' })) === 'kabul') fail('üye grup adını değiştirdi (yalnız yöneticiler)');
+await apiCall(A.p, 'chat.update', { id: g2.id, perm_edit: 'all' });
+if ((await apiErr(B.p, 'chat.update', { id: g2.id, name: 'Eğitim komisyonu 2026', descr: 'Hizmet içi eğitim planı' })) !== 'kabul') fail('“herkes düzenler” açıkken üye adı değiştiremedi');
+if ((await apiErr(B.p, 'chat.update', { id: g2.id, only_admins: true })) === 'kabul') fail('üye yönetici ayarını değiştirdi');
+if ((await apiErr(B.p, 'chat.members', { id: g2.id, op: 'add', members: [{ tk: elifP.tk, uid: elifP.uid }] })) === 'kabul') fail('üye ekleme yalnız yöneticilerdeyken üye ekledi');
+await apiCall(A.p, 'chat.update', { id: g2.id, perm_add: 'all' });
+const addR = await apiCall(B.p, 'chat.members', { id: g2.id, op: 'add', members: [{ tk: elifP.tk, uid: elifP.uid }] });
+if (addR.added !== 1) fail('“herkes ekler” açıkken üye ekleyemedi: ' + JSON.stringify(addR));
+// Katılma onayı
+await apiCall(A.p, 'chat.update', { id: g2.id, approve_join: true });
+const inv2 = (await apiCall(A.p, 'chat.invite', { id: g2.id, op: 'create', days: 7 })).invite;
+const jr = await apiCall(N.p, 'chat.join', { token: inv2.token });
+if (!jr.pending) fail('katılma onayı açıkken doğrudan katıldı');
+if ((await apiErr(N.p, 'chat.open', { id: g2.id })) === 'kabul') fail('onay beklerken grup açıldı');
+const g2o = await apiCall(A.p, 'chat.open', { id: g2.id });
+if (!(g2o.chat.joinreqs || []).some((x) => x.name === 'Nil Er')) fail('yönetici katılma isteğini görmüyor: ' + JSON.stringify(g2o.chat.joinreqs));
+if ((await apiErr(B.p, 'chat.joinreq', { id: g2.id, tk: nilTk, uid: nilUid, op: 'approve' })) === 'kabul') fail('üye katılma isteğini onayladı');
+await apiCall(A.p, 'chat.joinreq', { id: g2.id, tk: nilTk, uid: nilUid, op: 'approve' });
+if ((await apiErr(N.p, 'chat.open', { id: g2.id })) !== 'kabul') fail('onaylanan kişi gruba giremedi');
+// Grup fotoğrafı
+const ph = await B.p.evaluate(async (id) => {
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (ch) => ch.charCodeAt(0));
+  const a = await uploadFile(new File([png], 'grup.png', { type: 'image/png' }));
+  return (await api('chat.photo', { id, att_id: a.id })).photo;
+}, g2.id);
+if (!ph || (await status(E.p, ph)) !== 200) fail('grup fotoğrafı yüklenmedi / üye göremiyor: ' + ph);
+if ((await status(K.p, ph)) === 200) fail('başka hastane grup fotoğrafını açtı');
+// Arayüz: grup bilgisi (yönetici ayarları)
+await A.p.goto(BASE + '#/mesaj/' + g2.id);
+await A.p.locator('#chInput').waitFor();
+await A.p.click('[data-act=ch-info]');
+await A.p.locator('.modal .ch-gphoto img').waitFor();
+await expectText(A.p, 'Katılma');
+await A.p.waitForTimeout(500);
+await A.p.screenshot({ path: path.join(OUT, 'c-46-grup-ayar.png') });
+await A.p.keyboard.press('Escape');
+step('4.6 grup ve gizlilik: engelleme (iki yönlü, ayarlardan kaldırma), okundu bilgisi karşılıklı, “beni gruplara kim ekleyebilir”, bilgiyi/üye eklemeyi kim yapar, katılma onayı (yalnız yönetici onaylar), grup fotoğrafı (başka hastane açamaz), grup bilgi ekranı');
+
+// ---- 7d) 4.6 sohbet: sabitle, arşiv, okunmadı, süreli sessiz, temizle/sil, düzenle, benden sil, yıldız, ara, medya, yazıyor ----
+const eList = async () => (await apiCall(E.p, 'chat.list')).items;
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'pin' });
+if ((await eList())[0].id !== dm.id) fail('sabitlenen sohbet üstte değil');
+await apiCall(E.p, 'chat.state', { id: unitId, op: 'pin' });
+await apiCall(E.p, 'chat.state', { id: g2.id, op: 'pin' });
+const dmN2 = (await apiCall(E.p, 'chat.list')).items.find((c) => c.kind === 'direct' && c.id !== dm.id);
+if (dmN2 && !/En fazla 3/.test(await apiErr(E.p, 'chat.state', { id: dmN2.id, op: 'pin' }))) fail('3’ten fazla sohbet sabitlendi');
+await apiCall(E.p, 'chat.state', { id: unitId, op: 'unpin' });
+await apiCall(E.p, 'chat.state', { id: g2.id, op: 'archive' });
+const arch = (await eList()).find((c) => c.id === g2.id);
+if (!arch.archived || arch.pinned) fail('arşivleme: ' + JSON.stringify(arch));
+await apiCall(E.p, 'chat.state', { id: g2.id, op: 'unarchive' });
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'read' });
+const u0 = (await apiCall(E.p, 'chat.unread')).unread;
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'unread' });
+if ((await apiCall(E.p, 'chat.unread')).unread <= u0) fail('okunmadı işareti sayıya yansımadı');
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'read' });
+// Süreli sessiz: bildirim yok, süre geçince geri gelir
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'mute', dur: '8h' });
+await apiCall(E.p, 'notif.read', {});
+await apiCall(B.p, 'chat.send', { id: dm.id, body: 'Sessizdeyken' });
+if ((await apiCall(E.p, 'notif.list')).items.some((x) => x.kind === 'chat' && !x.read && x.url === '#/mesaj/' + dm.id)) fail('8 saat sessizdeyken bildirim geldi');
+if (!(await eList()).find((c) => c.id === dm.id).mute_until) fail('sessiz bitiş zamanı yok');
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'mute', dur: '' });
+await apiCall(B.p, 'chat.send', { id: dm.id, body: 'Sessiz bitti' });
+if (!(await apiCall(E.p, 'notif.list')).items.some((x) => x.kind === 'chat' && !x.read && x.url === '#/mesaj/' + dm.id)) fail('sessizden çıkınca bildirim gelmedi');
+// Düzenle (15 dk) ve benden sil, yıldız
+const ed = (await apiCall(E.p, 'chat.send', { id: dm.id, body: 'Saat 10’da buluşalım' })).msg;
+const edR = (await apiCall(E.p, 'chat.edit', { id: ed.id, body: 'Saat 11’de buluşalım' })).msg;
+if (!edR.edited || !/11/.test(edR.body)) fail('düzenleme: ' + JSON.stringify(edR));
+if (!(await apiCall(B.p, 'chat.open', { id: dm.id })).msgs.some((m) => m.id === ed.id && m.edited && /11/.test(m.body))) fail('düzenlenen mesaj karşıda güncellenmedi');
+if ((await apiErr(B.p, 'chat.edit', { id: ed.id, body: 'ele geçirildi' })) === 'kabul') fail('başkasının mesajı düzenlendi');
+if (!/T\.C\./.test(await apiErr(E.p, 'chat.edit', { id: ed.id, body: 'TC 10000000146' }))) fail('düzenlemede T.C. engeli yok');
+execFileSync('php', ['-r', `require '${path.join(SITE, 'inc/bootstrap.php')}'; nm_tenant_use(nm_tenant_default()); require '${path.join(SITE, 'inc/mod_hastane.php')}'; hdb()->prepare("UPDATE c_msgs SET created_at = '2020-01-01 10:00:00' WHERE id = ?")->execute([${ed.id}]);`]);
+if (!/15 dakika/.test(await apiErr(E.p, 'chat.edit', { id: ed.id, body: 'geç' }))) fail('15 dakika sonra düzenlendi');
+const hid = (await apiCall(E.p, 'chat.send', { id: dm.id, body: 'Yalnız benden silinecek' })).msg;
+await apiCall(E.p, 'chat.hide', { id: hid.id });
+if ((await apiCall(E.p, 'chat.open', { id: dm.id })).msgs.some((m) => m.id === hid.id)) fail('benden sil: hâlâ görünüyor');
+if (!(await apiCall(B.p, 'chat.open', { id: dm.id })).msgs.some((m) => m.id === hid.id)) fail('benden sil karşıdan da sildi');
+await apiCall(E.p, 'chat.star', { id: ed.id, on: true });
+const st = (await apiCall(E.p, 'chat.starred')).items;
+if (!st.some((m) => m.id === ed.id && m.chat_id === dm.id)) fail('yıldızlı listesi: ' + JSON.stringify(st));
+if ((await apiCall(B.p, 'chat.starred')).items.length) fail('yıldız başkasına göründü');
+// Ara, medya, bağlantılar
+await apiCall(E.p, 'chat.send', { id: dm.id, body: 'Protokol: https://example.org/protokol' });
+if (!(await apiCall(E.p, 'chat.search', { id: dm.id, q: 'buluşalım' })).msgs.some((m) => m.id === ed.id)) fail('sohbette arama bulmadı');
+if ((await apiCall(E.p, 'chat.media', { id: dm.id, kind: 'links' })).msgs.length !== 1) fail('bağlantılar listesi');
+if ((await apiErr(K.p, 'chat.search', { id: dm.id, q: 'buluşalım' })) === 'kabul') fail('başka hastane sohbette arama yaptı');
+// Yazıyor…
+await apiCall(B.p, 'chat.typing', { id: dm.id });
+if (!(await apiCall(E.p, 'chat.poll', { id: dm.id, after: 0 })).typing.includes('Burak Demir')) fail('yazıyor göstergesi yok');
+// Arayüz: sohbet ekranı (Elif, telefon) → başlıkta yazıyor, menüden ara
+await E.p.goto(BASE + '#/mesaj/' + dm.id);
+await E.p.locator('#chInput').waitFor();
+await apiCall(B.p, 'chat.typing', { id: dm.id });
+await E.p.locator('#chSub.ch-typing').waitFor({ timeout: 10000 }).catch(() => fail('başlıkta “yazıyor…” görünmedi'));
+await E.p.click('[data-act=ch-more]');
+await expectText(E.p, 'Sohbette ara');
+await E.p.screenshot({ path: path.join(OUT, 'c-46-menu-mobile.png') });
+await E.p.keyboard.press('Escape');
+// Temizle ve sil (benim için)
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'clear' });
+if ((await apiCall(E.p, 'chat.open', { id: dm.id })).msgs.filter((m) => m.kind !== 'system').length) fail('sohbet temizlenmedi');
+if (!(await apiCall(B.p, 'chat.open', { id: dm.id })).msgs.length) fail('temizleme karşı tarafı etkiledi');
+if (!/Birim grubu silinemez/.test(await apiErr(E.p, 'chat.state', { id: unitId, op: 'delete' }))) fail('birim grubu silindi');
+await apiCall(E.p, 'chat.state', { id: dm.id, op: 'delete' });
+if ((await eList()).some((c) => c.id === dm.id)) fail('silinen sohbet listede');
+await apiCall(B.p, 'chat.send', { id: dm.id, body: 'Yeni mesaj' });
+const back = (await eList()).find((c) => c.id === dm.id);
+if (!back || back.pinned) fail('yeni mesajla sohbet geri gelmedi: ' + JSON.stringify(back));
+if ((await apiCall(E.p, 'chat.open', { id: dm.id })).msgs.some((m) => /buluşalım/.test(m.body || ''))) fail('silinen sohbetin eski mesajları geri geldi');
+// Ayarlar sayfası (telefon)
+await E.p.goto(BASE + '#/mesaj/ayarlar');
+await E.p.locator('[data-k=seen_vis]').selectOption('none');
+await E.p.waitForFunction(async () => (await api('chat.prefs.get')).prefs.seen_vis === 'none');
+await E.p.screenshot({ path: path.join(OUT, 'c-46-ayarlar-mobile.png') });
+await noOverflow(E.p, 'mesaj ayarları');
+if ((await apiCall(E.p, 'chat.profile', { tk: pBurak.tk, uid: pBurak.uid })).profile.last_seen) fail('son görülmeyi gizleyen başkalarınınkini gördü');
+await apiCall(E.p, 'chat.prefs.save', { seen_vis: 'contacts' });
+await E.p.goto(BASE + '#/mesaj/yildizli');
+await E.p.locator('h1', { hasText: 'Yıldızlı mesajlar' }).waitFor();
+step('4.6 sohbet: sabitle (en fazla 3), arşiv, okunmadı işareti, 8 saat sessiz, düzenle (15 dk, T.C. engeli, karşıda “düzenlendi”), benden sil, yıldızlı, arama, bağlantılar, yazıyor (başlıkta), temizle/sil (yeni mesajla geri gelir, eskiler gelmez), ayarlar sayfası, son görülme karşılıklı');
 
 // ---- 8) Telefonda liste ----
 await E.p.goto(BASE + '#/mesaj');

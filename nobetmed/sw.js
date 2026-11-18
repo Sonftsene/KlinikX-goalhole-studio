@@ -20,7 +20,7 @@ const SHELL_ASSETS = [
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
-const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'plan', 'pwa'];
+const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'plan', 'pwa'];
 const PRECACHE = SHELL_ASSETS.concat(JS_FILES.map((n) => 'assets/js/' + n + '.js'));
 
 const SHELL_CACHE = 'nm-shell-' + VERSION;

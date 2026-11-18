@@ -8,7 +8,8 @@ Object.assign(ICON_PATHS, {
   bellOff: 'M13.73 21a2 2 0 0 1-3.46 0 M18.63 13A17.89 17.89 0 0 1 18 8 M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14 M18 8a6 6 0 0 0-9.33-5 M1 1l22 22',
   checks: 'M2 12.5 6 16.5 14 8.5 M10 15.5l1 1 8-8',
 });
-NM_EXT.routes.mesaj = (view, r) => (r[1] === 'katil' && r[2] ? chatJoin(view, r[2]) : r[1] && /^\d+$/.test(r[1]) ? chatOpen(view, +r[1]) : chatList(view));
+NM_EXT.routes.mesaj = (view, r) => (r[1] === 'katil' && r[2] ? chatJoin(view, r[2]) : r[1] === 'ayarlar' ? chatSettingsPage(view) : r[1] === 'yildizli' ? chatStarredPage(view)
+  : r[1] && /^\d+$/.test(r[1]) ? chatOpen(view, +r[1]) : chatList(view));
 Object.assign(ICON_PATHS, {
   mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8',
   pin: 'M12 17v5 M9 10.76V6h6v4.76l2.5 2.74V16h-11v-2.5z M8 3h8',
@@ -18,7 +19,7 @@ Object.assign(ICON_PATHS, {
 });
 async function chatJoin(view, token) {
   setHTML(view, html`<div class="card card-pad"><div class="small muted">Gruba katılınıyor…</div></div>`);
-  try { const r = await api('chat.join', { token }); location.replace('#/mesaj/' + r.id); } catch (e) { setHTML(view, html`<div class="card empty"><h3>Katılamadınız</h3><p class="small">${e.message}</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); }
+  try { const r = await api('chat.join', { token }); if (r.pending) { setHTML(view, html`<div class="card empty"><h3>İstek gönderildi</h3><p class="small">“${r.name}” grubunun yöneticisi onaylayınca katılacaksınız.</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); return; } location.replace('#/mesaj/' + r.id); } catch (e) { setHTML(view, html`<div class="card empty"><h3>Katılamadınız</h3><p class="small">${e.message}</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); }
 }
 NM_EXT.nav.push({ sec: 'genel', mod: 'mesaj', href: '#/mesaj', icon: 'chat', label: 'Mesajlar', match: (r) => r[0] === 'mesaj', count: () => S.chatUnread || 0, visible: () => !!S.hosp });
 NM_EXT.notif.chat = ['violet', 'chat'];
@@ -55,22 +56,35 @@ setTimeout(() => { chatBadge(); chatUnreadSync(); }, 1500);
 /* ---------------- Sohbet listesi ---------------- */
 async function chatList(view) {
   chatStop();
+  CH.filter = CH.filter || 'all';
   setHTML(view, html`<div class="page-head"><div><h1>Mesajlar</h1><p>Birim grubu, gruplar ve birebir sohbetler</p></div>
-    <button class="btn primary" data-act="ch-new">${icon('plus', 'sm')}<span>Yeni sohbet</span></button></div>
+    <div class="row" style="gap:6px"><a class="btn icon" href="#/mesaj/yildizli" aria-label="Yıldızlı mesajlar" title="Yıldızlı mesajlar">${icon('star', 'sm')}</a><a class="btn icon" href="#/mesaj/ayarlar" aria-label="Mesaj ayarları" title="Gizlilik ve ayarlar">${icon('sliders', 'sm')}</a>
+    <button class="btn primary" data-act="ch-new">${icon('plus', 'sm')}<span>Yeni sohbet</span></button></div></div>
     <div id="chList"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   let r;
   try { r = await api('chat.list'); } catch (e) { setHTML($('#chList'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   CH.canGroup = r.can_group;
+  CH.list = r.items;
+  S.chatUnread = r.items.filter((x) => !x.muted).reduce((a, x) => a + x.unread + (x.unread_mark && !x.unread ? 1 : 0), 0); chatBadge();
+  chatListDraw();
+}
+function chatListDraw() {
   const box = $('#chList');
-  if (!box) return;
-  S.chatUnread = r.items.filter((x) => !x.muted).reduce((a, x) => a + x.unread, 0); chatBadge();
-  setHTML(box, html`<div class="card"><div class="list">${r.items.map((c) => html`<a class="list-row ch-row ${c.unread ? 'unread' : ''}" href="#/mesaj/${c.id}">
-      <span class="ch-ava tone-${c.kind === 'unit' ? 'teal' : c.kind === 'group' ? 'violet' : 'sky'}">${c.kind === 'direct' ? avatar(c.name, 'sm') : icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}</span>
+  if (!box || !CH.list) return;
+  const arch = CH.list.filter((c) => c.archived);
+  const f = CH.filter;
+  const list = CH.list.filter((c) => (f === 'arch' ? c.archived : !c.archived) && (f !== 'unread' || c.unread || c.unread_mark) && (f !== 'groups' || c.kind !== 'direct'));
+  setHTML(box, html`<div class="seg ch-filters" role="tablist">${[['all', 'Tümü'], ['unread', 'Okunmamış'], ['groups', 'Gruplar'], ['arch', `Arşiv${arch.length ? ' (' + arch.length + ')' : ''}`]].map(([k, l]) => html`<button type="button" class="${f === k ? 'on' : ''}" data-act="ch-filter" data-f="${k}">${l}</button>`)}</div>
+    ${list.length ? html`<div class="card"><div class="list">${list.map((c) => html`<a class="list-row ch-row ${c.unread || c.unread_mark ? 'unread' : ''}" href="#/mesaj/${c.id}">
+      <span class="ch-ava tone-${c.kind === 'unit' ? 'teal' : c.kind === 'group' ? 'violet' : 'sky'}">${c.photo ? html`<img src="${c.photo}" alt="">` : c.kind === 'direct' ? avatar(c.name, 'sm') : icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}</span>
       <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${c.name}${c.kind === 'unit' ? html` <span class="badge">birim grubu</span>` : ''}${c.sub ? html` <span class="tiny faint">· ${c.sub}</span>` : ''}</div>
         <div class="lr-s ellipsis">${c.last || 'Henüz mesaj yok'}</div></div>
-      <div class="ch-meta"><span class="tiny faint">${c.last_at ? chTime(c.last_at) : ''}</span>${c.muted ? icon('bellOff', 'sm') : ''}${c.unread ? html`<span class="count">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</div></a>`)}</div></div>
+      <div class="ch-meta"><span class="tiny faint">${c.last_at ? chTime(c.last_at) : ''}</span><span class="row" style="gap:3px">${c.pinned ? icon('pin', 'sm') : ''}${c.muted ? icon('bellOff', 'sm') : ''}${c.unread ? html`<span class="count">${c.unread > 99 ? '99+' : c.unread}</span>` : c.unread_mark ? html`<span class="count"> </span>` : ''}</span></div>
+      <button type="button" class="ch-act" data-act="ch-rowmenu" data-id="${c.id}" aria-label="Sohbet işlemleri">${icon('more', 'sm')}</button></a>`)}</div></div>`
+      : html`<div class="card empty"><p class="small">${f === 'arch' ? 'Arşivde sohbet yok.' : f === 'unread' ? 'Okunmamış sohbet yok.' : 'Sohbet yok.'}</p></div>`}
     <p class="tiny faint" style="margin-top:10px">${icon('lock', 'sm')} Mesajlar yalnız hastanenizin sunucusunda tutulur. Hasta adı, T.C. kimlik numarası gibi hasta bilgisi paylaşmayın.</p>`);
 }
+ACT['ch-filter'] = (el) => { CH.filter = el.dataset.f; chatListDraw(); };
 function chTime(at) {
   const d = parseDT(at);
   const t = ymd(new Date());
@@ -84,10 +98,10 @@ async function chatOpen(view, id) {
   CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null;
   setHTML(view, html`<div class="ch-view" id="chatView">
     <div class="ch-head"><a class="btn ghost icon" href="#/mesaj" aria-label="Sohbetler">${icon('chevL')}</a>
-      <div class="grow" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></div>
-      <button class="btn ghost icon" data-act="ch-info" aria-label="Sohbet bilgisi">${icon('info')}</button></div>
+      <button type="button" class="grow ch-headbtn" data-act="ch-info" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></button>
+      <button class="btn ghost icon" data-act="ch-more" aria-label="Sohbet menüsü">${icon('more')}</button></div>
     <div id="chPin"></div>
-    <div class="ch-scroll" id="chScroll"><div id="chMore"></div><div id="chMsgs"></div></div>
+    <div class="ch-scroll ${chatUiClass()}" id="chScroll"><div id="chMore"></div><div id="chMsgs"></div></div>
     <div class="ch-compose" id="chCompose"></div></div>`);
   let r;
   try { r = await api('chat.open', { id }); } catch (e) { setHTML($('#chMsgs'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
@@ -95,7 +109,8 @@ async function chatOpen(view, id) {
   CH.chat = r.chat; CH.members = r.members; CH.emojis = r.emojis || []; CH.since = r.now; CH.pinned = r.pinned;
   chatPinBar();
   $('#chTitle').textContent = r.chat.name;
-  $('#chSub').textContent = r.chat.kind === 'direct' ? (r.chat.sub || 'Birebir sohbet') : `${r.members.length} kişi${r.chat.only_admins ? ' · yalnız yöneticiler yazar' : ''}`;
+  CH.typing = [];
+  chatHeadStatus();
   chatAdd(r.msgs, true);
   setHTML($('#chMore'), r.more ? html`<button class="btn sm ghost" data-act="ch-older" style="margin:6px auto;display:flex">Önceki mesajlar</button>` : '');
   chatComposer();
@@ -114,7 +129,7 @@ function chatComposer() {
       <button class="btn primary icon" data-act="ch-send" aria-label="Gönder">${icon('send')}</button></div>`);
   const ta = $('#chInput');
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; chatAtSuggest(ta); });
-  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); ACT['ch-send'](); } });
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900 && chatUi().enter) { e.preventDefault(); ACT['ch-send'](); } else chatTypingPing(); });
   $('#chFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) chatSendFile(f); });
 }
 /** "@" yazınca sohbet üyelerinden öneri */
@@ -232,12 +247,12 @@ function chatDraw() {
         ${m.deleted ? html`<div class="ch-del">${icon('x', 'sm')} Bu mesaj silindi</div>` : html`
           ${m.fwd ? html`<div class="ch-fwd">${icon('forward', 'sm')} İletildi</div>` : ''}
           ${m.kind === 'poll' ? chatPollHtml(m) : html`
-          ${m.file ? (m.kind === 'image' ? html`<button type="button" class="ch-img" data-act="ch-file" data-id="${m.id}"><img src="${m.file.url}" alt="${m.file.name}" loading="lazy"></button>`
+          ${m.file ? (m.kind === 'image' ? (chatUi().autoimg || CH.shown && CH.shown.has(m.id) ? html`<button type="button" class="ch-img" data-act="ch-file" data-id="${m.id}"><img src="${m.file.url}" alt="${m.file.name}" loading="lazy"></button>` : html`<button type="button" class="ch-filechip" data-act="ch-showimg" data-id="${m.id}">${icon('image', 'sm')}<span>Fotoğrafı göster</span><span class="tiny faint">${chSize(m.file.size)}</span></button>`)
             : m.kind === 'audio' ? html`<div class="ch-audio">${icon('mic', 'sm')}<audio controls preload="none" src="${m.file.url}"></audio>${m.dur ? html`<span class="tiny faint">${Math.floor(m.dur / 60)}:${pad(m.dur % 60)}</span>` : ''}</div>`
             : html`<button type="button" class="ch-filechip" data-act="ch-file" data-id="${m.id}">${icon('file', 'sm')}<span class="ellipsis">${m.file.name}</span><span class="tiny faint">${chSize(m.file.size)}</span></button>`) : ''}
           ${m.body ? html`<div class="ch-text">${chatMentions(m.body)}</div>` : ''}`}
           ${(m.reacts || []).length ? html`<div class="ch-reacts">${m.reacts.map((x) => html`<button type="button" class="ch-react ${x.mine ? 'on' : ''}" data-act="ch-react" data-id="${m.id}" data-e="${x.e}">${x.e} ${x.n}</button>`)}</div>` : ''}`}
-        <div class="ch-time">${m.at.slice(11, 16)}${m === lastMine && CH.read && CH.read.id === m.id && CH.read.n ? html` <span class="ch-read" title="Okundu">${icon('checks', 'sm')}${group ? ' ' + CH.read.n : ''}</span>` : ''}</div>
+        <div class="ch-time">${m.star ? icon('star', 'sm') : ''}${m.edited ? html`<span>düzenlendi</span>` : ''}${m.at.slice(11, 16)}${m === lastMine && CH.read && CH.read.id === m.id && CH.read.n ? html` <span class="ch-read" title="Okundu">${icon('checks', 'sm')}${group ? ' ' + CH.read.n : ''}</span>` : ''}</div>
       </div>${m.deleted ? '' : html`<button type="button" class="ch-act" data-act="ch-menu" data-id="${m.id}" aria-label="Mesaj işlemleri">${icon('more', 'sm')}</button>`}</div>`);
   });
   setHTML(box, parts.length ? html`${parts}` : html`<div class="ch-empty small muted">Henüz mesaj yok. İlk mesajı siz yazın.</div>`);
@@ -301,6 +316,8 @@ async function chatPoll() {
     const r = await api('chat.poll', { id: CH.id, after: CH.last, seen: true, since: CH.since || '' });
     let changed = false;
     CH.since = r.now || CH.since;
+    const tp = JSON.stringify(r.typing || []);
+    if (tp !== JSON.stringify(CH.typing || []) || (r.peer && JSON.stringify(r.peer) !== JSON.stringify(CH.chat.peer))) { CH.typing = r.typing || []; if (r.peer) CH.chat.peer = r.peer; chatHeadStatus(); }
     (r.upd || []).forEach((u) => { const i = CH.msgs.findIndex((m) => m.id === u.id); if (i >= 0) { CH.msgs[i] = u; changed = true; } });
     if (JSON.stringify(r.pinned || null) !== JSON.stringify(CH.pinned || null)) { CH.pinned = r.pinned; chatPinBar(); }
     if (r.deleted.length) { CH.msgs.forEach((m) => { if (r.deleted.includes(m.id) && !m.deleted) { m.deleted = true; m.body = ''; delete m.file; changed = true; } }); }
@@ -364,6 +381,13 @@ function chatSetReply(m) {
   if (m) { const ta = $('#chInput'); if (ta) ta.focus(); }
 }
 ACT['ch-noreply'] = () => chatSetReply(null);
+ACT['ch-showimg'] = (el) => { CH.shown = CH.shown || new Set(); CH.shown.add(+el.dataset.id); chatDraw(); };
+function chatEdit(m) {
+  const md = openModal({ title: 'Mesajı düzenle', body: html`<form class="stack" id="chEditF"><textarea class="textarea" name="body" maxlength="4000" style="min-height:100px">${m.body}</textarea><div class="form-error hidden" data-err></div></form>`,
+    foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="chEditF">Kaydet</button>` });
+  const f = $('#chEditF', md.el);
+  f.addEventListener('submit', (ev) => { ev.preventDefault(); submitForm(f, async (d) => { const r = await api('chat.edit', { id: m.id, body: d.body }); const i = CH.msgs.findIndex((x) => x.id === m.id); if (i >= 0) CH.msgs[i] = r.msg; md.close(); chatDraw(); }); });
+}
 ACT['ch-file'] = (el) => {
   const m = CH.msgs.find((x) => x.id === +el.dataset.id);
   if (!m || !m.file) return;
@@ -378,6 +402,9 @@ ACT['ch-menu'] = (el) => {
   if (CH.chat.can_send) items.push(['reply', 'Yanıtla', () => chatSetReply(m)]);
   if (m.body) items.push(['copy', 'Metni kopyala', async () => toast((await copyText(m.body)) ? 'Kopyalandı' : 'Kopyalanamadı')]);
   if (m.kind !== 'poll') items.push(['forward', 'İlet', () => chatForward(m)]);
+  if (m.mine && m.kind === 'text' && (Date.now() - parseDT(m.at).getTime()) < 15 * 60000) items.push(['edit', 'Düzenle', () => chatEdit(m)]);
+  items.push(['star', m.star ? 'Yıldızı kaldır' : 'Yıldızla', async () => { try { await api('chat.star', { id: m.id, on: !m.star }); m.star = !m.star; chatDraw(); toast(m.star ? 'Yıldızlandı' : 'Yıldız kaldırıldı'); } catch (e) { toast(e.message, 'err'); } }]);
+  items.push(['eyeOff', 'Benden sil', async () => { try { await api('chat.hide', { id: m.id }); CH.msgs = CH.msgs.filter((x) => x.id !== m.id); chatDraw(); } catch (e) { toast(e.message, 'err'); } }]);
   if (CH.chat.can_pin) items.push(['pin', CH.pinned && CH.pinned.id === m.id ? 'Sabitlemeyi kaldır' : 'Sabitle', async () => {
     try { const r = await api('chat.pin', { id: CH.id, msg: CH.pinned && CH.pinned.id === m.id ? 0 : m.id }); CH.pinned = r.pinned; chatPinBar(); } catch (e) { toast(e.message, 'err'); }
   }]);
@@ -422,23 +449,29 @@ ACT['ch-info'] = () => {
   const c = CH.chat;
   if (!c) return;
   const grp = c.kind === 'group';
-  const m = openModal({ title: c.kind === 'direct' ? c.name : c.name, body: html`<div class="stack">
-      ${c.descr ? html`<p class="small">${c.descr}</p>` : ''}
-      ${grp && c.admin ? html`<div class="stack" style="gap:8px"><div class="field"><label>Grup adı</label><input class="input" id="chName" value="${c.name}" maxlength="80"></div>
+  if (c.kind === 'direct' && c.other) { chatProfile(c.other.tk, c.other.uid); return; }
+  const m = openModal({ title: c.name, body: html`<div class="stack">
+      ${grp ? html`<div class="ch-gphoto">${c.photo ? html`<img src="${c.photo}" alt="Grup fotoğrafı">` : html`<span class="ch-ava tone-violet">${icon('chat')}</span>`}
+        ${c.can_edit_info ? html`<button type="button" class="btn sm" data-act="ch-photo">${icon('camera', 'sm')}<span>Fotoğraf</span></button><input type="file" hidden accept="image/*" id="chPhotoF">` : ''}</div>` : ''}
+      ${c.descr && !c.can_edit_info ? html`<p class="small">${c.descr}</p>` : ''}
+      ${grp && c.can_edit_info ? html`<div class="stack" style="gap:8px"><div class="field"><label>Grup adı</label><input class="input" id="chName" value="${c.name}" maxlength="80"></div>
         <div class="field"><label>Açıklama</label><textarea class="textarea" id="chDescr" maxlength="500">${c.descr || ''}</textarea></div>
-        <label class="switch"><input type="checkbox" id="chOnly" ${c.only_admins ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Yalnız yöneticiler yazsın</b><span>Duyuru grubu gibi: üyeler okur, yanıt yazamaz.</span></span></label>
+        ${c.admin ? html`<label class="switch"><input type="checkbox" id="chOnly" ${c.only_admins ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Yalnız yöneticiler mesaj göndersin</b><span>Duyuru grubu gibi: üyeler okur, yanıt yazamaz.</span></span></label>` : ''}
         <div><button class="btn sm primary" data-act="ch-save">Kaydet</button></div></div>` : ''}
+      ${chatGroupAdminHtml(c)}
       ${c.kind === 'unit' && c.admin ? html`<label class="switch"><input type="checkbox" id="chOnly" ${c.only_admins ? raw('checked') : ''} data-act="ch-only-unit"><span class="track"></span><span class="s-text"><b>Yalnız yetkililer yazsın</b><span>Birim grubunu duyuru kanalı gibi kullanmak için.</span></span></label>` : ''}
       <label class="switch"><input type="checkbox" id="chMute" ${c.muted ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Sessize al</b><span>Bu sohbet için bildirim gelmez (adınız @ ile geçerse yine bildirilir).</span></span></label>
-      ${c.admin || c.kind === 'direct' ? html`<div class="field"><label>Mesajları sakla</label><select class="select" id="chRet">${[[0, 'Süresiz'], [30, '30 gün'], [90, '90 gün'], [180, '6 ay'], [365, '1 yıl'], [730, '2 yıl']].map(([d, l]) => html`<option value="${d}" ${c.retention === d ? raw('selected') : ''}>${l}</option>`)}</select>
+      ${c.admin || c.kind === 'direct' ? html`<div class="field"><label>Mesajları sakla</label><select class="select" id="chRet">${[[0, 'Süresiz'], [1, '24 saat'], [7, '7 gün'], [30, '30 gün'], [90, '90 gün'], [180, '6 ay'], [365, '1 yıl'], [730, '2 yıl']].map(([d, l]) => html`<option value="${d}" ${c.retention === d ? raw('selected') : ''}>${l}</option>`)}</select>
         <p class="hint">Süresi geçen mesajlar ve dosyaları her gün kendiliğinden silinir (KVKK: gereğinden uzun saklamayın).</p></div>` : ''}
       ${grp && c.admin ? html`<div class="field"><label>Davet bağlantısı</label><div id="chInv"></div>
         <p class="hint">Hastanenizdeki biri bu bağlantıyla gruba katılabilir. Yalnız güvendiğiniz kişilerle paylaşın; işiniz bitince kapatın.</p></div>` : ''}
-      ${c.kind !== 'direct' ? html`<div class="row" style="justify-content:space-between"><div class="sec-title" style="margin:0">${CH.members.length} kişi</div>${grp && c.admin ? html`<button class="btn sm" data-act="ch-add">${icon('plus', 'sm')}<span>Üye ekle</span></button>` : ''}</div>
-        <div class="card"><div class="list ch-members">${CH.members.map((p) => html`<div class="list-row">${avatar(p.name, 'sm')}<div class="grow" style="min-width:0"><div class="lr-t ellipsis">${p.name}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></div>
+      ${c.kind !== 'direct' ? html`<div class="row" style="justify-content:space-between"><div class="sec-title" style="margin:0">${CH.members.length} kişi</div>${grp && c.can_add ? html`<button class="btn sm" data-act="ch-add">${icon('plus', 'sm')}<span>Üye ekle</span></button>` : ''}</div>
+        <div class="card"><div class="list ch-members">${CH.members.map((p) => { const self = p.uid === S.me.id && !p.unit; return html`<div class="list-row">${avatar(p.name, 'sm')}<button type="button" class="grow ch-headbtn" style="min-width:0" ${self ? raw('disabled') : raw(`data-act="ch-profile" data-tk="${p.tk}" data-uid="${p.uid}"`)}><div class="lr-t ellipsis">${p.name}${self ? ' (siz)' : ''}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></button>
           ${p.role === 'admin' ? html`<span class="badge brand">yönetici</span>` : ''}
-          ${grp && c.admin ? html`<button class="btn sm icon ghost" data-act="ch-mmenu" data-tk="${p.tk}" data-uid="${p.uid}" aria-label="Üye işlemleri">${icon('more', 'sm')}</button>` : ''}</div>`)}</div></div>` : ''}
+          ${grp && c.admin && !self ? html`<button class="btn sm icon ghost" data-act="ch-mmenu" data-tk="${p.tk}" data-uid="${p.uid}" aria-label="Üye işlemleri">${icon('more', 'sm')}</button>` : ''}
+          ${grp && self && p.role === 'admin' ? html`<button class="btn sm ghost" data-act="ch-mmenu-self" data-tk="${p.tk}" data-uid="${p.uid}">Yöneticilikten ayrıl</button>` : ''}</div>`; })}</div></div>` : ''}
       ${grp ? html`<div><button class="btn sm ghost danger" data-act="ch-leave">${icon('logout', 'sm')}<span>Gruptan çık</span></button></div>` : ''}</div>` });
+  chatGroupAdminMount(m, c);
   $('#chMute', m.el).addEventListener('change', async (e) => { try { await api('chat.mute', { id: c.id, muted: e.target.checked }); c.muted = e.target.checked; toast(c.muted ? 'Sessize alındı' : 'Bildirimler açık'); } catch (err) { toast(err.message, 'err'); } });
   const ret = $('#chRet', m.el);
   if (ret) ret.addEventListener('change', async () => { try { await api('chat.update', { id: c.id, retention: +ret.value }); c.retention = +ret.value; toast('Saklama süresi kaydedildi'); } catch (err) { toast(err.message, 'err'); } });
@@ -464,7 +497,9 @@ ACT['ch-info'] = () => {
 };
 ACT['ch-save'] = (el) => busy(el, async () => {
   try {
-    await api('chat.update', { id: CH.id, name: $('#chName').value.trim(), descr: $('#chDescr').value.trim(), only_admins: $('#chOnly').checked });
+    const body = { id: CH.id, name: $('#chName').value.trim(), descr: $('#chDescr').value.trim() };
+    if ($('#chOnly')) body.only_admins = $('#chOnly').checked;
+    await api('chat.update', body);
     while (modalStack.length) modalStack[modalStack.length - 1].close();
     toast('Kaydedildi'); route();
   } catch (e) { toast(e.message, 'err'); }
@@ -478,6 +513,10 @@ ACT['ch-mmenu'] = (el) => {
     <button type="button" class="list-row tone-danger" data-o="remove" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Gruptan çıkar</span></button></div>` });
   md.el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-o]'); if (b) { md.close(); op(b.dataset.o); } });
 };
+ACT['ch-mmenu-self'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Yöneticilikten ayrılınsın mı?', text: 'Grupta üye olarak kalırsınız.', ok: 'Ayrıl' }))) return;
+  try { await api('chat.members', { id: CH.id, op: 'member', tk: el.dataset.tk, uid: +el.dataset.uid }); while (modalStack.length) modalStack[modalStack.length - 1].close(); toast('Artık yönetici değilsiniz'); route(); } catch (e) { toast(e.message, 'err'); }
+};
 ACT['ch-leave'] = async () => {
   if (!(await confirmDialog({ title: 'Gruptan çıkılsın mı?', text: 'Grubun mesajlarını artık göremezsiniz.', ok: 'Çık', danger: true }))) return;
   try { await api('chat.leave', { id: CH.id }); while (modalStack.length) modalStack[modalStack.length - 1].close(); toast('Gruptan çıktınız'); location.hash = '#/mesaj'; } catch (e) { toast(e.message, 'err'); }
@@ -485,8 +524,9 @@ ACT['ch-leave'] = async () => {
 ACT['ch-add'] = async () => {
   const exist = new Set(CH.members.map((p) => p.tk + ':' + p.uid));
   chatPickPeople('Üye ekle', (p) => !exist.has(p.tk + ':' + p.uid), async (sel) => {
-    await api('chat.members', { id: CH.id, op: 'add', members: sel });
-    while (modalStack.length) modalStack[modalStack.length - 1].close(); toast('Eklendi'); route();
+    const r = await api('chat.members', { id: CH.id, op: 'add', members: sel });
+    while (modalStack.length) modalStack[modalStack.length - 1].close();
+    toast(r.skipped && r.skipped.length ? `${r.added} kişi eklendi · ${r.skipped.join(', ')} gizlilik ayarı nedeniyle eklenemedi (davet bağlantısı gönderin)` : 'Eklendi'); route();
   });
 };
 
@@ -528,7 +568,7 @@ ACT['ch-newgroup'] = () => {
   chatPickPeople('Yeni grup', () => true, async (sel, m) => {
     const name = $('#chGname', m.el).value.trim();
     const r = await api('chat.create', { name, descr: $('#chGdescr', m.el).value.trim(), members: sel });
-    m.close(); toast('Grup kuruldu'); location.hash = '#/mesaj/' + r.id;
+    m.close(); toast(r.skipped && r.skipped.length ? `Grup kuruldu · ${r.skipped.join(', ')} gizlilik ayarı nedeniyle eklenemedi (davet bağlantısı gönderin)` : 'Grup kuruldu'); location.hash = '#/mesaj/' + r.id;
   }, fmtVal(html`<div class="field"><label>Grup adı</label><input class="input" id="chGname" maxlength="80" placeholder="ör. Sorumlu hemşireler"></div>
     <div class="field"><label>Açıklama <span class="faint">(isteğe bağlı)</span></label><input class="input" id="chGdescr" maxlength="500"></div>`));
 };
