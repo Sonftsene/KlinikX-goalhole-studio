@@ -632,6 +632,7 @@ function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
 function gs_mask_guard(array $model, array $headers, array $keep = []): ?string
 {
     $want = array_values(array_filter(array_map('gs_fold', $headers)));
+    $found = false;
     foreach ($model['sheets'] ?? [] as $sh) {
         if ($keep && !in_array((string)$sh['name'], $keep, true)) continue; // gösterilmeyen sekme dosyadan çıkarılıyor
         $cells = $sh['cells'] ?? [];
@@ -639,11 +640,12 @@ function gs_mask_guard(array $model, array $headers, array $keep = []): ?string
             $r = intdiv((int)$k, 100000); $c = (int)$k % 100000;
             if ($r > 20) continue; // başlık satırları tablonun başındadır
             $f = gs_fold((string)($cell['text'] ?? ''));
-            if ($f === '' || strlen($f) > 40 || strpos($f, 'hasta') === false) continue;
-            if ($f !== 'hasta' && $f !== 'hastalar' && !preg_match('/adi|adsoyad|soyad|isim/', $f)) continue; // ör. "Hasta Tanısı" ad sütunu değil
+            if ($f === '' || strlen($f) > 40) continue;
             $hit = false;
             foreach ($want as $w) if ($f === $w || strpos($f, $w) !== false) { $hit = true; break; }
-            if ($hit) continue; // kısaltılan sütun
+            if ($hit) { $found = true; continue; } // kısaltılan sütun
+            if (strpos($f, 'hasta') === false) continue;
+            if ($f !== 'hasta' && $f !== 'hastalar' && !preg_match('/adi|adsoyad|soyad|isim/', $f)) continue; // ör. "Hasta Tanısı" ad sütunu değil
             // Altında veri varsa (ad yazılmışsa) korunmayan bir hasta adı sütunudur
             foreach ($cells as $k2 => $c2) {
                 if ((int)$k2 % 100000 === $c && intdiv((int)$k2, 100000) > $r && trim((string)($c2['text'] ?? '')) !== '') {
@@ -652,6 +654,8 @@ function gs_mask_guard(array $model, array $headers, array $keep = []): ?string
             }
         }
     }
+    // Ayarlı başlık gösterilen sekmelerin hiçbirinde yoksa (ör. sütunun adı "Adı Soyadı" yapılmış) adlar kısaltılamaz
+    if (!$found) return '“' . implode('”, “', $headers) . '” başlıklı sütun gösterilen sekmelerde bulunamadı.';
     return null;
 }
 

@@ -50,7 +50,6 @@ function renderRosters(view, id) {
   }, 30000);
 }
 
-/** Sunucudaki güncel listeleri alır; başka biri yeni dosya yüklediyse görünümü yeniler */
 // Google tablosu değişince her sayfada en geç 1 dakikada görünsün; uygulamaya geri dönülünce hemen denetle
 let _rsAutoAt = 0;
 function rosterAutoSync() {
@@ -61,6 +60,8 @@ function rosterAutoSync() {
 }
 setInterval(rosterAutoSync, 60000);
 document.addEventListener('visibilitychange', rosterAutoSync);
+
+/** Sunucudaki güncel listeleri alır; başka biri yeni dosya yüklediyse görünümü yeniler */
 async function syncRosters() {
   const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id, x.tab, x.tabs]));
   const before = sig();
