@@ -77,7 +77,7 @@ function mk_tl(int $rid, string $from, string $to): array
 {
     static $c = [];
     $k = "$rid|$from|$to";
-    if (!isset($c[$k])) $c[$k] = swap_timeline($rid, $from, $to);
+    if (!isset($c[$k])) $c[$k] = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to);
     return $c[$k];
 }
 
@@ -148,6 +148,15 @@ function mk_listing(int $id): array
     $L = one('SELECT * FROM listings WHERE id = ?', [$id]);
     if (!$L) fail('İlan bulunamadı.', 404);
     return $L;
+}
+
+/** İlandaki nöbet başladı mı (başlamış nöbet verilemez) */
+function mk_started(array $L): bool
+{
+    $m = mk_meta($L['meta']);
+    $st = (string)($m['start'] ?? '');
+    $t = strtotime((string)$L['date'] . ' ' . (preg_match('/^\d{2}:\d{2}$/', $st) ? $st : '08:00'));
+    return $t !== false && $t <= time();
 }
 
 /** İlan için kişinin zaman çizelgesi penceresi */
@@ -289,7 +298,9 @@ function mk_post_info(array $me, string $date): array
     $rid = (int)$mine['roster_id'];
     $tl = mk_tl($rid, mk_shift_day($date, -45), mk_shift_day($date, 45));
     $mk = swap_key((string)$mine['name']);
-    if (!isset($tl[$mk]['days'][$date])) fail('Listede adın bulunamadı.');
+    if (!isset($tl[$mk]['days'][$date])) fail('Bu nöbet için kabul edilmiş bir değişim/devir zaten var ya da listede adın bulunamadı.');
+    $iv = swap_interval($date, $tl[$mk]['days'][$date]);
+    if ($iv && $iv[0] <= time()) fail('Başlamış ya da bitmiş nöbet ilana konamaz.');
     $row = $tl[$mk]['days'][$date];
     $without = $tl[$mk]['days'];
     unset($without[$date]);
@@ -387,7 +398,7 @@ function a_listing_apply(): void
     $me = need_user();
     $L = mk_listing((int)i('id'));
     if ((int)$L['user_id'] === (int)$me['id']) fail('Kendi ilanına başvuramazsın.');
-    if ($L['status'] !== 'open' || $L['date'] < mk_today()) fail('Bu ilan kapandı.');
+    if ($L['status'] !== 'open' || $L['date'] < mk_today() || mk_started($L)) fail('Bu ilan kapandı.');
     $my = mk_my_rosters($me);
     $rid = (int)$L['roster_id'];
     if (!isset($my[$rid])) fail('Bu ilan yalnız aynı listedeki kişilere açık.', 403);
@@ -409,6 +420,10 @@ function a_listing_apply(): void
     } else {
         q('INSERT INTO listing_apps (listing_id, user_id, name, offer_date, offer_code, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$L['id'], $me['id'], $my[$rid], $offer['date'] ?? null, $offer['code'] ?? null, $note ?: null, 'applied', now()]);
+        // Çift dokunma / tekrar gönderim: kişi başına tek başvuru satırı kalsın
+        $keep = (int)val('SELECT MIN(id) FROM listing_apps WHERE listing_id = ? AND user_id = ?', [$L['id'], $me['id']]);
+        q('DELETE FROM listing_apps WHERE listing_id = ? AND user_id = ? AND id <> ?', [$L['id'], $me['id'], $keep]);
+        q("UPDATE listing_apps SET status = 'applied', offer_date = ?, offer_code = ?, note = ? WHERE id = ?", [$offer['date'] ?? null, $offer['code'] ?? null, $note ?: null, $keep]);
     }
     $poster = mk_full_users([(int)$L['user_id']]);
     $txt = $L['kind'] === 'swap'
@@ -438,7 +453,7 @@ function a_listing_choose(): void
     $L = mk_listing((int)i('id'));
     if ((int)$L['user_id'] !== (int)$me['id']) fail('Başvuranlar arasından yalnız ilan sahibi seçebilir.', 403);
     if ($L['status'] !== 'open') fail('Bu ilan artık açık değil.');
-    if ($L['date'] < mk_today()) fail('Nöbet tarihi geçti.');
+    if ($L['date'] < mk_today() || mk_started($L)) fail('Nöbet başladı ya da tarihi geçti.');
     $a = one('SELECT * FROM listing_apps WHERE id = ? AND listing_id = ?', [(int)i('app_id'), $L['id']]);
     if (!$a || $a['status'] !== 'applied') fail('Başvuru bulunamadı ya da geri çekildi.');
     $tl = mk_listing_tl($L);
@@ -451,6 +466,7 @@ function a_listing_choose(): void
     if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND status = 'accepted'", [$me['id'], $L['date']])) fail('Bu nöbet için zaten kabul edilmiş bir değişim var.');
     $row = $tl[swap_key((string)$L['name'])]['days'][$L['date']];
     $swap = $L['kind'] === 'swap';
+    try {
     $sid = mk_tx(function () use ($L, $a, $me, $row, $swap) {
         q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$L['roster_id'], $swap ? 'swap' : 'give', $L['user_id'], $L['name'], $L['date'], $row['code'], $a['user_id'], $a['name'], $swap ? $a['offer_date'] : null, $swap ? $a['offer_code'] : null,
@@ -460,9 +476,11 @@ function a_listing_choose(): void
             [$a['user_id'], $a['name'], $swap ? $a['offer_date'] : null, $swap ? $a['offer_code'] : null, $sid, now(), $L['id']])->rowCount();
         if ($n !== 1) throw new RuntimeException('İlan az önce kapandı.');
         q("UPDATE listing_apps SET status = 'chosen' WHERE id = ?", [$a['id']]);
-        q("UPDATE listing_apps SET status = 'rejected' WHERE listing_id = ? AND id <> ? AND status = 'applied'", [$L['id'], $a['id']]);
+        q("UPDATE listing_apps SET status = 'rejected' WHERE listing_id = ? AND id <> ? AND user_id <> ? AND status = 'applied'", [$L['id'], $a['id'], $a['user_id']]);
+        q("DELETE FROM listing_apps WHERE listing_id = ? AND user_id = ? AND id <> ?", [$L['id'], $a['user_id'], $a['id']]); // olası çift başvuru kaydı
         return $sid;
     });
+    } catch (RuntimeException $e) { fail($e->getMessage()); }
     $r = one('SELECT * FROM swap_requests WHERE id = ?', [$sid]);
     $d = swap_fmt_date((string)$L['date']);
     // Seçilen kişi
@@ -471,8 +489,8 @@ function a_listing_choose(): void
         : $me['name'] . ' ' . $d . ' (' . $L['code'] . ') nöbetini sana devretti.';
     notify_users(mk_full_users([(int)$a['user_id']]), 'listing', 'İlan: seçildin', $chosenTxt . ' Sorumlu Excel’de güncelleyince listene işlenir.', '#/ilanlar', null);
     // Seçilmeyenler (kimin seçildiği söylenmez)
-    $rej = array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM listing_apps WHERE listing_id = ? AND status = 'rejected'", [$L['id']]));
-    if ($rej) notify_users(mk_full_users($rej), 'listing', 'İlan kapandı', $me['name'] . '’in ' . $d . ' ilanı kapandı; bu kez seçilmedin.', '#/ilanlar', null);
+    $rej = array_values(array_unique(array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM listing_apps WHERE listing_id = ? AND status = 'rejected' AND user_id <> ?", [$L['id'], $a['user_id']]))));
+    if ($rej) notify_users(mk_full_users($rej), 'listing', 'İlan kapandı', $d . ' (' . $L['code'] . ') ilanı kapandı; bu kez seçilmedin.', '#/ilanlar', null);
     // Sorumlular: Excel'e işlenecek (mevcut değişim akışı)
     $pubs = mk_pubs([(int)$me['id'], (int)$a['user_id']]);
     if ($pubs) notify_users($pubs, 'swap', 'Excel’e işlenecek nöbet değişimi', swap_req_text($r) . ' (nöbet ilanından)', '#/nobetim', [
@@ -759,6 +777,10 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
             foreach ($tl as $k => $p) {
                 $r = $p['days'][$fromD] ?? null;
                 if (!$r || $r['kind'] !== 'shift' || shift_periods($r) !== $periods) continue;
+                // Başlamış/geçmiş nöbet kaydırılamaz; aday o ayın listesinde olmalı
+                $iv0 = swap_interval($fromD, $r);
+                if (!$iv0 || $iv0[0] <= time()) continue;
+                if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, $ym, 7) === 0)) continue;
                 $days = $p['days'];
                 $dRow = $days[$date] ?? null;
                 [$c, $why] = $dayConds($p, $dRow, 'kaydirma');
@@ -774,7 +796,8 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
                 // O gün eksik kalır mı (gereken sayıya göre)
                 $haveFrom = $haveFrom ?? co_count_on($tl, $fromD, $periods);
                 $needFrom = 0;
-                try { $nb = needs_by_side($fromD)[$sd['key']] ?? null; if ($nb) foreach ($periods as $pp) $needFrom = max($needFrom, (int)($nb[$pp] ?? 0)); } catch (Throwable $e) { /* */ }
+                static $nbCache = [];
+                try { $nb = ($nbCache[$fromD] ??= needs_by_side($fromD))[$sd['key']] ?? null; if ($nb) foreach ($periods as $pp) $needFrom = max($needFrom, (int)($nb[$pp] ?? 0)); } catch (Throwable $e) { /* */ }
                 $short = $needFrom > 0 ? $needFrom - ($haveFrom - 1) : 0;
                 $warn = $short > 0 ? swap_fmt_date($fromD) . ' ' . co_text(count($periods) > 1 ? '24' : $periods[0]) . ' için ' . $short . ' kişi eksik kalır (gereken ' . $needFrom . ')' : null;
                 $moves[] = $base($p, $sd, $stats[$k] ?? [], $p['days'], $k) + [
@@ -844,6 +867,8 @@ function co_resp_out(array $r): array
 /** Gelen seçimleri adaylar listesinde bul ve etkin şartlara göre doğrula */
 function co_pick(array $cand, array $asks, array $on): array
 {
+    // O gün nöbeti olmama, izinli olmama, 16 saat dinlenme ve 48 saat kuralı kapatılamaz
+    $on = array_values(array_unique(array_merge($on, ['free', 'leave', 'rest', 'cont'])));
     $out = [];
     $seen = [];
     foreach (array_slice($asks, 0, 60) as $a) {
@@ -1022,12 +1047,16 @@ function a_callout_choose(): void
     // Liste değişmiş olabilir: güncel şartlarla yeniden denetle
     $cand = co_candidates((string)$C['date'], (string)$C['shift'], co_scope_of($C), $C);
     co_pick($cand, [['name' => $r['name'], 'from' => (string)($r['move_from'] ?? '')]], co_filters_of($C));
+    try {
     $filled = mk_tx(function () use ($C, $r) {
-        q('UPDATE callout_resp SET chosen = 1 WHERE id = ?', [$r['id']]);
+        if ((string)val('SELECT status FROM callouts WHERE id = ?', [(int)$C['id']]) !== 'open') throw new RuntimeException('Bu çağrı az önce kapandı.');
+        if ((int)val('SELECT COUNT(*) FROM callout_resp WHERE callout_id = ? AND chosen = 1', [(int)$C['id']]) >= (int)$C['need']) throw new RuntimeException('Gereken kişi sayısı az önce doldu.');
+        if (q('UPDATE callout_resp SET chosen = 1 WHERE id = ? AND chosen = 0', [$r['id']])->rowCount() !== 1) throw new RuntimeException('Bu kişi zaten seçildi.');
         $n = (int)val('SELECT COUNT(*) FROM callout_resp WHERE callout_id = ? AND chosen = 1', [(int)$C['id']]);
         if ($n >= (int)$C['need']) { q("UPDATE callouts SET status = 'filled', closed_at = ? WHERE id = ? AND status = 'open'", [now(), $C['id']]); return true; }
         return false;
     });
+    } catch (RuntimeException $e) { fail($e->getMessage()); }
     $u = $r['user_id'] ? mk_user_by_id((int)$r['user_id']) : null;
     $who = (string)($u['name'] ?? $r['name']);
     $d = swap_fmt_date((string)$C['date']);
@@ -1210,7 +1239,7 @@ function mk_job(bool $force): ?array
     $today = date('Y-m-d');
     $done = ['expired' => 0, 'gone' => 0, 'applied' => 0];
     // 1) Tarihi geçen açık ilanlar
-    foreach (all("SELECT * FROM listings WHERE status = 'open' AND date < ?", [$today]) as $L) {
+    foreach (array_filter(all("SELECT * FROM listings WHERE status = 'open' AND date <= ?", [$today]), fn($L) => $L['date'] < $today || mk_started($L)) as $L) {
         q("UPDATE listings SET status = 'expired', closed_at = ? WHERE id = ? AND status = 'open'", [now(), $L['id']]);
         $u = all('SELECT * FROM users WHERE id = ? AND status = ?', [(int)$L['user_id'], 'active']);
         if ($u) notify_users($u, 'listing', 'İlanın süresi doldu', swap_fmt_date((string)$L['date']) . ' (' . $L['code'] . ') ilanını alan olmadı; nöbet tarihi geçtiği için kapandı.', '#/ilanlar', null);

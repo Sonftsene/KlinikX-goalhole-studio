@@ -452,7 +452,7 @@ function swap_req_text(array $r): string
 {
     return $r['kind'] === 'swap'
         ? $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . ') ↔ ' . $r['to_name'] . ' ' . swap_fmt_date((string)$r['to_date']) . ' (' . $r['to_code'] . ')'
-        : $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . ') nöbetini ' . $r['to_name'] . '’e devrediyor';
+        : $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . ') nöbetini devrediyor → ' . $r['to_name'];
 }
 
 function a_swap_request(): void
@@ -462,6 +462,7 @@ function a_swap_request(): void
     $toName = s('to_name', 120);
     $toDate = s('to_date', 10);
     if (!valid_ymd($date) || ($toDate !== '' && !valid_ymd($toDate))) fail('Geçersiz tarih.');
+    if ($date < date('Y-m-d') || ($toDate !== '' && $toDate < date('Y-m-d'))) fail('Geçmiş günlerin nöbeti değiştirilemez.');
     try { $o = swap_options($me, $date); } catch (RuntimeException $e) { fail($e->getMessage()); }
     $target = null;
     $code = null;

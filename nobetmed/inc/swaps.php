@@ -50,6 +50,42 @@ function swap_timeline(int $rid, string $from, string $to): array
     return $tl;
 }
 
+/**
+ * Kabul edilmiş ama henüz Excel'e işlenmemiş değişimleri/devirleri ve seçilmiş eksik çağrılarını zaman çizelgesine uygular.
+ * Kural denetimleri (değişim seçenekleri, ilan uygunluğu, çağrı adayları) böylece aynı nöbetin iki kez verilmesine izin vermez.
+ */
+function swap_pending_overlay(array $tl, string $from, string $to): array
+{
+    $mv = function (string $k, string $name) use (&$tl): void { if (!isset($tl[$k])) $tl[$k] = ['name' => $name, 'title' => null, 'days' => []]; };
+    foreach (all("SELECT * FROM swap_requests WHERE status = 'accepted' AND ((from_date >= ? AND from_date <= ?) OR (to_date >= ? AND to_date <= ?))", [$from, $to, $from, $to]) as $r) {
+        $gk = swap_key((string)$r['from_name']); $tk = swap_key((string)$r['to_name']);
+        $gRow = $tl[$gk]['days'][$r['from_date']] ?? null;
+        if (!$gRow || ($gRow['kind'] ?? '') !== 'shift') continue; // başka listenin değişimi ya da zaten işlenmiş
+        $tRow = $r['kind'] === 'swap' && $r['to_date'] ? ($tl[$tk]['days'][$r['to_date']] ?? null) : null;
+        unset($tl[$gk]['days'][$r['from_date']]);
+        $mv($tk, (string)$r['to_name']);
+        $tl[$tk]['days'][$r['from_date']] = $gRow;
+        if ($tRow && ($tRow['kind'] ?? '') === 'shift') {
+            unset($tl[$tk]['days'][$r['to_date']]);
+            $tl[$gk]['days'][$r['to_date']] = $tRow;
+        }
+    }
+    if (function_exists('co_row')) {
+        foreach (all("SELECT c.id, c.date, c.shift, c.code, c.meta, r.name, r.move_from FROM callouts c JOIN callout_resp r ON r.callout_id = c.id WHERE r.chosen = 1 AND c.status IN ('open', 'filled') AND c.date >= ? AND c.date <= ?", [$from, $to]) as $c) {
+            $m = json_decode((string)$c['meta'], true);
+            if (!empty($m['applied'])) continue;
+            $k = swap_key((string)$c['name']);
+            if (!isset($tl[$k])) continue; // bu listenin kişisi değil
+            if (isset($tl[$k]['days'][$c['date']]) && ($tl[$k]['days'][$c['date']]['kind'] ?? '') === 'shift') continue; // Excel'e işlenmiş
+            if ($c['move_from']) unset($tl[$k]['days'][$c['move_from']]);
+            $tl[$k]['days'][$c['date']] = co_row((string)$c['shift'], [], (string)$c['code']) + ['date' => $c['date'], 'name' => $c['name']];
+        }
+    }
+    foreach ($tl as &$p) ksort($p['days']);
+    unset($p);
+    return $tl;
+}
+
 function swap_interval(string $date, array $row): ?array
 {
     if (($row['kind'] ?? '') !== 'shift') return null;
@@ -155,9 +191,10 @@ function swap_options(array $me, string $date): array
     $rid = (int)$mine['roster_id'];
     $from = date('Y-m-d', strtotime($date . ' -45 days'));
     $to = date('Y-m-d', strtotime($date . ' +45 days'));
-    $tl = swap_timeline($rid, $from, $to);
+    $tl = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to);
     $mk = swap_key((string)$mine['name']);
     if (!isset($tl[$mk])) throw new RuntimeException('Listede adın bulunamadı.');
+    if (!isset($tl[$mk]['days'][$date])) throw new RuntimeException('Bu nöbetin için kabul edilmiş bir değişim/devir zaten var.');
     $rules = swap_rules();
     $today = date('Y-m-d');
     $myDays = $tl[$mk]['days'];

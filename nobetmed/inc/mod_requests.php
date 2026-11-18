@@ -254,7 +254,8 @@ function a_req_period_save(): void
     if ($deadline > rq_month_end($ym)) fail('Son gün, istenen ayın sonundan sonra olamaz.');
     $note = s('note', 300);
     $status = in_array(s('status', 10), ['open', 'closed'], true) ? s('status', 10) : ($old['status'] ?? 'open');
-    if ($ym < date('Y-m', strtotime('-1 month'))) fail('Geçmiş aylar için dönem açılamaz.');
+    if (!$old && $ym < date('Y-m', strtotime('first day of last month'))) fail('Geçmiş aylar için dönem açılamaz.');
+    if (!$old && $deadline < date('Y-m-d')) fail('Son gün geçmiş bir tarih olamaz.');
 
     if ($old && ($old['ym'] !== $ym || (string)$old['roster_id'] !== (string)$rid)
         && (int)val('SELECT COUNT(*) FROM shift_requests WHERE period_id = ?', [$id]) > 0) {
@@ -330,7 +331,8 @@ function rq_target(array $me, array $p): array
 function rq_rows_for(array $p, array $t): array
 {
     $pid = (int)$p['id'];
-    $loose = array_values(array_filter(all('SELECT * FROM shift_requests WHERE period_id = ? AND user_id = 0', [$pid]), fn($r) => names_match((string)$r['name'], $t['name'])));
+    // Hesabı olmayan kişi adına girilmiş satırlar yalnız ad birebir aynıysa bu hesaba bağlanır (benzer adlı başka birinin satırları alınmasın)
+    $loose = array_values(array_filter(all('SELECT * FROM shift_requests WHERE period_id = ? AND user_id = 0', [$pid]), fn($r) => swap_key((string)$r['name']) === swap_key((string)$t['name'])));
     if ($t['user_id'] > 0) {
         if ($loose) q('UPDATE shift_requests SET user_id = ?, name = ? WHERE id IN (' . implode(',', array_map(fn($r) => (int)$r['id'], $loose)) . ')', [$t['user_id'], $t['name']]);
         return all('SELECT * FROM shift_requests WHERE period_id = ? AND user_id = ? ORDER BY date', [$pid, $t['user_id']]);

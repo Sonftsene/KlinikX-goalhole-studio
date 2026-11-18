@@ -856,7 +856,8 @@ function histRows() {
 }
 const HIST_COLS = ['Tür', 'Tarih', 'Vardiya / kod', 'Kişi (açan)', 'Karşı taraf / alan / seçilen', 'Karşı gün', 'Karşı kod', 'Durum', 'Ayrıntılı durum', 'Liste', 'Bilgi', 'Not', 'Oluşturma', 'Karar / kapanış', 'Listeye işlenme'];
 ACT['hist-csv'] = () => {
-  const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  // Excel'de formül olarak çalışmasın (=, +, -, @ ile başlayan hücre başına ' eklenir)
+  const q = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const txt = '﻿' + [HIST_COLS, ...histRows()].map((r) => r.map(q).join(';')).join('\r\n');
   if (downloadBlob(new Blob([txt], { type: 'text/csv;charset=utf-8' }), `degisim-gecmisi-${HIST.month}.csv`) !== false) toast('CSV indirildi');
 };
