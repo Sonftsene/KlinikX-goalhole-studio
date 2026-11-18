@@ -274,6 +274,16 @@ Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini g�
 - **KVKK:** T.C. kimlik numarası içeren mesaj gönderilmeden reddedilir. Hasta adı ve hasta bilgisi paylaşmayın.
 - Bildirim: aynı birimdeki kişiye anında; başka birimdeki grup üyesine en geç ~5 dakika içinde (zamanlanmış görev). Sohbet açıkken yeni mesajlar birkaç saniyede gelir.
 
+**4.4 ile eklenenler:**
+- **Sesli mesaj:** yazı kutusunun yanındaki mikrofon → kayıt başlar, tekrar dokununca gönderilir (en fazla 5 dk). Tarayıcı mikrofon izni ister. Güncellemede yeni `.htaccess` dosyası da yüklenmeli (mikrofon yalnız kendi sitemize açıktır).
+- **Anket:** ataç → Anket; tek ya da çok seçimli. Oy verenleri anketi açan ve grup yöneticisi görür.
+- **Tepki:** mesajın ⋯ menüsünün üstündeki 👍 ❤️ 😂 😮 😢 🙏; aynısına tekrar dokununca kalkar.
+- **İlet:** ⋯ → İlet → sohbeti seçin (fotoğraf/dosya da kopyalanır, “İletildi” yazar).
+- **Sabitle:** ⋯ → Sabitle (grupta yönetici, birebirde iki taraf). Sohbetin üstünde çubuk olarak görünür.
+- **@bahsetme:** “@” yazınca üyeler önerilir. Adı geçen kişiye sohbeti sessize almış olsa bile bildirim gider.
+- **Davet bağlantısı:** grup bilgisi → Davet bağlantısı (1/7/30 gün). Hastanenizdeki biri bağlantıyla gruba katılır; işiniz bitince kapatın.
+- **Saklama süresi (KVKK):** grup bilgisi → Mesajları sakla (süresiz / 30 gün / 90 gün / 6 ay / 1 yıl / 2 yıl). Süresi geçen mesajlar ve dosyaları her gün kendiliğinden silinir.
+
 ## 20. Sistem yöneticisinin birime girmesi
 
 Sistem yönetimi → birimin satırında **Birime gir**. Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, ayarlar, roller, belgeler); dondurulmuş birime de girilebilir. Ekranın üstünde “Sistem yöneticisi olarak … birimindesiniz” şeridi görünür; **Sistem paneline dön** ile çıkılır. Giriş, çıkış ve yapılan her işlem birimin kendi **İşlem günlüğü**ne “Sistem yöneticisi” adıyla yazılır. Sistem yöneticisi birimde bir kişi olmadığı için kişi listelerinde görünmez, bildirim almaz, birim adına mesaj yazmaz.

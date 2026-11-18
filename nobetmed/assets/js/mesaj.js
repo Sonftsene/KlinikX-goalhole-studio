@@ -8,7 +8,18 @@ Object.assign(ICON_PATHS, {
   bellOff: 'M13.73 21a2 2 0 0 1-3.46 0 M18.63 13A17.89 17.89 0 0 1 18 8 M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14 M18 8a6 6 0 0 0-9.33-5 M1 1l22 22',
   checks: 'M2 12.5 6 16.5 14 8.5 M10 15.5l1 1 8-8',
 });
-NM_EXT.routes.mesaj = (view, r) => (r[1] && /^\d+$/.test(r[1]) ? chatOpen(view, +r[1]) : chatList(view));
+NM_EXT.routes.mesaj = (view, r) => (r[1] === 'katil' && r[2] ? chatJoin(view, r[2]) : r[1] && /^\d+$/.test(r[1]) ? chatOpen(view, +r[1]) : chatList(view));
+Object.assign(ICON_PATHS, {
+  mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8',
+  pin: 'M12 17v5 M9 10.76V6h6v4.76l2.5 2.74V16h-11v-2.5z M8 3h8',
+  forward: 'M15 14l5-5-5-5 M20 9H9.5A5.5 5.5 0 0 0 4 14.5V20',
+  chart: ICON_PATHS.chart || 'M3 3v18h18 M8 16v-5 M13 16V8 M18 16v-9',
+  smile: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M15 9h.01',
+});
+async function chatJoin(view, token) {
+  setHTML(view, html`<div class="card card-pad"><div class="small muted">Gruba katılınıyor…</div></div>`);
+  try { const r = await api('chat.join', { token }); location.replace('#/mesaj/' + r.id); } catch (e) { setHTML(view, html`<div class="card empty"><h3>Katılamadınız</h3><p class="small">${e.message}</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); }
+}
 NM_EXT.nav.push({ sec: 'genel', mod: 'mesaj', href: '#/mesaj', icon: 'chat', label: 'Mesajlar', match: (r) => r[0] === 'mesaj', count: () => S.chatUnread || 0, visible: () => !!S.hosp });
 NM_EXT.notif.chat = ['violet', 'chat'];
 Object.assign(NM_EXT.audit, { 'chat.create': 'Grup kurdu', 'chat.delete': 'Gruptan mesaj sildi' });
@@ -75,12 +86,14 @@ async function chatOpen(view, id) {
     <div class="ch-head"><a class="btn ghost icon" href="#/mesaj" aria-label="Sohbetler">${icon('chevL')}</a>
       <div class="grow" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></div>
       <button class="btn ghost icon" data-act="ch-info" aria-label="Sohbet bilgisi">${icon('info')}</button></div>
+    <div id="chPin"></div>
     <div class="ch-scroll" id="chScroll"><div id="chMore"></div><div id="chMsgs"></div></div>
     <div class="ch-compose" id="chCompose"></div></div>`);
   let r;
   try { r = await api('chat.open', { id }); } catch (e) { setHTML($('#chMsgs'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   if (CH.id !== id) return;
-  CH.chat = r.chat; CH.members = r.members;
+  CH.chat = r.chat; CH.members = r.members; CH.emojis = r.emojis || []; CH.since = r.now; CH.pinned = r.pinned;
+  chatPinBar();
   $('#chTitle').textContent = r.chat.name;
   $('#chSub').textContent = r.chat.kind === 'direct' ? (r.chat.sub || 'Birebir sohbet') : `${r.members.length} kişi${r.chat.only_admins ? ' · yalnız yöneticiler yazar' : ''}`;
   chatAdd(r.msgs, true);
@@ -94,15 +107,100 @@ function chatComposer() {
   const box = $('#chCompose');
   if (!box) return;
   if (!CH.chat.can_send) { setHTML(box, html`<div class="tiny faint" style="text-align:center;padding:10px">${icon('lock', 'sm')} Bu grupta yalnız yöneticiler mesaj gönderebilir.</div>`); return; }
-  setHTML(box, html`<div id="chReply"></div>
-    <div class="ch-bar"><label class="btn ghost icon" aria-label="Dosya veya fotoğraf ekle" title="Dosya / fotoğraf">${icon('paperclip')}<input type="file" hidden id="chFile"></label>
+  setHTML(box, html`<div id="chReply"></div><div id="chAt" class="ch-atlist hidden"></div>
+    <div class="ch-bar"><button type="button" class="btn ghost icon" data-act="ch-attach" aria-label="Ekle" title="Dosya, fotoğraf veya anket">${icon('paperclip')}</button><input type="file" hidden id="chFile">
       <textarea class="textarea ch-input" id="chInput" rows="1" maxlength="4000" placeholder="Mesaj yazın… (hasta bilgisi paylaşmayın)" aria-label="Mesaj"></textarea>
+      ${window.MediaRecorder && navigator.mediaDevices ? html`<button type="button" class="btn ghost icon" data-act="ch-rec" id="chRecBtn" aria-label="Sesli mesaj kaydet" title="Sesli mesaj">${icon('mic')}</button>` : ''}
       <button class="btn primary icon" data-act="ch-send" aria-label="Gönder">${icon('send')}</button></div>`);
   const ta = $('#chInput');
-  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; });
+  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; chatAtSuggest(ta); });
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); ACT['ch-send'](); } });
   $('#chFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) chatSendFile(f); });
 }
+/** "@" yazınca sohbet üyelerinden öneri */
+function chatAtSuggest(ta) {
+  const box = $('#chAt');
+  if (!box) return;
+  const pos = ta.selectionStart;
+  const m = /(^|\s)@([^\s@]{0,20})$/.exec(ta.value.slice(0, pos));
+  const list = m ? (CH.members || []).filter((p) => !(p.uid === S.me.id && !p.unit) && avKey(p.name).startsWith(avKey(m[2]))).slice(0, 6) : [];
+  box.classList.toggle('hidden', !list.length);
+  if (!list.length) return;
+  setHTML(box, html`${list.map((p) => html`<button type="button" class="ch-atbtn" data-act="ch-at" data-n="${p.name}">${avatar(p.name, 'sm')}<span>${p.name}</span>${p.unit ? html`<span class="tiny faint">${p.unit}</span>` : ''}</button>`)}`);
+}
+ACT['ch-at'] = (el) => {
+  const ta = $('#chInput');
+  const pos = ta.selectionStart;
+  const before = ta.value.slice(0, pos).replace(/@([^\s@]{0,20})$/, '@' + el.dataset.n + ' ');
+  ta.value = before + ta.value.slice(pos);
+  ta.focus(); ta.selectionStart = ta.selectionEnd = before.length;
+  $('#chAt').classList.add('hidden');
+};
+ACT['ch-attach'] = () => {
+  const md = openModal({ title: 'Ekle', size: 'narrow', body: html`<div class="list">
+    <button type="button" class="list-row" data-o="file" style="width:100%;border:0;background:none;text-align:left">${icon('image', 'sm')}<span>Fotoğraf veya dosya</span></button>
+    <button type="button" class="list-row" data-o="poll" style="width:100%;border:0;background:none;text-align:left">${icon('chart', 'sm')}<span>Anket</span></button></div>` });
+  md.el.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-o]');
+    if (!b) return;
+    md.close();
+    if (b.dataset.o === 'file') $('#chFile').click(); else chatPollModal();
+  });
+};
+function chatPollModal() {
+  const m = openModal({ title: 'Anket', body: html`<form class="stack" id="chPollF">
+      <div class="field"><label>Soru</label><input class="input" name="question" maxlength="300" required placeholder="ör. Eğitim hangi gün olsun?"></div>
+      <div class="stack" id="chPollOpts" style="gap:6px">${[1, 2, 3].map((n) => html`<input class="input" name="o${n}" maxlength="100" placeholder="Seçenek ${n}">`)}</div>
+      <button type="button" class="btn sm ghost" id="chPollMore">${icon('plus', 'sm')}<span>Seçenek ekle</span></button>
+      <label class="small"><input type="checkbox" name="multi"> Birden çok seçilebilsin</label>
+      <div class="form-error hidden" data-err></div></form>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="chPollF">Gönder</button>` });
+  $('#chPollMore', m.el).addEventListener('click', () => { const box = $('#chPollOpts', m.el); const n = box.children.length + 1; if (n <= 12) box.insertAdjacentHTML('beforeend', `<input class="input" name="o${n}" maxlength="100" placeholder="Seçenek ${n}">`); });
+  const f = $('#chPollF', m.el);
+  f.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    submitForm(f, async (d) => {
+      const options = Object.keys(d).filter((k) => /^o\d+$/.test(k)).map((k) => d[k].trim()).filter(Boolean);
+      const r = await api('chat.survey', { id: CH.id, question: d.question.trim(), options, multi: !!d.multi });
+      m.close(); chatAdd([r.msg]); chatScrollEnd(true);
+    });
+  });
+}
+/* Sesli mesaj: dokun → kayıt, tekrar dokun → gönder (en fazla 5 dk) */
+ACT['ch-rec'] = async (el) => {
+  if (CH.rec) { CH.rec.stop(); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { toast('Mikrofona izin verilmedi. Tarayıcı ayarlarından bu siteye mikrofon izni verin.', 'err'); return; }
+  const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  const chunks = [];
+  const t0 = Date.now();
+  CH.rec = rec;
+  el.classList.add('rec');
+  const tip = $('#chReply');
+  const tick = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); if (tip) setHTML(tip, html`<div class="ch-up tiny"><span class="rec-dot"></span> Kaydediliyor ${Math.floor(s / 60)}:${pad(s % 60)} — göndermek için mikrofona tekrar dokunun <button type="button" class="btn sm ghost" data-act="ch-rec-cancel">Vazgeç</button></div>`); if (s >= 300) rec.stop(); }, 250);
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = async () => {
+    clearInterval(tick);
+    stream.getTracks().forEach((t) => t.stop());
+    el.classList.remove('rec');
+    const cancelled = CH.recCancel;
+    CH.rec = null; CH.recCancel = false;
+    if (tip) setHTML(tip, '');
+    const dur = Math.round((Date.now() - t0) / 1000);
+    if (cancelled || !chunks.length || dur < 1) return;
+    const mt = (rec.mimeType || type || 'audio/webm').split(';')[0];
+    const ext = /mp4/.test(mt) ? 'm4a' : /ogg/.test(mt) ? 'ogg' : 'weba';
+    const file = new File(chunks, `sesli-mesaj.${ext}`, { type: mt });
+    try {
+      const a = await uploadFile(file);
+      const r = await api('chat.send', { id: CH.id, att_id: a.id, dur, reply_to: CH.reply ? CH.reply.id : null });
+      chatSetReply(null); chatAdd([r.msg]); chatScrollEnd(true);
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  rec.start(1000);
+};
+ACT['ch-rec-cancel'] = () => { if (CH.rec) { CH.recCancel = true; CH.rec.stop(); } };
 function chatScrollEnd(force) {
   const s = $('#chScroll');
   if (!s) return;
@@ -132,22 +230,79 @@ function chatDraw() {
       <div class="ch-bub">${group && !m.mine && !cont ? html`<div class="ch-from">${m.name}</div>` : ''}
         ${m.reply_ref ? html`<div class="ch-quote"><b>${m.reply_ref.name}</b><span>${m.reply_ref.body}</span></div>` : ''}
         ${m.deleted ? html`<div class="ch-del">${icon('x', 'sm')} Bu mesaj silindi</div>` : html`
+          ${m.fwd ? html`<div class="ch-fwd">${icon('forward', 'sm')} İletildi</div>` : ''}
+          ${m.kind === 'poll' ? chatPollHtml(m) : html`
           ${m.file ? (m.kind === 'image' ? html`<button type="button" class="ch-img" data-act="ch-file" data-id="${m.id}"><img src="${m.file.url}" alt="${m.file.name}" loading="lazy"></button>`
+            : m.kind === 'audio' ? html`<div class="ch-audio">${icon('mic', 'sm')}<audio controls preload="none" src="${m.file.url}"></audio>${m.dur ? html`<span class="tiny faint">${Math.floor(m.dur / 60)}:${pad(m.dur % 60)}</span>` : ''}</div>`
             : html`<button type="button" class="ch-filechip" data-act="ch-file" data-id="${m.id}">${icon('file', 'sm')}<span class="ellipsis">${m.file.name}</span><span class="tiny faint">${chSize(m.file.size)}</span></button>`) : ''}
-          ${m.body ? html`<div class="ch-text">${m.body}</div>` : ''}`}
+          ${m.body ? html`<div class="ch-text">${chatMentions(m.body)}</div>` : ''}`}
+          ${(m.reacts || []).length ? html`<div class="ch-reacts">${m.reacts.map((x) => html`<button type="button" class="ch-react ${x.mine ? 'on' : ''}" data-act="ch-react" data-id="${m.id}" data-e="${x.e}">${x.e} ${x.n}</button>`)}</div>` : ''}`}
         <div class="ch-time">${m.at.slice(11, 16)}${m === lastMine && CH.read && CH.read.id === m.id && CH.read.n ? html` <span class="ch-read" title="Okundu">${icon('checks', 'sm')}${group ? ' ' + CH.read.n : ''}</span>` : ''}</div>
       </div>${m.deleted ? '' : html`<button type="button" class="ch-act" data-act="ch-menu" data-id="${m.id}" aria-label="Mesaj işlemleri">${icon('more', 'sm')}</button>`}</div>`);
   });
   setHTML(box, parts.length ? html`${parts}` : html`<div class="ch-empty small muted">Henüz mesaj yok. İlk mesajı siz yazın.</div>`);
 }
+/** @bahsetme vurgusu: sohbet üyelerinin adları (metin güvenli parçalara bölünür) */
+function chatMentions(text) {
+  const names = (CH.members || []).map((p) => p.name).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!text.includes('@') || !names.length) return text;
+  const low = text.toLocaleLowerCase('tr');
+  const parts = [];
+  let i = 0;
+  while (i < text.length) {
+    const at = text.indexOf('@', i);
+    if (at < 0) { parts.push(text.slice(i)); break; }
+    const nm = names.find((n) => low.startsWith('@' + n.toLocaleLowerCase('tr'), at));
+    if (!nm) { parts.push(text.slice(i, at + 1)); i = at + 1; continue; }
+    parts.push(text.slice(i, at));
+    parts.push(html`<b class="ch-at">${text.slice(at, at + nm.length + 1)}</b>`);
+    i = at + nm.length + 1;
+  }
+  return html`${parts}`;
+}
+function chatPollHtml(m) {
+  const p = m.poll;
+  const total = Math.max(1, p.opts.reduce((a, o) => a + o.n, 0));
+  return html`<div class="ch-poll"><div class="ch-poll-q">${icon('chart', 'sm')} ${m.body}</div>
+    <div class="tiny faint">${p.multi ? 'Birden çok seçilebilir' : 'Tek seçim'} · ${p.voters} kişi oy verdi</div>
+    ${p.opts.map((o, i) => html`<button type="button" class="ch-opt ${o.mine ? 'on' : ''}" data-act="ch-vote" data-id="${m.id}" data-i="${i}">
+      <span class="ch-opt-bar" style="width:${Math.round((o.n / total) * 100)}%"></span><span class="ch-opt-t">${o.mine ? icon('check', 'sm') : ''}${o.t}</span><b>${o.n}</b></button>`)}</div>`;
+}
+function chatPinBar() {
+  const box = $('#chPin');
+  if (!box) return;
+  const p = CH.pinned;
+  setHTML(box, p ? html`<button type="button" class="ch-pinbar" data-act="ch-gopin">${icon('pin', 'sm')}<span class="grow ellipsis"><b>${p.name}:</b> ${p.text}</span>${CH.chat && CH.chat.can_pin ? html`<span class="tiny" data-act="ch-unpin" role="button">Kaldır</span>` : ''}</button>` : '');
+}
+ACT['ch-gopin'] = (el, ev) => {
+  if (ev && ev.target.closest('[data-act=ch-unpin]')) return;
+  const n = $(`.ch-msg[data-id="${CH.pinned.id}"]`);
+  if (n) { n.scrollIntoView({ block: 'center', behavior: 'smooth' }); n.classList.add('flash'); setTimeout(() => n.classList.remove('flash'), 1500); } else toast('Mesaj daha eskilerde; “Önceki mesajlar” ile yükleyin.');
+};
+ACT['ch-unpin'] = async (el, ev) => { if (ev) ev.stopPropagation(); try { const r = await api('chat.pin', { id: CH.id, msg: 0 }); CH.pinned = r.pinned; chatPinBar(); } catch (e) { toast(e.message, 'err'); } };
+ACT['ch-react'] = async (el) => {
+  try { const r = await api('chat.react', { id: +el.dataset.id, emoji: el.dataset.e }); const i = CH.msgs.findIndex((m) => m.id === r.msg.id); if (i >= 0) { CH.msgs[i] = r.msg; chatDraw(); } } catch (e) { toast(e.message, 'err'); }
+};
+ACT['ch-vote'] = async (el) => {
+  const m = CH.msgs.find((x) => x.id === +el.dataset.id);
+  if (!m) return;
+  const i = +el.dataset.i;
+  let sel = m.poll.opts.map((o, k) => (o.mine ? k : -1)).filter((k) => k >= 0);
+  if (m.poll.multi) sel = sel.includes(i) ? sel.filter((k) => k !== i) : [...sel, i];
+  else sel = sel.includes(i) ? [] : [i];
+  try { const r = await api('chat.vote', { id: m.id, opts: sel }); const k = CH.msgs.findIndex((x) => x.id === r.msg.id); if (k >= 0) { CH.msgs[k] = r.msg; chatDraw(); } } catch (e) { toast(e.message, 'err'); }
+};
 function chSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
 async function chatPoll() {
   if (!$('#chatView') || !location.hash.startsWith('#/mesaj/' + CH.id)) { chatStop(); return; }
   if (document.visibilityState !== 'visible' || CH.busy) return;
   CH.busy = true;
   try {
-    const r = await api('chat.poll', { id: CH.id, after: CH.last, seen: true });
+    const r = await api('chat.poll', { id: CH.id, after: CH.last, seen: true, since: CH.since || '' });
     let changed = false;
+    CH.since = r.now || CH.since;
+    (r.upd || []).forEach((u) => { const i = CH.msgs.findIndex((m) => m.id === u.id); if (i >= 0) { CH.msgs[i] = u; changed = true; } });
+    if (JSON.stringify(r.pinned || null) !== JSON.stringify(CH.pinned || null)) { CH.pinned = r.pinned; chatPinBar(); }
     if (r.deleted.length) { CH.msgs.forEach((m) => { if (r.deleted.includes(m.id) && !m.deleted) { m.deleted = true; m.body = ''; delete m.file; changed = true; } }); }
     const readChanged = !CH.read || CH.read.id !== r.read.id || CH.read.n !== r.read.n;
     CH.read = r.read;
@@ -222,6 +377,16 @@ ACT['ch-menu'] = (el) => {
   const items = [];
   if (CH.chat.can_send) items.push(['reply', 'Yanıtla', () => chatSetReply(m)]);
   if (m.body) items.push(['copy', 'Metni kopyala', async () => toast((await copyText(m.body)) ? 'Kopyalandı' : 'Kopyalanamadı')]);
+  if (m.kind !== 'poll') items.push(['forward', 'İlet', () => chatForward(m)]);
+  if (CH.chat.can_pin) items.push(['pin', CH.pinned && CH.pinned.id === m.id ? 'Sabitlemeyi kaldır' : 'Sabitle', async () => {
+    try { const r = await api('chat.pin', { id: CH.id, msg: CH.pinned && CH.pinned.id === m.id ? 0 : m.id }); CH.pinned = r.pinned; chatPinBar(); } catch (e) { toast(e.message, 'err'); }
+  }]);
+  if (m.kind === 'poll' && (m.mine || CH.chat.admin)) items.push(['users', 'Oy verenler', async () => {
+    try {
+      const r = await api('chat.voters', { id: m.id });
+      openModal({ title: 'Oy verenler', body: html`<div class="stack">${r.opts.map((o) => html`<div><b class="small">${o.t}</b> <span class="tiny faint">(${o.names.length})</span><div class="small muted">${o.names.join(', ') || '—'}</div></div>`)}</div>` });
+    } catch (e) { toast(e.message, 'err'); }
+  }]);
   if (m.mine || CH.chat.admin) items.push(['eye', 'Kimler okudu', async () => {
     try {
       const r = await api('chat.readers', { id: m.id });
@@ -232,9 +397,25 @@ ACT['ch-menu'] = (el) => {
     if (!(await confirmDialog({ title: 'Mesaj silinsin mi?', text: 'Mesaj ve eki herkesten silinir; yerinde “Bu mesaj silindi” yazar.', ok: 'Sil', danger: true }))) return;
     try { await api('chat.delete', { id: m.id }); m.deleted = true; m.body = ''; delete m.file; chatDraw(); } catch (e) { toast(e.message, 'err'); }
   }, true]);
-  const md = openModal({ title: 'Mesaj', size: 'narrow', body: html`<div class="list">${items.map(([ic, l, , danger], i) => html`<button type="button" class="list-row ${danger ? 'tone-danger' : ''}" data-i="${i}" style="width:100%;border:0;background:none;text-align:left">${icon(ic, 'sm')}<span>${l}</span></button>`)}</div>` });
-  md.el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-i]'); if (!b) return; md.close(); items[+b.dataset.i][2](); });
+  const mine = ((m.reacts || []).find((x) => x.mine) || {}).e;
+  const md = openModal({ title: 'Mesaj', size: 'narrow', body: html`<div class="ch-emojis">${(CH.emojis || []).map((e) => html`<button type="button" class="ch-emo ${mine === e ? 'on' : ''}" data-e="${e}" aria-label="Tepki ${e}">${e}</button>`)}</div>
+    <div class="list">${items.map(([ic, l, , danger], i) => html`<button type="button" class="list-row ${danger ? 'tone-danger' : ''}" data-i="${i}" style="width:100%;border:0;background:none;text-align:left">${icon(ic, 'sm')}<span>${l}</span></button>`)}</div>` });
+  md.el.addEventListener('click', (ev) => {
+    const e = ev.target.closest('[data-e]');
+    if (e) { md.close(); ACT['ch-react']({ dataset: { id: String(m.id), e: e.dataset.e } }); return; }
+    const b = ev.target.closest('[data-i]'); if (!b) return; md.close(); items[+b.dataset.i][2]();
+  });
 };
+async function chatForward(m) {
+  let r;
+  try { r = await api('chat.list'); } catch (e) { toast(e.message, 'err'); return; }
+  const md = openModal({ title: 'Şuraya ilet', body: html`<div class="card"><div class="list">${r.items.filter((c) => c.id !== CH.id).map((c) => html`<button type="button" class="list-row" data-c="${c.id}" style="width:100%;border:0;background:none;text-align:left">${icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}<span class="grow">${c.name}</span></button>`)}</div></div>` });
+  md.el.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-c]');
+    if (!b) return;
+    try { await api('chat.forward', { id: m.id, to: +b.dataset.c }); md.close(); toast('İletildi'); } catch (err) { toast(err.message, 'err'); }
+  });
+}
 
 /* ---------------- Sohbet bilgisi ve grup yönetimi ---------------- */
 ACT['ch-info'] = () => {
@@ -248,13 +429,36 @@ ACT['ch-info'] = () => {
         <label class="switch"><input type="checkbox" id="chOnly" ${c.only_admins ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Yalnız yöneticiler yazsın</b><span>Duyuru grubu gibi: üyeler okur, yanıt yazamaz.</span></span></label>
         <div><button class="btn sm primary" data-act="ch-save">Kaydet</button></div></div>` : ''}
       ${c.kind === 'unit' && c.admin ? html`<label class="switch"><input type="checkbox" id="chOnly" ${c.only_admins ? raw('checked') : ''} data-act="ch-only-unit"><span class="track"></span><span class="s-text"><b>Yalnız yetkililer yazsın</b><span>Birim grubunu duyuru kanalı gibi kullanmak için.</span></span></label>` : ''}
-      <label class="switch"><input type="checkbox" id="chMute" ${c.muted ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Sessize al</b><span>Bu sohbet için bildirim gelmez.</span></span></label>
+      <label class="switch"><input type="checkbox" id="chMute" ${c.muted ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Sessize al</b><span>Bu sohbet için bildirim gelmez (adınız @ ile geçerse yine bildirilir).</span></span></label>
+      ${c.admin || c.kind === 'direct' ? html`<div class="field"><label>Mesajları sakla</label><select class="select" id="chRet">${[[0, 'Süresiz'], [30, '30 gün'], [90, '90 gün'], [180, '6 ay'], [365, '1 yıl'], [730, '2 yıl']].map(([d, l]) => html`<option value="${d}" ${c.retention === d ? raw('selected') : ''}>${l}</option>`)}</select>
+        <p class="hint">Süresi geçen mesajlar ve dosyaları her gün kendiliğinden silinir (KVKK: gereğinden uzun saklamayın).</p></div>` : ''}
+      ${grp && c.admin ? html`<div class="field"><label>Davet bağlantısı</label><div id="chInv"></div>
+        <p class="hint">Hastanenizdeki biri bu bağlantıyla gruba katılabilir. Yalnız güvendiğiniz kişilerle paylaşın; işiniz bitince kapatın.</p></div>` : ''}
       ${c.kind !== 'direct' ? html`<div class="row" style="justify-content:space-between"><div class="sec-title" style="margin:0">${CH.members.length} kişi</div>${grp && c.admin ? html`<button class="btn sm" data-act="ch-add">${icon('plus', 'sm')}<span>Üye ekle</span></button>` : ''}</div>
         <div class="card"><div class="list ch-members">${CH.members.map((p) => html`<div class="list-row">${avatar(p.name, 'sm')}<div class="grow" style="min-width:0"><div class="lr-t ellipsis">${p.name}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></div>
           ${p.role === 'admin' ? html`<span class="badge brand">yönetici</span>` : ''}
           ${grp && c.admin ? html`<button class="btn sm icon ghost" data-act="ch-mmenu" data-tk="${p.tk}" data-uid="${p.uid}" aria-label="Üye işlemleri">${icon('more', 'sm')}</button>` : ''}</div>`)}</div></div>` : ''}
       ${grp ? html`<div><button class="btn sm ghost danger" data-act="ch-leave">${icon('logout', 'sm')}<span>Gruptan çık</span></button></div>` : ''}</div>` });
   $('#chMute', m.el).addEventListener('change', async (e) => { try { await api('chat.mute', { id: c.id, muted: e.target.checked }); c.muted = e.target.checked; toast(c.muted ? 'Sessize alındı' : 'Bildirimler açık'); } catch (err) { toast(err.message, 'err'); } });
+  const ret = $('#chRet', m.el);
+  if (ret) ret.addEventListener('change', async () => { try { await api('chat.update', { id: c.id, retention: +ret.value }); c.retention = +ret.value; toast('Saklama süresi kaydedildi'); } catch (err) { toast(err.message, 'err'); } });
+  const inv = $('#chInv', m.el);
+  const drawInv = () => {
+    if (!inv) return;
+    const link = c.invite ? appBaseUrl() + '#/mesaj/katil/' + c.invite.token : '';
+    setHTML(inv, c.invite ? html`<div class="row" style="gap:6px"><input class="input grow" readonly value="${link}" id="chInvLink"><button type="button" class="btn sm" data-iv="copy">${icon('copy', 'sm')}<span>Kopyala</span></button><button type="button" class="btn sm ghost danger" data-iv="revoke">Kapat</button></div><div class="tiny faint">Geçerlilik: ${fmtDate(c.invite.expires)} ${c.invite.expires.slice(11, 16)}</div>`
+      : html`<div class="row" style="gap:6px"><select class="select" id="chInvDays" style="width:auto"><option value="1">1 gün</option><option value="7" selected>7 gün</option><option value="30">30 gün</option></select><button type="button" class="btn sm" data-iv="create">${icon('link', 'sm')}<span>Bağlantı oluştur</span></button></div>`);
+  };
+  drawInv();
+  if (inv) inv.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-iv]');
+    if (!b) return;
+    try {
+      if (b.dataset.iv === 'copy') { toast((await copyText($('#chInvLink', m.el).value)) ? 'Bağlantı kopyalandı' : 'Kopyalanamadı'); return; }
+      const r = await api('chat.invite', { id: c.id, op: b.dataset.iv, days: b.dataset.iv === 'create' ? +$('#chInvDays', m.el).value : undefined });
+      c.invite = r.invite; drawInv();
+    } catch (err) { toast(err.message, 'err'); }
+  });
   const unitOnly = $('[data-act=ch-only-unit]', m.el);
   if (unitOnly) unitOnly.addEventListener('change', async (e) => { try { await api('chat.update', { id: c.id, only_admins: e.target.checked }); c.only_admins = e.target.checked; toast('Kaydedildi'); } catch (err) { toast(err.message, 'err'); } });
 };

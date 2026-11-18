@@ -1320,3 +1320,30 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 }
 
 .banner.sys-in { background: var(--warn-soft); color: var(--warn); align-items: center; flex-wrap: wrap; }
+
+/* Mesajlaşma 4.4 */
+.ch-fwd { font-size: 11.5px; color: var(--text-3); font-style: italic; display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.ch-audio { display: flex; align-items: center; gap: 6px; min-width: 220px; }
+.ch-audio audio { height: 36px; max-width: 240px; }
+.ch-at { color: var(--brand-text); }
+.ch-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.ch-react { border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; font-size: 12.5px; cursor: pointer; color: var(--text); }
+.ch-react.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--surface)); }
+.ch-emojis { display: flex; justify-content: space-between; gap: 4px; margin-bottom: 10px; }
+.ch-emo { border: 0; background: var(--surface-2); border-radius: 12px; font-size: 22px; padding: 6px 0; flex: 1; cursor: pointer; }
+.ch-emo.on { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
+.ch-poll { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+.ch-poll-q { font-weight: 700; font-size: 14.5px; display: flex; gap: 6px; align-items: center; }
+.ch-opt { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; background: var(--surface); overflow: hidden; cursor: pointer; color: var(--text); text-align: left; }
+.ch-opt.on { border-color: var(--brand); }
+.ch-opt-bar { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--brand) 16%, transparent); transition: width .2s; }
+.ch-opt-t, .ch-opt b { position: relative; display: flex; align-items: center; gap: 4px; }
+.ch-pinbar { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--text); text-align: left; flex: none; }
+.ch-pinbar [data-act=ch-unpin] { color: var(--danger); }
+.ch-msg.flash .ch-bub { box-shadow: 0 0 0 3px var(--brand); }
+.ch-atlist { display: flex; flex-direction: column; gap: 2px; max-height: 200px; overflow-y: auto; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 10px; padding: 4px; background: var(--surface); }
+.ch-atbtn { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 6px; border-radius: 8px; cursor: pointer; color: var(--text); text-align: left; }
+.ch-atbtn:hover { background: var(--surface-2); }
+[data-act=ch-rec].rec { color: #fff; background: var(--danger); }
+.rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: recb 1s infinite; vertical-align: middle; }
+@keyframes recb { 50% { opacity: .2; } }

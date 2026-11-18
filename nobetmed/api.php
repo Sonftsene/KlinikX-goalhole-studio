@@ -32,7 +32,7 @@ const MIME_MAP = [
     'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif',
     'bmp' => 'image/bmp', 'avif' => 'image/avif', 'heic' => 'image/heic', 'heif' => 'image/heif', 'svg' => 'image/svg+xml',
     'tif' => 'image/tiff', 'tiff' => 'image/tiff',
-    'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime', 'ogv' => 'video/ogg',
+    'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'webm' => 'video/webm', 'weba' => 'audio/webm', 'mov' => 'video/quicktime', 'ogv' => 'video/ogg',
     'avi' => 'video/x-msvideo', 'mkv' => 'video/x-matroska', '3gp' => 'video/3gpp',
     'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav', 'ogg' => 'audio/ogg', 'aac' => 'audio/aac', 'opus' => 'audio/ogg',
     'doc' => 'application/msword',
@@ -50,7 +50,7 @@ const MIME_MAP = [
 /** Tarayıcıda doğrudan (inline) açılmasında sakınca olmayan türler. Diğerleri her zaman indirme olarak gönderilir. */
 const INLINE_SAFE = [
     'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif',
-    'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/aac',
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/webm',
 ];
 const ROLES = ['admin', 'editor', 'member'];
 const ROSTER_KEEP_VERSIONS = 15;

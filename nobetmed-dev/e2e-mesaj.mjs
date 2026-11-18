@@ -4,6 +4,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
@@ -202,6 +203,78 @@ await N.p.goto(BASE + '#/mesaj');
 await N.p.waitForFunction(() => location.hash === '#/' || location.hash === '');
 await apiCall(SA.p, 'sa.modules.save', { kind: 'tenant', id: sa.tid, modules: { mesaj: 'inherit' } });
 step('modül: Dahiliye’de mesajlaşma kapanınca sunucu ve sayfa kapandı; geri açıldı');
+
+// ---- 7b) 4.4: tepki, anket, ilet, sabitle, @bahsetme, davet, saklama, sesli mesaj ----
+await E.p.goto(BASE + '#/mesaj/' + unitId);
+await E.p.locator('#chInput').waitFor();
+const eMsg = (await apiCall(E.p, 'chat.open', { id: unitId })).msgs.find((m) => /Merhaba ekip/.test(m.body));
+await apiCall(B.p, 'chat.react', { id: eMsg.id, emoji: '👍' });
+await E.p.locator(`.ch-msg[data-id="${eMsg.id}"] .ch-react`, { hasText: '👍 1' }).waitFor({ timeout: 10000 });
+await E.p.locator(`.ch-msg[data-id="${eMsg.id}"] [data-act=ch-menu]`).click();
+await E.p.locator('.modal .ch-emo', { hasText: '👍' }).click();
+await E.p.locator(`.ch-msg[data-id="${eMsg.id}"] .ch-react.on`, { hasText: '👍 2' }).waitFor();
+// Anket (arayüzden)
+await E.p.click('[data-act=ch-attach]');
+await E.p.locator('.modal [data-o=poll]').click();
+await E.p.fill('#chPollF [name=question]', 'Eğitim hangi gün olsun?');
+await E.p.fill('#chPollF [name=o1]', 'Salı');
+await E.p.fill('#chPollF [name=o2]', 'Perşembe');
+await E.p.click('.modal button[form=chPollF]');
+await E.p.locator('.ch-poll', { hasText: 'Eğitim hangi gün' }).waitFor();
+const pollId = +(await E.p.locator('.ch-msg', { has: E.p.locator('.ch-poll') }).last().getAttribute('data-id'));
+await apiCall(B.p, 'chat.vote', { id: pollId, opts: [1] });
+await apiCall(A.p, 'chat.vote', { id: pollId, opts: [1] });
+await E.p.locator(`.ch-msg[data-id="${pollId}"]`, { hasText: '2 kişi oy verdi' }).waitFor({ timeout: 10000 });
+await E.p.locator(`.ch-msg[data-id="${pollId}"] [data-act=ch-vote][data-i="0"]`).click();
+await E.p.locator(`.ch-msg[data-id="${pollId}"]`, { hasText: '3 kişi oy verdi' }).waitFor();
+const voters = await apiCall(E.p, 'chat.voters', { id: pollId });
+if (!voters.opts[1].names.includes('Burak Demir') || !voters.opts[0].names.includes('Elif Yılmaz')) fail('oy verenler: ' + JSON.stringify(voters));
+if ((await apiErr(B.p, 'chat.voters', { id: pollId })) === 'kabul') fail('anketi açmayan üye oy verenleri gördü');
+// İlet (birim grubundan birebire)
+const fw = await apiCall(E.p, 'chat.forward', { id: eMsg.id, to: dm.id });
+const bDm = (await apiCall(B.p, 'chat.open', { id: dm.id })).msgs.find((m) => m.id === fw.id);
+if (!bDm || !bDm.fwd || !/Merhaba ekip/.test(bDm.body)) fail('iletilen mesaj: ' + JSON.stringify(bDm));
+if ((await apiErr(N.p, 'chat.forward', { id: eMsg.id, to: gid })) === 'kabul') fail('başka birim, erişemediği mesajı iletti');
+// Sabitle (birim yöneticisi) → üyede çubuk
+if (!/yönetici/.test(await apiErr(E.p, 'chat.pin', { id: unitId, msg: eMsg.id }))) fail('üye birim grubunda sabitleyebildi');
+await apiCall(A.p, 'chat.pin', { id: unitId, msg: eMsg.id });
+await E.p.locator('.ch-pinbar', { hasText: 'Merhaba ekip' }).waitFor({ timeout: 10000 });
+await E.p.screenshot({ path: path.join(OUT, 'c-44-mobile.png') });
+await noOverflow(E.p, 'sohbet 4.4');
+// @bahsetme: Burak birim grubunu sessize aldı; adı geçince yine bildirim
+await apiCall(B.p, 'notif.read', {});
+await apiCall(E.p, 'chat.send', { id: unitId, body: '@Burak Demir yarın 08:00 devir sende.' });
+if (!(await apiCall(B.p, 'notif.list')).items.some((x) => x.kind === 'chat' && !x.read && /bahsetti/.test(x.title))) fail('sessizdeyken @bahsetme bildirimi gelmedi');
+// Başka birimdeki üyeye bahsetme (görevle)
+await apiCall(N.p, 'chat.mute', { id: gid, muted: true });
+await apiCall(N.p, 'notif.read', {});
+await apiCall(A.p, 'chat.send', { id: gid, body: 'Raporu @Nil Er hazırlayacak.' });
+cron();
+if (!(await apiCall(N.p, 'notif.list')).items.some((x) => x.kind === 'chat' && !x.read && /bahsetti/.test(x.title))) fail('diğer birimdeki üyeye @bahsetme bildirimi gitmedi');
+// Davet bağlantısı
+const inv = (await apiCall(A.p, 'chat.invite', { id: gid, op: 'create', days: 7 })).invite;
+await B.p.goto(BASE + '#/mesaj/katil/' + inv.token);
+await B.p.waitForFunction((g) => location.hash === '#/mesaj/' + g, gid, { timeout: 10000 });
+if (!(await apiCall(B.p, 'chat.list')).items.some((c) => c.id === gid)) fail('davet bağlantısıyla katılınamadı');
+if ((await apiErr(K.p, 'chat.join', { token: inv.token })) === 'kabul') fail('başka hastane davet bağlantısıyla katıldı');
+await apiCall(A.p, 'chat.invite', { id: gid, op: 'revoke' });
+if ((await apiErr(E.p, 'chat.join', { token: inv.token })) === 'kabul') fail('kapatılan davet bağlantısı çalıştı');
+// Saklama süresi: 30 gün; eski mesaj görevle silinir
+if ((await apiErr(E.p, 'chat.update', { id: unitId, retention: 30 })) === 'kabul') fail('üye saklama süresini değiştirdi');
+await apiCall(A.p, 'chat.update', { id: unitId, retention: 30 });
+execFileSync('php', ['-r', `require '${path.join(SITE, 'inc/bootstrap.php')}'; nm_tenant_use(nm_tenant_default()); require '${path.join(SITE, 'inc/mod_hastane.php')}'; hdb()->prepare("UPDATE c_msgs SET created_at = '2020-01-01 10:00:00' WHERE body LIKE 'Not: salon%'")->execute();`]);
+cron();
+if ((await apiCall(E.p, 'chat.open', { id: unitId })).msgs.some((m) => /Not: salon/.test(m.body))) fail('saklama süresi geçen mesaj silinmedi');
+// Sesli mesaj (yükleme + tür)
+const vm = await E.p.evaluate(async (id) => {
+  const f = new File([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0, 1, 2, 3, 4])], 'sesli-mesaj.weba', { type: 'audio/webm' });
+  const a = await uploadFile(f);
+  return (await api('chat.send', { id, att_id: a.id, dur: 7 })).msg;
+}, unitId);
+if (vm.kind !== 'audio' || vm.dur !== 7 || !/audio\/webm/.test(vm.file.mime)) fail('sesli mesaj: ' + JSON.stringify(vm));
+await E.p.locator(`.ch-msg[data-id="${vm.id}"] audio`).waitFor({ timeout: 10000 }).catch(() => fail('sesli mesaj oynatıcısı görünmedi'));
+if (!/microphone=\(self\)/.test(fs.readFileSync(path.join(SITE, '.htaccess'), 'utf8'))) fail('.htaccess mikrofon izni (self) yok');
+step('4.4: tepki (karşılıklı, menüden), anket (arayüzden; oylar canlı yansıdı, oy verenler yalnız açana), ilet (iletildi etiketi; erişemeyen iletemez), sabitle (yalnız yönetici; üyede çubuk), @bahsetme sessizdeyken de (aynı birim anında, diğer birim görevle), davet bağlantısı (başka hastane ve kapatılan bağlantı çalışmadı), 30 gün saklama (eski mesaj silindi), sesli mesaj');
 
 // ---- 8) Telefonda liste ----
 await E.p.goto(BASE + '#/mesaj');
