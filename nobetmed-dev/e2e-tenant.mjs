@@ -69,7 +69,8 @@ if (!(await A.p.locator('.modal svg').count())) fail('QR kod çizilmedi');
 await A.p.fill('#saCodeF [name=code]', '000000');
 await A.p.click('.modal button[form=saCodeF]');
 await expectText(A.p, 'Kod hatalı');
-await A.p.fill('#saCodeF [name=code]', totp(secret));
+const usedCode = totp(secret);
+await A.p.fill('#saCodeF [name=code]', usedCode);
 await A.p.click('.modal button[form=saCodeF]');
 await expectText(A.p, 'Sistem yöneticisi hesabı etkin');
 if ((await apiErr(A.p, 'sa.create', { name: 'İkinci', email: 'y@test.com', password: 'CokUzunSifre123', current: 'Sifre1234' })) === 'kabul') fail('ikinci sistem hesabı açılabildi');
@@ -87,7 +88,7 @@ await expectText(SA.p, 'hatalı');
 await SA.p.fill('[data-form=sys-login] [name=password]', 'SistemSifre123');
 await SA.p.click('[data-form=sys-login] button[type=submit]');
 await SA.p.locator('[data-form=sys-totp]').waitFor();
-await SA.p.fill('[data-form=sys-totp] [name=code]', totp(secret)); // kurulumda kullanılan kod tekrar kabul edilmez
+await SA.p.fill('[data-form=sys-totp] [name=code]', usedCode); // kurulumda kullanılan kod tekrar kabul edilmez
 await SA.p.click('[data-form=sys-totp] button[type=submit]');
 await expectText(SA.p, 'kullanılmış');
 await SA.p.fill('[data-form=sys-totp] [name=code]', totp(secret, 1));
