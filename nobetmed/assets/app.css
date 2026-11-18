@@ -1270,3 +1270,10 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .role-seg button { padding: 6px 10px; font-size: 12.5px; }
 .role-perms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 @media (max-width: 560px) { .role-row { flex-direction: column; align-items: stretch; } .role-seg { display: flex; } .role-seg button { flex: 1; } }
+
+/* Hastane belgeleri */
+.hd-item .badge { flex: none; }
+.hd-item.unread .lr-t { font-weight: 700; }
+.hd-item .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); margin-right: 6px; vertical-align: middle; }
+.hd-body { white-space: pre-wrap; line-height: 1.55; font-size: 14.5px; overflow-wrap: anywhere; }
+.hd-filters .seg { overflow-x: auto; max-width: 100%; scrollbar-width: none; }

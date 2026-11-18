@@ -381,9 +381,24 @@ function nm_passkey_handle(int $uid): string
     return nm_multi() && (int)$t['is_default'] !== 1 ? 'u' . $uid . '@' . $t['tkey'] : 'u' . $uid;
 }
 
+/** İlk kurulum kaydı kurum adı girilmeden oluştuysa ("Hastane"): kurum adı belli olunca merkezde düzelt */
+function nm_tenant_fix_placeholder(): void
+{
+    if (!nm_multi()) return;
+    $t = nm_tenant();
+    if ((int)$t['is_default'] !== 1 || $t['name'] !== 'Hastane') return;
+    $org = (string)setting('org_name', '');
+    if ($org === '' || $org === 'Klinik Portalı') return;
+    m_q('UPDATE tenants SET name = ? WHERE id = ?', [$org, $t['id']]);
+    m_q("UPDATE hospitals SET name = ? WHERE id = ? AND name = 'Hastane'", [$org, $t['hospital_id']]);
+    $GLOBALS['NM_T']['name'] = $org;
+    if (($GLOBALS['NM_T']['hospital_name'] ?? '') === 'Hastane') $GLOBALS['NM_T']['hospital_name'] = $org;
+}
+
 /** Açılış verisinde birim bilgisi (istemci bağlantılara ekler) */
 function nm_boot_tenant(?array $me): array
 {
+    if ($me) nm_tenant_fix_placeholder();
     $t = nm_tenant();
     $o = ['multi' => nm_multi() && count(nm_tenants()) > 1, 'b' => nm_multi() && (int)$t['is_default'] !== 1 ? (string)$t['tkey'] : '',
         'sys' => nm_multi() && (int)m_val('SELECT COUNT(*) FROM superadmins WHERE totp_on = 1') > 0];

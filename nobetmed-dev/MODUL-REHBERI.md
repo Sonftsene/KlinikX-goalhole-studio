@@ -67,6 +67,12 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - İstemci: `modOn(m)`, `canManage(m)`, `ROUTE_MOD` (rota → modül; `isPublisher()` modül sayfasında o modüle göre). `NM_EXT` kayıtlarına `mod: '<modül>'` ekleyin (nav, hubTabs, homeCards (dizi olabilir), profileTabs).
 - Test: `nobetmed-dev/e2e-yetki.mjs` (e2e-tenant'tan sonra).
 
+## Hastane ortak verisi (4.2)
+- `inc/mod_hastane.php` › `hdb()` aynı hastanenin ortak SQLite'ı (`data/h/<hastane id>/`), dosyalar `h_upload_dir()` (`uploads/h/<id>/`). Bir istek kendi birimi + kendi hastanesinin ortak veritabanını açabilir; başka hastaneye yol yok.
+- Ortak kayıtlarda ekleyen birim `tkey` ile tutulur; düzenleme/silme yalnız `tkey === h_tkey()` ise. Kişi adı içeren ortak kayıtlar (ör. `h_reads`) yalnız kendi birimine adıyla, diğer birimlere sayı olarak gösterilir.
+- Birimler arası bildirim: bir birim başka birimin veritabanına YAZMAZ; her birimin kendi görevi (`NM_JOBS`) hastane verisini okuyup kendi kişilerine bildirir (ör. `hdoc_notify`).
+- Test: `nobetmed-dev/e2e-hastane.mjs` (e2e-tenant'tan sonra).
+
 ## Gizlilik ve güvenlik
 - Depo HERKESE AÇIK: gerçek kişi/hastane adı, e-posta, şifre, gerçek Excel dosyaları depoya girmez. Testlerde uydurma adlar kullanın.
 - Her uçta yetki denetimi; yalnız yetkili kişiye görünmesi gereken bilgiyi sunucu hiç göndermesin (istemcide gizlemek yetmez).

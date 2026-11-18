@@ -62,6 +62,7 @@ function renderNav() {
     ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
     ${modOn('rehber') ? navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon') : ''}
+    ${NM_EXT.nav.filter((n) => n.sec === 'genel' && modOn(n.mod) && (!n.visible || n.visible())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
     ${modOn('nobet') ? html`<div class="nav-sec">Nöbet</div>
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}

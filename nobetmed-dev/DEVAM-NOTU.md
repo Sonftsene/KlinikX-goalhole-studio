@@ -23,7 +23,7 @@ Bu dosya, önceki geliştirme sohbetinin özetidir. Yeni oturumda önce bunu, so
 - Google E-Tablolar: kullanıcının Apps Script kodu (`assets/js/taraf.js` → `gsScript`) tabloları siteye gönderir (`inc/gsync.php`). Nöbet tablolarında çıkarılan sekmeler, hasta listesinde seçilen sekmeler saklanır; hasta adı koruması `gs_mask_guard()`.
 
 ## Durum
-- Son paket: **4.1.0** (modüller ve roller). Önceki: 4.0.0 (çok hastaneli altyapı). Önceki: 3.11.0 (silme yetkileri), 3.10.4 (bildirim simgesi), 3.10.3.
+- Son paket: **4.2.0** (hastane ortak rehber + belgeler). Önceki: 4.1.0 (modüller ve roller), 4.0.0 (çok hastaneli altyapı). Önceki: 3.11.0 (silme yetkileri), 3.10.4 (bildirim simgesi), 3.10.3.
 - Kullanıcının sitesi **SQLite** (config.php `DB_DRIVER sqlite`) → çok birimli yapı etkin olacak.
 - 4.0 mimarisi (ayrıntı `MODUL-REHBERI.md` › Çok birimli yapı, kullanıcı için `KURULUM.md` §16):
   - `inc/tenant.php`: merkez SQLite (`data/merkez/`: hospitals, tenants, dir_email (HMAC), superadmins, sa_audit, sa_attempts, m_settings), `nm_tenant()` istek başına tek birim (oturum `t` → bağlantı `b`/oturum `tb` → varsayılan), `nm_tenant_use()` yalnız db açılmadan, `nm_data_dir()/nm_upload_dir()`, `nm_link_param()`, dizin `nm_dir_put/del/find`, `nm_email_guard`.
@@ -34,7 +34,8 @@ Bu dosya, önceki geliştirme sohbetinin özetidir. Yeni oturumda önce bunu, so
   - `cron.php`: birden çok birimde her birim ayrı süreç (`--tenant=`); proc_open yoksa sırayla bir birim.
   - Test: `nobetmed-dev/e2e-tenant.mjs` (diğer testlerden sonra).
 - 4.1: `inc/mod_yetki.php` (NM_MODULES, NM_ACTION_MODULE, nm_mods() merkez module_cfg (scope h/t, birim kaydı hastaneyi ezer, bağlı modül kapanır), user_perm off/use/manage, roles tablosu + users.role_id (NM_SCHEMA 13), roles.list/save/delete/assign, sa.modules.get/save), `is_publisher()` modül bağlamlı, `module_managers()` (mail.php), istemci `assets/js/yetki.js` + core.js `modOn/canManage/ROUTE_MOD`.
-- **Sıradaki iş (YOL-HARITASI):** 4.2 hastane ortak rehber/belgeler (hastane DB'si), 4.3–4.4 mesajlaşma, 4.5 Excel'siz çizelge + aktarım, 4.6 ek modüller.
+- 4.2: `inc/mod_hastane.php` (hdb() data/h/<id>, h_phonebook — istemciye negatif id, phonebook.* içinde hpb_* dalları + phonebook.share; h_docs/h_files/h_reads, hdoc.list/get/ack/save/delete/report, GET hfile, NM_JOBS hdoc_notify, modül 'hbelge'), istemci `assets/js/hastane.js` (#/hastane), rehber formunda kapsam. `nm_tenant_fix_placeholder()` ilk kurulum adını kurum adıyla düzeltir.
+- **Sıradaki iş (YOL-HARITASI):** 4.3–4.4 mesajlaşma, 4.5 Excel'siz çizelge + aktarım, 4.6 ek modüller.
 - Kullanıcı kararları: kişi tek birimde; hastane içinde rehber ortak, protokoller hastane geneli/birime özel; tek adres; birkaç hastane ile başlanacak.
 - Bilinçli olarak yapılmayanlar: yılı belirsiz ay sekmelerinde yıl tahmini; tarayıcı saat dilimi Türkiye dışındaysa geri sayım kayması; MySQL'de çok birim.
 

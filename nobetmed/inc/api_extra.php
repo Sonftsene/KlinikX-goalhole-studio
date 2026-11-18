@@ -812,13 +812,21 @@ function pb_number(string $v): string
 function pb_out(array $r): array
 {
     return ['id' => (int)$r['id'], 'name' => $r['name'], 'number' => $r['number'], 'category' => (string)$r['category'],
-        'note' => (string)$r['note'], 'pinned' => (bool)$r['pinned']];
+        'note' => (string)$r['note'], 'pinned' => (bool)$r['pinned'], 'scope' => 'birim', 'own' => true];
 }
 
 function a_phonebook_list(): void
 {
     need_user();
-    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'dial' => setting('pb_dial', 'auto')]);
+    out(phonebook_payload());
+}
+
+/** Birim numaraları + hastane ortak rehberi (hastane numaraları negatif kimlikli) */
+function phonebook_payload(): array
+{
+    $hosp = function_exists('hpb_items') ? hpb_items() : [];
+    return ['items' => array_merge(array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), $hosp), 'santral' => setting('pb_santral', ''), 'dial' => setting('pb_dial', 'auto'),
+        'hospital' => function_exists('hdb') && hdb() ? (string)(nm_tenant()['hospital_name'] ?? '') : null];
 }
 
 function a_phonebook_save(): void
@@ -830,6 +838,7 @@ function a_phonebook_save(): void
     if (mb_strlen($name) < 2) fail('Ad en az 2 karakter olmalı.');
     if ($num === '') fail('Numara yalnızca rakam ve + ( ) - / işaretleri içerebilir.');
     $row = [$name, $num, s('category', 60), s('note', 200), b('pinned') ? 1 : 0, $me['id'], now()];
+    if (function_exists('hpb_save') && hpb_save($me, $id, [$name, $num, s('category', 60), s('note', 200), b('pinned') ? 1 : 0])) { a_phonebook_list(); return; }
     if ($id) {
         if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Kayıt bulunamadı.', 404);
         q('UPDATE phonebook SET name = ?, number = ?, category = ?, note = ?, pinned = ?, updated_by = ?, updated_at = ? WHERE id = ?', [...$row, $id]);
@@ -845,6 +854,7 @@ function a_phonebook_save(): void
 function a_phonebook_delete(): void
 {
     $me = need_publisher();
+    if ((int)i('id') < 0 && function_exists('hpb_delete')) { hpb_delete($me, (int)i('id')); a_phonebook_list(); return; }
     $r = one('SELECT name, number FROM phonebook WHERE id = ?', [(int)i('id')]);
     if (!$r) fail('Kayıt bulunamadı.', 404);
     q('DELETE FROM phonebook WHERE id = ?', [(int)i('id')]);
@@ -869,6 +879,7 @@ function a_phonebook_import(): void
         $clean[] = [$name, $num, $str('category', 60), $str('note', 200)];
     }
     if (!$clean) fail('Satırlarda ad ve numara bulunamadı.');
+    if (s('scope', 10) === 'hastane' && function_exists('hdb') && hdb()) { $added = hpb_import($me, $clean, b('replace')); out(['added' => $added, 'skipped' => count($clean) - $added] + phonebook_payload()); }
     $pdo = db();
     $pdo->beginTransaction();
     try {
@@ -890,7 +901,7 @@ function a_phonebook_import(): void
         throw $e;
     }
     audit($me, 'phonebook.import', 'Telefon rehberi', $added . ' kayıt' . (b('replace') ? ' (liste yenilendi)' : ''));
-    out(['items' => array_map('pb_out', all('SELECT * FROM phonebook ORDER BY sort, id')), 'santral' => setting('pb_santral', ''), 'dial' => setting('pb_dial', 'auto'), 'added' => $added, 'skipped' => count($clean) - $added]);
+    out(['added' => $added, 'skipped' => count($clean) - $added] + phonebook_payload());
 }
 
 /** Santral numarası: cep telefonundan dahiliyi aramak için önce santral aranır, sonra dahili tuşlanır. */

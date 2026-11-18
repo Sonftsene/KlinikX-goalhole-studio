@@ -1479,7 +1479,7 @@ function pbHref(n) {
   if (!PB.santral) return '';
   return PB.dial === 'manual' ? 'tel:' + pbDigits(PB.santral) : 'tel:' + pbDigits(PB.santral) + (PB_DIAL[PB.dial] ?? ',') + pbDigits(n);
 }
-function pbSet(r) { PB.santral = r.santral || ''; PB.dial = r.dial || 'auto'; }
+function pbSet(r) { PB.santral = r.santral || ''; PB.dial = r.dial || 'auto'; PB.hospital = r.hospital || null; }
 function pbNumHtml(n) {
   const h = pbHref(n);
   if (h && PB.dial === 'manual' && pbIsExt(n)) return html`<a class="pb-num" href="${h}" data-act="pb-manual" data-n="${n}" title="Santrali ara">${icon('phone', 'sm')}<span>${n}</span></a>`;
@@ -1488,12 +1488,12 @@ function pbNumHtml(n) {
 }
 function pbRowHtml(it, favs, showCat = true) {
   const fav = favs.includes(it.id);
-  const sub = [showCat ? it.category : '', it.note].filter(Boolean).join(' · ');
+  const sub = [showCat ? it.category : '', it.note, it.scope === 'hastane' && !it.own && it.unit ? it.unit : ''].filter(Boolean).join(' · ');
   return html`<div class="list-row pb-row ${it.pinned ? 'pinned' : ''}" data-id="${it.id}">
     <div class="grow" style="min-width:0"><div class="lr-t">${it.name}</div>${sub ? html`<div class="lr-s">${sub}</div>` : ''}</div>
     <div class="pb-nums">${pbSplit(it.number).map(pbNumHtml)}</div>
     <button class="btn ghost icon sm pb-fav ${fav ? 'on' : ''}" data-act="pb-fav" data-id="${it.id}" aria-label="${fav ? 'Sık arananlardan çıkar' : 'Sık arananlara ekle'}" aria-pressed="${fav ? 'true' : 'false'}">${icon('star', 'sm')}</button>
-    ${isPublisher() ? html`<button class="btn ghost icon sm" data-act="pb-edit" data-id="${it.id}" aria-label="Düzenle">${icon('edit', 'sm')}</button>` : ''}
+    ${isPublisher() && it.own !== false ? html`<button class="btn ghost icon sm" data-act="pb-edit" data-id="${it.id}" aria-label="Düzenle">${icon('edit', 'sm')}</button>` : ''}
   </div>`;
 }
 function pbPersonHtml(p) {
@@ -1504,7 +1504,7 @@ function pbPersonHtml(p) {
 }
 async function renderPhonebook(view) {
   setHTML(view, html`<div class="page-head"><div><h1>Telefon rehberi</h1><p>Dahili numaralar ve ekip. Arayanın numarasını yazarak kim olduğunu da bulursunuz.</p></div>
-      ${isPublisher() ? html`<div class="row wrap" style="gap:6px"><button class="btn primary" data-act="pb-add">${icon('plus', 'sm')}<span>Numara ekle</span></button><button class="btn" data-act="pb-import" data-file="1">${icon('table', 'sm')}<span>Excel’den ekle</span></button><button class="btn" data-act="pb-import">${icon('upload', 'sm')}<span>Listeyi yapıştır</span></button><button class="btn" data-act="pb-santral">${icon('building', 'sm')}<span>Santral</span></button></div>` : ''}</div>
+      ${isPublisher() ? html`<div class="row wrap" style="gap:6px">${isAdmin() ? html`<button class="btn hidden" data-act="pb-share" id="pbShareBtn">${icon('building', 'sm')}<span>Birim numaralarını hastaneye taşı</span></button>` : ''}<button class="btn primary" data-act="pb-add">${icon('plus', 'sm')}<span>Numara ekle</span></button><button class="btn" data-act="pb-import" data-file="1">${icon('table', 'sm')}<span>Excel’den ekle</span></button><button class="btn" data-act="pb-import">${icon('upload', 'sm')}<span>Listeyi yapıştır</span></button><button class="btn" data-act="pb-santral">${icon('building', 'sm')}<span>Santral</span></button></div>` : ''}</div>
     <div class="search pb-search">${icon('search')}<input class="input" id="pbQ" type="search" enterkeyhint="search" placeholder="Birim, kişi veya numara ara" data-input="pb-q" value="${PB.q}" autocomplete="off" aria-label="Rehberde ara"></div>
     <div id="pbList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   if (window.innerWidth > 900) { const q = $('#pbQ'); if (q) q.focus({ preventScroll: true }); }
@@ -1513,6 +1513,7 @@ async function renderPhonebook(view) {
     setHTML($('#pbList') || document.createElement('div'), html`<div class="card empty"><p class="small">${pb.reason.message}</p></div>`); return;
   }
   if (pp.status === 'fulfilled') { PB.people = pp.value.people; syncPeopleAvatars(PB.people); }
+  const sb = $('#pbShareBtn'); if (sb) sb.classList.toggle('hidden', !(PB.hospital && PB.items.some((x) => x.scope === 'birim')));
   drawPhonebook();
 }
 function drawPhonebook() {
@@ -1572,12 +1573,28 @@ function pbForm(it) {
       <div class="field"><label>Grup</label><input class="input" name="category" maxlength="60" list="pbCats" value="${it ? it.category : ''}" placeholder="Örn. Laboratuvar"><datalist id="pbCats">${cats.map((c) => html`<option value="${c}">`)}</datalist></div>
     </div>
     <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" name="note" maxlength="200" value="${it ? it.note : ''}" placeholder="Örn. 2. kat, gece 16:00 sonrası"></div>
+    ${PB.hospital ? html`<div class="field"><label>Kimler görsün?</label><input type="hidden" name="scope" value="${!it || it.scope === 'hastane' ? 'hastane' : 'birim'}"><div class="seg seg-block">
+      <button type="button" class="${!it || it.scope === 'hastane' ? 'on' : ''}" data-act="pb-scope" data-v="hastane">Tüm hastane</button>
+      <button type="button" class="${it && it.scope === 'birim' ? 'on' : ''}" data-act="pb-scope" data-v="birim">Yalnız birimimiz</button></div>
+      <p class="hint">“Tüm hastane”: ${PB.hospital} içindeki bütün birimler görür; yalnız sizin biriminiz düzenler.</p></div>` : ''}
     <label class="switch"><input type="checkbox" name="pinned" ${it && it.pinned ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Acil ve önemli</b><span>Rehberin en üstünde ayrı gösterilir (ör. Beyaz kod, Güvenlik).</span></span></label>
     <div class="form-error hidden" data-err></div>
     <div class="row" style="gap:8px;justify-content:space-between">${it ? html`<button class="btn danger" type="button" data-act="pb-del" data-id="${it.id}">${icon('trash', 'sm')}Sil</button>` : html`<span></span>`}
       <button class="btn primary" type="submit">Kaydet</button></div>
   </form>`;
 }
+ACT['pb-share'] = async (el) => {
+  const n = (PB.items || []).filter((x) => x.scope === 'birim').length;
+  if (!(await confirmDialog({ title: 'Hastane rehberine taşınsın mı?', text: `Biriminizin ${n} numarası ${PB.hospital} rehberine taşınır; tüm birimler görür, yalnız biriminiz düzenler. Aynı ad ve numaradaki kayıtlar tekrar eklenmez.`, ok: 'Taşı' }))) return;
+  busy(el, async () => {
+    try { const r = await api('phonebook.share'); PB.items = r.items; pbSet(r); el.classList.add('hidden'); toast('Hastane rehberine taşındı'); drawPhonebook(); } catch (e) { toast(e.message, 'err'); }
+  });
+};
+ACT['pb-scope'] = (el) => {
+  const f = el.closest('form');
+  f.querySelector('[name=scope]').value = el.dataset.v;
+  $$('[data-act=pb-scope]', f).forEach((b) => b.classList.toggle('on', b === el));
+};
 ACT['pb-add'] = () => { openModal({ title: 'Numara ekle', body: pbForm(null) }); };
 ACT['pb-edit'] = (el) => { const it = (PB.items || []).find((x) => x.id === +el.dataset.id); if (it) openModal({ title: 'Numarayı düzenle', body: pbForm(it) }); };
 FORMS['pb-save'] = async (f) => {
@@ -1684,7 +1701,8 @@ ACT['pb-import'] = (el) => {
       <label class="btn primary">${icon('table', 'sm')}<span>Excel / CSV dosyası seç</span><input type="file" hidden accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt" id="pbFile"></label>
       <textarea class="textarea" id="pbPaste" style="min-height:180px" placeholder="ACİL SERVİS&#10;Acil triaj	2201&#10;Acil sorumlu hemşire	2205 / 2206&#10;LABORATUVAR&#10;Biyokimya 2310&#10;Kan merkezi: 2315"></textarea>
       <div class="grid2"><div class="field"><label>Grup <span class="faint">(boşsa başlık satırlarından alınır)</span></label><input class="input" id="pbCat" maxlength="60" placeholder="Örn. Birimler"></div>
-        <label class="switch" style="align-self:end"><input type="checkbox" id="pbReplace"><span class="track"></span><span class="s-text"><b>Mevcut rehberi değiştir</b><span>Açıksa eski numaralar silinir.</span></span></label></div>
+        <label class="switch" style="align-self:end"><input type="checkbox" id="pbReplace"><span class="track"></span><span class="s-text"><b>Mevcut rehberi değiştir</b><span>Açıksa eski numaralar silinir${PB.hospital ? ' (hastane rehberinde yalnız biriminizin ekledikleri)' : ''}.</span></span></label></div>
+      ${PB.hospital ? html`<label class="switch"><input type="checkbox" id="pbScopeH" checked><span class="track"></span><span class="s-text"><b>Hastane rehberine ekle</b><span>${PB.hospital} içindeki tüm birimler görür. Kapalıysa yalnız biriminiz görür.</span></span></label>` : ''}
       <div id="pbPrev" class="small muted">Önizleme burada görünür.</div></div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="pbImpBtn" data-act="pb-import-go" disabled>Ekle</button>`,
   });
@@ -1735,7 +1753,7 @@ ACT['pb-import-go'] = async (el) => {
   if (replace && (PB.items || []).length && !(await confirmDialog({ title: 'Rehber yenilensin mi?', text: `Mevcut ${PB.items.length} numara silinip yapıştırdığınız ${m.rows.length} numara eklenecek.`, ok: 'Yenile', danger: true }))) return;
   el.disabled = true;
   try {
-    const r = await api('phonebook.import', { items: m.rows, replace });
+    const r = await api('phonebook.import', { items: m.rows, replace, scope: PB.hospital && $('#pbScopeH', m.el) && $('#pbScopeH', m.el).checked ? 'hastane' : 'birim' });
     PB.items = r.items; pbSet(r);
     m.guard = null; m.close();
     toast(`${r.added} numara eklendi${r.skipped ? `, ${r.skipped} tekrar atlandı` : ''}`);

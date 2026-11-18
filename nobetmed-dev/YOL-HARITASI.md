@@ -38,7 +38,7 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 - Modül kayıt defteri: her modül hastane ve birim düzeyinde açılır/kapanır (kapalı modülün uçları sunucuda da kapalı).
 - Rol + modül bazlı izinler: görüntüle / ekle / düzenle / sil / onayla. Hazır roller (birim yöneticisi, sorumlu, yayıncı, eğitim hemşiresi, üye) + birime özel rol. Süper yönetici şablon verir, birim yöneticisi kendi biriminde (izin verilen kadarını) düzenler.
 
-### 4.2 — Hastane ortak alanları
+### 4.2 — Hastane ortak alanları ✓ (4.2.0: hastane veritabanı, ortak rehber, hastane belgeleri; hastane duyurusu = belge türü 'Duyuru')
 - Ortak rehber (birim rehberleri + hastane geneli numaralar), hastane geneli belge kütüphanesi (protokol: hastane geneli / birime özel / ikisi), hastane duyurusu.
 
 ### 4.3–4.4 — Mesajlaşma (WhatsApp'sız)

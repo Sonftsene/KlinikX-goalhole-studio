@@ -17,7 +17,8 @@ const NM_MODULES = [
     'ilan' => ['Nöbet ilanı ve değişim', 'Nöbet devretme / değiştirme ilanları ve kişiler arası değişim istekleri', 'nobet'],
     'eksik' => ['Eksik personel çağrısı', 'Eksik vardiya için uygun kişilere sorma, gönüllü seçme', 'nobet'],
     'gecmis' => ['Değişim geçmişi', 'Değişim, devir, ilan ve çağrı kayıtları (yönetenler)', 'nobet'],
-    'rehber' => ['Telefon rehberi', 'Dahili numaralar, santral, acil numaralar', null],
+    'rehber' => ['Telefon rehberi', 'Dahili numaralar, santral, acil numaralar (birim + hastane ortak rehberi)', null],
+    'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okudum onayı', null],
     'ucret' => ['Fazla mesai ücreti', 'Kişinin kendi ücretini girip tahmini tutarı görmesi (yalnız kendisi görür)', 'nobet'],
 ];
 
@@ -30,6 +31,7 @@ const NM_ACTION_MODULE = [
     'callout.' => 'eksik',
     'history.' => 'gecmis',
     'phonebook.' => 'rehber',
+    'hdoc.' => 'hbelge',
 ];
 
 function nm_action_module(string $action): ?string
@@ -230,7 +232,7 @@ function a_sa_modules_save(): void
 $GLOBALS['NM_BOOT'][] = fn(array $me): array => $me['role'] === 'admin' ? ['roles' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all('SELECT id, name FROM roles ORDER BY sort, name, id'))] : [];
 
 /* ---------------- Görevler: kapalı modülün zamanlanmış işleri çalışmaz ---------------- */
-$GLOBALS['NM_JOB_MODULE'] = ['requests' => 'istekler', 'remind_personal' => 'nobet']; // market: süresi geçen ilan/çağrıları kapatır, her zaman çalışır
+$GLOBALS['NM_JOB_MODULE'] = ($GLOBALS['NM_JOB_MODULE'] ?? []) + ['requests' => 'istekler', 'remind_personal' => 'nobet']; // market: süresi geçen ilan/çağrıları kapatır, her zaman çalışır
 
 return [
     'roles.list' => 'a_roles_list',

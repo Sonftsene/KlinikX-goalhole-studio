@@ -70,7 +70,7 @@ const POST_SELECT = "SELECT p.*, u.name AS author_name, u.title_id AS author_tit
 
 $action = (string)($_GET['action'] ?? '');
 // Dondurulmuş birimin dosyaları, Google eşitlemesi ve bildirimleri de kapalı
-if (nm_multi() && in_array($action, ['file', 'push.pending', 'avatar', 'backup.download', 'gsync.push', 'gsync.tables'], true) && nm_tenant_frozen()) { http_response_code(423); exit; }
+if (nm_multi() && in_array($action, ['file', 'hfile', 'push.pending', 'avatar', 'backup.download', 'gsync.push', 'gsync.tables'], true) && nm_tenant_frozen()) { http_response_code(423); exit; }
 
 if ($action === 'file') {
     serve_file();

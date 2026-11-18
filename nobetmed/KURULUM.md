@@ -255,3 +255,11 @@ Mevcut kurulumunuz güncellemede hiçbir şey taşınmadan **ilk birim** olarak 
 
 **Roller (birim yöneticisi):** Yönetim → Ayarlar → **Güvenlik → Roller ve yetkiler → Rol ekle**. Her modül için kişinin **Göremez / Kullanır / Yönetir** olacağını seçin (ör. “Eksik sorumlusu”: Eksik personel çağrısı = Yönetir). Rolü kişiye **Kullanıcılar → Düzenle → Birime özel rol** ile verin. Rolü olmayan kişide temel yetki geçerlidir: Yayıncı yönetir, Üye kullanır. Yönetici her zaman tam yetkilidir. “Yönetir” verilen kişiye o modülün sorumlu bildirimleri de gider.
 
+## 18. Hastane ortak alanları (4.2)
+
+Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini göremez.
+
+**Ortak telefon rehberi:** Telefon rehberinde **Numara ekle** derken “Kimler görsün?” → **Tüm hastane** (varsayılan) ya da **Yalnız birimimiz**. Hastane rehberindeki numarayı yalnız ekleyen birim düzenleyip silebilir; diğer birimler numaranın yanında hangi birimin eklediğini görür. Excel'den / yapıştırarak eklerken “Hastane rehberine ekle” seçilebilir. Yönetici, biriminin mevcut numaralarını **Birim numaralarını hastaneye taşı** düğmesiyle tek seferde ortak rehbere aktarabilir.
+
+**Hastane belgeleri:** Soldaki menüde **Hastane belgeleri** (sistem yöneticisi modülü kapatmadıysa). Yayıncı/yönetici **Belge ekle** ile protokol, talimat, form veya duyuru yayımlar; PDF, Word, Excel, resim eklenebilir, isteğe bağlı “Okudum, anladım” onayı istenir. Belge hastanedeki tüm birimlerde görünür ve diğer birimlere bildirim gider. Belgeyi yalnız yayımlayan birim düzenler veya kaldırır. **Okuma raporu**nda kendi biriminizin kişileri adıyla, diğer birimler yalnız sayıyla görünür (başka birimin personel adları gösterilmez). Hasta bilgisi içeren belge eklemeyin.
+
