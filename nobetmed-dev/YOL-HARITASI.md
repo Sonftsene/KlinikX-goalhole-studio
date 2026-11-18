@@ -47,7 +47,7 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 - Grup yöneticisi: üye ekle/çıkar, yönetici yap, yalnız yöneticiler yazsın, grup bilgisi/fotoğrafı düzenlesin, davet bağlantısı (süreli), herkesten mesaj silme, sessize alma.
 - KVKK: hasta bilgisi uyarısı; T.C. kimlik numarası (algoritma denetimli) ve benzeri içerik gönderilmeden yakalanır; mesaj/medya saklama süresi birim ayarı; silinen dosya sunucudan da silinir.
 
-### 4.5 — Excel olmayan birimler ve entegrasyon
+### 4.5 — Excel olmayan birimler ve entegrasyon ✓ (4.5.0: portalda çizelge, kural denetimi, otomatik doldurma, yapıştır/CSV aktarımı, yayınla; anahtarlı içe aktarma ucu belirli bir sistem görüldüğünde)
 - Portalda nöbet çizelgesi hazırlama (kural motoruyla uyarılar, otomatik öneri, yayınla → bugünkü tüm özellikler aynen çalışır).
 - Kaynak bağdaştırıcıları: Excel/Google (var), CSV, ICS takvim, başka sistemden düzenli dışa aktarma dosyası; anahtarlı içe aktarma ucu (başka sistemin göndermesi için). Belirli bir hastane bilgi sistemiyle bağlantı, o sistemin dışa aktarma biçimi/izni görüldükten sonra yapılır.
 

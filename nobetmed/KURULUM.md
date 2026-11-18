@@ -288,3 +288,15 @@ Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini g�
 
 Sistem yönetimi → birimin satırında **Birime gir**. Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, ayarlar, roller, belgeler); dondurulmuş birime de girilebilir. Ekranın üstünde “Sistem yöneticisi olarak … birimindesiniz” şeridi görünür; **Sistem paneline dön** ile çıkılır. Giriş, çıkış ve yapılan her işlem birimin kendi **İşlem günlüğü**ne “Sistem yöneticisi” adıyla yazılır. Sistem yöneticisi birimde bir kişi olmadığı için kişi listelerinde görünmez, bildirim almaz, birim adına mesaj yazmaz.
 
+## 21. Nöbet çizelgesini portalda hazırlama (4.5)
+
+Excel kullanmayan birimler için: **Nöbet → Çizelge** sekmesi (yönetici, yayıncı ya da rolünde “Nöbet çizelgesi hazırlama: Yönetir” olan; Google E-Tablolar’a bağlı listelerde kullanılmaz).
+
+1. Listeyi ve ayı seçin. Taslak yoksa nöbete dahil kişilerle boş çizelge açılır (listede o ayın nöbetleri varsa onlar gelir). **+** ile kişi ekleyin, adına dokunup satırı temizleyin ya da çıkarın.
+2. **Gereken kişi** sayılarını (hafta içi / hafta sonu-tatil, gündüz / gece) ve gündüz, gece kodlarını seçin.
+3. **Fırça:** üstteki koddan birini seçip hücrelere dokunun; fırça seçili değilken hücreye dokununca kod listesi açılır. Onaylı istek günleri taralıdır (B boşluk, İ yıllık izin). Sağda kişi başı saat, altta gün gün gündüz/gece sayısı (eksikse kırmızı).
+4. **Denetle:** dinlenme (en az 16 saat), üst üste çalışma (en fazla 24 saat), uzun boşluk (en fazla 4 gün), onaylı isteğe yazılan nöbet ve eksik günler listelenir; hücreler kırmızı çerçevelenir.
+5. **Otomatik doldur:** eksik günlere kurallara ve onaylı isteklere uyan kişileri adalet sırasıyla yazar (ay içinde az saat → son 7 günde az nöbet → kura); dolu hücrelere dokunmaz.
+6. **Yapıştır / CSV:** başka bir programdan (hastane bilgi sistemi dışa aktarımı dahil) kopyalanan tablo (ilk sütun ad, başlıkta gün numaraları) ya da “Ad; tarih; kod” satırları aktarılır.
+7. Taslak 20 saniyede bir kendiliğinden kaydedilir; ekip görmez. **Yayınla:** çizelge Excel görünümüyle listenin yeni sürümü olur; Takvimim, Kim nöbette, blok yerleşimi, ilan, eksik çağrısı ve hatırlatmalar bu çizelgeyle çalışır. (Liste bir anda tek ay gösterir; gelecek ayı yayınlayınca liste o aya geçer, önceki ay sürümlerde kalır.)
+

@@ -1347,3 +1347,32 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 [data-act=ch-rec].rec { color: #fff; background: var(--danger); }
 .rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: recb 1s infinite; vertical-align: middle; }
 @keyframes recb { 50% { opacity: .2; } }
+
+/* Nöbet çizelgesi hazırlama */
+.pl2-ym { min-width: 110px; text-align: center; }
+.pl2-needs input.input { width: 64px; display: inline-block; height: 32px; margin-left: 4px; }
+.pl2-brush { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pl2-brush .code-chip, .pl2-pick .code-chip { cursor: pointer; border: 1px solid transparent; }
+.pl2-brush .code-chip.on, .pl2-pick .code-chip.on { outline: 2px solid var(--brand); outline-offset: 1px; }
+.pl2-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.pl2-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overscroll-behavior: contain; }
+.pl2-grid { border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.pl2-grid th, .pl2-grid td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0; text-align: center; min-width: 34px; height: 32px; }
+.pl2-grid thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; font-weight: 600; padding: 2px; }
+.pl2-grid thead th small { display: block; font-size: 10px; color: var(--text-3); font-weight: 500; }
+.pl2-grid thead th.we, .pl2-grid thead th.hol { background: color-mix(in srgb, var(--danger) 12%, var(--surface-2)); }
+.pl2-grid .pl2-name { position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: left; min-width: 150px; max-width: 180px; padding: 0 6px; }
+.pl2-grid thead .pl2-name { z-index: 3; background: var(--surface-2); }
+.pl2-grid tfoot th, .pl2-grid tfoot td { position: sticky; bottom: 0; background: var(--surface-2); }
+.pl2-grid tfoot .pl2-name { z-index: 3; }
+.pl2-pn { border: 0; background: none; text-align: left; font-weight: 600; color: var(--text); cursor: pointer; width: 100%; padding: 4px 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl2-pn small { display: block; font-weight: 400; color: var(--text-3); font-size: 10.5px; }
+.pl2-c { width: 100%; height: 32px; border: 0; background: none; cursor: pointer; font-weight: 700; font-size: 12px; color: var(--text-3); }
+.pl2-c.tone-amber { background: #fff1c2; color: #6b4e00; } .pl2-c.tone-indigo { background: #d9dcff; color: #2b2f8c; }
+.pl2-c.tone-violet { background: #ffd6a5; color: #7a3d00; } .pl2-c.tone-emerald { background: #c9f2d9; color: #0e5a33; } .pl2-c.tone-slate { background: #e5e7eb; color: #374151; }
+.pl2-grid td.rq { background: repeating-linear-gradient(45deg, transparent 0 4px, color-mix(in srgb, var(--warn) 20%, transparent) 4px 8px); }
+.pl2-grid td.bad .pl2-c { box-shadow: inset 0 0 0 2px var(--danger); }
+.pl2-cov { font-size: 11px; line-height: 1.2; color: var(--text-2); }
+.pl2-cov.bad { color: var(--danger); font-weight: 700; }
+.pl2-h { font-weight: 700; min-width: 44px; }
+@media (max-width: 560px) { .pl2-grid .pl2-name { min-width: 112px; max-width: 120px; } .pl2-wrap { max-height: 62vh; } }

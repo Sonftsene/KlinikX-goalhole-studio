@@ -20,6 +20,7 @@ const NM_MODULES = [
     'rehber' => ['Telefon rehberi', 'Dahili numaralar, santral, acil numaralar (birim + hastane ortak rehberi)', null],
     'mesaj' => ['Mesajlaşma', 'Birim grubu, özel gruplar (birimler arası olabilir), birebir sohbet, dosya ve fotoğraf', null],
     'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okudum onayı', null],
+    'cizelge' => ['Nöbet çizelgesi hazırlama', 'Excel kullanmayan birimler için çizelgeyi portalda hazırlama: kural denetimi, otomatik doldurma, yayınlama', 'nobet'],
     'ucret' => ['Fazla mesai ücreti', 'Kişinin kendi ücretini girip tahmini tutarı görmesi (yalnız kendisi görür)', 'nobet'],
 ];
 
@@ -34,6 +35,7 @@ const NM_ACTION_MODULE = [
     'phonebook.' => 'rehber',
     'hdoc.' => 'hbelge',
     'chat.' => 'mesaj',
+    'plan.' => 'cizelge',
 ];
 
 function nm_action_module(string $action): ?string

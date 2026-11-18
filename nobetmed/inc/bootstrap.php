@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.4.0';
+const NM_VERSION = '4.5.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 13;
+const NM_SCHEMA = 14;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -210,6 +210,8 @@ function nm_migrate(PDO $pdo): void
     $tables = [
         "CREATE TABLE IF NOT EXISTS settings (k VARCHAR(50) NOT NULL PRIMARY KEY, v TEXT)$end",
         // Sürüm 13: birime özel roller (modül başına Göremez / Kullanır / Yönetir)
+        // Sürüm 14: portalda hazırlanan nöbet çizelgesi taslakları
+        "CREATE TABLE IF NOT EXISTS plan_drafts (id $pk, roster_id INT NOT NULL, ym VARCHAR(7) NOT NULL, data " . ($my ? 'MEDIUMTEXT' : 'TEXT') . " NULL, status VARCHAR(10) NOT NULL DEFAULT 'draft', updated_by INT NULL, updated_at VARCHAR(19) NOT NULL, published_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS roles (id $pk, name VARCHAR(80) NOT NULL, perms TEXT NULL, sort INT NOT NULL DEFAULT 0, created_at VARCHAR(19) NOT NULL)$end",
         "CREATE TABLE IF NOT EXISTS units (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS titles (id $pk, name VARCHAR(100) NOT NULL, sort INT NOT NULL DEFAULT 0)$end",
