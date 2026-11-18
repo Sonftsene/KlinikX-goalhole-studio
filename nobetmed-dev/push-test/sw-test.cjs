@@ -96,7 +96,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   });
   check(reg.scope === BASE, 'SW kapsamı uygulama kökü: ' + reg.scope);
   check(reg.controlled, 'sayfa SW tarafından kontrol ediliyor (clients.claim)');
-  const expected = ['/', '/assets/app.css', '/assets/theme.js', '/assets/icon.svg', '/assets/icon-192.png', '/manifest.webmanifest',
+  const expected = ['/', '/assets/app.css', '/assets/theme.js', '/assets/icon.svg', '/assets/icon-192.png', '/assets/badge-96.png', '/manifest.webmanifest',
     ...['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'pwa'].map((n) => `/assets/js/${n}.js`)];
   const missing = expected.filter((k) => !reg.keys.includes(k));
   check(missing.length === 0, `ön önbellek ${reg.keys.length} öğe (eksik: ${missing.join(', ') || 'yok'}; henüz olmayan shiftparse/extras atlandı)`);
@@ -163,7 +163,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
 
   const notifs = () => page.evaluate(async () => {
     const r = await navigator.serviceWorker.getRegistration();
-    return (await r.getNotifications()).map((n) => ({ title: n.title, body: n.body, tag: n.tag, url: n.data && n.data.url, icon: n.icon }));
+    return (await r.getNotifications()).map((n) => ({ title: n.title, body: n.body, tag: n.tag, url: n.data && n.data.url, icon: n.icon, badge: n.badge }));
   });
   const clearNotifs = () => page.evaluate(async () => {
     const r = await navigator.serviceWorker.getRegistration();
@@ -192,6 +192,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   check(n.length === 2, '2 bildirim gösterildi: ' + n.map((x) => x.title).join(', '));
   check(n.some((x) => x.url === BASE + '#/p/12') && n.some((x) => x.url === BASE + '#/nobet/3'), 'bildirim adresleri kapsama göre çözüldü');
   check(n.every((x) => x.tag.startsWith('post-') && /icon-192\.png$/.test(x.icon)), 'tag ve simge doğru');
+  check(n.every((x) => /badge-96\.png$/.test(x.badge)), 'Android durum çubuğu simgesi (şeffaf badge) doğru');
 
   await clearNotifs();
   pendingMode = 'many';

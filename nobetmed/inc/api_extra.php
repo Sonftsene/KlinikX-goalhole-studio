@@ -76,7 +76,8 @@ function a_push_pending_get(): void
     $me = current_user();
     if (!$me) { echo json_encode(['ok' => true, 'items' => []]); return; }
     $rows = all('SELECT id, title, body, url FROM notifications WHERE user_id = ? AND read_at IS NULL AND created_at >= ? ORDER BY id DESC LIMIT 5', [$me['id'], date('Y-m-d H:i:s', time() - 900)]);
-    echo json_encode(['ok' => true, 'items' => array_map(fn($r) => ['id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['body'], 'url' => $r['url'], 'tag' => 'n' . $r['id']], $rows)], JSON_UNESCAPED_UNICODE);
+    $icon = brand_url('icon192'); // yöneticinin yüklediği uygulama simgesi (yoksa sw.js varsayılanı kullanır)
+    echo json_encode(['ok' => true, 'items' => array_map(fn($r) => ['id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['body'], 'url' => $r['url'], 'tag' => 'n' . $r['id'], 'icon' => $icon], $rows)], JSON_UNESCAPED_UNICODE);
 }
 
 /* ---------------- Rehber ve bugün nöbette ---------------- */

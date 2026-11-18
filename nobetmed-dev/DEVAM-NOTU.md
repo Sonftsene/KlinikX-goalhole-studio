@@ -23,7 +23,8 @@ Bu dosya, önceki geliştirme sohbetinin özetidir. Yeni oturumda önce bunu, so
 - Google E-Tablolar: kullanıcının Apps Script kodu (`assets/js/taraf.js` → `gsScript`) tabloları siteye gönderir (`inc/gsync.php`). Nöbet tablolarında çıkarılan sekmeler, hasta listesinde seçilen sekmeler saklanır; hasta adı koruması `gs_mask_guard()`.
 
 ## Durum
-- Son yayımlanan paket: **3.10.3** (`dist/dupcii-hostinger.zip`, kullanıcıya gönderildi).
+- Son yayımlanan paket: **3.10.4** (`dist/dupcii-hostinger.zip`, kullanıcıya gönderildi).
+- 3.10.4: telefon bildirimlerinde Android durum çubuğu simgesi için şeffaf tek renk `assets/badge-96.png` (`sw.js` badge); yöneticinin yüklediği uygulama simgesi (`brand icon192`) `push.pending` ile bildirim simgesi olur. iPhone bildirimde her zaman ana ekrandaki uygulama simgesini gösterir (değiştirilemez).
 - 3.10.3 içeriği:
   - Google kodu her dakika kontrol eder (`everyMinutes(1)`, `SURUM = 2`, `X-Script` → `gs_script_v`; eski kod için ayarlarda uyarı). Kullanıcı Google'daki kodu yenisiyle değiştirip `kur`'u bir kez çalıştırmalı.
   - Ana sayfa/takvim dakikada bir ve uygulamaya dönünce liste değişikliğini alır (`rosters.js` → `rosterAutoSync`).

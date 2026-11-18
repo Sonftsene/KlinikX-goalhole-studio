@@ -16,6 +16,7 @@ const SHELL_ASSETS = [
   'assets/theme.js',
   'assets/icon.svg',
   'assets/icon-192.png',
+  'assets/badge-96.png',
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
@@ -229,7 +230,12 @@ async function handlePush() {
     if (json && json.ok && Array.isArray(json.items)) items = json.items;
   } catch (e) { /* aşağıda genel bildirim */ }
 
-  const opts = (o) => Object.assign({ icon: abs('assets/icon-192.png'), badge: abs('assets/icon-192.png'), renotify: true }, o);
+  // badge: Android durum çubuğundaki küçük simge yalnız şeffaflıktan çizilir — şeffaf zeminli tek renk simge gerekir.
+  // icon: yöneticinin yüklediği uygulama simgesi varsa o (yalnız aynı site), yoksa varsayılan.
+  let icon = abs('assets/icon-192.png');
+  const ic = items.find((it) => it && it.icon);
+  if (ic) { try { const u = new URL(String(ic.icon), SCOPE); if (u.origin === self.location.origin) icon = u.href; } catch (e) { /* varsayılan */ } }
+  const opts = (o) => Object.assign({ icon, badge: abs('assets/badge-96.png'), renotify: true }, o);
 
   if (!items.length) {
     // Tarayıcılar her push için bir bildirim ister. Zaten görünen bir bildirimimiz varsa onu sessizce yenile.

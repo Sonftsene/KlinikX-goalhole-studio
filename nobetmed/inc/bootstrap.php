@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.10.3';
+const NM_VERSION = '3.10.4';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 12;
 const NM_ROOT = __DIR__ . '/..';
