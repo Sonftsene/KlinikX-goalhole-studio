@@ -284,6 +284,15 @@ Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini g�
 - **Davet bağlantısı:** grup bilgisi → Davet bağlantısı (1/7/30 gün). Hastanenizdeki biri bağlantıyla gruba katılır; işiniz bitince kapatın.
 - **Saklama süresi (KVKK):** grup bilgisi → Mesajları sakla (süresiz / 30 gün / 90 gün / 6 ay / 1 yıl / 2 yıl). Süresi geçen mesajlar ve dosyaları her gün kendiliğinden silinir.
 
+**4.6 ile eklenenler (sohbet, grup ve gizlilik ayarları):**
+- **Mesaj ayarları** (Mesajlar sayfasında ⚙): son görülme ve çevrimiçi (herkes / kişilerim / hiç kimse — kapatan başkalarınınkini de göremez), hakkımda ve kimler görsün, okundu bilgisi (birebirde karşılıklı; gruplarda hep açık), **beni gruplara kim ekleyebilir** (herkes / yalnız birimim / hiç kimse — eklenemeyenlere davet bağlantısı gönderilir), **diğer birimler beni bulabilsin** (açan kişiye hastanenin diğer birimlerinden özel mesaj yazılabilir), **bana kimler yazabilir**, yeni sohbetlerde varsayılan kaybolan mesaj süresi, engellenenler, yazı boyutu, sohbet arka planı, Enter ile gönder, fotoğrafları otomatik göster.
+- “Kişilerim” = biriminiz + ortak grup ya da sohbetiniz olan kişiler. Başka hastanedekiler hiçbir ayarla görünmez.
+- **Engelle:** birebir sohbette ⋯ → Engelle. Engellenen kişi size yazamaz, sizi gruba ekleyemez; ortak gruplarda mesajları görünmeye devam eder.
+- **Sohbet listesi:** Tümü / Okunmamış / Gruplar / Arşiv süzgeçleri; satırın ⋯ menüsünden listede sabitle (en fazla 3), arşivle, okunmadı işaretle, sessize al (8 saat / 1 hafta / her zaman), sohbeti temizle, birebir sohbeti sil (yeni mesaj gelirse yeniden görünür, eski mesajlar gelmez).
+- **Mesaj:** kendi yazı mesajınızı 15 dakika içinde düzenleyin (“düzenlendi” yazar), **benden sil**, yıldızla (Mesajlar → ★ Yıldızlı mesajlar).
+- **Sohbet ⋯:** sohbette ara, medya / belgeler / bağlantılar, sessize al, sohbeti dışa aktar (.txt), temizle, engelle, sil. Başlıkta “çevrimiçi / son görülme” ve “yazıyor…”. Başlığa dokununca grup bilgisi ya da kişinin profili açılır.
+- **Grup ayarları (grup yöneticisi):** grup fotoğrafı, grup bilgisini kimler düzenleyebilir (yöneticiler / tüm üyeler), kimler üye ekleyebilir, **yeni katılımcıları onayla** (davet bağlantısıyla gelenler yöneticinin onayını bekler), yalnız yöneticiler mesaj göndersin, saklama süresi (24 saat ve 7 gün de seçilebilir). Yönetici kendi yöneticiliğinden ayrılabilir (en az bir yönetici kalır).
+
 ## 20. Sistem yöneticisinin birime girmesi
 
 Sistem yönetimi → birimin satırında **Birime gir**. Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, ayarlar, roller, belgeler); dondurulmuş birime de girilebilir. Ekranın üstünde “Sistem yöneticisi olarak … birimindesiniz” şeridi görünür; **Sistem paneline dön** ile çıkılır. Giriş, çıkış ve yapılan her işlem birimin kendi **İşlem günlüğü**ne “Sistem yöneticisi” adıyla yazılır. Sistem yöneticisi birimde bir kişi olmadığı için kişi listelerinde görünmez, bildirim almaz, birim adına mesaj yazmaz.

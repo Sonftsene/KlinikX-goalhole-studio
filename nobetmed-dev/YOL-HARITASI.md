@@ -51,7 +51,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 - Portalda nöbet çizelgesi hazırlama (kural motoruyla uyarılar, otomatik öneri, yayınla → bugünkü tüm özellikler aynen çalışır).
 - Kaynak bağdaştırıcıları: Excel/Google (var), CSV, ICS takvim, başka sistemden düzenli dışa aktarma dosyası; anahtarlı içe aktarma ucu (başka sistemin göndermesi için). Belirli bir hastane bilgi sistemiyle bağlantı, o sistemin dışa aktarma biçimi/izni görüldükten sonra yapılır.
 
-### 4.6+ — Ek modüller (her biri aç/kapat)
+### 4.6 — WhatsApp düzeyinde sohbet, grup ve gizlilik ayarları ✓ (4.6.0)
+- Gizlilik (son görülme, hakkımda, okundu bilgisi, gruplara ekleme, bulunabilirlik, kimler yazabilir, engelleme, varsayılan kaybolan mesaj), sohbet (sabitle, arşiv, okunmadı, süreli sessiz, temizle/sil, düzenle, benden sil, yıldız, ara, medya/belge/bağlantı, dışa aktar, yazıyor), grup (fotoğraf, bilgiyi/üye eklemeyi kim yapar, katılma onayı, yöneticilikten ayrılma), cihaz görünüm tercihleri.
+
+### 4.7+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
 ### Sürekli: KVKK ve güvenlik

@@ -73,6 +73,11 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Birimler arası bildirim: bir birim başka birimin veritabanına YAZMAZ; her birimin kendi görevi (`NM_JOBS`) hastane verisini okuyup kendi kişilerine bildirir (ör. `hdoc_notify`).
 - Test: `nobetmed-dev/e2e-hastane.mjs` (e2e-tenant'tan sonra).
 
+## Mesajlaşma (4.3–4.6)
+- `inc/mod_mesaj.php` (sohbet, grup, birebir, ekler, tepki/anket/ilet/sabitle/davet/saklama) + `inc/mod_mesaj2.php` (gizlilik, sohbet durumu, düzenleme, yıldız, arama, grup izinleri). Tablolar hastane veritabanında (`hdb()`); kişi anahtarı `(tkey, user_id)`. Şema değişikliği `C_SCHEMA` artırılarak `c_migrate()` içinde yapılır (NM_SCHEMA değil).
+- Başka modül bir kişiye sohbetten bildirim göndermek isterse `c_push()` (aynı birim) ya da kendi `NM_JOBS` görevini kullanır. Kişinin gizlilik tercihleri `c_pref()`; “kişilerim” `c_is_contact()`.
+- Test: `nobetmed-dev/e2e-mesaj.mjs` (e2e-hastane'den sonra).
+
 ## Gizlilik ve güvenlik
 - Depo HERKESE AÇIK: gerçek kişi/hastane adı, e-posta, şifre, gerçek Excel dosyaları depoya girmez. Testlerde uydurma adlar kullanın.
 - Her uçta yetki denetimi; yalnız yetkili kişiye görünmesi gereken bilgiyi sunucu hiç göndermesin (istemcide gizlemek yetmez).
