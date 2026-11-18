@@ -989,7 +989,11 @@ function a_callout_list(): void
     $today = mk_today();
     if (is_publisher($me)) {
         $rows = all('SELECT * FROM callouts WHERE date >= ? OR status = ? ORDER BY date DESC, id DESC LIMIT 150', [mk_shift_day($today, -60), 'open']);
-        out(['items' => array_map(fn($C) => co_out($C, true), $rows), 'pub' => true]);
+        $mine = [];
+        foreach (all('SELECT id, callout_id, answer, chosen, move_from FROM callout_resp WHERE user_id = ?', [$me['id']]) as $x) {
+            $mine[(int)$x['callout_id']] = ['id' => (int)$x['id'], 'answer' => $x['answer'], 'chosen' => (bool)$x['chosen'], 'move_from' => $x['move_from']];
+        }
+        out(['items' => array_map(fn($C) => co_out($C, true) + (isset($mine[(int)$C['id']]) ? ['me' => $mine[(int)$C['id']]] : []), $rows), 'pub' => true]);
     }
     $rows = all('SELECT c.*, r.id AS resp_id, r.answer, r.chosen, r.move_from FROM callout_resp r JOIN callouts c ON c.id = r.callout_id WHERE r.user_id = ? AND c.date >= ? ORDER BY c.date DESC, c.id DESC LIMIT 60',
         [$me['id'], mk_shift_day($today, -30)]);
@@ -1002,7 +1006,10 @@ function a_callout_get(): void
     $C = co_get((int)i('id'));
     if (is_publisher($me)) {
         $resp = all('SELECT * FROM callout_resp WHERE callout_id = ? ORDER BY chosen DESC, id', [(int)$C['id']]);
-        out(['callout' => co_out($C, true), 'resp' => array_map('co_resp_out', $resp), 'pub' => true, 'conds' => co_conds()]);
+        // Yayıncıya da sorulmuş olabilir (ör. yayıncı hemşire): kendi yanıtını verebilsin
+        $mine = null;
+        foreach ($resp as $x) if ((int)$x['user_id'] === (int)$me['id']) $mine = ['id' => (int)$x['id'], 'answer' => $x['answer'], 'chosen' => (bool)$x['chosen'], 'move_from' => $x['move_from'], 'answered_at' => $x['answered_at']];
+        out(['callout' => co_out($C, true), 'resp' => array_map('co_resp_out', $resp), 'pub' => true, 'conds' => co_conds(), 'me' => $mine]);
     }
     $r = one('SELECT * FROM callout_resp WHERE callout_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', [(int)$C['id'], $me['id']]);
     if (!$r) fail('Bu çağrı size gönderilmemiş.', 403);
@@ -1024,11 +1031,12 @@ function a_callout_answer(): void
     $yes = b('yes');
     q('UPDATE callout_resp SET answer = ?, answered_at = ? WHERE id = ?', [$yes ? 'yes' : 'no', now(), $r['id']]);
     $who = $forOther ? (string)(mk_user_by_id((int)$r['user_id'])['name'] ?? $r['name']) : (string)$me['name'];
-    if (!$forOther && $yes) {
+    // Yanıt (gelebilir de gelemez de) çağrıyı açana bildirilir; kendi çağrısına kendisi yanıt verdiyse bildirim gerekmez
+    if (!$forOther && (int)($C['created_by'] ?? 0) !== (int)$me['id']) {
         $to = $C['created_by'] ? mk_full_users([(int)$C['created_by']]) : [];
         if (!$to) $to = mk_pubs();
-        $txt = swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']) . ($r['move_from'] ? ' (' . swap_fmt_date((string)$r['move_from']) . ' nöbetini kaydırarak)' : '') . ' · ' . (int)$C['need'] . ' kişi eksik';
-        notify_users($to, 'callout', 'Çağrıya yanıt: ' . $who . ' gelebilir', $txt, '#/eksik/' . $C['id'], null);
+        $txt = swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']) . ($yes && $r['move_from'] ? ' (' . swap_fmt_date((string)$r['move_from']) . ' nöbetini kaydırarak)' : '') . ' · ' . (int)$C['need'] . ' kişi eksik';
+        notify_users($to, 'callout', 'Çağrıya yanıt: ' . $who . ($yes ? ' gelebilir' : ' gelemez'), $txt, '#/eksik/' . $C['id'], null);
     }
     audit($me, 'callout.answer', swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']), ($forOther ? $who . ' adına: ' : '') . ($yes ? 'Gelebilir' : 'Gelemez'));
     out(['answer' => $yes ? 'yes' : 'no']);
@@ -1088,6 +1096,22 @@ function a_callout_cancel(): void
     $ids = array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM callout_resp WHERE callout_id = ? AND chosen = 0 AND answer <> 'no' AND user_id IS NOT NULL", [(int)$C['id']]));
     if ($ids) notify_users(mk_full_users($ids), 'callout', 'Eksik çağrısı iptal edildi', swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']) . ' çağrısı iptal edildi; gelmene gerek yok.', '#/eksik/' . $C['id'], null);
     audit($me, 'callout.cancel', swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']));
+    out(['ok' => true]);
+}
+
+/** Yönetici/yayıncı: çağrıyı tamamen sil (yanıtlarıyla). Gelecekteki çağrıda gelmeyi bekleyenlere haber verilir; günlükte kalır */
+function a_callout_delete(): void
+{
+    $me = need_publisher();
+    $C = co_get((int)i('id'));
+    $txt = swap_fmt_date((string)$C['date']) . ' ' . co_text((string)$C['shift']);
+    if ($C['status'] !== 'cancelled' && (string)$C['date'] >= mk_today()) {
+        $ids = array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM callout_resp WHERE callout_id = ? AND answer <> 'no' AND user_id IS NOT NULL AND user_id <> ?", [(int)$C['id'], (int)$me['id']]));
+        if ($ids) notify_users(mk_full_users($ids), 'callout', 'Eksik çağrısı kaldırıldı', $txt . ' çağrısı kaldırıldı; gelmene gerek yok.', '#/eksik', null);
+    }
+    q('DELETE FROM callout_resp WHERE callout_id = ?', [(int)$C['id']]);
+    q('DELETE FROM callouts WHERE id = ?', [(int)$C['id']]);
+    audit($me, 'callout.delete', $txt, (int)$C['need'] . ' kişi eksik');
     out(['ok' => true]);
 }
 
@@ -1318,6 +1342,7 @@ return [
     'callout.answer' => 'a_callout_answer',
     'callout.choose' => 'a_callout_choose',
     'callout.cancel' => 'a_callout_cancel',
+    'callout.delete' => 'a_callout_delete',
     'callout.draw' => 'a_callout_draw',
     'callout.sheet' => 'a_callout_sheet',
     'market.home' => 'a_market_home',

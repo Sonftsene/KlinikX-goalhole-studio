@@ -23,7 +23,9 @@ Bu dosya, önceki geliştirme sohbetinin özetidir. Yeni oturumda önce bunu, so
 - Google E-Tablolar: kullanıcının Apps Script kodu (`assets/js/taraf.js` → `gsScript`) tabloları siteye gönderir (`inc/gsync.php`). Nöbet tablolarında çıkarılan sekmeler, hasta listesinde seçilen sekmeler saklanır; hasta adı koruması `gs_mask_guard()`.
 
 ## Durum
-- Son yayımlanan paket: **3.10.4** (`dist/dupcii-hostinger.zip`, kullanıcıya gönderildi).
+- Son yayımlanan paket: **3.11.0** (`dist/dupcii-hostinger.zip`, kullanıcıya gönderildi).
+- 3.11.0: `callout.delete` (yönetici/yayıncı; gelecekteki çağrıda gönüllülere bildirim), Değişim geçmişinde her kayıtta sil düğmesi (`hist-del` → listing/swap/callout delete), yayıncıya sorulan çağrıda kendi yanıtı (`callout.get` → `me`), “Gelemez” yanıtı da çağrıyı açana bildirilir. Test: e2e-market sonunda silme adımı.
+- **Büyük proje başladı:** çok hastaneli, modüllü portal — plan `YOL-HARITASI.md` (4.x). Sıradaki: 4.0 çok hastaneli altyapı (merkez/hastane/birim veri ayrımı, tek giriş, süper yönetici). Tasarım notları: tüm DB erişimi `db()`'den; 25 dosya yolu (`NM_ROOT . '/data'`, `'/uploads'`) birim yardımcısına bağlanacak; mevcut kurulum yerinde kalıp 1. birim olur; anahtarlı herkese açık uçlar (gsync token, davet/QR, misafir, şifre sıfırlama, ICS, passkey girişi) birime yönlendirilmeli.
 - 3.10.4: telefon bildirimlerinde Android durum çubuğu simgesi için şeffaf tek renk `assets/badge-96.png` (`sw.js` badge); yöneticinin yüklediği uygulama simgesi (`brand icon192`) `push.pending` ile bildirim simgesi olur. iPhone bildirimde her zaman ana ekrandaki uygulama simgesini gösterir (değiştirilemez).
 - 3.10.3 içeriği:
   - Google kodu her dakika kontrol eder (`everyMinutes(1)`, `SURUM = 2`, `X-Script` → `gs_script_v`; eski kod için ayarlarda uyarı). Kullanıcı Google'daki kodu yenisiyle değiştirip `kur`'u bir kez çalıştırmalı.

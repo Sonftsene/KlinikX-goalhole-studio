@@ -380,6 +380,27 @@ const exp = (await apiCall(m, 'listing.list')).mine.find((x) => x.id === swapL.i
 if (exp && exp.status !== 'expired') fail('tarihi geçen ilan kapanmadı: ' + exp.status);
 step('ilan geri çekme, ana sayfa çağrı kartından yanıt, tarihi geçen ilan görevle kapandı');
 
+// Yönetici/yayıncı silmesi: çağrı (yanıtlarıyla) Değişim geçmişinden silinir; üye silemez; gelmeyi bekleyene haber gider
+const c3 = await apiCall(a, 'callout.create', { date: d1(9), shift: 'day', side: 's3', need: 1, filters: ['free', 'leave', 'rest', 'cont', 'gap', 'exempt', 'req'], asks: [{ name: 'BURAK DEMİR', from: '' }] }).catch((e) => ({ err: e.message }));
+if (c3.err) fail('silme testi çağrısı: ' + c3.err);
+else {
+  await apiCall(bp, 'callout.answer', { id: c3.id, yes: true });
+  if ((await apiErr(bp, 'callout.delete', { id: c3.id })) === 'kabul') fail('üye çağrı silebildi');
+  await a.goto(BASE + '#/gecmis');
+  await a.locator('.hist-month').fill(d1(9).slice(0, 7));
+  await a.locator('.hist-month').dispatchEvent('change');
+  await a.click('[data-act=hist-type][data-t=callout]');
+  await a.locator(`[data-act=hist-del][data-t=callout][data-id="${c3.id}"]`).click();
+  await confirmOk(a);
+  await expectText(a, 'Silindi');
+  if ((await apiErr(a, 'callout.get', { id: c3.id })) === 'kabul') fail('silinen çağrı hâlâ açılıyor');
+  if (await a.locator(`[data-act=hist-del][data-t=callout][data-id="${c3.id}"]`).count()) fail('silinen çağrı geçmişte kaldı');
+  const nDel = (await apiCall(bp, 'notif.list')).items.find((x) => /kaldırıldı/.test(x.title));
+  if (!nDel) fail('çağrı silinince gönüllüye bildirim gitmedi');
+  const lg = (await apiCall(a, 'audit.list', {}).catch(() => ({ items: [] }))).items || [];
+  step('silme: yönetici çağrıyı Değişim geçmişinden sildi (yanıtlarıyla), gönüllüye “kaldırıldı” bildirimi, üye silemiyor' + (lg.some((x) => x.action === 'callout.delete') ? ', günlükte kaldı' : ''));
+}
+
 await browser.close();
 if (errors.length) { console.log('\nHATALAR:\n' + errors.join('\n')); process.exit(1); }
 console.log('\nİLAN / ÇAĞRI / GEÇMİŞ TESTLERİ GEÇTİ');

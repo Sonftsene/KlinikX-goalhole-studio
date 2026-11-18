@@ -1,91 +1,59 @@
-# dupcii — sıradaki geliştirmeler (ön rapor)
+# dupcii — yol haritası (4.x: çok hastaneli, modüllü portal)
 
-Durum: TAMAMLANDI — 3.9.0 sürümünde (tüm maddeler + blok geçmişi, nöbet tablosunda sekme seçimi, değişim isteği gizleme/silme).
-
-### Kullanıcı kararları (son)
-- 16 saat dinlenme değişim ve ilanlarda da geçerli.
-- Blok yerleşimi: 24 saatçi aynı blokta kalır; gündüz/gece ayrı yerleşim yok (08-16 ve 16-08'in blokları zaten belli).
-- Fazla mesai ücreti: yalnız Normal ve Bayram/resmî tatil (hafta sonu yok).
-- "İsteğe saygı" kuralı kaldırıldı (istek onayı yönetici/yayıncıda; istekler atamayı engellemez).
-- Blok yerleşiminin son hâli herkese ana ekranda; 3. basamaktan 2. basamağa kaç kez gittiği adın yanında parantez içinde; tüm ay kaydı; geçmiş sayılar yönetici/yayıncı tarafından elle girilebilir.
-- Tema ve renk seçenekleri; herkes ana sayfasını ve temasını kendi düzenler.
-- Kişi başı istek sınırı yok; istek türleri yalnız Boşluk ve Yıllık izin.
+Önceki yol haritası (3.9: kural motoru, blok yerleşimi, istekler, ilan, çağrı, tatil, ücret, hatırlatma, geri sayım) tamamlandı.
 Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 
-## 0. Ortak kural motoru (her özellik bunu kullanır)
-- **Dinlenme:** nöbetten çıkan, yeni nöbete başlamadan önce en az **16 saat** dinlenir (ayarlanabilir).
-  - Örnek: 24 saat (08→08) çıkışı aynı gün 16-08'e yazılamaz (8 saat); 08-16 → ertesi gün 08 olur (16 saat).
-- **Üst üste çalışma:** en fazla 24 saat (48 saat yasak) — mevcut kural, korunur.
-- **Uzun boşluk:** iki nöbet arasında en fazla 4 boş gün (5 gün boşluk olamaz); izinli günler boşluk sayılmaz — mevcut.
-- **İzin/istek:** yıllık izinli veya onaylanmış "boşluk" isteği olan güne atama yapılmaz (çağrıda yönetici isterse esnetir).
-- **Muafiyet:** yönetici/yayıncı kişileri kuradan/kaydırmadan muaf tutabilir (isteğe bağlı bitiş tarihi, gerekçe yalnız yöneticilere).
-- **Adalet sırası (eşitlik bozucu):** ① daha az geçiş/çağrı ② ay içinde daha az nöbet saati (az fazla mesai) ③ son 7 günde daha az nöbet ④ daha uzun boşluk ⑤ hâlâ eşitse kayıtlı **rastgele kura** (adaylar ve sonuç kaydedilir).
-- Kurallar Ayarlar › Nöbet'ten değiştirilebilir; tüm yeni atamalarda (değişim, ilan, çağrı, yerleşim) aynı motor kullanılır.
+## Kullanıcı kararları
+- Bir kişi yalnız **bir birimde** çalışır (birden çok birim yok).
+- Hastane içinde **telefon rehberi ortak**; protokoller bazen hastane geneli, bazen birime özel.
+- Herkes **tek adresten** girer; giriş sonrası yalnız kendi hastane + birimini görür.
+- Ölçek: şimdilik birkaç hastane; gerekirse barındırma büyütülür.
+- Çağrı, ilan ve değişimlerde yönetici/yayıncı silebilir (3.11.0'da yapıldı).
+- Modüller, yetkiler, aç/kapat ve hastane/birim ayarları **süper yönetici** tarafından yönetilir.
+- WhatsApp'a ihtiyaç bırakmayan, portala özgü mesajlaşma (gruplar, birebir, medya, dosya, bağlantı, grup yöneticisi ayarları; sorumlular/yöneticiler ayrı gruplar).
+- Excel olmayan birimler için başka kaynaklar (portalda çizelge, CSV, diğer sistemlerden aktarım).
+- Şişirme yok: modern, hızlı, donmayan; her özellik test edilerek ayrı sürümle gelir.
 
-## 1. Nöbet istekleri paneli
-- İstek türleri yalnızca **Boşluk** (o gün nöbet istemiyorum) ve **Yıllık izin**. Kişi başı sınır yok.
-- **Dönem:** yönetici/yayıncı ayı isteğe açar ve son tarih koyar (ör. "Aralık istekleri 20 Kasım'da kapanır"). 2 gün önce hatırlatma; son tarihten sonra üyeler ekleyemez/değiştiremez (yöneticiler düzeltebilir).
-- **Giriş:** yazarak ("2,3,4 boşluk; 6,7 boşluk; 15-19 yıllık izin") veya takvimde dokunarak; kısa not eklenebilir.
-- **Kişisel görünüm:** kendi istekleri ve durumu (beklemede / onaylandı / reddedildi + gerekçe yalnız kendisine).
-- **Toplu pano (herkes):** kişi listesi (kim hangi günleri istedi) + takvim (hangi gün kim boşluk/izin istedi). Durum işareti görünür, ret gerekçesi görünmez.
-- **Yönetici/yayıncı paneli:**
-  - Taraf (3./2. basamak) başına gün başına **gerekli nöbetçi sayısı** (gündüz 08-16, gece 16-08, 24 saat; hafta içi / hafta sonu-bayram ayrı).
-  - **Isı haritası takvim:** gün gün istek sayısı, müsait kişi sayısı, gereken sayı → yeşil/sarı/kırmızı; yığılan günler en üstte.
-  - Kişi bazlı tablo: istenen gün sayısı, geçmiş aylarda onay/ret sayısı.
-  - Onay/ret (tekli/toplu, gerekçeli). Taşan günlerde **ret önerisi** adalet sırasına göre (o ay en çok gün isteyen / geçmişte en çok onay alan önce); eşitlikte kura.
-  - **Excel'e aktar:** kişi × gün matrisi (B = boşluk, Yİ = yıllık izin) — sorumlu listeyi hazırlarken kullanır.
-- **Listeye uyum kontrolü:** yeni ayın listesi gelince onaylı isteğe rağmen nöbet yazılmışsa sorumluya rapor, kişiye bildirim.
+## Mimari ilke: tek kod, ayrı veri
+- **Merkez** (`data/merkez`): hastaneler, birimler, e-posta → birim dizini (yalnız e-posta özeti/hash), modül ayarları, süper yönetici hesapları, giriş deneme sınırı, süper yönetici günlüğü. Hasta/kişi verisi YOK.
+- **Hastane** (`data/h<id>/`): hastane ortak verisi — ortak rehber, hastane geneli belgeler/duyurular, mesajlaşma (birim grupları + birimler arası gruplar; üyelik denetimi sunucuda).
+- **Birim** (`data/h<id>/u<id>/`): bugünkü uygulamanın tüm verisi (kullanıcılar, nöbetler, Google tabloları, istekler, ilanlar, dosyalar…). Bir birimin kullanıcısı başka birimin dosyasına teknik olarak ulaşamaz.
+- Tüm veritabanı erişimi `db()` üzerinden: istek, oturumdaki birime göre doğru dosyayı açar. Oturum çerezi birime bağlı; birim değişirse oturum geçersiz.
+- Tek zip güncelleme → tüm birimler; her birimin şeması ilk istekte kendiliğinden yükseltilir. Tek cron tüm birimleri sırayla dolaşır (süre sınırlı, kaldığı yerden devam).
+- Paylaşımlı barındırma (Hostinger) gerçeği: WebSocket yok → mesajlaşma görünürken kısa aralıklı, hafif "son mesajdan beri" sorgusu (değişiklik yoksa boş yanıt), arka planda web push. Uzun bekleten istek (long-poll) kullanılmaz: PHP işlem sınırını doldurur.
+- MySQL kurulumu: birim başına ayrı veritabanı Hostinger'da elle açılır; bu yüzden çok hastaneli kurulumda SQLite önerilir. MySQL için tablo öneki yöntemi ayrı aşamada.
 
-## 2. Nöbet ilanı
-- Kişi kendi gelecekteki nöbetini ilana koyar: **devret** veya **değiş** (değişte karşılığında alabileceği günler kurallara göre önerilir). Not eklenebilir.
-- Pano: tarih, vardiya, ilan sahibinin adı, not. Yalnız aynı listedeki kişiler görür.
-- "Başvur" yalnız kurallara uyanlara; uymayanlarda gri ve nedeni.
-- **İlan sahibi başvuranlar arasından seçer.** Başvuranları ve alanı yalnız ilan sahibi + yayıncı + yönetici görür; diğerleri "ilan kapandı" görür.
-- Seçimden sonra mevcut akış: sorumluya "Excel'e işlenecek", Excel güncellenince kendiliğinden "uygulandı". Nöbet tarihi geçince açık ilan kapanır; sahibi iptal edebilir.
+## Aşamalar (her biri ayrı sürüm, güncelleme testi + izolasyon testleriyle)
+### 3.11.0 — Silme yetkileri ✓
+- Eksik çağrısı tamamen silme (yanıtlarıyla; gelecekteki çağrıda gönüllülere haber), Değişim geçmişinden ilan/değişim/devir/çağrı silme (yönetici/yayıncı), yayıncıya sorulan çağrıya kendi yanıtı, "Gelemez" yanıtı da çağrıyı açana bildirilir.
 
-## 3. Eksik personel çağrısı
-- Yönetici/yayıncı açar: tarih + vardiya (08-16 / 16-08 / 24 saat) + kaç kişi + taraf.
-- **Aday filtreleri (şart çipleri, açılıp kapatılabilir):** o gün nöbeti yok; izinli değil; onaylı boşluk isteği yok; dinlenme ≥16 saat (önce ve sonra); 48 saat yok; 5 gün boşluk kuralı; muaf değil.
-- **Kaydırma adayları** (boşta uygun kimse yoksa): ertesi (veya bir önceki) gün aynı tür nöbeti olan ve nöbeti bu güne kaydırılınca tüm kurallara uyan kişiler; kaydırma o günü eksik bırakacaksa uyarı ("19 Kas'ta 1 eksik kalır").
-- **Sıralama:** en çok müsaitlik/boşluk → az fazla mesai → son 7 günde az nöbet → kura.
-- **Görsel:** aday tablosu (son nöbetten bu yana saat, sonraki nöbet, bu ay saat/fazla mesai, son 7 gün, şartlar ✓/✗) + **Excel indir** (adaylar sayfası + ay çizelgesi kopyası, o gün ve adaylar renkli).
-- Seçilenlere bildirim: "18 Kas 16-08 için 1 kişi eksik, gelebilir misin?" → Gelebilirim / Gelemem. Yönetici gönüllüler arasından seçer → sorumluya "Excel'e işlenecek". Kimin kabul ettiğini yalnız yönetici/yayıncı ve kişi görür.
+### 4.0 — Çok hastaneli altyapı
+- Merkez/hastane/birim veri ayrımı, tek giriş (e-posta → birim), birim başına oturum.
+- Süper yönetici paneli: hastane ve birim ekle/düzenle/dondur, birim yöneticisi davet et, birim sayıları (kişi, depolama), toplu yedek. Hasta/kişi içeriği görmez.
+- Süper yönetici hesabında iki adımlı doğrulama zorunlu (uygulama kodu veya parmak izi).
+- Mevcut kurulum kendiliğinden "1. hastane / 1. birim" olur; adresler, şifreler, veriler aynen kalır.
+- Testler: A biriminin kullanıcısı B'nin dosyasına, nöbetine, hasta listesine, bildirimine, yedeğine ulaşamaz; aynı e-posta iki birimde açılamaz.
 
-## 4. Günlük blok yerleşimi (mevcut Taraf/kura'nın genişletilmiş hâli)
-- Yönetici/yayıncı bir gün için blok başına gereken kişi sayısını seçer: **B blok** (3. basamak), **A blok**, **C blok** (2. basamak); gündüz (08-16) ve gece (16-08) ayrı. 24 saatçi iki dönemde aynı blokta kalır. Varsayılanlar kaydedilir (hafta içi / hafta sonu).
-- O gün Excel'de nöbetçi olanlar ekrana gelir; **otomatik dağıtım:**
-  1. Herkes kendi tarafına (3. basamak → B; 2. basamak → A/C).
-  2. Bir tarafta fazla, diğerinde eksik varsa fazla kişiler karşı tarafa **kurayla** geçer: önce hiç/en az geçmiş olanlar; eşitse onlar arasında kura; herkes eşitse herkes kuraya girer. Muaflar girmez.
-  3. A/C arasında: en az çalıştığı bloğa / son nöbetinde olmadığı bloğa (rotasyon); eşitse kura.
-  4. Toplam yetmiyorsa "eksik" uyarısı → tek dokunuşla Eksik personel çağrısı.
-- **Elle düzenleme:** kişiye dokunup bloğunu değiştirme; her kişinin yanında A/B/C kaç kez çalıştığı ve son bloğu.
-- Kura düğmesi yalnız eşitlikte; adaylar ve sonuç kaydedilir.
-- **Kayıtlar:** her yerleşim (tarih, dönem, kişi, blok, yöntem otomatik/kura/elle) saklanır; kişi bazlı blok sayıları, son blok, geçiş sayısı (gece içeren karşı taraf = 1; 08-16 sayılmaz). Sayım başlangıç tarihi ayarlanabilir.
-- Herkes "bugün kim hangi blokta"yı ve geçmişi görür; düzenleme yalnız yönetici/yayıncı.
+### 4.1 — Modüller ve yetkiler
+- Modül kayıt defteri: her modül hastane ve birim düzeyinde açılır/kapanır (kapalı modülün uçları sunucuda da kapalı).
+- Rol + modül bazlı izinler: görüntüle / ekle / düzenle / sil / onayla. Hazır roller (birim yöneticisi, sorumlu, yayıncı, eğitim hemşiresi, üye) + birime özel rol. Süper yönetici şablon verir, birim yöneticisi kendi biriminde (izin verilen kadarını) düzenler.
 
-## 5. Bayram ve resmî tatil
-- Türkiye resmî tatilleri ve dini bayramlar (arife yarım gün) hazır gelir; yönetici ekleyip çıkarabilir.
-- Takvimde, Excel görünümünde ve sayımlarda işaretli; kişi ve adalet sayımlarında "bayram/tatil nöbeti" ayrı sayılır; ücret hesabında kullanılır.
+### 4.2 — Hastane ortak alanları
+- Ortak rehber (birim rehberleri + hastane geneli numaralar), hastane geneli belge kütüphanesi (protokol: hastane geneli / birime özel / ikisi), hastane duyurusu.
 
-## 6. Fazla mesai ücreti (kişiye özel, yalnız kişi görür)
-- Herkes kendi saat ücretlerini girer; birden fazla satır: Normal, Hafta sonu, Bayram/resmî tatil (isteğe bağlı Gece).
-- Ücretler yalnız kişinin kendisine görünür (yönetici dahil kimse göremez).
-- Hesap (tahmini): ay fazla mesai saati = toplam − gereken. Fazla saatler önce bayram/tatil saatlerinden, sonra hafta sonu, kalanı normal ücretle sayılır (kişinin lehine); dağılım ekranda açıkça gösterilir. Bordro farklıysa yöntem değiştirilebilir.
-- Takvimim'de ay özeti: saat, fazla mesai, tahmini tutar.
+### 4.3–4.4 — Mesajlaşma (WhatsApp'sız)
+- Her birime otomatik birim grubu; özel gruplar; birebir sohbet; hastane geneli "sorumlular/yöneticiler" grupları (birimler arası, yalnız davetle).
+- Metin, fotoğraf (telefonda sıkıştırılarak), video, sesli mesaj, dosya, bağlantı önizleme; yanıtla, ilet, tepki, sabitle, @bahsetme, okundu bilgisi (kimler okudu), arama, anket, duyuru modu.
+- Grup yöneticisi: üye ekle/çıkar, yönetici yap, yalnız yöneticiler yazsın, grup bilgisi/fotoğrafı düzenlesin, davet bağlantısı (süreli), herkesten mesaj silme, sessize alma.
+- KVKK: hasta bilgisi uyarısı; T.C. kimlik numarası (algoritma denetimli) ve benzeri içerik gönderilmeden yakalanır; mesaj/medya saklama süresi birim ayarı; silinen dosya sunucudan da silinir.
 
-## 7. Değişim ve ilan geçmişi (yalnız yönetici/yayıncı)
-- Ay/kişi filtresiyle tüm değişim, devir, ilan ve çağrı kayıtları; Excel'e aktarım.
+### 4.5 — Excel olmayan birimler ve entegrasyon
+- Portalda nöbet çizelgesi hazırlama (kural motoruyla uyarılar, otomatik öneri, yayınla → bugünkü tüm özellikler aynen çalışır).
+- Kaynak bağdaştırıcıları: Excel/Google (var), CSV, ICS takvim, başka sistemden düzenli dışa aktarma dosyası; anahtarlı içe aktarma ucu (başka sistemin göndermesi için). Belirli bir hastane bilgi sistemiyle bağlantı, o sistemin dışa aktarma biçimi/izni görüldükten sonra yapılır.
 
-## 8. Hatırlatma saati (kişi seçer)
-- Kapalı / bir gün önce (saat seçilir) / nöbet günü sabah / nöbetten X saat önce; birden fazla seçilebilir. Ek bildirim tercihleri: ilan, çağrı, istek dönemi.
+### 4.6+ — Ek modüller (her biri aç/kapat)
+- Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
-## 9. Ana ekranda geri sayım
-- "Sıradaki nöbetine 2 gün 5 saat" (canlı); nöbetteyken "bitmesine 6 saat"; o günkü blok varsa "B blok".
-
-## Yapım sırası
-0 kural motoru → 4 blok yerleşimi → 3 eksik çağrısı → 1 istek paneli → 2 ilan + 7 geçmiş → 5 bayram + 6 ücret → 8 hatırlatma + 9 geri sayım → testler ve paket.
-
-## Açık sorular (yanıt yoksa öneriyle)
-- 16 saat dinlenme değişim ve ilanlarda da geçerli mi? (Öneri: evet — art arda iki gece nöbetini de engeller.)
-- Blok yerleşimi gündüz/gece ayrı mı? (Öneri: evet.)
-- Ücret hesap yöntemi uygun mu? (Öneri: yukarıdaki.)
+### Sürekli: KVKK ve güvenlik
+- Aydınlatma metni ve onay kaydı, kişinin kendi verisini indirme/silme talebi, veri saklama süreleri, şifreli yedek, yönetici rollerinde iki adımlı doğrulama, giriş deneme sınırı, günlükte kişisel veri bırakmama, her modülde yetki testleri.
+- Hız: modül betikleri yalnız gerektiğinde yüklenir, sayfalı listeler, dizinler, görsel küçültme.

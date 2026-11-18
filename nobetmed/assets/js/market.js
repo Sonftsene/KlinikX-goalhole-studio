@@ -18,7 +18,7 @@ Object.assign(NM_EXT.audit, {
   'listing.create': 'Nöbet ilanı açtı', 'listing.apply': 'İlana başvurdu', 'listing.withdraw': 'İlan başvurusunu geri çekti',
   'listing.choose': 'İlanda başvuru seçti', 'listing.cancel': 'İlanı geri çekti', 'listing.delete': 'İlanı sildi',
   'callout.create': 'Eksik personel çağrısı açtı', 'callout.ask': 'Çağrıyı başka kişilere de sordu', 'callout.answer': 'Çağrıya yanıt verdi',
-  'callout.choose': 'Çağrıda kişi seçti', 'callout.cancel': 'Çağrıyı iptal etti', 'callout.draw': 'Çağrıda kura çekti',
+  'callout.choose': 'Çağrıda kişi seçti', 'callout.cancel': 'Çağrıyı iptal etti', 'callout.delete': 'Çağrıyı sildi', 'callout.draw': 'Çağrıda kura çekti',
 });
 NM_EXT.homeCards.push({ id: 'market', title: 'İlan ve eksik çağrıları', icon: 'megaphone', order: 15, place: 'top', render: (el) => mkHomeCard(el) });
 
@@ -743,10 +743,14 @@ async function coDetailPage(view, id) {
         ${x.phone && x.answer === 'asked' ? html`<a class="btn sm icon ghost" href="${telLink(x.phone)}" aria-label="Ara">${icon('phone', 'sm')}</a>` : ''}</div></div>`;
   };
   const chosenTxt = (c.chosen || []).map((x) => x.name + (x.move_from ? ` (${mkShort(x.move_from)} nöbeti ${mkShort(c.date)} gününe kayacak)` : '')).join(', ');
-  setHTML(box, html`<div class="stack">${headCard}
+  // Yayıncıya da sorulduysa (ör. yayıncı hemşire) kendi yanıtı
+  const mine = r.me && open && !r.me.chosen ? html`<div class="mk-box info">${icon('user', 'sm')}<span class="grow">Bu çağrı sana da soruldu${r.me.answer === 'yes' ? ' · “Gelebilirim” dedin' : r.me.answer === 'no' ? ' · “Gelemem” dedin' : ''}.</span>
+      ${r.me.answer !== 'yes' ? html`<button class="btn sm primary" data-act="co-ans" data-id="${c.id}" data-y="1">Gelebilirim</button>` : ''}${r.me.answer !== 'no' ? html`<button class="btn sm" data-act="co-ans" data-id="${c.id}" data-y="0">Gelemem</button>` : ''}</div>` : '';
+  setHTML(box, html`<div class="stack">${headCard}${mine}
     ${c.status === 'filled' ? html`<div class="mk-box ${c.applied ? 'ok' : 'info'}">${icon(c.applied ? 'checkCircle' : 'table', 'sm')}<span>${c.applied ? html`<b>Listeye işlendi:</b> ${chosenTxt}` : html`<b>Excel’e işlenecek:</b> ${chosenTxt} · ${mkShort(c.date)} ${c.text}. Excel güncellenince kendiliğinden “listeye işlendi” olur.`}</span></div>` : ''}
     <div class="card"><div class="card-head"><div><h3>${icon('users', 'sm')} Yanıtlar (${resp.length})</h3><div class="tiny faint">${icon('lock', 'sm')} Yanıtları yalnız sorumlular ve kişinin kendisi görür</div></div>
-      ${open ? html`<button class="btn sm ghost danger" data-act="co-cancel" data-id="${c.id}">Çağrıyı iptal et</button>` : ''}</div>
+      <div class="row" style="gap:6px">${open ? html`<button class="btn sm ghost danger" data-act="co-cancel" data-id="${c.id}">Çağrıyı iptal et</button>` : ''}
+        <button class="btn sm ghost danger" data-act="co-del" data-id="${c.id}" title="Çağrıyı ve yanıtları tamamen sil">${icon('trash', 'sm')}<span>Sil</span></button></div></div>
       <div class="list">${resp.length ? resp.map(respRow) : html`<div class="list-row small muted">Henüz kimseye sorulmadı. Aşağıdan aday seçip sorabilirsin.</div>`}</div></div>
     ${(c.draws || []).length ? html`<div class="tiny faint">${icon('star', 'sm')} Kura kayıtları: ${c.draws.map((d) => `${mkDT(d.at)} · ${d.by}: ${d.picked} (eşitler: ${d.group.join(', ')})`).join(' — ')}</div>` : ''}
     ${open ? html`<div class="co-bar"><h3>Adaylar</h3><span class="grow"></span><button class="btn sm" data-act="co-xlsx" data-host="coPagePanel">${icon('download', 'sm')}<span>Excel indir</span></button><button class="btn sm primary" id="coAskBtn" data-act="co-ask" data-id="${c.id}" disabled>${icon('send', 'sm')}<span>Seçilenlere de sor</span></button></div>
@@ -780,6 +784,11 @@ ACT['co-ask'] = (el) => busy(el, async () => {
 ACT['co-cancel'] = async (el) => {
   if (!(await confirmDialog({ title: 'Çağrı iptal edilsin mi?', text: 'Sorulan ve seçilmemiş kişilere “gelmene gerek yok” bildirimi gider.', ok: 'İptal et', danger: true }))) return;
   try { await api('callout.cancel', { id: +el.dataset.id }); toast('Çağrı iptal edildi'); route(); } catch (e) { toast(e.message, 'err'); }
+};
+
+ACT['co-del'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Çağrı silinsin mi?', text: 'Çağrı ve tüm yanıtları kalıcı olarak silinir (işlem günlüğünde kalır). Gelecekteki bir çağrıysa gelmeyi bekleyen kişilere haber verilir.', ok: 'Sil', danger: true }))) return;
+  try { await api('callout.delete', { id: +el.dataset.id }); toast('Çağrı silindi'); location.hash = '#/eksik'; } catch (e) { toast(e.message, 'err'); }
 };
 
 /* =================================================================== */
@@ -841,10 +850,17 @@ function histDraw() {
       const [sl, stn] = HIST_STATE[x.state] || [x.state, ''];
       return html`<div class="mk-item hist-item">${mkDayBlock(x.date)}<div class="mk-main"><div class="mk-l1"><span class="badge tone-${tt}">${tl}</span><span class="badge ${stn}">${sl}</span></div>
         <div class="small hist-t">${histText(x)}</div>${x.note && x.note !== 'Nöbet ilanından' ? html`<div class="mk-note">“${x.note}”</div>` : ''}<div class="tiny faint">${histSub(x)}</div></div>
-        ${x.type === 'callout' ? html`<div class="mk-act"><a class="btn sm ghost" href="#/eksik/${x.id}">Aç</a></div>` : ''}</div>`;
+        <div class="mk-act">${x.type === 'callout' ? html`<a class="btn sm ghost" href="#/eksik/${x.id}">Aç</a>` : ''}<button class="btn sm icon ghost danger" data-act="hist-del" data-t="${x.type}" data-id="${x.id}" aria-label="Kaydı sil" title="Kaydı sil">${icon('trash', 'sm')}</button></div></div>`;
     })}</div>`
     : html`<div class="card empty"><div class="e-ico">${icon('history', 'lg')}</div><h3>Kayıt yok</h3><p class="small">${TR_MONTHS[m - 1]} ${y} için seçilen ölçütlerde değişim, ilan ya da çağrı bulunamadı.</p></div>`);
 }
+ACT['hist-del'] = async (el) => {
+  const t = el.dataset.t;
+  const what = { swap: 'değişim kaydı', give: 'devir kaydı', listing: 'ilan', callout: 'eksik çağrısı' }[t] || 'kayıt';
+  if (!(await confirmDialog({ title: `Bu ${what} silinsin mi?`, text: 'Kayıt kalıcı olarak silinir; işlem günlüğünde kim sildiği kalır. Kabul edilmiş ama Excel’e işlenmemiş bir değişimse kurallar hesabından da çıkar.', ok: 'Sil', danger: true }))) return;
+  const action = t === 'listing' ? 'listing.delete' : t === 'callout' ? 'callout.delete' : 'swap.delete';
+  try { await api(action, { id: +el.dataset.id }); HIST.items = HIST.items.filter((x) => !(x.type === t && x.id === +el.dataset.id)); histDraw(); toast('Silindi'); } catch (e) { toast(e.message, 'err'); }
+};
 ACT['hist-type'] = (el) => { HIST.type = el.dataset.t; $$('[data-act=hist-type]').forEach((b) => b.classList.toggle('on', b === el)); histLoad(); };
 CHANGE['hist-f'] = (el) => { HIST[el.dataset.k] = el.value; if (el.dataset.k === 'month') { if (!/^\d{4}-\d{2}$/.test(el.value)) return; histLoad(); } else histDraw(); };
 const histQ = debounce(() => histLoad(), 300);
