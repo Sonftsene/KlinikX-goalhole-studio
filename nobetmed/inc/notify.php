@@ -33,7 +33,7 @@ function notify_users(array $users, string $kind, string $title, string $body, s
         $n = mail_queue_to($mailTo, $mail['subject'], $mail['heading'] ?? $title, $mail['lines'] ?? [$body], $mail['button'] ?? 'Portalda aç', base_url() . $url, $kind, false);
     }
     if ($pushIds) push_after_response($pushIds);
-    return $n ?: count($seen);
+    return $n; // kuyruğa alınan e-posta sayısı (uygulama içi bildirim sayısı değil)
 }
 
 function push_ready(): bool
@@ -184,16 +184,20 @@ function run_jobs(bool $force = false): array
         set_setting('shift_remind_last', $today);
         $done['shift_remind'] = job_shift_remind();
     }
-    if (setting('jobs_daily_last') !== $today) {
+    // Günlük hatırlatmalar gece yarısı gitmesin: sabah özet saatinden (en erken 08:00) sonra
+    if (setting('jobs_daily_last') !== $today && $hour >= max(8, (int)setting('digest_hour', '7'))) {
         set_setting('jobs_daily_last', $today);
         $done['auto_remind'] = job_auto_remind();
         $done['review'] = job_review();
+    }
+    if (setting('jobs_clean_last') !== $today) {
+        set_setting('jobs_clean_last', $today);
         q('DELETE FROM notifications WHERE created_at < ?', [date('Y-m-d H:i:s', time() - 90 * 86400)]);
         q('DELETE FROM audit_log WHERE at < ?', [date('Y-m-d H:i:s', time() - 400 * 86400)]);
     }
     if (setting('backup_weekly', '1') === '1' && (int)setting('backup_last', '0') < time() - 7 * 86400) {
         set_setting('backup_last', (string)time());
-        try { $done['backup'] = basename(backup_create(false, true)); } catch (Throwable $e) { error_log('[dupcii] yedek: ' . $e->getMessage()); }
+        try { $done['backup'] = basename(backup_create(false, true, true)); } catch (Throwable $e) { error_log('[dupcii] yedek: ' . $e->getMessage()); }
     }
     if (function_exists('gs_job')) { try { $g = gs_job(); if ($g !== null) $done['gsync'] = $g; } catch (Throwable $e) { error_log('[dupcii] gsync: ' . $e->getMessage()); } }
     if (function_exists('swap_expire')) { try { swap_expire(); } catch (Throwable $e) { error_log('[dupcii] swap: ' . $e->getMessage()); } }
@@ -355,6 +359,7 @@ function backup_database_file(string $tmpDir): string
             db()->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
             $st = db()->query("SELECT * FROM `$t`");
             while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+                if ($t === 'users' && array_key_exists('pay_rates', $row)) $row['pay_rates'] = null; // kişiye özel ücretler yedeğe girmez
                 $vals = array_map(fn($v) => $v === null ? 'NULL' : db()->quote((string)$v), $row);
                 fwrite($fh, "INSERT INTO `$t` (`" . implode('`,`', array_keys($row)) . '`) VALUES (' . implode(',', $vals) . ");\n");
             }
@@ -373,11 +378,19 @@ function backup_database_file(string $tmpDir): string
         db()->exec('PRAGMA wal_checkpoint(FULL)');
         copy(sqlite_path(), $path);
     }
+    // Kişiye özel ücretler yöneticinin indirdiği yedekte bulunmasın (silinen değerler dosyada kalmasın diye VACUUM)
+    try {
+        $c = new PDO('sqlite:' . $path);
+        $c->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $c->exec('UPDATE users SET pay_rates = NULL');
+        $c->exec('VACUUM');
+        $c = null;
+    } catch (Throwable $e) { error_log('[dupcii] yedek ücret temizliği: ' . $e->getMessage()); }
     return $path;
 }
 
 /** Yedek ZIP'i oluşturur. $withFiles: yüklenen dosyalar da eklensin mi. Döner: zip yolu */
-function backup_create(bool $withFiles, bool $keep): string
+function backup_create(bool $withFiles, bool $keep, bool $auto = false): string
 {
     if (!class_exists('ZipArchive')) throw new RuntimeException('Sunucuda ZIP desteği yok; yalnızca veritabanı indirilebilir.');
     if (function_exists('set_time_limit')) @set_time_limit(0);
@@ -386,12 +399,12 @@ function backup_create(bool $withFiles, bool $keep): string
     mkdir($tmp);
     $dbFile = backup_database_file($tmp);
     // Ad tahmin edilemesin (sunucu .htaccess'i yok sayarsa bile yedek indirilemesin)
-    $name = 'dupcii-yedek-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(6)) . ($withFiles ? '-tam' : '') . '.zip';
+    $name = 'dupcii-yedek-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(6)) . ($withFiles ? '-tam' : '') . ($auto ? '-oto' : '') . '.zip';
     $zipPath = ($keep ? $dir : $tmp) . '/' . $name;
     $zip = new ZipArchive();
     if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Yedek dosyası oluşturulamadı.');
     $zip->addFile($dbFile, basename($dbFile));
-    $zip->addFromString('BENIOKU.txt', "dupcii yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: dosyayı data/ klasörüne koyun ve data/.dbname.php içindeki adı bu dosyanın adıyla değiştirin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
+    $zip->addFromString('BENIOKU.txt', "dupcii yedeği — " . now() . "\n\nGeri yüklemek için:\n- SQLite: data/.dbname.php dosyasında yazan adı bulun (ör. nm-....sqlite). Bu yedekteki dupcii-veritabani.sqlite dosyasını o adla yeniden adlandırıp data/ klasöründeki dosyanın yerine koyun; varsa aynı adlı -wal ve -shm dosyalarını silin.\n- MySQL: phpMyAdmin > İçe aktar ile .sql dosyasını yükleyin.\n" . ($withFiles ? "- uploads/ klasörünü sitenizdeki uploads/ klasörünün yerine koyun.\n" : "- Bu yedek yalnızca veritabanını içerir; dosyalar için 'Dosyalar dahil' yedeği alın.\n"));
     if ($withFiles) {
         foreach (glob(NM_ROOT . '/uploads/*.bin') ?: [] as $f) $zip->addFile($f, 'uploads/' . basename($f));
         foreach (glob(NM_ROOT . '/uploads/2*') ?: [] as $f) if (is_file($f) && !str_ends_with($f, '.bin')) $zip->addFile($f, 'uploads/' . basename($f));
@@ -402,11 +415,12 @@ function backup_create(bool $withFiles, bool $keep): string
     @unlink($dbFile);
     if ($keep) {
         @rmdir($tmp);
-        // En fazla 4 otomatik yedek sakla
+        // Son 4 otomatik ve son 8 elle alınmış yedek saklanır (elle alınanlar otomatikleri silmez)
         $all = array_merge(glob($dir . '/dupcii-yedek-*.zip') ?: [], glob($dir . '/nobetmed-yedek-*.zip') ?: []);
-        usort($all, fn($a, $b) => filemtime($a) <=> filemtime($b));
-        $all = array_reverse($all);
-        foreach (array_slice($all, 4) as $old) @unlink($old);
+        usort($all, fn($a, $b) => filemtime($b) <=> filemtime($a));
+        $autos = array_values(array_filter($all, fn($f) => str_ends_with($f, '-oto.zip')));
+        $manual = array_values(array_filter($all, fn($f) => !str_ends_with($f, '-oto.zip')));
+        foreach (array_merge(array_slice($autos, 4), array_slice($manual, 8)) as $old) @unlink($old);
     }
     return $zipPath;
 }

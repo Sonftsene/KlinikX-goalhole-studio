@@ -730,7 +730,7 @@ async function composerExtras(form, post) {
   if (box && !post) {
     try { TPL = (await api('templates.list')).items; } catch (e) { TPL = TPL || []; }
     if (TPL.length) setHTML(box, html`<div class="tpl-row"><span class="tiny faint">Şablondan başla:</span>${TPL.map((t) => html`<button type="button" class="chip-btn" data-tpl="${t.id}">${t.title}</button>`)}
-      ${isPublisher() ? html`<button type="button" class="chip-btn ghost" data-tpl-manage>${icon('sliders', 'sm')}</button>` : ''}</div>`);
+      ${isPublisher() ? html`<button type="button" class="chip-btn ghost" data-tpl-manage aria-label="Şablonları yönet" title="Şablonları yönet">${icon('sliders', 'sm')}</button>` : ''}</div>`);
     box.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-tpl]');
       if (b) {

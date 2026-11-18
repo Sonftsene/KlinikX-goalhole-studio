@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '3.10.1';
+const NM_VERSION = '3.10.2';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 12;
 const NM_ROOT = __DIR__ . '/..';
@@ -387,9 +387,17 @@ function nm_migrate(PDO $pdo): void
         // Blok yerleşimi: work (çalışıyor) | off (oflandı) | called (çağrıldı, listede yokken geldi) | standby (nöbete gelecek kişi)
         'placements' => ["status VARCHAR(10) NOT NULL DEFAULT 'work'"],
     ];
+    // Yalnız "sütun zaten var" hatası yok sayılır; başka bir hata (ör. veritabanı meşgul) olursa sürüm yazılmaz,
+    // böylece sonraki istekte güncelleme yeniden denenir (sütun eksik kalıp "no such column" hatası çıkmasın)
+    $incomplete = false;
     foreach ($cols as $t => $list) {
         foreach ($list as $def) {
-            try { $pdo->exec("ALTER TABLE $t ADD COLUMN $def"); } catch (Throwable $e) { /* zaten var */ }
+            try { $pdo->exec("ALTER TABLE $t ADD COLUMN $def"); }
+            catch (Throwable $e) {
+                if (stripos($e->getMessage(), 'duplicate column') !== false || (int)($e->errorInfo[1] ?? 0) === 1060) continue;
+                $incomplete = true;
+                error_log('[dupcii] göç: ' . $t . ' ' . $def . ': ' . $e->getMessage());
+            }
         }
     }
     if ($version < 4) {
@@ -447,8 +455,12 @@ function nm_migrate(PDO $pdo): void
     if ($version < 9) {
         try { $pdo->exec("UPDATE gs_sources SET mask_mode = 'surname', mask_cols = 'Hastanın Adı Soyadı' WHERE purpose = 'tablo' AND (mask_cols IS NULL OR mask_cols = '')"); } catch (Throwable $e) { /* */ }
     }
-    $pdo->exec("DELETE FROM settings WHERE k = 'schema_version'");
-    $pdo->exec("INSERT INTO settings (k, v) VALUES ('schema_version', '" . NM_SCHEMA . "')");
+    if ($incomplete) return; // sonraki istekte yeniden denenecek
+    $st = $pdo->prepare("UPDATE settings SET v = ? WHERE k = 'schema_version'");
+    $st->execute([(string)NM_SCHEMA]);
+    if ($st->rowCount() === 0) {
+        try { $pdo->prepare("INSERT INTO settings (k, v) VALUES ('schema_version', ?)")->execute([(string)NM_SCHEMA]); } catch (Throwable $e) { /* aynı anda başka istek yazdı */ }
+    }
 }
 
 function setting(string $k, string $default = '', bool $reset = false): string

@@ -58,7 +58,7 @@ function gs_tab_info(string $name): array
 function gs_kinds(array $src): array
 {
     $tabs = json_decode((string)($src['tabs'] ?? '[]'), true) ?: [];
-    $keep = gs_show_tabs($src);
+    $keep = gs_keep_for($src, array_map(fn($t) => (string)$t['name'], $tabs));
     $kinds = [];
     foreach ($tabs as $t) {
         if (empty($t['mo'])) continue;
@@ -165,11 +165,17 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
         gs_status($sid, 'Gelen dosya okunamadı: ' . $e->getMessage(), false);
         return ['changed' => false, 'error' => 'Dosya okunamadı'];
     }
+    // Hasta adları korunamıyorsa (sütun bulunamadı ya da başka sekmede farklı başlık) tablo hiç kaydedilmez
+    if (($src['purpose'] ?? '') === 'tablo' && ($src['mask_mode'] ?? 'none') !== 'none') {
+        $why = gs_mask_guard($model, gs_mask_headers($src));
+        if ($why !== null) { @unlink($file); gs_status($sid, $why . ' Hasta adları korunamadığı için tablo kaydedilmedi; tablonun yanındaki “Değiştir” ile sütun başlığını düzeltin.', false); return ['changed' => false, 'error' => 'Ad kısaltma doğrulanamadı']; }
+    }
     // Ayar değişince yeniden işlenebilsin diye (kısaltılmış) tam kopya korumalı data/ klasöründe tutulur
     $raw = gs_raw_path($sid);
     if ($raw !== $file) @copy($file, $raw);
     // Yalnızca görüntülenen tablo: seçilmeyen sekmelerin içeriği uygulamaya kaydedilen dosyadan çıkarılır
-    $keep = gs_show_tabs($src);
+    $keep = gs_keep_for($src, array_map(fn($sh) => (string)$sh['name'], $model['sheets']));
+    if ($keep === ['<yok>']) { @unlink($file); gs_status($sid, 'Seçili görünen sekmeler tabloda artık yok (adı değişmiş olabilir); güvenlik için tablo kaydedilmedi. “Görünen sekmeler › Seç” ile yeniden seçin.', false); return ['changed' => false, 'error' => 'Seçili sekmeler bulunamadı']; }
     if ($keep) {
         try { gs_strip_xlsx($file, $keep); }
         catch (Throwable $e) { @unlink($file); gs_status($sid, 'Sekmeler ayıklanamadı; güvenlik için tablo kaydedilmedi: ' . $e->getMessage(), false); return ['changed' => false, 'error' => 'Sekmeler ayıklanamadı']; }
@@ -617,6 +623,31 @@ function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
 /* Kişisel veri: ad sütunlarını kısaltma                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Kısaltma güvenlik denetimi: ayarlı başlık hiçbir sekmede yoksa ya da bir sekmede hasta adı gibi görünen
+ * başka bir başlık (ör. "Hasta Adı Soyadı") varsa hata metni döner.
+ */
+function gs_mask_guard(array $model, array $headers): ?string
+{
+    $want = array_values(array_filter(array_map('gs_fold', $headers)));
+    $found = false;
+    $risky = [];
+    foreach ($model['sheets'] ?? [] as $sh) {
+        foreach ($sh['cells'] ?? [] as $k => $cell) {
+            if (intdiv((int)$k, 100000) > 20) continue; // başlık satırları tablonun başındadır
+            $f = gs_fold((string)($cell['text'] ?? ''));
+            if ($f === '' || strlen($f) > 40) continue;
+            $hit = false;
+            foreach ($want as $w) if ($f === $w || strpos($f, $w) !== false) { $hit = true; break; }
+            if ($hit) { $found = true; continue; }
+            if (strpos($f, 'hasta') !== false && preg_match('/adi|adsoyad|soyad|isim/', $f)) $risky[(string)$cell['text']] = (string)$sh['name'];
+        }
+    }
+    if ($risky) { $h = array_key_first($risky); return '“' . $h . '” sütunu (“' . $risky[$h] . '” sekmesi) kısaltma ayarında yok.'; }
+    if (!$found) return '“' . implode('”, “', $headers) . '” başlıklı sütun tabloda bulunamadı.';
+    return null;
+}
+
 function gs_mask_headers(array $src): array
 {
     return array_values(array_filter(array_map('trim', preg_split('/[,;\n]+/u', (string)($src['mask_cols'] ?? '')) ?: []), fn($x) => $x !== ''));
@@ -731,6 +762,25 @@ function gs_raw_path(int $sid): string
     $dir = NM_ROOT . '/data/gs';
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     return $dir . '/kaynak-' . $sid . '.xlsx';
+}
+
+/**
+ * Görünen sekmeler, tablodaki güncel sekme adlarına göre ([] = hepsi).
+ * Nöbet tablolarında yalnız çıkarılan sekmeler saklanır ({"hide": [...]}) — yeni ayın sekmesi kendiliğinden gelir.
+ * Hasta listesi gibi tablolarda seçilenler saklanır (yeni sekme kendiliğinden görünmez).
+ * Seçim var ama hiçbiri tabloda yoksa ['<yok>'] döner: güvenli tarafta kal (hiçbir sekme gösterilmez).
+ */
+function gs_keep_for(array $src, array $allNames): array
+{
+    $j = json_decode((string)($src['show_tabs'] ?? ''), true);
+    if (!is_array($j) || !$j) return [];
+    if (isset($j['hide'])) {
+        $hide = array_map('strval', (array)$j['hide']);
+        $keep = array_values(array_filter($allNames, fn($n) => !in_array($n, $hide, true)));
+        return count($keep) === count($allNames) ? [] : ($keep ?: ['<yok>']);
+    }
+    $keep = array_values(array_intersect(array_map('strval', $j), $allNames));
+    return $keep ?: ['<yok>'];
 }
 
 function gs_show_tabs(array $src): array

@@ -230,7 +230,7 @@ $routes[$action]();
 function out(array $data = [], int $code = 200): void
 {
     http_response_code($code);
-    echo json_encode(['ok' => true] + $data + ['csrf' => $_SESSION['csrf'] ?? ''], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => true] + $data + ['csrf' => $_SESSION['csrf'] ?? '', 'v' => NM_VERSION], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -731,8 +731,8 @@ function a_google(): void
         if ($mode === 'closed') fail('Bu Google hesabıyla kayıtlı bir üye yok ve yeni kayıt kapalı.', 403);
         $status = $mode === 'open' ? 'active' : 'pending';
         $name = mb_substr((string)($info['name'] ?? explode('@', $email)[0]), 0, 120);
-        q('INSERT INTO users (name, email, google_sub, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [$name, $email, $sub, 'member', $status, now()]);
+        q('INSERT INTO users (name, email, google_sub, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$name, $email, $sub, 'member', $status, now(), default_notify_mode()]);
         $u = one('SELECT * FROM users WHERE id = ?', [insert_id()]);
         if ($status === 'pending') notify_pending_user(['name' => $name, 'email' => $email]);
     } elseif (empty($u['google_sub'])) {
@@ -779,7 +779,14 @@ function a_me_update(): void
     if ($only) out();
     $name = s('name', 120);
     if (mb_strlen($name) < 3) fail('Ad soyad en az 3 karakter olmalıdır.');
-    q('UPDATE users SET name = ? WHERE id = ?', [$name, $me['id']]);
+    if ($name !== (string)$me['name']) {
+        // Nöbetler ada göre eşleştiği için başka bir kişinin adı alınamaz
+        foreach (all("SELECT id, name FROM users WHERE status IN ('active', 'pending') AND id <> ?", [$me['id']]) as $o) {
+            if (names_match((string)$o['name'], $name)) fail('Bu ad başka bir kullanıcıya ait. Adınız farklıysa yöneticinize başvurun.');
+        }
+        q('UPDATE users SET name = ? WHERE id = ?', [$name, $me['id']]);
+        audit($me, 'user.edit', $me['name'] . ' → ' . $name, 'Ad değişikliği (kendisi)');
+    }
     out();
 }
 
@@ -792,7 +799,7 @@ function a_me_password(): void
     $forced = (int)($me['must_change'] ?? 0) === 1;
     if (!$forced && !empty($me['password_hash']) && !password_verify($cur, $me['password_hash'])) fail('Mevcut şifre hatalı.');
     validate_password($new);
-    if (!empty($me['password_hash']) && password_verify($new, $me['password_hash'])) fail('Yeni şifre geçici şifreden farklı olmalıdır.');
+    if (!empty($me['password_hash']) && password_verify($new, $me['password_hash'])) fail($forced ? 'Yeni şifre geçici şifreden farklı olmalıdır.' : 'Yeni şifre mevcut şifrenizden farklı olmalıdır.');
     q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $me['id']]);
     q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$me['id']]);
     out();
@@ -1061,20 +1068,21 @@ function a_posts_remind(): void
     $p = one('SELECT * FROM posts WHERE id = ?', [$id]);
     if (!$p || $p['status'] !== 'published' || !(int)$p['required']) fail('Yalnızca yayınlanmış zorunlu okumalar için hatırlatma gönderilebilir.');
     if (!is_publisher($me) && (int)$p['author_id'] !== (int)$me['id']) fail('Hatırlatma gönderme yetkiniz yok.', 403);
-    if (!mail_ready()) fail('E-posta gönderimi ayarlanmamış. Yönetim › Ayarlar › E-posta bölümünden ayarlayın.');
     $last = (int)setting('remind_' . $id, '0');
     if ($last > time() - 600) fail('Bu içerik için az önce hatırlatma gönderildi. Lütfen birkaç dakika sonra tekrar deneyin.', 429);
     $params = [':pid' => $id];
     $unitCond = '';
     if ($p['unit_id'] !== null) { $unitCond = ' AND u.unit_id = :unit'; $params[':unit'] = (int)$p['unit_id']; }
-    $missing = all("SELECT u.id, u.name, u.email, u.email_notify FROM users u WHERE u.status = 'active'$unitCond AND NOT EXISTS (SELECT 1 FROM acks k WHERE k.post_id = :pid AND k.user_id = u.id)", $params);
+    $missing = all("SELECT u.id, u.name, u.email, u.email_notify, u.notify_mode, u.push_on FROM users u WHERE u.status = 'active'$unitCond AND NOT EXISTS (SELECT 1 FROM acks k WHERE k.post_id = :pid AND k.user_id = u.id)", $params);
     if (!$missing) fail('Herkes okumuş, hatırlatılacak kimse yok.');
-    $n = mail_queue_to($missing, 'Hatırlatma: ' . $p['title'],
-        'Okumanızı bekleyen bir içerik var',
-        ['“' . $p['title'] . '” zorunlu okuma olarak paylaşıldı ve henüz onayınızı almadık. Lütfen okuyup “Okudum, anladım” ile onaylayın.'],
-        'Şimdi oku', base_url() . '#/p/' . $id, 'remind', false);
+    // Uygulama içi + telefon bildirimi herkese; e-posta yalnız bildirimleri kapatmamış olanlara
+    $n = notify_users($missing, 'remind', 'Hatırlatma: ' . $p['title'], 'Zorunlu okuma henüz onaylanmadı. Lütfen okuyup “Okudum, anladım” ile onaylayın.', '#/p/' . $id, [
+        'subject' => 'Hatırlatma: ' . $p['title'], 'heading' => 'Okumanızı bekleyen bir içerik var',
+        'lines' => ['“' . $p['title'] . '” zorunlu okuma olarak paylaşıldı ve henüz onayınızı almadık. Lütfen okuyup “Okudum, anladım” ile onaylayın.'],
+        'button' => 'Şimdi oku',
+    ], 'notoff');
     set_setting('remind_' . $id, (string)time());
-    out(['sent' => $n]);
+    out(['sent' => $n, 'notified' => count($missing)]);
 }
 
 function a_posts_share(): void
@@ -1453,6 +1461,13 @@ function a_rosters_restore(): void
 /* Yönetim                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Yöneticinin seçtiği varsayılan e-posta bildirimi (yeni hesaplar için) */
+function default_notify_mode(): string
+{
+    $m = setting('default_notify_mode', 'instant');
+    return in_array($m, ['instant', 'digest', 'off'], true) ? $m : 'instant';
+}
+
 function a_admin_users(): void
 {
     need_admin();
@@ -1494,7 +1509,7 @@ function a_admin_user_save(): void
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
         if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $id]);
         audit($me, $approved ? 'user.approve' : 'user.edit', $name, 'Yetki: ' . $role . ', durum: ' . $status);
-        if ($approved) notify_user_approved(['name' => $name, 'email' => $email]);
+        if ($approved) notify_user_approved(['name' => $name, 'email' => $email, 'password_hash' => $u['password_hash'] ?? null, 'google_sub' => $u['google_sub'] ?? null]);
         out(['id' => $id]);
     }
     $pw = (string)($IN['password'] ?? '');
@@ -1507,6 +1522,7 @@ function a_admin_user_save(): void
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now()]);
     $newId = insert_id();
+    q('UPDATE users SET notify_mode = ? WHERE id = ?', [default_notify_mode(), $newId]);
     if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $newId]);
     audit($me, 'user.create', $name, $email);
     $mailed = b('send_email') ? send_credentials(['name' => $name, 'email' => $email], $pw, true) : 0;

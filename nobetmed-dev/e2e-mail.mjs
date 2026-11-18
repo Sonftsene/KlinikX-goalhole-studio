@@ -162,7 +162,7 @@ await waitMail((x) => x.to === 'elif@ornek.com' && /Okumanız gereken: El hijyen
 await a.click('.post >> text=El hijyeni');
 await a.click('[data-act=readers-tab][data-tab=missing]');
 await a.click('[data-act=remind]');
-await text(a, 'hatırlatma e-postası');
+await text(a, 'kişiye hatırlatma gönderildi');
 await waitMail((x) => x.to === 'elif@ornek.com' && /Hatırlatma: El hijyeni/.test(x.subject), 'hatırlatma e-postası');
 await a.keyboard.press('Escape');
 step('zorunlu duyuru e-postası ve okumayanlara hatırlatma gitti');

@@ -54,10 +54,10 @@ function swap_timeline(int $rid, string $from, string $to): array
  * Kabul edilmiş ama henüz Excel'e işlenmemiş değişimleri/devirleri ve seçilmiş eksik çağrılarını zaman çizelgesine uygular.
  * Kural denetimleri (değişim seçenekleri, ilan uygunluğu, çağrı adayları) böylece aynı nöbetin iki kez verilmesine izin vermez.
  */
-function swap_pending_overlay(array $tl, string $from, string $to): array
+function swap_pending_overlay(array $tl, string $from, string $to, int $rid = 0): array
 {
     $mv = function (string $k, string $name) use (&$tl): void { if (!isset($tl[$k])) $tl[$k] = ['name' => $name, 'title' => null, 'days' => []]; };
-    foreach (all("SELECT * FROM swap_requests WHERE status = 'accepted' AND ((from_date >= ? AND from_date <= ?) OR (to_date >= ? AND to_date <= ?))", [$from, $to, $from, $to]) as $r) {
+    foreach (all("SELECT * FROM swap_requests WHERE status = 'accepted' AND ((from_date >= ? AND from_date <= ?) OR (to_date >= ? AND to_date <= ?))" . ($rid ? ' AND roster_id = ' . $rid : ''), [$from, $to, $from, $to]) as $r) {
         $gk = swap_key((string)$r['from_name']); $tk = swap_key((string)$r['to_name']);
         $gRow = $tl[$gk]['days'][$r['from_date']] ?? null;
         if (!$gRow || ($gRow['kind'] ?? '') !== 'shift') continue; // başka listenin değişimi ya da zaten işlenmiş
@@ -93,7 +93,8 @@ function swap_interval(string $date, array $row): ?array
     $en = $row['end_time'] ?? null;
     if (!$st || !$en) {
         $h = (int)($row['hours'] ?? 0);
-        if ($h <= 0) return null;
+        // Saati bilinmeyen nöbet kodu (sözlükte yok): kurallar atlanmasın diye en temkinli varsayım 08:00'den 24 saat
+        if ($h <= 0) $h = 24;
         $s = strtotime($date . ' 08:00');
         return [$s, $s + $h * 3600];
     }
@@ -191,7 +192,7 @@ function swap_options(array $me, string $date): array
     $rid = (int)$mine['roster_id'];
     $from = date('Y-m-d', strtotime($date . ' -45 days'));
     $to = date('Y-m-d', strtotime($date . ' +45 days'));
-    $tl = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to);
+    $tl = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to, $rid);
     $mk = swap_key((string)$mine['name']);
     if (!isset($tl[$mk])) throw new RuntimeException('Listede adın bulunamadı.');
     if (!isset($tl[$mk]['days'][$date])) throw new RuntimeException('Bu nöbetin için kabul edilmiş bir değişim/devir zaten var.');

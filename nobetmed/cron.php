@@ -3,7 +3,7 @@
  * Zamanlanmış görevler: e-posta kuyruğu, sabah özeti, nöbet hatırlatmaları, okuma hatırlatmaları,
  * belge gözden geçirme uyarıları ve haftalık yedek.
  * Bu görevler site ziyaret edildikçe de arka planda çalışır; cron saatinde çalışmalarını garanti eder.
- * Hostinger hPanel › Gelişmiş › Cron Jobs: her 10 dakikada bir
+ * Hostinger hPanel › Gelişmiş › Cron Jobs: her 5 dakikada bir
  *   /usr/bin/php /home/u123456789/domains/alanadiniz.com/public_html/cron.php
  */
 declare(strict_types=1);

@@ -23,7 +23,7 @@ function prefs_clean_ui(array $in): array
     $o = [];
     if (in_array($in['theme'] ?? '', ['light', 'dark', 'auto'], true)) $o['theme'] = $in['theme'];
     if (in_array($in['accent'] ?? '', PREFS_ACCENTS, true)) $o['accent'] = $in['accent'];
-    if (in_array($in['fs'] ?? '', ['', 'lg'], true)) $o['fs'] = $in['fs'];
+    if (array_key_exists('fs', $in) && in_array($in['fs'], ['', 'lg'], true)) $o['fs'] = $in['fs'];
     if (in_array($in['shape'] ?? '', ['round', 'sharp'], true)) $o['shape'] = $in['shape'];
     if (in_array($in['density'] ?? '', ['cozy', 'compact'], true)) $o['density'] = $in['density'];
     if (isset($in['oled'])) $o['oled'] = (bool)$in['oled'];
@@ -104,7 +104,12 @@ function a_me_prefs_save(): void
         q('UPDATE users SET pay_rates = ? WHERE id = ?', [json_encode(prefs_clean_pay($val), JSON_UNESCAPED_UNICODE), $me['id']]);
     } elseif ($kind === 'remind') {
         if (!empty($val['reset'])) q('UPDATE users SET remind_prefs = NULL WHERE id = ?', [$me['id']]);
-        else q('UPDATE users SET remind_prefs = ? WHERE id = ?', [json_encode(prefs_clean_remind($val, prefs_json($u['remind_prefs'] ?? null))), $me['id']]);
+        else {
+            $old = prefs_json($u['remind_prefs'] ?? null);
+            // Genel hatırlatma bugün zaten gönderildiyse kişisel "bir gün önce" bugün tekrar gönderilmesin
+            if (!isset($old['_d']) && setting('shift_remind_last') === date('Y-m-d')) $old['_d'] = date('Y-m-d');
+            q('UPDATE users SET remind_prefs = ? WHERE id = ?', [json_encode(prefs_clean_remind($val, $old)), $me['id']]);
+        }
     } else {
         fail('Geçersiz tercih.');
     }
@@ -167,12 +172,13 @@ function job_remind_personal(bool $force = false): ?int
         // 2) Nöbet başlamadan X saat önce
         if (!empty($p['pre']['on'])) {
             $lead = max(1, min(12, (int)($p['pre']['hours'] ?? 2))) * 3600;
+            usort($mine, fn($a, $b) => strcmp($a['date'] . ' ' . $a['start_time'], $b['date'] . ' ' . $b['start_time']));
             foreach ($mine as $s) {
                 if (!$s['start_time']) continue;
                 $start = strtotime($s['date'] . ' ' . $s['start_time']);
                 if ($start === false || $start <= $now || $start - $now > $lead) continue;
                 $key = $s['date'] . ' ' . $s['start_time'];
-                if (($p['_p'] ?? '') === $key) continue;
+                if (strcmp($key, (string)($p['_p'] ?? '')) <= 0) continue; // bu ya da daha önceki nöbet için gönderildi (sırayla, bir kez)
                 $p['_p'] = $key; $dirty = true;
                 $mins = (int)round(($start - $now) / 60);
                 $left = $mins >= 60 ? intdiv($mins, 60) . ' saat' . ($mins % 60 ? ' ' . ($mins % 60) . ' dk' : '') : $mins . ' dk';
@@ -181,7 +187,11 @@ function job_remind_personal(bool $force = false): ?int
                 break;
             }
         }
-        if ($dirty) q('UPDATE users SET remind_prefs = ? WHERE id = ?', [json_encode($p), $u['id']]);
+        if ($dirty) {
+            // Görev çalışırken kişi ayarını değiştirmiş olabilir: yalnız gönderim kayıtlarını güncelle
+            $cur = prefs_json((string)val('SELECT remind_prefs FROM users WHERE id = ?', [$u['id']]));
+            if ($cur) { $cur['_d'] = $p['_d'] ?? ($cur['_d'] ?? null); $cur['_p'] = $p['_p'] ?? ($cur['_p'] ?? null); q('UPDATE users SET remind_prefs = ? WHERE id = ?', [json_encode($cur), $u['id']]); }
+        }
     }
     return $sent ?: null;
 }

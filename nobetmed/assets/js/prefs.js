@@ -256,6 +256,7 @@ function mountCountdown(anchor, my) {
   if (!se) return;
   const [st, en] = se;
   const target = cur ? en : st;
+  if (target <= Date.now()) return; // bitiş saati bilinmeyen başlamış nöbet: sonsuz yenileme döngüsüne girme
   if (!cur && target - Date.now() > 14 * DAY_MS) return;
   const box = document.createElement('div');
   box.id = 'cdBox';
@@ -557,5 +558,8 @@ ACT['hol-del'] = async (el) => {
   try { RL.data = await api('holidays.save', { date: el.dataset.d, name: '' }); drawHolidays(); syncHolidaysToBoot(); } catch (e) { toast(e.message, 'err'); }
 };
 function syncHolidaysToBoot() {
-  S.holidays = (RL.data.holidays || []).map((h) => Object.assign({ kind: /ramazan|kurban/i.test(h.name) ? 'bayram' : 'resmi' }, h));
+  const fresh = (RL.data.holidays || []).map((h) => Object.assign({ kind: /ramazan|kurban/i.test(h.name) ? 'bayram' : 'resmi' }, h));
+  const from = fresh.length ? fresh[0].date.slice(0, 4) + '-01-01' : '9999';
+  // rules.get bu yıldan itibaren döner; önceki yılın tatilleri (geçmiş ay hesapları için) korunur
+  S.holidays = [...(S.holidays || []).filter((h) => h.date < from), ...fresh];
 }

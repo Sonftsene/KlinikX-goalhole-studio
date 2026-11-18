@@ -64,8 +64,9 @@ function pl_units_all(): array
     return pl_unit_side() + [PL_TEAM => ''];
 }
 
-function pl_unit_label(string $u): string
+function pl_unit_label($u): string
 {
+    $u = (string)$u; // yalnız rakamdan oluşan birim adı dizi anahtarında tam sayıya dönüşebilir
     return $u === PL_TEAM ? pl_team()['name'] : $u;
 }
 
@@ -415,6 +416,12 @@ function pl_auto(string $date, array $people, array $needs, bool $hasNeeds, arra
                             $cands[] = $k;
                         }
                         if (!$cands) continue;
+                        // Önce yalnız eksik olan dönem(ler)i dolduran kişiler: gündüz eksiğine 24 saatlik biri gönderilip gece fazlası ve gereksiz geçiş oluşmasın
+                        $fit = array_values(array_filter($cands, function ($k) use ($people, $load, $dk, $sideNeed) {
+                            foreach ($people[$k]['periods'] as $q) if ($load($dk, $q) >= $sideNeed[$dk][$q]) return false;
+                            return true;
+                        }));
+                        if ($fit) $cands = $fit;
                         $min = min(array_map(fn($k) => $info[$k]['cross'], $cands));
                         $group = array_values(array_filter($cands, fn($k) => $info[$k]['cross'] === $min));
                         $win = $group[random_int(0, count($group) - 1)];
@@ -489,9 +496,9 @@ function pl_auto(string $date, array $people, array $needs, bool $hasNeeds, arra
 }
 
 /** Birim kısaltması: "A blok" -> "A" */
-function pl_short(string $u): string
+function pl_short($u): string
 {
-    $u = pl_unit_label($u);
+    $u = pl_unit_label((string)$u);
     return preg_match('/^(\S)/u', trim($u), $m) ? mb_strtoupper($m[1]) : '?';
 }
 

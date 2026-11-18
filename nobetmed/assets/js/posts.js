@@ -121,8 +121,11 @@ async function logout() {
   offlineCacheClear();
   if (typeof resetAppState === 'function') resetAppState();
   if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
-  location.hash = '';
-  await start();
+  // Ortak cihaz: taslaklar ve görünüm tercihleri bir sonraki kişiye geçmesin
+  try { Object.keys(localStorage).filter((k) => k.startsWith('nm-draft-')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* */ }
+  if (typeof applyUi === 'function') applyUi({ theme: 'auto', accent: 'varsayilan', fs: '', shape: 'round', density: 'cozy', oled: false });
+  // Sayfayı tamamen yenile: modüllerin bellekteki durumu (seçili kişi, kaydedilmemiş öneri vb.) temizlensin
+  location.replace(location.pathname);
 }
 // Telefonda arama kutusu üst çubuğu kaplayarak açılır
 ACT['search-open'] = () => {
@@ -505,7 +508,7 @@ function detailReadersHtml(p) {
             : html`<div class="list-row muted small">${DETAIL.tab === 'readers' ? 'Henüz kimse onaylamadı.' : 'Herkes okudu.'}</div>`}
         </div>
         ${DETAIL.tab === 'missing' && p.missing.length ? html`<div class="row wrap" style="padding:10px 18px 14px">
-          ${S.settings.mail_ready ? html`<button class="btn sm primary" data-act="remind">${icon('send', 'sm')}Okumayanlara e-posta ile hatırlat</button>` : ''}
+          <button class="btn sm primary" data-act="remind">${icon('send', 'sm')}Okumayanlara hatırlat</button>
           <button class="btn sm" data-act="copy-missing">${icon('copy', 'sm')}Listeyi kopyala</button></div>` : ''}
       </div>`;
   }
@@ -540,7 +543,7 @@ ACT['close-and-go'] = (el) => {
 ACT.remind = (el) => busy(el, async () => {
   try {
     const r = await api('posts.remind', { id: DETAIL.post.id });
-    toast(`${r.sent} kişiye hatırlatma e-postası gönderiliyor`);
+    toast(`${r.notified || r.sent} kişiye hatırlatma gönderildi${r.sent ? ` · ${r.sent} e-posta` : ''}`);
   } catch (e) { toast(e.message, 'err'); }
 });
 ACT['copy-missing'] = async () => {

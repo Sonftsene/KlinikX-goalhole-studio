@@ -173,7 +173,7 @@ Takvimde kendi nöbet gününüze dokunup **Değiş / Devret** deyin: yalnızca 
 ## 10. Yedekleme
 
 - **Ayarlar → Yedekleme:** tek tıkla veritabanı yedeği veya dosyalar dahil tam yedek indirilir.
-- Veritabanı **her hafta otomatik** yedeklenir; son 4 yedek `data/backups` klasöründe saklanır (tarayıcıdan erişilemez).
+- Veritabanı **her hafta otomatik** yedeklenir; son 4 otomatik ve son 8 elle alınmış yedek `data/backups` klasöründe saklanır (tarayıcıdan erişilemez). Yedeklere kişilerin ücret bilgileri girmez.
 
 Tüm veriler iki yerdedir: `data/` (veritabanı ve yedekler) ve `uploads/` (yüklenen dosyalar). Hostinger'ın otomatik yedekleri de bunları kapsar.
 
@@ -196,7 +196,7 @@ Siteyi telefonda açın → tarayıcı menüsü → **Ana ekrana ekle**. Portal,
 
 ## 13. Zamanlanmış görevler (cron) — önerilir
 
-hPanel → **Gelişmiş → Cron Jobs** → *Özel*: her **10 dakikada** bir şu komut:
+hPanel → **Gelişmiş → Cron Jobs** → *Özel*: her **5 dakikada** bir şu komut:
 
 ```
 /usr/bin/php /home/u123456789/domains/alanadiniz.com/public_html/cron.php

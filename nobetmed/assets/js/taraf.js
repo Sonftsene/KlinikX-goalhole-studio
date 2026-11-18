@@ -198,7 +198,7 @@ ACT['gs-mask'] = (el) => {
       <div class="field"><label>Biçim</label><select class="select" id="gmMode">
         <option value="surname" ${src.mask_mode === 'surname' ? raw('selected') : ''}>Ad + soyadın baş harfi (Ayşe Y.)</option>
         <option value="initials" ${src.mask_mode === 'initials' ? raw('selected') : ''}>Yalnızca baş harfler (A. Y.)</option>
-        <option value="none" ${src.mask_mode === 'none' ? raw('selected') : ''}>Kısaltma (önerilmez)</option></select></div></div>`,
+        <option value="none" ${src.mask_mode === 'none' ? raw('selected') : ''}>Kısaltılmasın (önerilmez — hasta listesinde kullanmayın)</option></select></div></div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
   m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     try {
@@ -213,7 +213,7 @@ ACT['gs-tabs'] = (el) => {
   if (!src) return;
   const on = (n) => !src.show_tabs || src.show_tabs.includes(n);
   const m = openModal({ title: 'Görünen sekmeler', size: 'narrow', body: html`<div class="stack">
-      <p class="small muted">Ekip yalnızca işaretlediğiniz sekmeleri görür. İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez (indirilen dosyada da bulunmaz).${src.purpose === 'nobet' ? ' Çıkarılan sekmelerdeki nöbetler de okunmaz (takvim, kim nöbette, değişim).' : ''}</p>
+      <p class="small muted">Ekip yalnızca işaretlediğiniz sekmeleri görür; işaretlenmeyenlerin içeriği ekibin açtığı ve indirdiği dosyada bulunmaz.${src.purpose === 'nobet' ? ' Çıkarılan sekmelerdeki nöbetler de okunmaz (takvim, kim nöbette, değişim). Tabloya yeni eklenen ay sekmeleri kendiliğinden görünür.' : ' Tabloya sonradan eklenen sekmeler siz seçene kadar görünmez.'}</p>
       <div class="card"><div class="list">${src.tab_names.map((n) => html`<label class="list-row" style="gap:10px;cursor:pointer"><input type="checkbox" value="${n}" ${on(n) ? raw('checked') : ''}><span class="grow">${n}</span></label>`)}</div></div></div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
   m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
@@ -282,9 +282,9 @@ function swapRulesCardHtml(A) {
   if (!isAdmin()) return '';
   return html`<div class="card card-pad stack" data-sec="nobet">
     <div><h3 style="font-size:15px">${icon('history', 'sm')} Nöbet kuralları</h3><p class="small muted">Değiş / Devret, nöbet ilanı ve eksik personel çağrısında yalnızca bu kurallara uyan kişiler ve günler çıkar.</p></div>
-    <div class="row wrap"><span class="small muted">Üst üste en fazla</span><input class="input" type="number" id="swCont" min="8" max="72" value="${A.swap_max_cont || 24}" style="width:80px"><span class="small muted">saat çalışılabilir (24 = 24 saatlik nöbet çıkışına yeni nöbet eklenemez)</span></div>
-    <div class="row wrap"><span class="small muted">İki nöbet arasında en fazla</span><input class="input" type="number" id="swGap" min="1" max="30" value="${A.swap_max_gap || 4}" style="width:80px"><span class="small muted">boş gün olabilir (4 = 5 günlük boşluk olamaz; izinli günler boşluk sayılmaz)</span></div>
-    <div class="row wrap"><span class="small muted">Nöbetten çıkan en az</span><input class="input" type="number" id="swRest" min="0" max="48" value="${A.swap_rest ?? 16}" style="width:80px"><span class="small muted">saat dinlenmeden yeni nöbete giremez (değişim, devir, ilan ve eksik personel çağrısında uygulanır)</span></div>
+    <div class="row wrap"><span class="small muted">Üst üste en fazla</span><input class="input" type="number" id="swCont" aria-label="Üst üste en fazla saat" min="8" max="72" value="${A.swap_max_cont || 24}" style="width:80px"><span class="small muted">saat çalışılabilir (24 = 24 saatlik nöbet çıkışına yeni nöbet eklenemez)</span></div>
+    <div class="row wrap"><span class="small muted">İki nöbet arasında en fazla</span><input class="input" type="number" id="swGap" aria-label="En fazla boş gün" min="1" max="30" value="${A.swap_max_gap || 4}" style="width:80px"><span class="small muted">boş gün olabilir (4 = 5 günlük boşluk olamaz; izinli günler boşluk sayılmaz)</span></div>
+    <div class="row wrap"><span class="small muted">Nöbetten çıkan en az</span><input class="input" type="number" id="swRest" aria-label="En az dinlenme saati" min="0" max="48" value="${A.swap_rest ?? 16}" style="width:80px"><span class="small muted">saat dinlenmeden yeni nöbete giremez (değişim, devir, ilan ve eksik personel çağrısında uygulanır)</span></div>
     <div><button type="button" class="btn" data-act="swap-rules">Kuralları kaydet</button></div></div>`;
 }
 ACT['swap-rules'] = (el) => busy(el, async () => {

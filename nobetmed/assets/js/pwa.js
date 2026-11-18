@@ -14,6 +14,9 @@ function registerSW() {
   sw.addEventListener('controllerchange', () => {
     if (!hadController) { hadController = true; return; }
     if (reloading) return;
+    // Bu sekmede kaydedilmemiş iş varsa (açık pencere, kaydedilmemiş blok yerleşimi/istek) kendiliğinden yenileme
+    const dirty = (typeof modalStack !== 'undefined' && modalStack.length) || (typeof PL !== 'undefined' && PL && PL.dirty);
+    if (dirty) { if (typeof newVersionNotice === 'function') newVersionNotice('yeni'); return; }
     reloading = true;
     location.reload();
   });

@@ -29,7 +29,7 @@ function gs_admin_out(): array
             $st = (string)$s['status'];
             return ['id' => (int)$s['id'], 'name' => $s['name'], 'purpose' => $s['purpose'], 'sheet_id' => $s['sheet_id'], 'title' => $s['title'],
                 'seen' => $s['seen'], 'changed' => $s['changed'], 'status' => ltrim($st, '!'), 'status_ok' => $st === '' || $st[0] !== '!', 'fallback' => (bool)$s['fallback'],
-                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [], 'mask_mode' => $s['mask_mode'] ?? 'none', 'mask_cols' => (string)($s['mask_cols'] ?? ''), 'show_tabs' => gs_show_tabs($s) ?: null,
+                'kinds' => $s['purpose'] === 'nobet' ? gs_kinds($s) : [], 'mask_mode' => $s['mask_mode'] ?? 'none', 'mask_cols' => (string)($s['mask_cols'] ?? ''), 'show_tabs' => (($k = gs_keep_for($s, array_map(fn($t) => (string)$t['name'], json_decode((string)($s['tabs'] ?? '[]'), true) ?: []))) && $k !== ['<yok>']) ? $k : ($k === ['<yok>'] ? [] : null),
                 'tab_names' => array_values(array_map(fn($t) => (string)$t['name'], json_decode((string)($s['tabs'] ?? '[]'), true) ?: [])),
                 'rosters' => array_values(array_map(fn($r) => (int)$r['id'], array_filter($rosters, fn($r) => (int)$r['src_on'] === 1 && (int)$r['src_source'] === (int)$s['id'])))];
         }, gs_sources()),
@@ -112,7 +112,10 @@ function a_gsync_source_tabs(): void
     $src = gs_source((int)i('id')) ?? fail('Tablo bulunamadı.', 404);
     $all = array_map(fn($t) => (string)$t['name'], json_decode((string)($src['tabs'] ?? '[]'), true) ?: []);
     $want = array_values(array_intersect($all, array_map('strval', arr('tabs'))));
-    gs_src_set((int)$src['id'], ['show_tabs' => $want ? json_encode($want, JSON_UNESCAPED_UNICODE) : null, 'hash' => null]);
+    // Nöbet tablosu: çıkarılanlar saklanır (yeni ay sekmeleri kendiliğinden gelsin); diğerleri: seçilenler
+    $store = !$want || count($want) === count($all) ? null
+        : json_encode($src['purpose'] === 'nobet' ? ['hide' => array_values(array_diff($all, $want))] : $want, JSON_UNESCAPED_UNICODE);
+    gs_src_set((int)$src['id'], ['show_tabs' => $store, 'hash' => null]);
     // Eski sürümlerde artık görünmemesi gereken sekmeler olabilir: sil, son veriyi yeni seçimle yeniden işle
     $old = [];
     foreach (all('SELECT f.id, f.attachment_id FROM roster_files f JOIN rosters r ON r.id = f.roster_id WHERE r.src_source = ?', [$src['id']]) as $f) { $old[] = (int)$f['attachment_id']; q('DELETE FROM roster_files WHERE id = ?', [$f['id']]); }
@@ -226,9 +229,9 @@ function side_move_out(array $m, ?array $me): array
 {
     return ['id' => (int)$m['id'], 'date' => $m['date'], 'name' => $m['name'], 'user_id' => $m['user_id'] !== null ? (int)$m['user_id'] : null,
         'from' => $m['from_side'], 'to' => $m['to_side'], 'unit' => $m['unit'], 'code' => $m['code'], 'counted' => (bool)$m['counted'],
-        'method' => $m['method'], 'pool' => json_decode((string)$m['pool'], true), 'note' => $m['note'],
+        'method' => $m['method'], 'pool' => $me && is_publisher($me) ? json_decode((string)$m['pool'], true) : null, 'note' => $me && is_publisher($me) ? $m['note'] : null,
         'by' => $m['by_name'] ?? null, 'at' => $m['created_at'],
-        'can_delete' => $me && (is_publisher($me) || (int)$m['created_by'] === (int)$me['id'])];
+        'can_delete' => $me && is_publisher($me)];
 }
 
 function a_side_get(): void
@@ -304,8 +307,8 @@ function a_side_day(): void
 
 function side_need_recorder(array $me, string $date): void
 {
-    if (is_publisher($me)) return;
-    if (side_on_duty($me, $date) === null) fail('Kaydı yalnızca o gün nöbette olanlar veya sorumlular yapabilir.', 403);
+    // Geçiş sayıları kurayı belirlediği için kaydı yalnız yayıncı/yönetici yapabilir (blok yerleşimi sayfası)
+    if (!is_publisher($me)) fail('Taraf kaydını yalnızca yayıncı veya yönetici yapabilir.', 403);
 }
 
 /** Birimin ait olduğu taraf */
@@ -390,7 +393,7 @@ function a_side_delete(): void
 {
     $me = need_user();
     $m = one('SELECT * FROM side_moves WHERE id = ?', [(int)i('id')]) ?? fail('Kayıt bulunamadı.', 404);
-    if (!is_publisher($me) && (int)$m['created_by'] !== (int)$me['id']) fail('Bu kaydı yalnızca kaydeden veya sorumlular silebilir.', 403);
+    if (!is_publisher($me)) fail('Bu kaydı yalnızca yayıncı veya yönetici silebilir.', 403);
     q('DELETE FROM side_moves WHERE id = ?', [$m['id']]);
     audit($me, 'side.delete', $m['date'] . ' ' . $m['unit'], $m['name']);
     out(['ok' => true]);

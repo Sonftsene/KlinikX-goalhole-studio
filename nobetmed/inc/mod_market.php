@@ -77,7 +77,7 @@ function mk_tl(int $rid, string $from, string $to): array
 {
     static $c = [];
     $k = "$rid|$from|$to";
-    if (!isset($c[$k])) $c[$k] = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to);
+    if (!isset($c[$k])) $c[$k] = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to, $rid);
     return $c[$k];
 }
 

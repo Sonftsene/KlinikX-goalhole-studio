@@ -623,7 +623,9 @@ if (dr1.chosen[0].group.length !== 2) fail('ilk kura grubu: ' + JSON.stringify(d
 const dr2 = await apiCall(a, 'side.draw', { date: d1(13), from: 's3', unit: 'C blok', count: 1, names: ['ELİF YILMAZ', 'BURAK DEMİR', 'AYŞE KAYA'] });
 if (dr2.chosen[0].group.includes(w1) || dr2.chosen[0].group.length !== 2) fail('öncelik en az geçene: ' + JSON.stringify(dr2.chosen) + ' ilk: ' + w1);
 const memberDraw = await apiCall(m, 'side.draw', { date: d1(2), from: 's3', unit: 'A blok', count: 1, names: [] }).then(() => 'kabul', (e) => e.message);
-if (!/nöbette olanlar/.test(memberDraw)) fail('nöbette olmayan üye kura çekti: ' + memberDraw);
+if (!/yalnızca yayıncı/.test(memberDraw)) fail('üye kura çekti: ' + memberDraw);
+const memberSideSave = await apiCall(m, 'side.save', { date: d1(3), name: 'ELİF YILMAZ', unit: 'A blok' }).then(() => 'kabul', (e) => e.message);
+if (memberSideSave === 'kabul') fail('üye taraf kaydı yapabildi (geçiş sayısını değiştirebilir)');
 const sg = await apiCall(m, 'side.get', { month: `${ym1.y}-${p2(ym1.m)}` });
 const tot = sg.sides[0].people.reduce((x, p) => x + p.total, 0);
 if (tot !== 2 || sg.moves.length !== 2) fail(`geçiş sayımı ${tot}, kayıt ${sg.moves.length}`);

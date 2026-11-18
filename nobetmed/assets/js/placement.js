@@ -358,7 +358,10 @@ ACT['tr-mv'] = (el, ev) => {
 /* ---------------- Dağıtım, kura, elle, kaydet ---------------- */
 async function plRunAuto(el, reveal) {
   const keep = [];
-  if (PL.cur) Object.values(PL.cur).forEach((e) => { if (!e.duty || PL.pins.has(e.key)) keep.push({ name: e.name, segs: e.segs }); });
+  // Korunacaklar: listede olmayan (çağrılan), bu oturumda elle değiştirilen, kayıtlı elle yerleşim, oflanan ve iki yere bölünen kişiler
+  if (PL.cur) Object.values(PL.cur).forEach((e) => {
+    if (!e.duty || PL.pins.has(e.key) || e.method === 'elle' || e.segs.length > 1 || e.segs.some((s) => s.status === 'off')) keep.push({ name: e.name, segs: e.segs });
+  });
   await busy(el, async () => {
     let r;
     try { r = await api('placement.auto', { date: PL.date, keep }); } catch (e) { toast(e.message, 'err'); return; }
@@ -662,7 +665,7 @@ async function plShareImage(date) {
     c.fillStyle = bg; rr(x0 + 20, y0 + 22, 60, 60, 16); c.fill();
     c.fillStyle = fg; c.font = F(800, 32); c.textAlign = 'center'; c.fillText(plLetter(u.unit, { team: x.team, sides: plSides() }), x0 + 50, y0 + 64); c.textAlign = 'left';
     c.fillStyle = '#0f1b21'; c.font = F(700, 30); c.fillText(fit(u.label, F(700, 30), colW - 250), x0 + 96, y0 + 50);
-    c.fillStyle = '#7c8a93'; c.font = F(500, 21); c.fillText(u.unit === PL_TEAM ? 'Ekip' : u.sideName, x0 + 96, y0 + 78);
+    c.fillStyle = '#7c8a93'; c.font = F(500, 21); c.fillText(fit(u.unit === PL_TEAM ? 'Ekip' : String(u.sideName || ''), F(500, 21), colW - 120), x0 + 96, y0 + 78);
     const cov = `☀ ${u.day}  ☾ ${u.night}`;
     c.font = F(600, 22); c.fillStyle = '#4b5a63'; c.textAlign = 'right'; c.fillText(cov, x0 + colW - 22, y0 + 50); c.textAlign = 'left';
     c.strokeStyle = '#eef2f4'; c.beginPath(); c.moveTo(x0 + 20, y0 + HEAD - 6); c.lineTo(x0 + colW - 20, y0 + HEAD - 6); c.stroke();
@@ -689,7 +692,7 @@ async function plShareImage(date) {
       const nF = F(600, 27);
       const cnt = ` (${r.n})`;
       const nameMax = bx - nx - tw(cnt, F(600, 24)) - 6;
-      const nm = fit(plName(r.name), nF, Math.max(80, nameMax));
+      const nm = fit(plName(r.name), nF, Math.max(40, nameMax)); // rozetlerin üstüne taşmasın
       c.globalAlpha = off ? 0.5 : 1;
       c.fillStyle = '#0f1b21'; c.font = nF; c.fillText(nm, nx, ry + 39);
       const nw = tw(nm, nF);

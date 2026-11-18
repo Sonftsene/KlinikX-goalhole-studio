@@ -629,8 +629,14 @@ function summarizeMonth(entries, year, month, holidays) {
   for (let d = 1; d <= days; d++) { const w = spDow(year, month, d); if (w !== 0 && w !== 6) weekdays++; }
   let shifts = 0, hours = 0;
   const leave = new Set();
+  const seenShift = new Set(); // aynı kişi iki listede aynı nöbetle görünürse bir kez say
   list.forEach((e) => {
-    if (e.kind === 'shift') { shifts++; hours += Number(e.hours) || 0; }
+    if (e.kind === 'shift') {
+      const k = (e.date || e.day) + '|' + e.code;
+      if (e.date && seenShift.has(k)) return;
+      seenShift.add(k);
+      shifts++; hours += Number(e.hours) || 0;
+    }
     else if (e.kind === 'leave') {
       const day = e.day || +String(e.date || '').slice(8, 10);
       const w = spDow(year, month, day);

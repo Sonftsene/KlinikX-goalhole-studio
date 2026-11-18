@@ -70,7 +70,19 @@ async function api(action, data = {}) {
   }
   if (json.csrf) S.csrf = json.csrf;
   if (ck) offlinePut(ck, json, action);
+  if (json.v && typeof BOOT !== 'undefined' && BOOT.v && json.v !== BOOT.v) newVersionNotice(json.v);
   return json;
+}
+/** Uzun açık kalan sekme: sunucuda yeni sürüm varsa bir kez "Yenile" uyarısı (yazılan iş kaybolmasın diye kendiliğinden yenilemez) */
+function newVersionNotice(v) {
+  if (newVersionNotice.shown) return;
+  newVersionNotice.shown = true;
+  const el = document.createElement('div');
+  el.className = 'toast ok newver';
+  el.innerHTML = fmtVal(html`${icon('info')}<span>Uygulamanın yeni sürümü (${v}) hazır.</span><button class="btn sm primary" data-act="reload-app">Yenile</button>`);
+  let box = $('.toasts');
+  if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+  box.appendChild(el);
 }
 
 /* ---------------- Çevrimdışı görüntüleme ----------------
@@ -387,6 +399,7 @@ function catIcon(cat, size = '') {
 /* ---------------- Olay yönetimi ---------------- */
 const ACT = {};
 const FORMS = {};
+ACT['reload-app'] = () => location.reload();
 const CHANGE = {};
 document.addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-act]');

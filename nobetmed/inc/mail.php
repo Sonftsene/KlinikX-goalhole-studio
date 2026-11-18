@@ -329,6 +329,6 @@ function notify_user_approved(array $u): int
     return mail_queue_to([$u],
         'Üyeliğiniz onaylandı',
         'Hoş geldiniz, ' . $u['name'],
-        ['Portal üyeliğiniz onaylandı. Kayıt olurken belirlediğiniz e-posta ve şifreyle giriş yapabilirsiniz.'],
+        [empty($u['password_hash']) && !empty($u['google_sub']) ? 'Portal üyeliğiniz onaylandı. “Google ile giriş” düğmesiyle giriş yapabilirsiniz.' : 'Portal üyeliğiniz onaylandı. Kayıt olurken belirlediğiniz e-posta ve şifreyle giriş yapabilirsiniz.'],
         'Giriş yap', base_url(), 'approved', false);
 }

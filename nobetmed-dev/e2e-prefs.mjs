@@ -82,8 +82,9 @@ try {
   const ordR = await m.locator('#rosterCard').evaluate((e) => +e.style.order);
   const ordT = await m.locator('#todayCard').evaluate((e) => +e.style.order);
   if (!(ordR && ordT && ordR < ordT)) fail(`kart sırası: listeler ${ordR}, bugün ${ordT}`);
-  const asideFirst = await m.evaluate(() => { const a = document.querySelector('.home-grid > aside'); return getComputedStyle(a).order; });
-  if (asideFirst !== '-1') fail('telefonda kartlar önce değil: ' + asideFirst);
+  // Telefonda yan sütun düzleşir; duyuru akışı kartların arkasına geçmeli
+  const feedOrder = await m.evaluate(() => getComputedStyle(document.querySelector('#feedHost')).order);
+  if (+feedOrder < 100) fail('telefonda kartlar önce değil (akış sırası ' + feedOrder + ')');
   step('ana sayfa düzeni: akış gizli, nöbet listeleri üste, telefonda kartlar önce');
 
   // 4) Canlı geri sayım

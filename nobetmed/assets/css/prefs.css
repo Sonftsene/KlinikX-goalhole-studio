@@ -33,7 +33,7 @@
 :root[data-accent="gul"][data-theme="dark"] { --brand: #f383a3; --brand-strong: #f6a0b9; --brand-soft: rgba(243, 131, 163, .14); --brand-text: #f7a9c0;
   --grad-brand: linear-gradient(135deg, #f07a9c 0%, #f38d8a 55%, #f5a37c 100%); --grad-soft: linear-gradient(135deg, rgba(240, 122, 156, .11) 0%, rgba(245, 163, 124, .09) 100%); --bg: #140c0f; }
 
-:root[data-accent="gunes"] { --brand: #c26412; --brand-strong: #a3530c; --brand-soft: #fdf0dd; --brand-text: #964c0a;
+:root[data-accent="gunes"] { --brand: #a9560d; --brand-strong: #8f4809; --brand-soft: #fdf0dd; --brand-text: #964c0a;
   --grad-brand: linear-gradient(135deg, #f0a12b 0%, #ec7b33 55%, #e2593e 100%); --grad-soft: linear-gradient(135deg, #fdf3e0 0%, #fdeae3 100%); --bg: #fbf7f1; }
 :root[data-accent="gunes"][data-theme="dark"] { --brand: #f4b15a; --brand-strong: #f7c47f; --brand-soft: rgba(244, 177, 90, .14); --brand-text: #f7c47f;
   --grad-brand: linear-gradient(135deg, #f6bf5c 0%, #f39a59 55%, #f07f5a 100%); --grad-soft: linear-gradient(135deg, rgba(246, 191, 92, .10) 0%, rgba(240, 127, 90, .09) 100%); --bg: #130f0a; }
@@ -132,9 +132,14 @@
 .nd-wrap { overflow-x: auto; }
 .ex-row, .hd-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .ex-row .grow, .hd-row .grow { min-width: 0; }
-@media (max-width: 900px) { .home-grid.side-first > aside { order: -1; } .home-grid.side-first > aside .side-col, .home-grid.side-first > aside { position: static; } }
+/* Telefonda (≤1080px yan sütun düzleşir: #homeSide display:contents) kartlar duyurulardan önce */
+@media (max-width: 1080px) { .home-grid.side-first #feedHost { order: 999; } }
 
 /* Nöbet sekmeleri çoğaldı: dar ekranda kaydırılabilir, taşma yapmaz */
 .hub-tabs { overflow-x: auto; scrollbar-width: none; max-width: 760px; -webkit-overflow-scrolling: touch; }
 .hub-tabs::-webkit-scrollbar { display: none; }
 .hub-tabs a { flex: 1 0 auto; padding: 0 12px; }
+
+/* Koyu temada sarı sayaç üzerinde beyaz yazı okunmuyordu */
+[data-theme="dark"] .count.warn { color: #2a1a00; }
+.toast.newver .btn { margin-left: auto; flex: none; }
