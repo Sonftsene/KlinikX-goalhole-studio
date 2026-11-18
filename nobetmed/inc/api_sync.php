@@ -24,6 +24,7 @@ function gs_admin_out(): array
         'push_url' => base_url() . 'api.php?action=gsync.push',
         'tables_url' => base_url() . 'api.php?action=gsync.tables',
         'tables_at' => setting('gs_tables_at') ?: null,
+        'script_v' => (int)setting('gs_script_v', '1'),
         'parser' => gs_load_parser(),
         'sources' => array_map(function ($s) use ($rosters) {
             $st = (string)$s['status'];

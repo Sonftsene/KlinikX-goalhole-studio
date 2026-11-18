@@ -47,10 +47,20 @@ function renderRosters(view, id) {
   RS.timer = setInterval(() => {
     if (!RS.stage || !document.body.contains(RS.stage)) { clearInterval(RS.timer); return; }
     if (document.visibilityState === 'visible' && S.rosters.some((x) => x.linked)) syncRosters();
-  }, 60000);
+  }, 30000);
 }
 
 /** Sunucudaki güncel listeleri alır; başka biri yeni dosya yüklediyse görünümü yeniler */
+// Google tablosu değişince her sayfada en geç 1 dakikada görünsün; uygulamaya geri dönülünce hemen denetle
+let _rsAutoAt = 0;
+function rosterAutoSync() {
+  if (!S.me || document.visibilityState !== 'visible' || !(S.rosters || []).some((x) => x.linked)) return;
+  if (Date.now() - _rsAutoAt < 20000) return;
+  _rsAutoAt = Date.now();
+  syncRosters();
+}
+setInterval(rosterAutoSync, 60000);
+document.addEventListener('visibilitychange', rosterAutoSync);
 async function syncRosters() {
   const sig = () => JSON.stringify(S.rosters.map((x) => [x.id, x.name, x.file && x.file.id, x.tab, x.tabs]));
   const before = sig();
@@ -58,6 +68,9 @@ async function syncRosters() {
   if (sig() === before) return;
   renderNav();
   if (typeof MY !== 'undefined') MY.at = 0;
+  // Liste değişti: ana sayfa / takvim açıksa yeni nöbetlerle yeniden çiz (açık pencere yoksa)
+  const r0 = currentRoute()[0] || '';
+  if ((r0 === '' || r0 === 'nobetim') && !(typeof modalStack !== 'undefined' && modalStack.length)) { route(); return; }
   if (!RS.stage || !document.body.contains(RS.stage)) return;
   if (!rosterById(RS.active)) { renderRosters($('#view'), null); return; }
   showRoster(RS.active);

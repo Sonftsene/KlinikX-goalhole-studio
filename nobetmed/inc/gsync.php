@@ -165,17 +165,17 @@ function gs_ingest(array $src, string $file, string $title = '', bool $force = f
         gs_status($sid, 'Gelen dosya okunamadı: ' . $e->getMessage(), false);
         return ['changed' => false, 'error' => 'Dosya okunamadı'];
     }
-    // Hasta adları korunamıyorsa (sütun bulunamadı ya da başka sekmede farklı başlık) tablo hiç kaydedilmez
-    if (($src['purpose'] ?? '') === 'tablo' && ($src['mask_mode'] ?? 'none') !== 'none') {
-        $why = gs_mask_guard($model, gs_mask_headers($src));
-        if ($why !== null) { @unlink($file); gs_status($sid, $why . ' Hasta adları korunamadığı için tablo kaydedilmedi; tablonun yanındaki “Değiştir” ile sütun başlığını düzeltin.', false); return ['changed' => false, 'error' => 'Ad kısaltma doğrulanamadı']; }
-    }
     // Ayar değişince yeniden işlenebilsin diye (kısaltılmış) tam kopya korumalı data/ klasöründe tutulur
     $raw = gs_raw_path($sid);
     if ($raw !== $file) @copy($file, $raw);
     // Yalnızca görüntülenen tablo: seçilmeyen sekmelerin içeriği uygulamaya kaydedilen dosyadan çıkarılır
     $keep = gs_keep_for($src, array_map(fn($sh) => (string)$sh['name'], $model['sheets']));
     if ($keep === ['<yok>']) { @unlink($file); gs_status($sid, 'Seçili görünen sekmeler tabloda artık yok (adı değişmiş olabilir); güvenlik için tablo kaydedilmedi. “Görünen sekmeler › Seç” ile yeniden seçin.', false); return ['changed' => false, 'error' => 'Seçili sekmeler bulunamadı']; }
+    // Hasta adları korunamıyorsa (gösterilen sekmelerde sütun bulunamadı ya da farklı başlık var) tablo hiç kaydedilmez
+    if (($src['purpose'] ?? '') === 'tablo' && ($src['mask_mode'] ?? 'none') !== 'none') {
+        $why = gs_mask_guard($model, gs_mask_headers($src), $keep);
+        if ($why !== null) { @unlink($file); gs_status($sid, $why . ' Hasta adları korunamadığı için tablo kaydedilmedi; tablonun yanındaki “Değiştir” ile sütun başlığını düzeltin.', false); return ['changed' => false, 'error' => 'Ad kısaltma doğrulanamadı']; }
+    }
     if ($keep) {
         try { gs_strip_xlsx($file, $keep); }
         catch (Throwable $e) { @unlink($file); gs_status($sid, 'Sekmeler ayıklanamadı; güvenlik için tablo kaydedilmedi: ' . $e->getMessage(), false); return ['changed' => false, 'error' => 'Sekmeler ayıklanamadı']; }
@@ -503,6 +503,8 @@ function a_gsync_tables(): void
     header('Cache-Control: no-store');
     if (!gs_token_ok()) { usleep(300000); http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Anahtar geçersiz']); return; }
     set_setting('gs_tables_at', now()); // güncel kod çalışıyor (tanı için)
+    $sv = (string)max(1, min(99, (int)($_SERVER['HTTP_X_SCRIPT'] ?? 1)));
+    if (setting('gs_script_v') !== $sv) set_setting('gs_script_v', $sv); // eski kod (5 dakikada bir) uyarısı için
     echo json_encode(['ok' => true, 'tables' => setting('gs_mode', 'push') === 'push' ? array_column(gs_sources(), 'sheet_id') : []]);
 }
 
@@ -627,24 +629,29 @@ function gs_reprocess(array $src, ?int $onlyRoster = null): ?array
  * Kısaltma güvenlik denetimi: ayarlı başlık hiçbir sekmede yoksa ya da bir sekmede hasta adı gibi görünen
  * başka bir başlık (ör. "Hasta Adı Soyadı") varsa hata metni döner.
  */
-function gs_mask_guard(array $model, array $headers): ?string
+function gs_mask_guard(array $model, array $headers, array $keep = []): ?string
 {
     $want = array_values(array_filter(array_map('gs_fold', $headers)));
-    $found = false;
-    $risky = [];
     foreach ($model['sheets'] ?? [] as $sh) {
-        foreach ($sh['cells'] ?? [] as $k => $cell) {
-            if (intdiv((int)$k, 100000) > 20) continue; // başlık satırları tablonun başındadır
+        if ($keep && !in_array((string)$sh['name'], $keep, true)) continue; // gösterilmeyen sekme dosyadan çıkarılıyor
+        $cells = $sh['cells'] ?? [];
+        foreach ($cells as $k => $cell) {
+            $r = intdiv((int)$k, 100000); $c = (int)$k % 100000;
+            if ($r > 20) continue; // başlık satırları tablonun başındadır
             $f = gs_fold((string)($cell['text'] ?? ''));
-            if ($f === '' || strlen($f) > 40) continue;
+            if ($f === '' || strlen($f) > 40 || strpos($f, 'hasta') === false) continue;
+            if ($f !== 'hasta' && $f !== 'hastalar' && !preg_match('/adi|adsoyad|soyad|isim/', $f)) continue; // ör. "Hasta Tanısı" ad sütunu değil
             $hit = false;
             foreach ($want as $w) if ($f === $w || strpos($f, $w) !== false) { $hit = true; break; }
-            if ($hit) { $found = true; continue; }
-            if (strpos($f, 'hasta') !== false && preg_match('/adi|adsoyad|soyad|isim/', $f)) $risky[(string)$cell['text']] = (string)$sh['name'];
+            if ($hit) continue; // kısaltılan sütun
+            // Altında veri varsa (ad yazılmışsa) korunmayan bir hasta adı sütunudur
+            foreach ($cells as $k2 => $c2) {
+                if ((int)$k2 % 100000 === $c && intdiv((int)$k2, 100000) > $r && trim((string)($c2['text'] ?? '')) !== '') {
+                    return '“' . $cell['text'] . '” sütunu (“' . $sh['name'] . '” sekmesi) kısaltma ayarında yok.';
+                }
+            }
         }
     }
-    if ($risky) { $h = array_key_first($risky); return '“' . $h . '” sütunu (“' . $risky[$h] . '” sekmesi) kısaltma ayarında yok.'; }
-    if (!$found) return '“' . implode('”, “', $headers) . '” başlıklı sütun tabloda bulunamadı.';
     return null;
 }
 

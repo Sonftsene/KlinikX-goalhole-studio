@@ -39,19 +39,21 @@ var AYAR = {
   anahtar: '${g.token}'
 };
 
+var SURUM = 2;
+
 function kur() {
   try {
     ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
-    ScriptApp.newTrigger('esitle').timeBased().everyMinutes(5).create();
-    Logger.log('Zamanlayıcı kuruldu: her 5 dakikada bir kontrol edilecek.');
+    ScriptApp.newTrigger('esitle').timeBased().everyMinutes(1).create();
+    Logger.log('Zamanlayıcı kuruldu: her dakika kontrol edilecek (değişiklik yoksa hiçbir şey gönderilmez).');
   } catch (e) {
-    Logger.log('Zamanlayıcı kurulamadı (' + e.message + '). Biraz sonra "kur"u tekrar çalıştırın ya da soldaki saat simgesi > Tetikleyici ekle: işlev esitle, Zamana dayalı, Dakika zamanlayıcısı, 5 dakikada bir.');
+    Logger.log('Zamanlayıcı kurulamadı (' + e.message + '). Biraz sonra "kur"u tekrar çalıştırın ya da soldaki saat simgesi > Tetikleyici ekle: işlev esitle, Zamana dayalı, Dakika zamanlayıcısı, her dakika.');
   }
   esitle(true);
 }
 
 function esitle(zorla) {
-  var r = UrlFetchApp.fetch(AYAR.liste, { headers: { 'X-Sync-Token': AYAR.anahtar }, muteHttpExceptions: true });
+  var r = UrlFetchApp.fetch(AYAR.liste, { headers: { 'X-Sync-Token': AYAR.anahtar, 'X-Script': String(SURUM) }, muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('dupcii tablo listesi alınamadı: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 200));
   var hatalar = [];
   (JSON.parse(r.getContentText()).tables || []).forEach(function (id) {
@@ -148,11 +150,12 @@ function drawGsync() {
   if (!box || !g) return;
   setHTML(box, html`
     <div><h3 style="font-size:15px">${icon('link', 'sm')} Google E-Tablolar bağlantısı</h3>
-      <p class="small muted">Excel listeleriniz Google E-Tablolar’daysa uygulama onları kendiliğinden izler; sorumlu tabloyu düzenledikçe en geç 5 dakikada güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
+      <p class="small muted">Excel listeleriniz Google E-Tablolar’daysa uygulama onları kendiliğinden izler; sorumlu tabloyu düzenledikçe yaklaşık 1–2 dakika içinde güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
     <div class="seg seg-block gs-mode">
       <button type="button" class="${g.mode === 'push' ? 'on' : ''}" data-act="gs-mode" data-m="push">Yalnızca bana paylaşıldı</button>
       <button type="button" class="${g.mode === 'pull' ? 'on' : ''}" data-act="gs-mode" data-m="pull">Bağlantıya sahip herkes görebiliyor</button></div>
     <p class="tiny faint">${g.mode === 'push' ? 'Önerilen. Tablolar yalnızca size (görüntüleyen olarak) paylaşıldıysa: kendi Google hesabınızda çalışan küçük bir kod değişiklikleri gönderir.' : 'Tablolar herkese açık bağlantıyla paylaşıldıysa sunucu her 5 dakikada kendisi indirir; kod gerekmez.'}</p>
+    ${g.mode === 'push' && g.tables_at && (g.script_v || 1) < 2 ? html`<div class="gs-wait small">${icon('alert', 'sm')}<span><b>Google’daki kod eski sürüm: tabloları 5 dakikada bir kontrol ediyor.</b> Aşağıdaki kodu kopyalayıp script.google.com’daki kodun <b>tamamıyla değiştirin</b>, kaydedin ve <b>kur</b>’u bir kez çalıştırın; değişiklikler 1–2 dakikada gelir.</span></div>` : ''}
     <h4>Tablolar</h4>
     ${g.sources.length ? html`<div class="stack" style="gap:10px">${g.sources.map((x) => gsSourceHtml(x, g))}</div>` : ''}
     ${GS.add ? html`<div class="gs-add stack">
@@ -185,7 +188,7 @@ ACT['gs-add-save'] = (el) => busy(el, async () => {
     GS.data = r.gs; GS.add = false;
     drawGsync();
     refreshRosters();
-    toast(GS.data.mode === 'push' ? (GS.data.sources.length > 1 ? 'Tablo eklendi. Kod kuruluysa 5 dakika içinde gelir.' : 'Tablo eklendi. Şimdi kodu kurun.') : 'Tablo eklendi; eşitleniyor…');
+    toast(GS.data.mode === 'push' ? (GS.data.sources.length > 1 ? 'Tablo eklendi. Kod kuruluysa 1–2 dakika içinde gelir.' : 'Tablo eklendi. Şimdi kodu kurun.') : 'Tablo eklendi; eşitleniyor…');
     if (GS.data.mode === 'pull') ACT['gs-pull']({ dataset: { sid: String(r.id) } });
   } catch (e) { toast(e.message, 'err'); }
 });

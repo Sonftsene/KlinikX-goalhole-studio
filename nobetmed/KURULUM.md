@@ -127,7 +127,7 @@ Liste görüntüsünde yalnızca o listeye ait sekmeler görünür (ör. 3. Basa
 
 **Görünen sekmeler:** Her tablonun yanındaki **Görünen sekmeler › Seç** ile ekibin göreceği sekmeleri işaretleyin (nöbet tablosu ve hasta listesi için). İşaretlenmeyen sekmelerin içeriği uygulamaya hiç kaydedilmez; nöbet tablosunda o sekmelerdeki nöbetler de okunmaz. Tekrar işaretleyince geri gelir.
 
-Sonrasında sorumlu Excel'i düzenledikçe en geç 5 dakikada: liste görüntüsü, herkesin Takvimi, Kim nöbette ve hatırlatmalar güncellenir; nöbeti değişen kişiye “Nöbetinde değişiklik var” bildirimi gider. Bağlı listelere uygulamadan dosya yüklenemez, kimse listeyi uygulamada değiştiremez.
+Sonrasında sorumlu Excel'i düzenledikçe yaklaşık 1–2 dakika içinde (Google kodu her dakika kontrol eder; 3.10.3'ten önce kurduysanız kodu bir kez yenisiyle değiştirip **kur**'u çalıştırın): liste görüntüsü, herkesin Takvimi, Kim nöbette ve hatırlatmalar güncellenir; nöbeti değişen kişiye “Nöbetinde değişiklik var” bildirimi gider. Bağlı listelere uygulamadan dosya yüklenemez, kimse listeyi uygulamada değiştiremez.
 Tablo “bağlantıya sahip herkes görüntüleyebilir” olarak paylaşıldıysa betik gerekmez; ikinci seçeneği seçmeniz yeterli (sunucu her 5 dakikada kendisi indirir; zamanlanmış görev önerilir, bkz. 13. bölüm).
 
 ### 8b. Günlük blok yerleşimi ve taraf listesi (kura)
