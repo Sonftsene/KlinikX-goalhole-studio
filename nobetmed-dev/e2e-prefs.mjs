@@ -95,7 +95,7 @@ try {
     const t1 = await m.locator('#cdBox').innerText();
     await m.waitForTimeout(1300);
     const t2 = await m.locator('#cdBox').innerText();
-    if (t1 === t2 && !/gün/.test(t1)) fail('geri sayım ilerlemiyor');
+    if (t1 === t2 && !/gün/i.test(t1)) fail('geri sayım ilerlemiyor');
     step('geri sayım: ' + t1.replace(/\s+/g, ' ').slice(0, 60));
   } else step('geri sayım: yakın nöbet yok (atlandı)');
   await m.screenshot({ path: path.join(OUT, 'p-home.png') });

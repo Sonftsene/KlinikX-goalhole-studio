@@ -190,7 +190,7 @@ Tüm veriler iki yerdedir: `data/` (veritabanı ve yedekler) ve `uploads/` (yük
 
 Siteyi telefonda açın → tarayıcı menüsü → **Ana ekrana ekle**. Portal, kendi simgesiyle uygulama gibi açılır.
 
-- **Telefon bildirimleri:** Hesabım → Bildirimler → **Telefon bildirimleri: Aç**. Android'de tarayıcıdan çalışır; **iPhone'da** önce “Ana Ekrana Ekle” yapılmalı (iOS 16.4 ve üstü), sonra ana ekrandaki simgeden açılıp izin verilmelidir. Yönetici Ayarlar → Telefon bildirimleri bölümünden tamamen kapatabilir. Sunucuda ek bir şey gerekmez (anahtarlar otomatik oluşur, PHP OpenSSL yeterli).
+- **Telefon bildirimleri:** Hesabım → Bildirimler → **Bildirimleri aç** (ayrıntı: 22. bölüm). Android'de tarayıcıdan çalışır; **iPhone'da** önce “Ana Ekrana Ekle” yapılmalı (iOS 16.4 ve üstü), sonra ana ekrandaki simgeden açılıp izin verilmelidir. Yönetici Ayarlar → Telefon bildirimleri bölümünden tamamen kapatabilir. Sunucuda ek bir şey gerekmez (anahtarlar otomatik oluşur, PHP OpenSSL yeterli).
 - **Çevrimdışı görüntüleme:** Bir kez açılan duyurular, nöbet listeleri, Nöbetlerim ve PDF/Excel dosyaları internet yokken de açılır. Çıkış yapınca bu cihazdaki kayıtlar silinir.
 - **Parmak izi / Face ID ile giriş:** Hesabım → **Bu cihaza ekle**. Sonraki girişlerde şifre gerekmez. Site **HTTPS** ile açılmalıdır (Hostinger'da ücretsiz SSL'i açın).
 
@@ -309,3 +309,20 @@ Excel kullanmayan birimler için: **Nöbet → Çizelge** sekmesi (yönetici, ya
 6. **Yapıştır / CSV:** başka bir programdan (hastane bilgi sistemi dışa aktarımı dahil) kopyalanan tablo (ilk sütun ad, başlıkta gün numaraları) ya da “Ad; tarih; kod” satırları aktarılır.
 7. Taslak 20 saniyede bir kendiliğinden kaydedilir; ekip görmez. **Yayınla:** çizelge Excel görünümüyle listenin yeni sürümü olur; Takvimim, Kim nöbette, blok yerleşimi, ilan, eksik çağrısı ve hatırlatmalar bu çizelgeyle çalışır. (Liste bir anda tek ay gösterir; gelecek ayı yayınlayınca liste o aya geçer, önceki ay sürümlerde kalır.)
 
+
+## 22. Bildirimler (4.7)
+
+**Anlık, sayfa yenilemeden:** Uygulama açıkken yeni mesaj, çağrı, duyuru ve diğer bildirimler birkaç saniye içinde sağ üstte (telefonda en üstte) kart olarak çıkar. Kartta gönderen, metin ve sitenin simgesi görünür; mesaj kartından **Yanıtla** ile sohbeti açmadan yanıt verilir, **Okundu say** ile kapatılır. Zil ve mesaj simgesindeki sayılar, sekme başlığı “(3) …” ve ana ekrana eklenmiş uygulamanın simgesindeki rozet de kendiliğinden güncellenir. Kısa bir ses ve (telefonda) titreşim olur.
+
+**Telefona üstten bildirim:** Hesabım → Bildirimler → **Bildirimleri aç**. Uygulama kapalıyken de bildirim telefona, sitenin simgesi/logosuyla gelir (logo: Ayarlar → Genel → marka; yüklenmediyse dupcii simgesi). Aynı sohbetten art arda gelen mesajlar tek bildirimde toplanır; bildirimde **Sohbeti aç / Okundu say** düğmeleri vardır. Eksik personel çağrısı kapatılana kadar ekranda kalır.
+- **Android:** Chrome ile siteyi açın → Bildirimler → Aç. “Uygulama olarak yükle” düğmesiyle ana ekrana ekleyin; bildirimler uygulama gibi üstten (açılır) gelir.
+- **iPhone (iOS 16.4+):** Safari → Paylaş → **Ana Ekrana Ekle** → ana ekrandaki dupcii simgesinden açın → Bildirimler → Aç. iPhone Ayarlar → Bildirimler → dupcii'de “Afişler: Kalıcı” seçilirse bildirim üstte kalır.
+- Bildirim içeriği telefona **uçtan uca şifreli** gider (Google/Apple içeriği göremez).
+
+**Kişisel ayarlar (Hesabım → Bildirimler):** her kategori (mesajlar, eksik personel çağrısı, duyurular, hastane belgeleri, nöbet, değişim/ilan, istekler, onay bekleyenler, sistem) için ayrı ayrı “Telefon” ve “Ekranda”; **Duraklat** (1 saat / 8 saat / yarın sabaha kadar); **sessiz saatler** (bildirim sessiz gelir); kilit ekranında içeriği gösterme; ses ve titreşim; **Bildirim alan cihazlarım** (cihaz başına deneme, kaybolan cihazı kaldırma). E-posta tercihi artık telefon bildirimini etkilemez.
+
+**Yönetici (Ayarlar → Bildirimler → Bildirim politikası):** kaç kişide telefon bildiriminin açık olduğu ve açmayanların listesi; kategori başına birim varsayılanları; **zorunlu** kategoriler (kişi kapatamaz; sessiz saat ve duraklatmada da gelir — varsayılan: eksik personel çağrısı); **telefonda içeriği gizle (KVKK)** — kilit ekranında yalnız “Yeni mesaj” gibi genel yazı; sessiz saatlere izin.
+
+**Bildirim merkezi:** zil → **Tüm bildirimler**: kategori süzgeci, okunmamışlar, tek tek silme, tümünü okundu say, okunanları sil (bildirimler 90 gün saklanır).
+
+Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık zamanlanmış görevi beklemeden hemen gider (site kendi adresine imzalı kısa bir istek atar; zamanlanmış görev yedek olarak çalışmaya devam eder).

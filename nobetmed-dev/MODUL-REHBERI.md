@@ -78,6 +78,10 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Başka modül bir kişiye sohbetten bildirim göndermek isterse `c_push()` (aynı birim) ya da kendi `NM_JOBS` görevini kullanır. Kişinin gizlilik tercihleri `c_pref()`; “kişilerim” `c_is_contact()`.
 - Test: `nobetmed-dev/e2e-mesaj.mjs` (e2e-hastane'den sonra).
 
+## Bildirimler (4.7)
+- Bildirim göndermek için her zaman `notify_users($users, '<kind>', başlık, metin, '#/adres', $mail)` kullanın; telefon bildirimi kişinin kategori tercihi ve birim politikasına göre kendiliğinden süzülür, içerik şifrelenir. Yeni bir `kind` eklerseniz `inc/mod_bildirim.php` › `NB_KIND_CAT` ve `assets/js/bildirim.js` › `NB_KIND_CAT` içine kategorisini yazın (yoksa “Sistem” sayılır).
+- Başka birimin kişilerine bildirim: kendi `NM_JOBS` görevinizi yazın ve olay anında `nb_kick([tkey…], '<görev>')` çağırın (izinli görevler listesi `nb_kick` ve `nm.kick` içinde).
+
 ## Gizlilik ve güvenlik
 - Depo HERKESE AÇIK: gerçek kişi/hastane adı, e-posta, şifre, gerçek Excel dosyaları depoya girmez. Testlerde uydurma adlar kullanın.
 - Her uçta yetki denetimi; yalnız yetkili kişiye görünmesi gereken bilgiyi sunucu hiç göndermesin (istemcide gizlemek yetmez).

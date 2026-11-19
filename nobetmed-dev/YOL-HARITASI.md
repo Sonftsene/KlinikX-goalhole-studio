@@ -54,7 +54,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.6 — WhatsApp düzeyinde sohbet, grup ve gizlilik ayarları ✓ (4.6.0)
 - Gizlilik (son görülme, hakkımda, okundu bilgisi, gruplara ekleme, bulunabilirlik, kimler yazabilir, engelleme, varsayılan kaybolan mesaj), sohbet (sabitle, arşiv, okunmadı, süreli sessiz, temizle/sil, düzenle, benden sil, yıldız, ara, medya/belge/bağlantı, dışa aktar, yazıyor), grup (fotoğraf, bilgiyi/üye eklemeyi kim yapar, katılma onayı, yöneticilikten ayrılma), cihaz görünüm tercihleri.
 
-### 4.7+ — Ek modüller (her biri aç/kapat)
+### 4.7 — Bildirim sistemi ✓ (4.7.0)
+- Sayfa yenilemeden canlı bildirim kartları (hızlı yanıt, ses, titreşim, rozet), uçtan uca şifreli telefon bildirimi (site simgesi, gruplanan sohbet bildirimi, Aç/Okundu düğmeleri), kategori bazlı kişisel tercihler, duraklatma, sessiz saatler, içerik gizleme, cihazlar; yönetici politikası (varsayılanlar, zorunlu kategoriler, KVKK içerik gizleme, kapsama istatistiği); bildirim merkezi sayfası; birimler arası anında bildirim.
+
+### 4.8+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
 ### Sürekli: KVKK ve güvenlik
