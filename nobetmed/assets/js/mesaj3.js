@@ -218,11 +218,11 @@ function chatGestures(scroll) {
   if (view) {
     view.addEventListener('paste', (e) => {
       const fs = [...((e.clipboardData && e.clipboardData.files) || [])];
-      if (fs.length && CH.chat && CH.chat.can_send) { e.preventDefault(); fs.slice(0, 10).forEach((f) => chatSendFile(f)); }
+      if (fs.length && CH.chat && CH.chat.can_send) { e.preventDefault(); chatPreview(fs); }
     });
     view.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); view.classList.add('drop'); } });
     view.addEventListener('dragleave', (e) => { if (e.target === view) view.classList.remove('drop'); });
-    view.addEventListener('drop', (e) => { const fs = [...((e.dataTransfer && e.dataTransfer.files) || [])]; view.classList.remove('drop'); if (fs.length) { e.preventDefault(); (async () => { for (const f of fs.slice(0, 10)) await chatSendFile(f); })(); } });
+    view.addEventListener('drop', (e) => { const fs = [...((e.dataTransfer && e.dataTransfer.files) || [])]; view.classList.remove('drop'); if (fs.length) { e.preventDefault(); chatPreview(fs); } });
   }
 }
 /** "En alta in" düğmesi (yeni mesaj sayısıyla) */
@@ -324,7 +324,7 @@ ACT['ch-cam'] = () => {
       md.close();
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = b.dataset.c + '/*'; inp.setAttribute('capture', 'environment');
-      inp.addEventListener('change', () => { const f = inp.files[0]; if (f) chatSendFile(f); });
+      inp.addEventListener('change', () => { const f = inp.files[0]; if (f) chatPreview([f]); });
       inp.click();
     });
     return;
@@ -353,7 +353,7 @@ async function chatCamModal() {
       c.getContext('2d').drawImage(v, 0, 0);
       const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
       md.close();
-      if (blob) chatSendFile(new File([blob], 'foto-' + Date.now() + '.jpg', { type: 'image/jpeg' }));
+      if (blob) chatPreview([new File([blob], 'foto-' + Date.now() + '.jpg', { type: 'image/jpeg' })]);
     }
     if (b.dataset.k === 'rec') {
       if (rec && rec.state === 'recording') { rec.stop(); return; }
@@ -366,7 +366,7 @@ async function chatCamModal() {
         const mt = (rec.mimeType || type || 'video/webm').split(';')[0];
         const dur = Math.round((Date.now() - t0) / 1000);
         md.close();
-        if (chunks.length) chatSendFile(new File(chunks, 'video-' + Date.now() + (/mp4/.test(mt) ? '.mp4' : '.webm'), { type: mt }), { dur });
+        if (chunks.length) chatPreview([new File(chunks, 'video-' + Date.now() + (/mp4/.test(mt) ? '.mp4' : '.webm'), { type: mt })], { dur });
       };
       rec.start(1000);
       b.querySelector('span').textContent = 'Durdur ve gönder';
@@ -400,4 +400,36 @@ async function chatShareContact() {
     const c = r.items[+b.dataset.i];
     try { const x = await api('chat.share', { id: CH.id, type: 'contact', name: c.name, phone: c.phone, title: c.title, ref_tk: c.tk || '', ref_uid: c.uid || 0 }); md.close(); chatAdd([x.msg]); chatScrollEnd(true); } catch (e) { toast(e.message, 'err'); }
   });
+}
+
+/* ---------------- Göndermeden önce önizleme (her zaman): açıklama, tek seferlik, gönder / vazgeç ---------------- */
+function chatPreview(files, opts = {}) {
+  files = [...files].filter(Boolean).slice(0, 10);
+  if (!files.length || !CH.chat) return;
+  const isMedia = (f) => /^(image|video)\//.test(f.type);
+  const urls = files.map((f) => (isMedia(f) ? URL.createObjectURL(f) : null));
+  const allMedia = files.every(isMedia);
+  const one = files[0];
+  const title = files.length > 1 ? files.length + ' dosya gönder' : /^image\//.test(one.type) ? 'Fotoğraf gönder' : /^video\//.test(one.type) ? 'Video gönder' : 'Dosya gönder';
+  const ta = $('#chInput');
+  const draft = ta ? ta.value.trim() : '';
+  const md = openModal({ title, size: 'wide', body: html`<div class="ch-pv ${files.length > 1 ? 'multi' : ''}">${files.map((f, i) => (urls[i]
+      ? (/^video\//.test(f.type) ? html`<div class="ch-pvi"><video src="${urls[i]}" controls playsinline muted preload="metadata"></video></div>` : html`<div class="ch-pvi"><img src="${urls[i]}" alt="${f.name}"></div>`)
+      : html`<div class="ch-pvf">${icon('file', 'lg')}<b class="ellipsis">${f.name}</b><span class="tiny faint">${chSize(f.size)}</span></div>`))}</div>
+    ${CH.reply ? html`<div class="ch-replybar" style="margin-top:10px"><div class="grow" style="min-width:0"><b class="small">Yanıt: ${CH.reply.name}</b><div class="tiny ellipsis">${CH.reply.body || ''}</div></div></div>` : ''}
+    <div class="ch-pvcap"><textarea class="textarea" id="pvCap" rows="2" maxlength="4000" placeholder="${files.length > 1 ? 'İlk dosyaya açıklama ekle…' : 'Açıklama ekle…'}">${draft}</textarea></div>
+    ${allMedia ? html`<label class="switch" style="margin-top:8px"><input type="checkbox" id="pvOnce" ${opts.once ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Tek seferlik görüntülensin</b><span>Alıcı bir kez açar, kaydedemez, iletemez.</span></span></label>` : ''}
+    <p class="tiny faint" style="margin-top:8px">${icon('lock', 'sm')} Fotoğrafta hasta adı, yüzü ya da T.C. kimlik numarası görünmesin.</p>`,
+    foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>${icon('send', 'sm')}<span>Gönder</span></button>`,
+    onClose: () => setTimeout(() => urls.forEach((u) => u && URL.revokeObjectURL(u)), 60000) });
+  const cap = $('#pvCap', md.el);
+  const go = async () => {
+    const caption = cap.value.trim();
+    const once = !!($('#pvOnce', md.el) || {}).checked;
+    md.close();
+    for (let i = 0; i < files.length; i++) await chatSendFile(files[i], { once, dur: opts.dur || null, caption: i === 0 ? caption : '' });
+  };
+  md.el.querySelector('[data-go]').addEventListener('click', go);
+  cap.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); go(); } });
+  if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => cap.focus(), 50);
 }

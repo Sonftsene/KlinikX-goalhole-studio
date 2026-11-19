@@ -151,7 +151,7 @@ function chatComposer() {
   sync();
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; chatAtSuggest(ta); sync(); if (typeof chatDraftSave === 'function') chatDraftSave(CH.id, ta.value); });
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900 && chatUi().enter) { e.preventDefault(); ACT['ch-send'](); } else chatTypingPing(); });
-  $('#chFile').addEventListener('change', async (e) => { const fs = [...e.target.files].slice(0, 10); const once = !!CH.onceNext; CH.onceNext = false; e.target.value = ''; for (const f of fs) await chatSendFile(f, { once }); });
+  $('#chFile').addEventListener('change', (e) => { const fs = [...e.target.files].slice(0, 10); const once = !!CH.onceNext; CH.onceNext = false; e.target.value = ''; if (fs.length) chatPreview(fs, { once }); });
 }
 /** "@" yazınca sohbet üyelerinden öneri */
 function chatAtSuggest(ta) {
@@ -396,7 +396,7 @@ async function chatSendFile(f0, opt = {}) {
   if (f0.size > (isVideo ? 64 : 25) * 1048576) { toast(isVideo ? 'Video en fazla 64 MB olabilir; daha kısa çekin' : 'Dosya en fazla 25 MB olabilir', 'err'); return; }
   const tip = $('#chReply');
   const f = await chatShrink(f0);
-  const body = ($('#chInput') || {}).value ? $('#chInput').value.trim() : '';
+  const body = typeof opt.caption === 'string' ? opt.caption : ($('#chInput') || {}).value ? $('#chInput').value.trim() : '';
   try {
     if (tip) setHTML(tip, html`<div class="ch-up tiny">${icon('upload', 'sm')} ${f.name} gönderiliyor… <span id="chUpP">%0</span></div>`);
     const a = await uploadFile(f, (p) => { const el = $('#chUpP'); if (el) el.textContent = '%' + Math.round(p * 100); });

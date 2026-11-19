@@ -255,11 +255,9 @@ async function nbDraw() {
   const locked = p.locked || [];
   const cats = NB.cats || [];
   const paused = p.pause_until;
-  const iconUrl = nbIconUrl();
   setHTML(box, html`
     <div class="card card-pad stack">
       <div class="row between wrap" style="gap:8px"><h3 class="ph">${icon('bell', 'sm')} Bu cihaz</h3><span class="badge ${st === 'on' ? 'ok' : ''}">${st === 'on' ? 'Bildirimler açık' : st === 'denied' ? 'İzin engelli' : 'Kapalı'}</span></div>
-      <div class="nb-preview" aria-hidden="true"><img src="${iconUrl}" alt=""><div class="grow" style="min-width:0"><div class="nbp-top">${S.settings.org_name || 'dupcii'} · şimdi</div><b>Elif Yılmaz</b><div class="nbp-b">${p.preview ? 'Yarın 08:00 devir sende, haberin olsun.' : 'Yeni mesaj'}</div></div></div>
       ${nbPushHelp(st, info)}
       <div class="row wrap" style="gap:6px">
         ${st === 'on' ? html`<button class="btn sm" data-act="push-test">${icon('send', 'sm')}Deneme gönder</button><button class="btn sm ghost" data-act="nb-push-off">Bu cihazda kapat</button>`

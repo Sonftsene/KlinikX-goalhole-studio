@@ -525,7 +525,12 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
   };
   let downOnOverlay = false;
   ov.addEventListener('mousedown', (e) => { downOnOverlay = e.target === ov; });
-  ov.addEventListener('click', (e) => { if (e.target === ov && downOnOverlay) m.requestClose(); });
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov && downOnOverlay) { m.requestClose(); return; }
+    // Pencere içindeki "Vazgeç" gibi data-close işaretli düğmeler pencereyi kapatır
+    const c = e.target.closest('[data-close]');
+    if (c && ov.contains(c) && !c.disabled) { e.preventDefault(); m.requestClose(); }
+  });
   modalStack.push(m);
   // Klavye odağı pencerede kalsın; kapanınca açan öğeye dönsün
   const opener = document.activeElement;

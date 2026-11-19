@@ -331,6 +331,8 @@ Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık za
 
 **Yazma çubuğu:** solda 😊 emoji paneli (son kullanılanlar + kategoriler), sağda 📎 Ekle ve 📷 Kamera; boşken mikrofon (sesli mesaj), yazınca gönder düğmesi. Yazdığınız ama göndermediğiniz mesaj **taslak** olarak kalır (listede “Taslak:”). Ekran görüntüsünü yapıştırabilir, bilgisayarda dosyaları sohbete sürükleyip bırakabilirsiniz.
 
+**Göndermeden önce önizleme:** Fotoğraf, video ya da dosya seçince (galeri, kamera, yapıştırma, sürükle-bırak) her zaman önizleme açılır: altına açıklama yazabilir, tek seferlik seçebilir, **Gönder** ya da **Vazgeç** diyebilirsiniz. Yazı kutusunda yazılmış metin açıklamaya taşınır.
+
 **Ekle:** Fotoğraf ve video (birden çok), **Kamera** (telefonda kamera uygulaması açılır; bilgisayarda tarayıcı içinden fotoğraf çekme ve video kaydı), Belge, **Tek seferlik fotoğraf/video** (alıcı bir kez açar, iletilemez, gönderen de açamaz; “Açıldı” görünür), **Konum** (Google Haritalar / OpenStreetMap ile açılır), **Kişi** (birim kişileri ve telefon rehberinden; kartta “Ara” ve “Mesaj”), Anket. Video en fazla 64 MB, diğer dosyalar 25 MB; videolar iPhone'da da oynar.
 
 **Mesaja dokunma:**

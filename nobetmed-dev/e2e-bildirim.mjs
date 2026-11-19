@@ -215,6 +215,7 @@ try {
   await B.p.goto(BASE + '#/profil/bildirim');
   await B.p.locator('.nb-cats').waitFor();
   if (!(await B.p.locator('input[data-k=eksik][data-f=push]').isDisabled())) fail('zorunlu kategori ayar ekranında kapatılabilir görünüyor');
+  if ((await B.p.locator('#nbSet').innerText()).includes('Elif Yılmaz')) fail('bildirim ayarlarında örnek kişi adı görünüyor');
   await B.p.locator('input[data-k=duyuru][data-f=push]').locator('..').click();
   await B.p.waitForFunction(async () => (await api('notif.prefs.get')).prefs.cats.duyuru.push === 0);
   await B.p.locator('[data-act=nb-pause][data-v="8h"]').click();
