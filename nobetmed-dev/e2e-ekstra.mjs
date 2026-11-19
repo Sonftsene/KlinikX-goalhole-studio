@@ -123,7 +123,7 @@ if (busy === undefined) console.log('  (Elif’in bu ay kalan günlerde nöbeti 
 if (!/geçmiş/i.test(await apiErr(E.p, 'extra.me', { ym: '2020-01' }))) fail('geçmiş ay kabul edildi');
 if (!/vardiya/.test(await apiErr(E.p, 'extra.save', { ym, shifts: [] }))) fail('vardiyasız istek kabul edildi');
 // Arayüzden kaydet (telefon)
-await E.p.goto(BASE + '#/ekstra');
+await E.p.goto(BASE + '#/ekstra/gonullu/' + ym);
 await E.p.locator('.ex-day').first().waitFor();
 await E.p.locator('.ex-chk input[value="day"]').locator('..').click();
 await E.p.click('[data-act=ex-save]');
@@ -165,6 +165,84 @@ if (elifDays.join() !== pickDay) fail('seçili gün modu: ' + elifDays.join());
 await apiCall(E.p, 'extra.cancel', { ym });
 if ((await apiCall(A.p, 'extra.board', { ym })).people.length) fail('geri çekilen istek listede');
 step('sorumlu: isteyenler ve gün gün uygun olanlar (eksik sayısıyla), çağrı adaylarında “Ekstra istiyor” rozeti ve öncelik, listeden “Çağrı aç”; seçili gün modu; geri çekme; üye listeyi göremez');
+
+// ---- 4) Nöbet devral: hem benim alabileceğim hem sahibinin bırakabileceği nöbetler ----
+const tg = await apiCall(E.p, 'extra.take', { ym });
+if (!tg.found) fail('devral: Elif listede bulunamadı');
+const okItems = tg.days.flatMap((d) => d.items.filter((x) => x.ok).map((x) => ({ ...x, date: d.date })));
+if (!okItems.length) fail('devral: hiç alınabilir nöbet yok (veri?)');
+if (tg.days.some((d) => d.date < today || d.items.some((x) => !x.ok))) fail('genel listede uygunsuz ya da geçmiş gün var');
+const isElif = (n) => String(n).toLocaleLowerCase('tr').includes('elif');
+if (tg.days.some((d) => d.items.some((x) => isElif(x.name)))) fail('kendi nöbetim listede');
+// Elif'in kendi nöbeti olan günde (örn. listede nöbeti var) o günden bir şey alınamaz; seçili gün görünümü nedenleri verir
+const myShiftDay = me0.days.find((d) => /nöbeti var/.test(d.types.night.why || ''));
+if (myShiftDay) {
+  const td = await apiCall(E.p, 'extra.take', { ym, date: myShiftDay.date });
+  if (td.days.some((d) => d.items.some((x) => x.ok))) fail('kendi nöbetim olan gün başkasının nöbeti alınabilir göründü');
+  if (td.days.length && !td.days[0].items.every((x) => /senin de/.test(x.my_why || ''))) fail('seçili günde neden (o gün senin de nöbetin var) yok');
+}
+// Seçili gün: o günün tüm nöbetleri (uygun olmayanlar da) nedenleriyle
+const pickT = okItems[0];
+const tday = await apiCall(E.p, 'extra.take', { ym, date: pickT.date });
+if (!tday.days.length || tday.days[0].date !== pickT.date || !tday.days[0].items.some((x) => x.name === pickT.name && x.ok)) fail('seçili gün görünümü');
+// Kural doğrulaması: alınabilir denen her nöbet hem benim için hem sahibi için kurallara uyuyor (bağımsız denetim)
+const chk = JSON.parse(php(`require '${path.join(SITE, 'inc/rules.php')}'; require '${path.join(SITE, 'inc/swaps.php')}'; require_once '${path.join(SITE, 'inc/notify.php')}'; require_once '${path.join(SITE, 'inc/api_sync.php')}';
+  $items = json_decode('${JSON.stringify(okItems.slice(0, 25).map((x) => [x.roster_id, x.name, x.date])).replace(/'/g, "\\'")}', true);
+  $bad = [];
+  foreach ($items as [$rid, $name, $date]) {
+    $tl = swap_pending_overlay(swap_timeline($rid, date('Y-m-d', strtotime($date . ' -40 days')), date('Y-m-d', strtotime($date . ' +40 days'))), date('Y-m-d', strtotime($date . ' -40 days')), date('Y-m-d', strtotime($date . ' +40 days')), $rid);
+    $me = null; foreach ($tl as $k => $p) if (names_match((string)$p['name'], 'Elif Yılmaz')) $me = $k;
+    $pk = swap_key($name); $row = $tl[$pk]['days'][$date];
+    $mine = $tl[$me]['days']; if (isset($mine[$date])) { $bad[] = "$date $name: benim kaydım var"; continue; }
+    $mine[$date] = $row;
+    if ($e = swap_check($mine, [$date], [], swap_rules(), 'Sen')) $bad[] = "$date $name: $e";
+    $th = $tl[$pk]['days']; unset($th[$date]);
+    if ($e = swap_check($th, [], [$date], swap_rules(), 'O')) $bad[] = "$date $name: $e";
+  }
+  echo json_encode($bad, JSON_UNESCAPED_UNICODE);`));
+if (chk.length) fail('kurala uymayan nöbet “alınabilir” göründü: ' + chk.slice(0, 3).join(' | '));
+// Arayüz (telefon): genel liste, gün şeridi, vardiya süzgeci, seçili gün
+await E.p.goto(BASE + '#/ekstra');
+await E.p.locator('.tk-strip .tk-dc').first().waitFor();
+await E.p.locator('.tk-it').first().waitFor();
+await E.p.screenshot({ path: path.join(OUT, 'x-devral-mobile.png'), fullPage: true });
+await noOverflow(E.p, 'nöbet devral');
+await E.p.locator(`.tk-dc[href$="${pickT.date}"]`).click();
+await E.p.waitForFunction((d) => location.hash.endsWith(d), pickT.date);
+await E.p.locator('.tk-it', { hasText: pickT.display }).first().waitFor();
+// İste → sahibi kabul eder (sahibi uygulamada kayıtlıysa)
+const askable = okItems.find((x) => x.user_id);
+if (!askable) console.log('  (alınabilir nöbetlerin sahiplerinin hesabı yok; istek akışı atlandı)');
+else {
+  const owner = { 'Ayşe Kaya': A, 'Burak Demir': B }[askable.display];
+  await E.p.goto(BASE + '#/ekstra/' + ym + '/' + askable.date);
+  await E.p.locator(`.tk-it [data-act=tk-ask][data-n="${askable.name}"]`).click();
+  await E.p.fill('.modal #tkNote', 'Uygunsa ben alırım');
+  await E.p.locator('.modal [data-go]').click();
+  await E.p.getByText('İstek gönderildi').first().waitFor();
+  await E.p.locator('.tk-req .badge', { hasText: 'Yanıt bekliyor' }).first().waitFor();
+  if (!/zaten/.test(await apiErr(E.p, 'extra.take.ask', { date: askable.date, name: askable.name }))) fail('aynı istek iki kez gönderildi');
+  if (owner) {
+    const inc = (await apiCall(owner.p, 'extra.take', { ym })).requests.find((r) => r.dir === 'in' && r.status === 'pending' && r.date === askable.date);
+    if (!inc) fail('nöbet sahibine istek düşmedi');
+    if (!(await apiCall(owner.p, 'notif.list', { unread: true })).items.some((x) => /Nöbet devralma isteği/.test(x.title))) fail('sahibine bildirim gitmedi');
+    if ((await apiErr(E.p, 'extra.take.respond', { id: inc.id, accept: true })) === 'kabul') fail('isteyen kendi isteğini kabul etti');
+    await owner.p.goto(BASE + '#/ekstra');
+    await owner.p.locator(`[data-act=tk-resp][data-id="${inc.id}"][data-a="1"]`).click();
+    await owner.p.locator('.modal [data-ok]').last().click();
+    await owner.p.getByText('Nöbet devri kabul edildi').first().waitFor();
+    const sw = JSON.parse(php(`echo json_encode(one("SELECT kind, status, from_name, to_name, from_date FROM swap_requests WHERE from_date = ? AND status = 'accepted' ORDER BY id DESC LIMIT 1", ['${askable.date}']), JSON_UNESCAPED_UNICODE);`));
+    if (!sw || sw.kind !== 'give' || !isElif(sw.to_name)) fail('kabul edilen devir değişim kayıtlarına geçmedi: ' + JSON.stringify(sw));
+    const after = await apiCall(E.p, 'extra.take', { ym, date: askable.date });
+    if (after.days.some((d) => d.items.some((x) => x.name === askable.name && x.ok))) fail('devredilen nöbet hâlâ alınabilir görünüyor');
+    if (!(await apiCall(E.p, 'notif.list', { unread: true })).items.some((x) => /kabul edildi/.test(x.title))) fail('isteyene kabul bildirimi gitmedi');
+    php(`q("UPDATE swap_requests SET status = 'cancelled' WHERE from_date = ? AND status = 'accepted' AND (to_name LIKE '%lif%' OR to_name LIKE '%LİF%')", ['${askable.date}']);`);
+  } else {
+    const myReq = (await apiCall(E.p, 'extra.take', { ym })).requests.find((r) => r.dir === 'out' && r.status === 'pending');
+    await apiCall(E.p, 'extra.take.cancel', { id: myReq.id });
+  }
+}
+step(`nöbet devral: ${okItems.length} alınabilir nöbet (hem benim hem sahibinin kuralları bağımsız denetimle doğrulandı), kendi nöbetim olan gün nedenli, gün şeridi ve seçili gün görünümü, İste → sahibine bildirim → Ver → devir kaydı (sorumluya iletilir), çift istek engeli`);
 
 // Temizlik: geçici izin kayıtlarını geri al
 if (!setup.skip) php(`$r = one('SELECT parsed_file_id FROM rosters WHERE id = 3');
