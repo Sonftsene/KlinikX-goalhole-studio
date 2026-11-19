@@ -1648,3 +1648,10 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 /* 24 saatlik nöbetin parçası (gündüz / gece) */
 .tk-parts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 240px; }
 .sw-parts button, .mk-parts button { font-size: 12.5px; }
+/* Telefonda düğme grupları yazıyı sıkıştırmasın: birden çok düğmeli satırda düğmeler alt satıra iner, yazı tam genişlikte kalır */
+@media (max-width: 640px) {
+  .list-row:has(> .tk-parts), .list-row:has(> .row .btn + .btn), .list-row:has(> .dm-acts .btn + .btn) { flex-wrap: wrap; row-gap: 8px; }
+  .list-row:has(> .tk-parts) > .grow, .list-row:has(> .row .btn + .btn) > .grow { flex: 1 1 calc(100% - 56px); min-width: 0; }
+  .list-row > .tk-parts, .list-row > .row:has(.btn + .btn) { flex: 1 1 100%; max-width: none; justify-content: flex-end; flex-wrap: wrap; }
+  .list-row > .tk-parts .btn { flex: 1 1 0; justify-content: center; }
+}

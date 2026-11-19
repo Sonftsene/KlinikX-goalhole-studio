@@ -143,3 +143,15 @@
 /* Koyu temada sarı sayaç üzerinde beyaz yazı okunmuyordu */
 [data-theme="dark"] .count.warn { color: #2a1a00; }
 .toast.newver .btn { margin-left: auto; flex: none; }
+/* Masaüstünde Nöbet sekmeleri tek satıra sığmazsa alt satıra geçer (kaydırma gerekmez) */
+@media (min-width: 901px) {
+  .hub-tabs { flex-wrap: wrap; overflow-x: visible; max-width: none; }
+  .hub-tabs a { flex: 1 1 auto; }
+}
+/* Fareli cihazlarda yatay şeritlerde ince kaydırma çubuğu görünsün */
+@media (pointer: fine) {
+  .tk-strip, .seg, .tabs, .hd-filters .seg, .tpl-row, .emo-tabs, .set-tabs, .prof-tabs { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-3) 45%, transparent) transparent; }
+  .tk-strip::-webkit-scrollbar, .seg::-webkit-scrollbar, .tabs::-webkit-scrollbar { display: block; height: 6px; }
+  .tk-strip::-webkit-scrollbar-thumb, .seg::-webkit-scrollbar-thumb, .tabs::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-3) 45%, transparent); border-radius: 6px; }
+  .hs-drag { cursor: grabbing; user-select: none; }
+}

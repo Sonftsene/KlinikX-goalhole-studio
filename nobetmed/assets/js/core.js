@@ -670,3 +670,48 @@ ACT['toggle-pw'] = (el) => {
 function options(list, selected, emptyLabel) {
   return html`${emptyLabel !== undefined ? html`<option value="">${emptyLabel}</option>` : ''}${list.map((x) => html`<option value="${x.id}" ${x.id === selected ? raw('selected') : ''}>${x.name}</option>`)}`;
 }
+
+/* ---------------- Masaüstü: yatay kaydırmalı şeritler (sekmeler, gün şeridi, filtreler) ----------------
+   Dokunmatikte parmakla kayar; farede tekerlek dikey hareketi yatay kaydırmaya çevrilir, basılı tutup sürüklenebilir. */
+(function hscroll() {
+  if (!window.matchMedia || !matchMedia('(pointer: fine)').matches) return;
+  const scroller = (t) => {
+    for (let el = t; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollWidth <= el.clientWidth + 2) continue;
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return el;
+    }
+    return null;
+  };
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // yakınlaştırma ya da zaten yatay kaydırma
+    const el = scroller(e.target);
+    if (!el || el.closest('.xv-scroll, .ml-month, .ml-ed, .nd-wrap, table')) return; // tablolar dikey de kayar: dokunma
+    const max = el.scrollWidth - el.clientWidth;
+    if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return; // uçta: sayfa kaysın
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+  let drag = null;
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('input, textarea, select, .xv-scroll, table')) return;
+    const el = scroller(e.target);
+    if (el) drag = { el, x: e.clientX, left: el.scrollLeft, moved: false };
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 6) return;
+    drag.moved = true;
+    drag.el.scrollLeft = drag.left - dx;
+    drag.el.classList.add('hs-drag');
+  });
+  document.addEventListener('mouseup', () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    d.el.classList.remove('hs-drag');
+    // Sürükleme bittiğinde altta kalan bağlantı / düğme tıklanmasın
+    if (d.moved) document.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+  });
+  window.NM_HSCROLL = true;
+})();
