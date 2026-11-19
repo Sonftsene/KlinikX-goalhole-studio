@@ -46,8 +46,8 @@ function a_push_subscribe(): void
     if (!$allowed && !$localDev) fail('Geçersiz bildirim adresi.');
     $hash = hash('sha256', $endpoint);
     q('DELETE FROM push_subscriptions WHERE endpoint_hash = ?', [$hash]);
-    q('INSERT INTO push_subscriptions (user_id, endpoint, endpoint_hash, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [$me['id'], $endpoint, $hash, s('p256dh', 255), s('auth', 100), now()]);
+    q('INSERT INTO push_subscriptions (user_id, endpoint, endpoint_hash, p256dh, auth, created_at, label) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$me['id'], $endpoint, $hash, s('p256dh', 255), s('auth', 100), now(), function_exists('nb_device_label') ? nb_device_label((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), b('app')) : null]);
     q('UPDATE users SET push_on = 1 WHERE id = ?', [$me['id']]);
     out();
 }
@@ -75,6 +75,11 @@ function a_push_pending_get(): void
     if (($_SERVER['HTTP_X_NM_SW'] ?? '') !== '1') { http_response_code(400); echo json_encode(['ok' => false]); return; }
     $me = current_user();
     if (!$me) { echo json_encode(['ok' => true, 'items' => []]); return; }
+    if (function_exists('nb_payload') && empty($me['sa_virtual'])) {
+        $p = nb_payload($me, date('Y-m-d H:i:s', time() - 900));
+        echo json_encode(['ok' => true] + ($p ?? ['items' => []]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return;
+    }
     $rows = all('SELECT id, title, body, url FROM notifications WHERE user_id = ? AND read_at IS NULL AND created_at >= ? ORDER BY id DESC LIMIT 5', [$me['id'], date('Y-m-d H:i:s', time() - 900)]);
     $icon = brand_url('icon192'); // yöneticinin yüklediği uygulama simgesi (yoksa sw.js varsayılanı kullanır)
     echo json_encode(['ok' => true, 'items' => array_map(fn($r) => ['id' => (int)$r['id'], 'title' => $r['title'], 'body' => $r['body'], 'url' => $r['url'], 'tag' => 'n' . $r['id'], 'icon' => $icon], $rows)], JSON_UNESCAPED_UNICODE);

@@ -176,6 +176,21 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
     await sleep(500);
   };
 
+  // Uygulama öndeyken: sistem bildirimi yok, içerik sayfaya iletilir (ekranda kart)
+  await page.evaluate(() => { window.__pm = []; navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'PUSH') window.__pm.push(e.data); }); });
+  const front = await page.evaluate(() => document.visibilityState === 'visible' && document.hasFocus());
+  if (front) {
+    await deliver();
+    const pm = await page.evaluate(() => window.__pm);
+    check((await notifs()).length === 0 && pm.length === 1 && pm[0].items.length === 2, 'uygulama öndeyken sistem bildirimi yerine sayfaya iletildi');
+  } else console.log('  (bu ortamda sayfa odakta değil; ön plan denetimi atlandı)');
+  // Bundan sonrası: uygulama arka planda (başka sekme önde)
+  const other = await context.newPage();
+  await other.goto('about:blank');
+  await other.bringToFront();
+  await sleep(300);
+  pendingHits = 0; pendingHeaders.length = 0;
+
   let usedHook = false;
   await deliver();
   if (pendingHits === 0) {
@@ -208,6 +223,22 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 
   await deliver();
   n = await notifs();
   check(n.length === 1, 'boş yanıtta mevcut bildirim sessizce yenilendi (yığılma yok)');
+  await clearNotifs();
+
+  // Şifreli içerik (tarayıcı çözmüş olarak event.data): sunucuya gitmeden gösterilir; aynı sohbetten gelenler birikir
+  const deliverData = async (obj) => { await cdp.send('ServiceWorker.deliverPushMessage', { origin: BASE.slice(0, -1), registrationId: regs[BASE], data: JSON.stringify(obj) }); await sleep(700); };
+  const hitsBefore = pendingHits;
+  const pl = (body, extra) => Object.assign({ v: 1, unread: 3, silent: 0, vibrate: 1, icon: BASE + 'assets/icon-192.png', items: [{ id: 501, at: '2026-01-01 10:00:00', kind: 'chat', cat: 'mesaj', title: 'Elif Yılmaz', body, url: '#/mesaj/9', tag: 'c9' }] }, extra || {});
+  await deliverData(pl('Merhaba'));
+  await deliverData(pl('Yarın 08:00 devir sende'));
+  n = await page.evaluate(async () => (await (await navigator.serviceWorker.getRegistration()).getNotifications()).map((x) => ({ title: x.title, body: x.body, tag: x.tag, url: x.data && x.data.url, actions: (x.actions || []).map((a) => a.action), silent: x.silent })));
+  check(pendingHits === hitsBefore, 'şifreli içerikte sunucuya ek istek yapılmadı');
+  check(n.length === 1 && n[0].tag === 'c9' && n[0].title === 'Elif Yılmaz (2 mesaj)' && n[0].body === 'Merhaba\nYarın 08:00 devir sende', 'aynı sohbetin mesajları tek bildirimde birikti: ' + JSON.stringify(n[0]));
+  check(n[0] && n[0].url === BASE + '#/mesaj/9' && n[0].actions.join(',') === 'open,read', 'bildirimde “Sohbeti aç” ve “Okundu say” düğmeleri');
+  await clearNotifs();
+  await deliverData(pl('Gece mesajı', { silent: 1 }));
+  n = await page.evaluate(async () => (await (await navigator.serviceWorker.getRegistration()).getNotifications()).map((x) => ({ silent: x.silent })));
+  check(n.length === 1 && n[0].silent === true, 'sessiz saatlerde bildirim sessiz geldi');
   await clearNotifs();
 
   // Bildirim tıklaması → sayfaya NAVIGATE mesajı (pwa.js dinleyicisi hash'i değiştirir)

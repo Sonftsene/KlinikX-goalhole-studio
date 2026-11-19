@@ -1,4 +1,4 @@
-/* dupcii — service worker (çevrimdışı kabuk + boş push bildirimleri) */
+/* dupcii — service worker (çevrimdışı kabuk + şifreli push bildirimleri) */
 'use strict';
 
 // Sürüm, index.php'nin kayıtta verdiği ?v= değerinden gelir: yeni sürümde eski önbellekler silinir, kabuk yeniden indirilir
@@ -20,7 +20,7 @@ const SHELL_ASSETS = [
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
-const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'plan', 'pwa'];
+const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'bildirim', 'plan', 'pwa'];
 const PRECACHE = SHELL_ASSETS.concat(JS_FILES.map((n) => 'assets/js/' + n + '.js'));
 
 const SHELL_CACHE = 'nm-shell-' + VERSION;
@@ -214,53 +214,98 @@ async function fontStrategy(event) {
 }
 
 /* ---------------- Push ---------------- */
+// İçerik sunucuda aboneliğin anahtarıyla şifrelenir (tarayıcı çözer, event.data). İçeriksiz gelirse sunucudan çekilir.
 self.addEventListener('push', (event) => {
-  event.waitUntil(handlePush());
+  event.waitUntil(handlePush(event));
 });
 
-async function handlePush() {
-  let items = [];
+async function fetchPending() {
   try {
-    const res = await fetch(abs('api.php?action=push.pending'), {
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { 'X-NM-SW': '1' },
-    });
+    const res = await fetch(abs('api.php?action=push.pending'), { credentials: 'include', cache: 'no-store', headers: { 'X-NM-SW': '1' } });
     const json = await res.json();
-    if (json && json.ok && Array.isArray(json.items)) items = json.items;
+    if (json && json.ok && Array.isArray(json.items)) return json;
   } catch (e) { /* aşağıda genel bildirim */ }
+  return { items: [] };
+}
+
+/** Safari (iPhone/Mac) her push için görünür bildirim ister; diğerlerinde uygulama öndeyse yalnız uygulama içi kart */
+function mustShowAlways() {
+  const ua = (self.navigator && self.navigator.userAgent) || '';
+  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Android|Edg|Firefox/.test(ua);
+}
+
+function safeIcon(u) {
+  if (!u) return abs('assets/icon-192.png');
+  try { const x = new URL(String(u || ''), SCOPE); if (x.origin === self.location.origin) return x.href; } catch (e) { /* */ }
+  return abs('assets/icon-192.png');
+}
+
+async function setBadge(n) {
+  try {
+    if (!self.navigator || !self.navigator.setAppBadge) return;
+    if (n > 0) await self.navigator.setAppBadge(n); else await self.navigator.clearAppBadge();
+  } catch (e) { /* desteklenmiyor */ }
+}
+
+async function handlePush(event) {
+  let data = null;
+  try { if (event && event.data) data = event.data.json(); } catch (e) { data = null; }
+  if (!data || !Array.isArray(data.items)) data = await fetchPending();
+  const items = data.items || [];
+  if (typeof data.unread === 'number') await setBadge(data.unread);
+
+  // Uygulama öndeyse içeriği ona ver (ekranda kart, ses); Safari dışında sistem bildirimi gösterme
+  const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const front = wins.find((c) => c.url.startsWith(ROOT_URL) && c.visibilityState === 'visible' && c.focused);
+  const always = mustShowAlways();
+  if (front && items.length) {
+    try { front.postMessage({ type: 'PUSH', items, unread: data.unread, shown: always }); } catch (e) { /* */ }
+    if (!always) return;
+  }
 
   // badge: Android durum çubuğundaki küçük simge yalnız şeffaflıktan çizilir — şeffaf zeminli tek renk simge gerekir.
-  // icon: yöneticinin yüklediği uygulama simgesi varsa o (yalnız aynı site), yoksa varsayılan.
-  let icon = abs('assets/icon-192.png');
-  const ic = items.find((it) => it && it.icon);
-  if (ic) { try { const u = new URL(String(ic.icon), SCOPE); if (u.origin === self.location.origin) icon = u.href; } catch (e) { /* varsayılan */ } }
-  const opts = (o) => Object.assign({ icon, badge: abs('assets/badge-96.png'), renotify: true }, o);
+  // icon: yöneticinin yüklediği uygulama simgesi / sitenin logosu
+  const icon = safeIcon(data.icon || (items[0] && items[0].icon));
+  const silent = !!data.silent;
+  const base = (o) => Object.assign({ icon, badge: abs('assets/badge-96.png'), lang: 'tr', timestamp: Date.now(), renotify: !silent, silent },
+    silent || data.vibrate === 0 ? {} : { vibrate: [180, 80, 180] }, o);
 
   if (!items.length) {
     // Tarayıcılar her push için bir bildirim ister. Zaten görünen bir bildirimimiz varsa onu sessizce yenile.
     const shown = await self.registration.getNotifications();
     if (shown.length) {
       const n = shown[shown.length - 1];
-      return self.registration.showNotification(n.title, { body: n.body, tag: n.tag || 'nm-generic', icon: n.icon, badge: n.badge, data: n.data, renotify: false });
+      return self.registration.showNotification(n.title, { body: n.body, tag: n.tag || 'nm-generic', icon: n.icon, badge: n.badge, data: n.data, renotify: false, silent: true });
     }
-    return self.registration.showNotification('dupcii', opts({ body: 'Yeni bildirim', tag: 'nm-generic', data: { url: ROOT_URL } }));
+    return self.registration.showNotification('dupcii', base({ body: 'Yeni bildirim', tag: 'nm-generic', data: { url: ROOT_URL } }));
   }
 
   if (items.length > 3) {
     const titles = items.slice(0, 4).map((it) => '• ' + String(it.title || '')).join('\n');
-    return self.registration.showNotification(items.length + ' yeni bildirim', opts({
-      body: titles + (items.length > 4 ? '\n…' : ''),
-      tag: 'nm-summary',
-      data: { url: ROOT_URL },
-    }));
+    return self.registration.showNotification(items.length + ' yeni bildirim', base({ body: titles + (items.length > 4 ? '\n…' : ''), tag: 'nm-summary', data: { url: ROOT_URL } }));
   }
 
-  await Promise.all(items.map((it) => self.registration.showNotification(String(it.title || 'dupcii'), opts({
-    body: String(it.body || ''),
-    tag: String(it.tag || ('nm-' + (it.id != null ? it.id : Date.now()))),
-    data: { url: safeUrl(it.url) },
-  }))));
+  await Promise.all(items.map(async (it) => {
+    const tag = String(it.tag || ('nm-' + (it.id != null ? it.id : Date.now())));
+    let title = String(it.title || 'dupcii');
+    let body = String(it.body || '');
+    let lines = [body];
+    // Aynı sohbetten art arda gelen mesajlar tek bildirimde birikir (WhatsApp gibi)
+    if (it.cat === 'mesaj') {
+      try {
+        const prev = (await self.registration.getNotifications({ tag }))[0];
+        if (prev && prev.data && Array.isArray(prev.data.lines)) lines = prev.data.lines.concat(body).slice(-6);
+      } catch (e) { /* */ }
+      if (lines.length > 1) { title = title + ' (' + lines.length + ' mesaj)'; body = lines.join('\n'); }
+    }
+    const urgent = it.cat === 'eksik';
+    return self.registration.showNotification(title, base({
+      body, tag,
+      requireInteraction: urgent,
+      data: { url: safeUrl(it.url), id: it.id, cat: it.cat, lines },
+      actions: [{ action: 'open', title: it.cat === 'mesaj' ? 'Sohbeti aç' : 'Aç' }, { action: 'read', title: 'Okundu say' }],
+    }));
+  }));
 }
 
 /** '#/p/12' gibi göreli adresleri kapsam köküne göre çözer; başka kökenlere izin vermez. */
@@ -271,10 +316,22 @@ function safeUrl(u) {
   } catch (e) { return ROOT_URL; }
 }
 
+async function markRead(id) {
+  if (!id) return;
+  try {
+    const res = await fetch(abs('api.php?action=push.read&id=' + encodeURIComponent(id)), { credentials: 'include', cache: 'no-store', headers: { 'X-NM-SW': '1' } });
+    const j = await res.json();
+    if (j && typeof j.unread === 'number') await setBadge(j.unread);
+  } catch (e) { /* */ }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = safeUrl(event.notification.data && event.notification.data.url);
+  const d = event.notification.data || {};
+  if (event.action === 'read') { event.waitUntil(markRead(d.id)); return; }
+  const target = safeUrl(d.url);
   event.waitUntil((async () => {
+    markRead(d.id);
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const win = wins.find((c) => c.url.startsWith(ROOT_URL));
     if (win) {
@@ -287,5 +344,23 @@ self.addEventListener('notificationclick', (event) => {
       }
     }
     await self.clients.openWindow(target);
+  })());
+});
+
+// Tarayıcı aboneliği yenilediğinde sunucuya bildir (bildirimler kesilmesin)
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const old = event.oldSubscription || null;
+      let sub = event.newSubscription || null;
+      if (!sub && old && old.options) sub = await self.registration.pushManager.subscribe(old.options);
+      if (!sub) return;
+      const j = sub.toJSON();
+      await fetch(abs('api.php?action=push.renew'), {
+        method: 'POST', credentials: 'include', cache: 'no-store',
+        headers: { 'X-NM-SW': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old: old ? old.endpoint : '', endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '' }),
+      });
+    } catch (e) { /* bir sonraki açılışta pushSync yeniler */ }
   })());
 });

@@ -48,8 +48,7 @@ function chatBadge() {
   const n = S.chatUnread || 0;
   if (c) { c.textContent = n > 99 ? '99+' : String(n); c.classList.toggle('hidden', !n); }
 }
-setInterval(chatUnreadSync, 20000);
-document.addEventListener('visibilitychange', chatUnreadSync);
+// Okunmamış sayısı bildirim.js canlı döngüsünden gelir (live → chat)
 window.addEventListener('hashchange', () => setTimeout(() => { chatBadge(); if (!location.hash.startsWith('#/mesaj')) chatStop(); }, 0));
 setTimeout(() => { chatBadge(); chatUnreadSync(); }, 1500);
 

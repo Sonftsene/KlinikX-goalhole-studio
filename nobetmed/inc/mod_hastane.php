@@ -265,6 +265,11 @@ function a_hdoc_save(): void
         q('DELETE FROM attachments WHERE id = ?', [$aid]);
     }
     audit($me, i('id') ? 'hdoc.save' : 'hdoc.create', $title, H_KINDS[$kind]);
+    // Yeni belge: hastanenin diğer birimlerine hemen bildir (zamanlanmış görevi beklemeden)
+    if (!i('id') && function_exists('nb_kick')) {
+        $hid = (int)nm_tenant()['hospital_id'];
+        nb_kick(array_map(fn($t) => (string)$t['tkey'], array_filter(nm_tenants(), fn($t) => (int)$t['hospital_id'] === $hid)), 'hdoc_notify');
+    }
     out(['doc' => hdoc_out(h_one('SELECT * FROM h_docs WHERE id = ?', [$id]), (int)$me['id'], true)]);
 }
 

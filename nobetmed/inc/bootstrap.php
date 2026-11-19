@@ -14,7 +14,7 @@ mb_internal_encoding('UTF-8');
 
 const NM_VERSION = '4.6.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 14;
+const NM_SCHEMA = 15;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -387,7 +387,10 @@ function nm_migrate(PDO $pdo): void
             // Sürüm 12: nöbet hesaplarına hiç dahil edilmeyen kişi (ör. yaşlı bakım personeli)
             'no_duty INT NOT NULL DEFAULT 0',
             // Sürüm 13: birime özel rol (boşsa temel yetkiye göre)
-            'role_id INT NULL'],
+            'role_id INT NULL',
+            // Sürüm 15: bildirim tercihleri (kategori, sessiz saatler, önizleme, duraklatma)
+            'notif_prefs TEXT NULL'],
+        'push_subscriptions' => ['label VARCHAR(80) NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],

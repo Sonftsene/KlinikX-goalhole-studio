@@ -153,7 +153,7 @@ async function pushEnable() {
     }
   }
   const j = sub.toJSON();
-  await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '' });
+  await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '', app: _nmStandalone() });
   return true;
 }
 
@@ -187,7 +187,7 @@ async function pushSync() {
     const reg = await navigator.serviceWorker.getRegistration();
     const sub = await reg.pushManager.getSubscription();
     const j = sub.toJSON();
-    await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '' });
+    await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '', app: _nmStandalone() });
     return true;
   } catch (e) { return false; }
 }

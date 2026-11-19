@@ -52,7 +52,9 @@ ACT.notifs = async (el) => {
   if ($('.notif-pop')) return closeNotifPop();
   const pop = document.createElement('div');
   pop.className = 'notif-pop';
-  pop.innerHTML = fmtVal(html`<div class="np-head"><b>Bildirimler</b><button class="btn sm ghost" data-act="notif-readall">Tümünü okundu say</button></div><div class="np-list"><div style="padding:24px;display:grid;place-items:center"><div class="spinner"></div></div></div>`);
+  pop.innerHTML = fmtVal(html`<div class="np-head"><b>Bildirimler</b><button class="btn sm ghost" data-act="notif-readall">Tümünü okundu say</button><a class="btn sm icon ghost" href="#/profil/bildirim" aria-label="Bildirim ayarları" title="Bildirim ayarları">${icon('sliders', 'sm')}</a></div><div class="np-push"></div><div class="np-list"><div style="padding:24px;display:grid;place-items:center"><div class="spinner"></div></div></div><a class="np-foot" href="#/bildirimler">Tüm bildirimler ${icon('chevR', 'sm')}</a>`);
+  // Bu cihazda telefon bildirimi kapalıysa hatırlat
+  if (S.settings.push_ready && typeof pushState === 'function') pushState().then((st) => { const b = pop.querySelector('.np-push'); if (b && (st === 'off')) setHTML(b, html`<div class="np-pushtip">${icon('bell', 'sm')}<span class="grow">Bu cihazda telefon bildirimleri kapalı.</span><a class="btn sm primary" href="#/profil/bildirim">Aç</a></div>`); }).catch(() => {});
   document.body.appendChild(pop);
   const r = el.getBoundingClientRect();
   if (window.innerWidth > 900) { pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; }
@@ -77,6 +79,7 @@ ACT['notif-open'] = async (el) => {
   closeNotifPop();
   try { await api('notif.read', { id: +el.dataset.id }); } catch (e) { /* */ }
   const url = el.dataset.url || '#/';
+  if (typeof nbCloseSys === 'function') nbCloseSys(url);
   if (location.hash === url) route(); else location.hash = url;
   refreshCounts();
 };
@@ -85,6 +88,8 @@ ACT['notif-readall'] = async () => {
   closeNotifPop();
   S.counts.notif_unread = 0;
   updateNotifBadge();
+  if (typeof nbCloseSys === 'function') nbCloseSys('');
+  if (typeof nbTitle === 'function') nbTitle();
 };
 
 /* =================================================================== */
@@ -481,6 +486,7 @@ function renderProfile(view) {
   if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
   if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
   if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
+  if (tab === 'bildirim' && typeof nbSettingsMount === 'function') nbSettingsMount();
   const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
   if (ext && ext.mount) { try { ext.mount(); } catch (e) { /* */ } }
 }
@@ -527,6 +533,7 @@ function profileTabHtml(tab) {
         <div class="form-error hidden" data-err></div><div><button class="btn" type="submit">E-postayı değiştir</button></div>`
         : html`<p class="tiny faint">E-postanızı değiştirmek için önce <a href="#/profil/guvenlik">Güvenlik</a> bölümünden bir şifre belirleyin.</p>`}
     </form>`;
+  if (tab === 'bildirim' && typeof nbSettingsHtml === 'function') return nbSettingsHtml();
   if (tab === 'bildirim') return html`
     <div class="card card-pad stack">
       <h3 class="ph">E-posta bildirimleri</h3>

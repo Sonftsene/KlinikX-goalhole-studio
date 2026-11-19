@@ -249,13 +249,19 @@ function a_chat_unread(): void
 {
     $me = need_user();
     if (!cdb() || !nm_mod_on('mesaj')) out(['unread' => 0]);
+    out(['unread' => c_unread_total($me)]);
+}
+
+/** Okunmamış sohbet mesajı sayısı (sessize alınanlar hariç) + okunmadı işaretli sohbetler */
+function c_unread_total(array $me): int
+{
     $u = c_unit_chat();
     c_access($me, (int)$u['id']);
     $n = (int)h_val('SELECT COUNT(*) FROM c_msgs x JOIN c_members m ON m.chat_id = x.chat_id AND m.tkey = ? AND m.user_id = ? JOIN c_chats c ON c.id = x.chat_id
         WHERE x.id > m.last_read AND x.id > m.cleared_id AND m.muted = 0 AND (m.mute_until IS NULL OR m.mute_until < ?) AND NOT (x.tkey = ? AND x.user_id = ?) AND x.deleted_at IS NULL AND (c.kind <> \'unit\' OR c.tkey = ?)', [c_tk(), (int)$me['id'], now(), c_tk(), (int)$me['id'], c_tk()]);
     $n += (int)h_val('SELECT COUNT(*) FROM c_members WHERE tkey = ? AND user_id = ? AND unread_mark = 1', [c_tk(), (int)$me['id']]);
     if (function_exists('c_pref_touch')) c_pref_touch($me);
-    out(['unread' => $n]);
+    return $n;
 }
 
 /** Sohbeti aç: bilgi, üyeler, son mesajlar; okundu işaretlenir, bu sohbetin bildirimleri kapanır */
@@ -435,6 +441,10 @@ function c_notify_local(array $c, array $me): void
         h_q('UPDATE c_members SET notified = ? WHERE chat_id = ? AND tkey = ?', [(int)$c['last_id'], (int)$c['id'], c_tk()]);
     }
     if ($ids) c_push($ids, (int)$c['id'], $title, $body);
+    // Diğer birimlerdeki üyeler: o birimin bildirim görevini hemen tetikle (zamanlanmış görevi beklemeden)
+    if ($c['kind'] !== 'unit' && function_exists('nb_kick')) {
+        nb_kick(array_column(h_all('SELECT DISTINCT tkey FROM c_members WHERE chat_id = ? AND tkey <> ?', [(int)$c['id'], c_tk()]), 'tkey'), 'chat_notify');
+    }
 }
 
 /** Uygulama içi bildirim (sohbet başına bir tane, okunmadıysa güncellenir) + telefon bildirimi */
@@ -447,8 +457,9 @@ function c_push(array $userIds, int $chatId, string $title, string $body): void
         $n = one("SELECT id FROM notifications WHERE user_id = ? AND kind = 'chat' AND url = ? AND read_at IS NULL", [$u['id'], $url]);
         if ($n) q('UPDATE notifications SET title = ?, body = ?, created_at = ? WHERE id = ?', [mb_substr($title, 0, 200), mb_substr($body, 0, 400), now(), $n['id']]);
         else q('INSERT INTO notifications (user_id, title, body, url, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$u['id'], mb_substr($title, 0, 200), mb_substr($body, 0, 400), $url, 'chat', now()]);
-        if ((int)($u['push_on'] ?? 1) === 1 && ($u['notify_mode'] ?? 'instant') !== 'off') $push[] = (int)$u['id'];
+        $push[] = (int)$u['id'];
     }
+    if ($push && function_exists('nb_push_filter')) $push = nb_push_filter($push, 'chat');
     if ($push && function_exists('push_after_response')) push_after_response($push);
 }
 

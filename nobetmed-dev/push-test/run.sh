@@ -8,6 +8,7 @@ LOG="$TMPD/fake-push-log.json"
 rm -f "$LOG"
 rc=0
 php unit-test.php || rc=1
+node encrypt-test.cjs || rc=1
 FAKE_PUSH_LOG="$LOG" php -S 127.0.0.1:8072 fake-push.php >"$TMPD/fake-push.out" 2>&1 &
 PID=$!
 for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8072/ && break; sleep 0.1; done

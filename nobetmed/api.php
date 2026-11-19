@@ -143,7 +143,7 @@ $routes = [
     'tax.save' => 'a_tax_save',
     'tax.delete' => 'a_tax_delete',
     'settings.save' => 'a_settings_save',
-    'notif.list' => 'a_notif_list',
+    'notif.list' => 'a_notif_list2', // inc/mod_bildirim.php (kategori süzgeci, sayfalama)
     'notif.read' => 'a_notif_read',
     'push.key' => 'a_push_key',
     'push.subscribe' => 'a_push_subscribe',
@@ -364,6 +364,7 @@ function user_out(array $u): array
         'email_notify' => (int)($u['email_notify'] ?? 1) === 1,
         'notify_mode' => $u['notify_mode'] ?? 'instant',
         'push_on' => (int)($u['push_on'] ?? 1) === 1,
+        'notif' => function_exists('nb_prefs_out') && empty($u['sa_virtual']) ? nb_prefs_out($u) : null,
         'phone' => $u['phone'] ?? null,
         'extension' => $u['extension'] ?? null,
         'avatar' => avatar_url($u),

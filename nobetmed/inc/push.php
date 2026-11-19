@@ -1,9 +1,10 @@
 <?php
 /**
- * dupcii — Web Push (yalnızca VAPID, yüksüz/boş mesaj)
+ * dupcii — Web Push (VAPID + RFC 8291 şifreli içerik)
  *
- * Boş push mesajı gönderilir (RFC 8291 şifrelemesi gerekmez). Service worker 'push'
- * olayında bekleyen bildirimleri çerezle sunucudan çeker (api.php?action=push.pending).
+ * Bildirim içeriği aboneliğin anahtarlarıyla uçtan uca şifrelenip gönderilir (aes128gcm); push servisi
+ * (Google/Apple/Mozilla) içeriği okuyamaz. Şifreleme yapılamazsa (eski OpenSSL, anahtarsız abonelik)
+ * boş mesaj gider; service worker bekleyen bildirimleri çerezle sunucudan çeker (api.php?action=push.pending).
  * Gereken eklentiler: openssl, json; curl varsa paralel gönderim, yoksa stream bağlamı.
  */
 declare(strict_types=1);
@@ -20,6 +21,53 @@ function push_b64u_dec(string $s): string
     if ($pad) $s .= str_repeat('=', 4 - $pad);
     $out = base64_decode($s, true);
     return $out === false ? '' : $out;
+}
+
+/** RFC 5869 HKDF-Expand (tek blok, en fazla 32 bayt) */
+function push_hkdf_expand(string $prk, string $info, int $len): string
+{
+    return substr(hash_hmac('sha256', $info . "\x01", $prk, true), 0, $len);
+}
+
+/** Şifreleme bu sunucuda yapılabilir mi (openssl_pkey_derive PHP 7.3+, aes-128-gcm) */
+function push_can_encrypt(): bool
+{
+    return function_exists('openssl_pkey_derive') && in_array('aes-128-gcm', openssl_get_cipher_methods(), true);
+}
+
+/**
+ * RFC 8291 (Web Push) + RFC 8188 (aes128gcm) şifreli gövde. Hata olursa null (çağıran boş mesaja düşer).
+ * $uaPublic: aboneliğin p256dh (base64url, 65 bayt), $authSecret: auth (base64url, 16 bayt)
+ */
+function push_encrypt(string $plain, string $uaPublic, string $authSecret): ?string
+{
+    if (!push_can_encrypt()) return null;
+    $ua = push_b64u_dec($uaPublic);
+    $auth = push_b64u_dec($authSecret);
+    if (strlen($ua) !== 65 || $ua[0] !== "\x04" || strlen($auth) < 16 || strlen($plain) > 3800) return null;
+    try {
+        $local = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        if ($local === false) return null;
+        $d = openssl_pkey_get_details($local);
+        if (!$d || empty($d['ec']['x'])) return null;
+        $as = "\x04" . str_pad($d['ec']['x'], 32, "\0", STR_PAD_LEFT) . str_pad($d['ec']['y'], 32, "\0", STR_PAD_LEFT);
+        $peer = openssl_pkey_get_public(push_public_pem($ua));
+        if ($peer === false) return null;
+        $ecdh = openssl_pkey_derive($peer, $local, 32);
+        if (!is_string($ecdh) || strlen($ecdh) !== 32) return null;
+        $salt = random_bytes(16);
+        $prkKey = hash_hmac('sha256', $ecdh, $auth, true);
+        $ikm = push_hkdf_expand($prkKey, "WebPush: info\0" . $ua . $as, 32);
+        $prk = hash_hmac('sha256', $ikm, $salt, true);
+        $cek = push_hkdf_expand($prk, "Content-Encoding: aes128gcm\0", 16);
+        $nonce = push_hkdf_expand($prk, "Content-Encoding: nonce\0", 12);
+        $tag = '';
+        $ct = openssl_encrypt($plain . "\x02", 'aes-128-gcm', $cek, OPENSSL_RAW_DATA, $nonce, $tag, '', 16);
+        if ($ct === false || strlen($tag) !== 16) return null;
+        return $salt . pack('N', 4096) . chr(65) . $as . $ct . $tag;
+    } catch (Throwable $e) {
+        return null;
+    }
 }
 
 /**
@@ -147,10 +195,15 @@ function push_send(array $subscriptions, string $publicB64u, string $privatePem,
             $results[$id] = 'error: ' . $e->getMessage();
             continue;
         }
-        $jobs[$id] = [
-            'endpoint' => $endpoint,
-            'headers' => ['TTL: 86400', 'Urgency: high', 'Content-Length: 0', 'Authorization: vapid t=' . $jwts[$aud] . ', k=' . $publicB64u],
-        ];
+        // İçerik varsa aboneliğin anahtarlarıyla şifrele; olmazsa boş mesaj (SW sunucudan çeker)
+        $body = '';
+        if (($sub['payload'] ?? '') !== '' && ($sub['p256dh'] ?? '') !== '' && ($sub['auth'] ?? '') !== '') {
+            $body = (string)push_encrypt((string)$sub['payload'], (string)$sub['p256dh'], (string)$sub['auth']);
+        }
+        $h = ['TTL: ' . (int)($sub['ttl'] ?? 86400), 'Urgency: ' . (($sub['urgency'] ?? 'high') === 'normal' ? 'normal' : 'high'), 'Content-Length: ' . strlen($body), 'Authorization: vapid t=' . $jwts[$aud] . ', k=' . $publicB64u];
+        if ($body !== '') { $h[] = 'Content-Encoding: aes128gcm'; $h[] = 'Content-Type: application/octet-stream'; }
+        if (!empty($sub['topic']) && preg_match('/^[A-Za-z0-9_-]{1,32}$/', (string)$sub['topic'])) $h[] = 'Topic: ' . $sub['topic'];
+        $jobs[$id] = ['endpoint' => $endpoint, 'headers' => $h, 'body' => $body];
     }
     if (!$jobs) return $results;
 
@@ -169,7 +222,7 @@ function push_send(array $subscriptions, string $publicB64u, string $privatePem,
             $ch = curl_init($job['endpoint']);
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => '',
+                CURLOPT_POSTFIELDS => $job['body'],
                 CURLOPT_HTTPHEADER => array_merge($job['headers'], ['Expect:']),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => false,
@@ -203,7 +256,7 @@ function push_send(array $subscriptions, string $publicB64u, string $privatePem,
         $ctx = stream_context_create(['http' => [
             'method' => 'POST',
             'header' => implode("\r\n", $job['headers']),
-            'content' => '',
+            'content' => $job['body'],
             'timeout' => 10,
             'ignore_errors' => true,
             'follow_location' => 0,

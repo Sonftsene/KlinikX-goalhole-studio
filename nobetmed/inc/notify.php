@@ -24,7 +24,7 @@ function notify_users(array $users, string $kind, string $title, string $body, s
         q('INSERT INTO notifications (user_id, title, body, url, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
             [$id, mb_substr($title, 0, 200), mb_substr($body, 0, 400), mb_substr($url, 0, 200), $kind, now()]);
         $mode = $u['notify_mode'] ?? 'instant';
-        if ((int)($u['push_on'] ?? 1) === 1 && $mode !== 'off') $pushIds[] = $id;
+        $pushIds[] = $id; // telefon bildirimi: kişinin kategori tercihleri ve birim politikası (nb_push_filter); e-posta tercihinden bağımsız
         $okMail = $emailPolicy === 'always' || ($emailPolicy === 'notoff' && $mode !== 'off') || ($emailPolicy === 'instant' && $mode === 'instant');
         if ($okMail) $mailTo[] = $u;
     }
@@ -32,6 +32,7 @@ function notify_users(array $users, string $kind, string $title, string $body, s
     if ($mail && $mailTo && mail_ready()) {
         $n = mail_queue_to($mailTo, $mail['subject'], $mail['heading'] ?? $title, $mail['lines'] ?? [$body], $mail['button'] ?? 'Portalda aç', base_url() . $url, $kind, false);
     }
+    if ($pushIds && function_exists('nb_push_filter')) $pushIds = nb_push_filter($pushIds, $kind);
     if ($pushIds) push_after_response($pushIds);
     return $n; // kuyruğa alınan e-posta sayısı (uygulama içi bildirim sayısı değil)
 }
@@ -61,12 +62,14 @@ function push_after_response(array $userIds): void
     static $pending = [];
     static $registered = false;
     if (!push_ready()) return;
-    foreach ($userIds as $id) $pending[(int)$id] = true;
+    // Kişi başına "şu andan beri" oluşan bildirimler telefona gider (aynı istekte birden çok bildirim tek push'ta)
+    $since = date('Y-m-d H:i:s', time() - 2);
+    foreach ($userIds as $id) $pending[(int)$id] = isset($pending[(int)$id]) ? min($pending[(int)$id], $since) : $since;
     if ($registered) return;
     $registered = true;
     register_shutdown_function(function () use (&$pending) {
         nm_after_response();
-        try { push_dispatch(array_keys($pending)); } catch (Throwable $e) { error_log('[dupcii] push: ' . $e->getMessage()); }
+        try { function_exists('nb_dispatch') ? nb_dispatch($pending) : push_dispatch(array_keys($pending)); } catch (Throwable $e) { error_log('[dupcii] push: ' . $e->getMessage()); }
     });
 }
 
