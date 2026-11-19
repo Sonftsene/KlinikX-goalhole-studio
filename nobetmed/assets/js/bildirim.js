@@ -124,6 +124,9 @@ function nbChime(cat) {
 function nbHost() {
   let h = $('#nbHost');
   if (!h) { h = document.createElement('div'); h.id = 'nbHost'; h.className = 'nbx'; h.setAttribute('aria-live', 'polite'); document.body.appendChild(h); }
+  // Masaüstünde üst çubuğun (ve duyuru şeridinin) hemen altında
+  const tb = $('.topbar');
+  h.style.top = window.innerWidth > 700 && tb ? Math.max(8, Math.round(tb.getBoundingClientRect().bottom) + 8) + 'px' : '';
   return h;
 }
 function nbCard(n, cat) {

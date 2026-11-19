@@ -127,7 +127,10 @@ function nb_item(array $r): array
 {
     $cat = nb_cat((string)$r['kind']);
     $tag = preg_match('~^#/mesaj/(\d+)$~', (string)$r['url'], $m) ? 'c' . $m[1] : 'n' . (int)$r['id'];
-    return ['id' => (int)$r['id'], 'at' => $r['created_at'], 'kind' => $r['kind'], 'cat' => $cat, 'title' => $r['title'], 'body' => (string)$r['body'], 'url' => $r['url'] ?: '#/', 'tag' => $tag, 'read' => isset($r['read_at']) && $r['read_at'] !== null];
+    $body = (string)$r['body'];
+    // Birebir mesajda başlık zaten gönderen: "Elif Yılmaz: …" önekini tekrar etme
+    if ($r['kind'] === 'chat' && str_starts_with($body, $r['title'] . ': ')) $body = mb_substr($body, mb_strlen((string)$r['title']) + 2);
+    return ['id' => (int)$r['id'], 'at' => $r['created_at'], 'kind' => $r['kind'], 'cat' => $cat, 'title' => $r['title'], 'body' => $body, 'url' => $r['url'] ?: '#/', 'tag' => $tag, 'read' => isset($r['read_at']) && $r['read_at'] !== null];
 }
 
 /**

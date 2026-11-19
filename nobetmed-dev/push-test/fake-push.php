@@ -12,7 +12,8 @@ $log = getenv('FAKE_PUSH_LOG') ?: sys_get_temp_dir() . '/fake-push-log.json';
 $path = (string)parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $entry = ['path' => $path, 'method' => $_SERVER['REQUEST_METHOD'], 'ttl' => $_SERVER['HTTP_TTL'] ?? null,
     'urgency' => $_SERVER['HTTP_URGENCY'] ?? null, 'length' => $_SERVER['CONTENT_LENGTH'] ?? null,
-    'body_len' => strlen((string)file_get_contents('php://input'))];
+    'body_len' => strlen($rawBody = (string)file_get_contents('php://input')), 'body_b64' => base64_encode($rawBody),
+    'encoding' => $_SERVER['HTTP_CONTENT_ENCODING'] ?? null, 'topic' => $_SERVER['HTTP_TOPIC'] ?? null];
 
 $respond = function (int $code, string $msg) use ($log, &$entry): void {
     $entry['status'] = $code;
@@ -49,11 +50,11 @@ if (!is_array($claims)) {
     $respond(403, 'bad jwt: ' . $claims);
     return;
 }
-if (($claims['aud'] ?? '') !== 'http://127.0.0.1:8072') {
+if (($claims['aud'] ?? '') !== 'http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1:8072')) {
     $respond(403, 'bad aud: ' . ($claims['aud'] ?? ''));
     return;
 }
-if (($claims['exp'] ?? 0) <= time() || $claims['exp'] > time() + 86400 || !str_starts_with((string)($claims['sub'] ?? ''), 'mailto:')) {
+if (($claims['exp'] ?? 0) <= time() || $claims['exp'] > time() + 86400 || !preg_match('#^(mailto:|https?://)#', (string)($claims['sub'] ?? ''))) {
     $respond(403, 'bad exp/sub');
     return;
 }
