@@ -487,6 +487,7 @@ function renderProfile(view) {
   if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
   if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
   if (tab === 'bildirim' && typeof nbSettingsMount === 'function') nbSettingsMount();
+  if (tab === 'guvenlik' && typeof qrSecMount === 'function') qrSecMount();
   const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
   if (ext && ext.mount) { try { ext.mount(); } catch (e) { /* */ } }
 }
@@ -551,6 +552,7 @@ function profileTabHtml(tab) {
       <div><button class="btn primary" type="submit">Şifreyi kaydet</button></div>
     </form>
     <div class="card card-pad stack" id="pkBox"><h3 class="ph">Parmak izi / Face ID ile giriş</h3><div class="tiny faint">Yükleniyor…</div></div>
+    ${typeof qrSecHtml === 'function' ? qrSecHtml() : ''}
     <div class="card card-pad"><button class="btn danger" data-act="logout">${icon('logout', 'sm')}Çıkış yap</button></div>`;
   if (tab === 'gorunum') return typeof prefsAppearanceHtml === 'function' ? prefsAppearanceHtml() : appearanceCardHtml();
   return html`<div class="card"><div style="padding:14px" id="feedHost"></div></div>`;

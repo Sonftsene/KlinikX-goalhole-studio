@@ -8,6 +8,7 @@ const VENDOR = Object.assign({
   pdfWorker: 'assets/vendor/pdf.worker.min.js',
   mammoth: 'assets/vendor/mammoth.browser.min.js',
   qrcode: 'assets/vendor/qrcode.js',
+  jsqr: 'assets/vendor/jsqr.js',
 }, window.NM_VENDOR || {});
 
 const _scripts = {};

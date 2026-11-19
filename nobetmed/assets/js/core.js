@@ -63,6 +63,7 @@ async function api(action, data = {}) {
   if (!json) throw new ApiError('Sunucudan geçersiz yanıt alındı (' + res.status + ').', res.status);
   if (!json.ok) {
     if ((res.status === 401 || res.status === 419) && S.me && action !== 'auth.login') {
+      if (typeof secureWipe === 'function') secureWipe(); // başka cihazdan kapatıldıysa yerel izler silinsin
       toast('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.', 'err');
       setTimeout(() => location.reload(), 1200);
     }

@@ -119,6 +119,7 @@ function renderAuth(mode = 'login') {
       <h1>Tekrar hoş geldiniz</h1>
       <p class="sub">Devam etmek için hesabınıza giriş yapın.</p>
       ${passkeyLoginButton()}
+      ${window.NM_DEMO_API ? '' : html`<button class="btn block qr-login-btn" type="button" data-act="qr-login" style="height:44px">${icon('qr')}Telefonla QR kod okutarak giriş</button>`}
       ${googleBlock()}
       <form class="stack" data-form="login">
         <div class="field"><label>E-posta</label><input class="input" type="email" name="email" autocomplete="username" required></div>

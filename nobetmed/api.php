@@ -373,13 +373,14 @@ function user_out(array $u): array
     ];
 }
 
-function login_user(array $u): void
+function login_user(array $u, array $opt = []): void
 {
     session_regenerate_id(true);
-    unset($_SESSION['sa'], $_SESSION['sa_ok'], $_SESSION['tb']);
+    unset($_SESSION['sa'], $_SESSION['sa_ok'], $_SESSION['tb'], $_SESSION['sk']);
     $_SESSION['uid'] = (int)$u['id'];
     $_SESSION['t'] = (string)nm_tenant()['tkey'];
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
+    if (function_exists('us_start')) us_start($u, $opt); // bağlı cihazlar kaydı
     q('UPDATE users SET last_seen_at = ? WHERE id = ?', [now(), $u['id']]);
 }
 
@@ -784,6 +785,7 @@ function a_google(): void
 
 function a_logout(): void
 {
+    if (function_exists('us_end')) us_end();
     $_SESSION = [];
     unset($GLOBALS['NM_T']);
     session_regenerate_id(true);

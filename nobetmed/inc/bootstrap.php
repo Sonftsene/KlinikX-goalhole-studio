@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.10.0';
+const NM_VERSION = '4.11.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 17;
+const NM_SCHEMA = 18;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -295,6 +295,8 @@ function nm_migrate(PDO $pdo): void
         "CREATE TABLE IF NOT EXISTS shift_requests (id $pk, period_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, roster_id INT NULL, date VARCHAR(10) NOT NULL, kind VARCHAR(10) NOT NULL, note VARCHAR(200) NULL, status VARCHAR(10) NOT NULL DEFAULT 'pending', reason VARCHAR(300) NULL, decided_by INT NULL, decided_at VARCHAR(19) NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
         // Sürüm 16: ekstra nöbet isteyenler (kişi × ay; days boşsa tüm uygun günler)
         "CREATE TABLE IF NOT EXISTS extra_pool (id $pk, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, ym VARCHAR(7) NOT NULL, from_date VARCHAR(10) NOT NULL, shifts VARCHAR(20) NOT NULL, days TEXT NULL, note VARCHAR(200) NULL, created_at VARCHAR(19) NOT NULL, updated_at VARCHAR(19) NULL)$end",
+        // Sürüm 18: oturum kaydı (bağlı cihazlar, uzaktan çıkış, QR oturumunda boşta kapanma)
+        "CREATE TABLE IF NOT EXISTS user_sessions (id $pk, user_id INT NOT NULL, sk_hash VARCHAR(64) NOT NULL, label VARCHAR(160) NOT NULL, via VARCHAR(20) NOT NULL, ip VARCHAR(64) NOT NULL, created_at VARCHAR(19) NOT NULL, last_seen VARCHAR(19) NOT NULL, idle_min INT NOT NULL DEFAULT 0, revoked_at VARCHAR(19) NULL, reason VARCHAR(20) NULL)$end",
         // Sürüm 17: nöbet devralma istekleri (alan kişi ister, nöbet sahibi kabul eder → swap_requests devir)
         "CREATE TABLE IF NOT EXISTS take_requests (id $pk, roster_id INT NOT NULL, date VARCHAR(10) NOT NULL, code VARCHAR(20) NOT NULL, giver_user INT NOT NULL, giver_name VARCHAR(120) NOT NULL, taker_user INT NOT NULL, taker_name VARCHAR(120) NOT NULL, status VARCHAR(10) NOT NULL DEFAULT 'pending', note VARCHAR(200) NULL, reason VARCHAR(200) NULL, swap_id INT NULL, created_at VARCHAR(19) NOT NULL, decided_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS staff_needs (id $pk, unit VARCHAR(40) NOT NULL, day_type VARCHAR(10) NOT NULL, period VARCHAR(5) NOT NULL, count INT NOT NULL DEFAULT 0)$end",
@@ -336,6 +338,8 @@ function nm_migrate(PDO $pdo): void
         'CREATE INDEX idx_audit_at ON audit_log (at)',
         'CREATE INDEX idx_notif_user ON notifications (user_id, read_at)',
         'CREATE UNIQUE INDEX idx_push_hash ON push_subscriptions (endpoint_hash)',
+        'CREATE INDEX idx_usess_sk ON user_sessions (sk_hash)',
+        'CREATE INDEX idx_usess_user ON user_sessions (user_id, revoked_at)',
         'CREATE UNIQUE INDEX idx_passkey_cred ON passkeys (credential_id)',
         'CREATE UNIQUE INDEX idx_invite_token ON invites (token)',
         'CREATE INDEX idx_side_date ON side_moves (date)',
@@ -580,6 +584,11 @@ function current_user(): ?array
     }
     if (!empty($_SESSION['uid'])) {
         $u = one('SELECT * FROM users WHERE id = ?', [(int)$_SESSION['uid']]);
+        if ($u && $u['status'] === 'active' && function_exists('us_check') && !us_check($u)) {
+            // Oturum başka cihazdan kapatıldı ya da boşta süresi doldu (QR ile açılan bilgisayar oturumu)
+            $_SESSION = ['csrf' => bin2hex(random_bytes(24))];
+            return $user;
+        }
         if ($u && $u['status'] === 'active') {
             $user = $u;
             if (empty($_SESSION['seen']) || $_SESSION['seen'] < time() - 300) {

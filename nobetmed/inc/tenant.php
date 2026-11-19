@@ -367,6 +367,14 @@ function nm_route_tenant(string $action): void
     if ($action === 'auth.login' || $action === 'auth.forgot') {
         $t = nm_dir_find(s('email', 190));
         if ($t) nm_tenant_use($t);
+    } elseif ($action === 'qr.poll') {
+        // QR onaylandıysa onaylayan kişinin birimine geç (karekodu oluşturan tarayıcı oturumu)
+        if (session_status() !== PHP_SESSION_ACTIVE) nm_session();
+        $q = $_SESSION['qr'] ?? null;
+        if (is_array($q)) {
+            try { $r = m_one("SELECT tkey FROM qr_logins WHERE token_hash = ? AND status = 'ok'", [hash('sha256', (string)$q['t'])]); } catch (Throwable $e) { $r = null; }
+            if ($r && $r['tkey'] && ($t = nm_tenant_by_key((string)$r['tkey']))) nm_tenant_use($t);
+        }
     } elseif ($action === 'passkey.login.finish' && function_exists('wa_b64u_dec')) {
         $uh = (string)wa_b64u_dec(s('userHandle', 200));
         if (preg_match('/^u\d+@([a-z0-9]{4,16})$/', $uh, $m)) { $t = nm_tenant_by_key($m[1]); if ($t) nm_tenant_use($t); }
