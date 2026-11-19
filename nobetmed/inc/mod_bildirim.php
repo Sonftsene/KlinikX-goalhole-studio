@@ -21,7 +21,7 @@ const NB_CATS = [
     'sistem' => ['Sistem', 'Deneme bildirimleri ve diğerleri'],
 ];
 const NB_KIND_CAT = ['chat' => 'mesaj', 'post' => 'duyuru', 'remind' => 'duyuru', 'digest' => 'duyuru', 'hdoc' => 'belge', 'roster' => 'nobet', 'shift' => 'nobet',
-    'side' => 'nobet', 'callout' => 'eksik', 'swap' => 'degisim', 'listing' => 'degisim', 'request' => 'istek', 'review' => 'yonetim', 'pending_post' => 'yonetim', 'pending_user' => 'yonetim'];
+    'side' => 'nobet', 'callout' => 'eksik', 'swap' => 'degisim', 'listing' => 'degisim', 'request' => 'istek', 'review' => 'yonetim', 'pending_post' => 'yonetim', 'pending_user' => 'yonetim', 'call' => 'mesaj'];
 /** İçerik gizlendiğinde telefonda görünen genel metin */
 const NB_GENERIC = ['mesaj' => 'Yeni mesaj', 'eksik' => 'Eksik personel çağrısı', 'duyuru' => 'Yeni duyuru', 'belge' => 'Yeni hastane belgesi', 'nobet' => 'Nöbet bildirimi',
     'degisim' => 'Değişim / ilan bildirimi', 'istek' => 'Nöbet isteği bildirimi', 'yonetim' => 'Onay bekleyen iş', 'sistem' => 'Yeni bildirim'];
@@ -126,7 +126,7 @@ function nb_icon_url(): string
 function nb_item(array $r): array
 {
     $cat = nb_cat((string)$r['kind']);
-    $tag = preg_match('~^#/mesaj/(\d+)$~', (string)$r['url'], $m) ? 'c' . $m[1] : 'n' . (int)$r['id'];
+    $tag = preg_match('~^#/mesaj/(\d+)$~', (string)$r['url'], $m) ? ($r['kind'] === 'call' ? 'k' : 'c') . $m[1] : 'n' . (int)$r['id'];
     $body = (string)$r['body'];
     // Birebir mesajda başlık zaten gönderen: "Elif Yılmaz: …" önekini tekrar etme
     if ($r['kind'] === 'chat' && str_starts_with($body, $r['title'] . ': ')) $body = mb_substr($body, mb_strlen((string)$r['title']) + 2);
@@ -227,7 +227,10 @@ function a_live(): void
         $rows = all('SELECT id, title, body, url, kind, created_at, read_at FROM notifications WHERE user_id = ? AND read_at IS NULL AND created_at >= ? ORDER BY created_at DESC, id DESC LIMIT 6', [$me['id'], $since]);
         $o['items'] = array_map('nb_item', $rows);
     }
-    if (function_exists('c_unread_total') && function_exists('cdb') && cdb() && nm_mod_on('mesaj') && user_perm($me, 'mesaj') !== 'off') $o['chat'] = c_unread_total($me);
+    if (function_exists('c_unread_total') && function_exists('cdb') && cdb() && nm_mod_on('mesaj') && user_perm($me, 'mesaj') !== 'off') {
+        $o['chat'] = c_unread_total($me);
+        if (function_exists('c_incoming_call') && ($k = c_incoming_call($me))) $o['call'] = $k; // çalan arama
+    }
     out($o);
 }
 
@@ -435,7 +438,7 @@ function nb_kick(array $tkeys, string $job): void
 {
     static $queue = [];
     static $reg = false;
-    if (!nm_multi() || !in_array($job, ['chat_notify', 'hdoc_notify'], true)) return;
+    if (!nm_multi() || !in_array($job, ['chat_notify', 'hdoc_notify', 'call_notify'], true)) return;
     $self = (string)nm_tenant()['tkey'];
     foreach ($tkeys as $tk) if ((string)$tk !== '' && (string)$tk !== $self) $queue[$tk . '|' . $job] = [(string)$tk, $job];
     if ($reg || !$queue) return;
@@ -472,7 +475,7 @@ $GLOBALS['NM_GET']['nm.kick'] = function () {
     $tk = (string)nm_tenant()['tkey'];
     $secret = m_setting('secret');
     if ($secret === '' || abs(time() - $ts) > 120 || !hash_equals(hash_hmac('sha256', $tk . '|' . $job . '|' . $ts, $secret), $sig) || nm_tenant_frozen()) { http_response_code(403); echo 'no'; return; }
-    $mod = ['chat_notify' => 'mesaj', 'hdoc_notify' => 'hbelge'][$job] ?? null;
+    $mod = ['chat_notify' => 'mesaj', 'hdoc_notify' => 'hbelge', 'call_notify' => 'mesaj'][$job] ?? null;
     $fn = $GLOBALS['NM_JOBS'][$job] ?? null;
     if (!$mod || !$fn || !nm_mod_on($mod)) { echo 'skip'; return; }
     echo 'ok';

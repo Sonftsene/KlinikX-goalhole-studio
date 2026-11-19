@@ -108,13 +108,19 @@ async function chatProfile(tk, uid) {
   try { r = await api('chat.profile', { tk, uid }); } catch (e) { toast(e.message, 'err'); return; }
   const p = r.profile;
   const m = openModal({ title: p.name, size: 'narrow', body: html`<div class="stack" style="align-items:center;text-align:center">
-    ${avatar(p.name, 'lg')}<div><b>${p.name}</b>${p.unit ? html`<div class="small muted">${p.unit}</div>` : ''}<div class="tiny faint">${chatPresence(p)}</div></div>
+    ${avatar(p.name, 'xl')}<div><b style="font-size:17px">${p.name}</b>${p.title ? html`<div class="small muted">${p.title}</div>` : ''}${p.unit ? html`<div class="small muted">${p.unit}</div>` : ''}<div class="tiny faint">${chatPresence(p)}</div></div>
     ${p.about ? html`<div class="small">“${p.about}”</div>` : ''}
     ${r.profile.groups.length ? html`<div class="tiny faint">Ortak gruplar: ${r.profile.groups.map((g) => g.name).join(', ')}</div>` : ''}
-    <div class="row wrap" style="gap:6px;justify-content:center"><button class="btn sm primary" data-pa="dm">${icon('chat', 'sm')}<span>Mesaj gönder</span></button>
+    ${p.self ? '' : html`<div class="ch-pacts"><button type="button" data-pa="dm">${icon('chat')}<span>Mesaj</span></button>
+      ${p.calls && !p.blocked && typeof callStart === 'function' ? html`<button type="button" data-pa="call">${icon('phone')}<span>Sesli ara</span></button><button type="button" data-pa="vcall">${icon('video')}<span>Görüntülü</span></button>` : ''}
+      ${p.phone ? html`<a href="tel:${String(p.phone).replace(/[^0-9+]/g, '')}" data-pa="tel">${icon('phoneOut')}<span>Telefonu ara</span></a>` : ''}</div>`}
+    ${p.phone ? html`<div class="small muted">${icon('phone', 'sm')} ${p.phone}</div>` : ''}
+    <div class="row wrap" style="gap:6px;justify-content:center">
       <button class="btn sm ${p.blocked ? '' : 'ghost danger'}" data-pa="block">${icon('ban', 'sm')}<span>${p.blocked ? 'Engeli kaldır' : 'Engelle'}</span></button></div></div>` });
   m.el.addEventListener('click', async (ev) => {
     const b = ev.target.closest('[data-pa]'); if (!b) return;
+    if (b.dataset.pa === 'tel') return;
+    if (b.dataset.pa === 'call' || b.dataset.pa === 'vcall') { try { const d = await api('chat.direct', { tk, uid }); while (modalStack.length) modalStack[modalStack.length - 1].close(); if (location.hash !== '#/mesaj/' + d.id) location.hash = '#/mesaj/' + d.id; callStart(d.id, b.dataset.pa === 'vcall'); } catch (e) { toast(e.message, 'err'); } return; }
     if (b.dataset.pa === 'dm') { try { const d = await api('chat.direct', { tk, uid }); while (modalStack.length) modalStack[modalStack.length - 1].close(); location.hash = '#/mesaj/' + d.id; } catch (e) { toast(e.message, 'err'); } return; }
     if (!p.blocked && !(await confirmDialog({ title: `${p.name} engellensin mi?`, text: 'Size birebir yazamaz ve sizi gruplara ekleyemez. İstediğiniz zaman Mesaj ayarları’ndan kaldırabilirsiniz.', ok: 'Engelle', danger: true }))) return;
     try { await api('chat.block', { tk, uid, on: !p.blocked }); m.close(); toast(p.blocked ? 'Engel kaldırıldı' : 'Engellendi'); if (location.hash.startsWith('#/mesaj/')) route(); } catch (e) { toast(e.message, 'err'); }

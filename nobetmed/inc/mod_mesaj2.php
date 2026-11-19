@@ -115,6 +115,13 @@ function a_chat_profile(): void
     if (!c_is_contact(c_tk(), (int)$me['id'], $tk, $uid) && !(int)c_pref($tk, $uid)['findable']) fail('Bu kişinin profilini göremezsiniz.', 403);
     $o = c_profile_out($me, $tk, $uid);
     if ($o['name'] === '' && $tk === c_tk()) $o['name'] = (string)val('SELECT name FROM users WHERE id = ?', [$uid]);
+    // Aynı birimden: telefon (ekip rehberinde zaten görünür) ve unvan
+    if ($tk === c_tk() && ($u = one("SELECT phone, title_id FROM users WHERE id = ? AND status = 'active'", [$uid]))) {
+        if (!empty($u['phone'])) $o['phone'] = $u['phone'];
+        if ($u['title_id']) $o['title'] = (string)(val('SELECT name FROM titles WHERE id = ?', [(int)$u['title_id']]) ?? '');
+    }
+    $o['self'] = $tk === c_tk() && $uid === (int)$me['id'];
+    $o['calls'] = function_exists('c_calls_on') && c_calls_on() && !$o['self'];
     $o['groups'] = array_map(fn($g) => ['id' => (int)$g['id'], 'name' => $g['name']], h_all("SELECT c.id, c.name FROM c_chats c JOIN c_members a ON a.chat_id = c.id JOIN c_members b ON b.chat_id = c.id
         WHERE c.kind = 'group' AND a.tkey = ? AND a.user_id = ? AND b.tkey = ? AND b.user_id = ? ORDER BY c.name", [c_tk(), (int)$me['id'], $tk, $uid]));
     out(['profile' => $o]);

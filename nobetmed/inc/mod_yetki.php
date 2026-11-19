@@ -35,6 +35,7 @@ const NM_ACTION_MODULE = [
     'phonebook.' => 'rehber',
     'hdoc.' => 'hbelge',
     'chat.' => 'mesaj',
+    'call.' => 'mesaj',
     'plan.' => 'cizelge',
 ];
 

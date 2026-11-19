@@ -20,7 +20,7 @@ const SHELL_ASSETS = [
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
-const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'bildirim', 'plan', 'pwa'];
+const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'bildirim', 'plan', 'pwa'];
 const PRECACHE = SHELL_ASSETS.concat(JS_FILES.map((n) => 'assets/js/' + n + '.js'));
 
 const SHELL_CACHE = 'nm-shell-' + VERSION;
@@ -257,6 +257,8 @@ async function handlePush(event) {
   // Uygulama öndeyse içeriği ona ver (ekranda kart, ses); Safari dışında sistem bildirimi gösterme
   const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const front = wins.find((c) => c.url.startsWith(ROOT_URL) && c.visibilityState === 'visible' && c.focused);
+  // Açık ama arkadaki pencereler hemen yoklasın (ör. gelen arama zili)
+  wins.forEach((c) => { if (c !== front && c.url.startsWith(ROOT_URL)) { try { c.postMessage({ type: 'PING' }); } catch (e) { /* */ } } });
   const always = mustShowAlways();
   if (front && items.length) {
     try { front.postMessage({ type: 'PUSH', items, unread: data.unread, shown: always }); } catch (e) { /* */ }
@@ -291,19 +293,19 @@ async function handlePush(event) {
     let body = String(it.body || '');
     let lines = [body];
     // Aynı sohbetten art arda gelen mesajlar tek bildirimde birikir (WhatsApp gibi)
-    if (it.cat === 'mesaj') {
+    if (it.kind === 'chat') {
       try {
         const prev = (await self.registration.getNotifications({ tag }))[0];
         if (prev && prev.data && Array.isArray(prev.data.lines)) lines = prev.data.lines.concat(body).slice(-6);
       } catch (e) { /* */ }
       if (lines.length > 1) { title = title + ' (' + lines.length + ' mesaj)'; body = lines.join('\n'); }
     }
-    const urgent = it.cat === 'eksik';
+    const urgent = it.cat === 'eksik' || it.kind === 'call';
     return self.registration.showNotification(title, base({
       body, tag,
       requireInteraction: urgent,
       data: { url: safeUrl(it.url), id: it.id, cat: it.cat, lines },
-      actions: [{ action: 'open', title: it.cat === 'mesaj' ? 'Sohbeti aç' : 'Aç' }, { action: 'read', title: 'Okundu say' }],
+      actions: it.kind === 'call' ? [{ action: 'open', title: 'Aç ve yanıtla' }] : [{ action: 'open', title: it.cat === 'mesaj' ? 'Sohbeti aç' : 'Aç' }, { action: 'read', title: 'Okundu say' }],
     }));
   }));
 }

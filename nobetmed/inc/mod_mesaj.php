@@ -10,11 +10,12 @@
  */
 declare(strict_types=1);
 
-const C_SCHEMA = 3;
+const C_SCHEMA = 4;
 const C_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const C_RETENTION = [0, 1, 7, 30, 90, 180, 365, 730];
 const C_MAX_BODY = 4000;
 const C_MAX_FILE = 25 * 1048576;
+const C_MAX_VIDEO = 64 * 1048576;
 
 /** Mesajlaşma tablolarıyla birlikte hastane veritabanı */
 function cdb(): ?PDO
@@ -57,6 +58,15 @@ function cdb(): ?PDO
             'c_msgs' => ['edited_at TEXT NULL'], 'c_chats' => ["perm_edit TEXT NOT NULL DEFAULT 'admins'", "perm_add TEXT NOT NULL DEFAULT 'admins'", 'approve_join INTEGER NOT NULL DEFAULT 0', 'photo_file_id INTEGER NULL']] as $tb => $cols) {
             foreach ($cols as $col) { try { $p->exec("ALTER TABLE $tb ADD COLUMN $col"); } catch (Throwable $e) { /* zaten var */ } }
         }
+        // Şema 4 (4.8): grup engelleri ve yazma kısıtlaması, tek seferlik görüntüleme, sesli/görüntülü arama
+        $p->exec("CREATE TABLE IF NOT EXISTS c_bans (chat_id INTEGER NOT NULL, tkey TEXT NOT NULL, user_id INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'ban', name TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, PRIMARY KEY (chat_id, tkey, user_id))");
+        $p->exec('CREATE TABLE IF NOT EXISTS c_once (msg_id INTEGER NOT NULL, tkey TEXT NOT NULL, user_id INTEGER NOT NULL, at TEXT NOT NULL, PRIMARY KEY (msg_id, tkey, user_id))');
+        $p->exec("CREATE TABLE IF NOT EXISTS c_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, a_tk TEXT NOT NULL, a_uid INTEGER NOT NULL, a_name TEXT NOT NULL,
+            b_tk TEXT NOT NULL, b_uid INTEGER NOT NULL, b_name TEXT NOT NULL, video INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'ring', ice TEXT NULL,
+            created_at TEXT NOT NULL, answered_at TEXT NULL, ended_at TEXT NULL, reason TEXT NULL, notified INTEGER NOT NULL DEFAULT 0, hb_a TEXT NULL, hb_b TEXT NULL)");
+        $p->exec('CREATE TABLE IF NOT EXISTS c_sig (id INTEGER PRIMARY KEY AUTOINCREMENT, call_id INTEGER NOT NULL, side TEXT NOT NULL, type TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL)');
+        $p->exec('CREATE INDEX IF NOT EXISTS c_sig_call ON c_sig (call_id, id)');
+        $p->exec('CREATE INDEX IF NOT EXISTS c_calls_b ON c_calls (b_tk, b_uid, state)');
         $p->prepare("INSERT OR REPLACE INTO h_settings (k, v) VALUES ('chat_schema', ?)")->execute([(string)C_SCHEMA]);
     }
     $ok = true;
@@ -129,6 +139,7 @@ function c_msg_out(array $r, ?array $files = null): array
     $meta = json_decode((string)($r['meta'] ?? ''), true) ?: [];
     if (!empty($meta['fwd'])) $o['fwd'] = true;
     if (!empty($meta['dur'])) $o['dur'] = (int)$meta['dur'];
+    if (function_exists('c_msg_meta_out')) $o = c_msg_meta_out($o, $r, $meta);
     if ($r['kind'] === 'poll') $o['poll'] = ['opts' => array_map(fn($t) => ['t' => (string)$t, 'n' => 0, 'mine' => false], (array)($meta['opts'] ?? [])), 'multi' => !empty($meta['multi']), 'voters' => 0];
     return $o;
 }
@@ -194,7 +205,13 @@ function c_preview(?array $r): string
     if (!$r) return '';
     if ($r['deleted_at']) return 'Silinen mesaj';
     if ($r['kind'] === 'system') return $r['body'];
-    $b = $r['kind'] === 'poll' ? '📊 Anket: ' . $r['body'] : ($r['body'] !== '' ? $r['body'] : ($r['kind'] === 'image' ? '📷 Fotoğraf' : ($r['kind'] === 'audio' ? '🎤 Sesli mesaj' : '📎 Dosya')));
+    if ($r['kind'] === 'call') {
+        $cm = (json_decode((string)($r['meta'] ?? ''), true) ?: [])['call'] ?? [];
+        return (($cm['status'] ?? '') === 'done' ? '📞 ' : '📵 ') . (!empty($cm['video']) ? 'Görüntülü' : 'Sesli') . ' arama' . (($cm['status'] ?? '') === 'done' ? '' : ' (cevapsız)');
+    }
+    $kl = ['image' => '📷 Fotoğraf', 'audio' => '🎤 Sesli mesaj', 'video' => '🎥 Video', 'location' => '📍 Konum', 'contact' => '👤 Kişi'];
+    $once = !empty((json_decode((string)($r['meta'] ?? ''), true) ?: [])['once']);
+    $b = $r['kind'] === 'poll' ? '📊 Anket: ' . $r['body'] : ($once ? '1️⃣ Tek seferlik ' . ($r['kind'] === 'video' ? 'video' : 'fotoğraf') : ($r['kind'] === 'location' ? '📍 Konum' . ($r['body'] !== '' ? ': ' . $r['body'] : '') : ($r['kind'] === 'contact' ? '👤 ' . $r['body'] : ($r['body'] !== '' ? $r['body'] : ($kl[$r['kind']] ?? '📎 Dosya')))));
     return mb_substr($r['name'] . ': ' . preg_replace('/\s+/', ' ', $b), 0, 90);
 }
 
@@ -242,7 +259,7 @@ function a_chat_list(): void
     // Sabitlenenler üstte (sabitleme sırasına göre), sonra son mesaja göre
     usort($items, function ($a, $b) use ($rows) { return [$b['pinned'] ? 1 : 0, $b['last_at']] <=> [$a['pinned'] ? 1 : 0, $a['last_at']]; });
     if (function_exists('c_pref_touch')) c_pref_touch($me);
-    out(['items' => $items, 'can_group' => is_publisher($me)]);
+    out(['calls' => function_exists('c_calls_on') && c_calls_on(), 'items' => $items, 'can_group' => is_publisher($me)]);
 }
 
 function a_chat_unread(): void
@@ -291,7 +308,9 @@ function a_chat_open(): void
             'can_pin' => $adm || $c['kind'] === 'direct', 'retention' => (int)$c['retention_days'], 'invite' => $inv,
             'perm_edit' => $c['perm_edit'] ?? 'admins', 'perm_add' => $c['perm_add'] ?? 'admins', 'approve_join' => (int)($c['approve_join'] ?? 0) === 1,
             'can_edit_info' => $grp && ($adm || ($c['perm_edit'] ?? 'admins') === 'all'), 'can_add' => $grp && ($adm || ($c['perm_add'] ?? 'admins') === 'all'),
-            'joinreqs' => $grp && $adm ? c_joinreqs($c) : [], 'peer' => $peer],
+            'joinreqs' => $grp && $adm ? c_joinreqs($c) : [], 'peer' => $peer, 'last_read' => (int)($m['last_read'] ?? 0),
+            'restricted' => function_exists('c_restricted') && c_restricted((int)$c['id'], c_tk(), (int)$me['id']),
+            'bans' => $adm && function_exists('c_bans_out') ? c_bans_out((int)$c['id']) : [], 'calls' => $c['kind'] === 'direct' && function_exists('c_calls_on') && c_calls_on()],
         'members' => $members, 'msgs' => c_msgs_out($rows), 'more' => count($rows) === 60, 'pinned' => c_pinned_out($c), 'emojis' => C_EMOJIS, 'now' => now()]);
 }
 
@@ -357,6 +376,7 @@ function a_chat_send(): void
     [$c, $m, $adm] = c_access($me, (int)i('id'));
     if ((int)$c['only_admins'] === 1 && !$adm) fail('Bu grupta yalnız yöneticiler mesaj gönderebilir.', 403);
     c_send_guard($c, $me);
+    if (function_exists('c_restricted') && c_restricted((int)$c['id'], c_tk(), (int)$me['id'])) fail('Grup yöneticisi bu grupta yazmanızı kısıtladı.', 403);
     $body = trim(str_replace("\r", '', (string)($GLOBALS['IN']['body'] ?? '')));
     if (mb_strlen($body) > C_MAX_BODY) fail('Mesaj en fazla ' . C_MAX_BODY . ' karakter olabilir.');
     if (c_has_tckn($body)) fail('Mesajda T.C. kimlik numarası var. Hasta bilgisi mesajla paylaşılamaz; numarayı silip tekrar gönderin.', 422);
@@ -365,20 +385,22 @@ function a_chat_send(): void
     $fileId = null; $kind = 'text';
     if (($aid = i('att_id'))) {
         $a = one('SELECT * FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$aid, $me['id']]) ?? fail('Dosya bulunamadı; tekrar yükleyin.', 404);
-        if ((int)$a['size'] > C_MAX_FILE) fail('Dosya en fazla 25 MB olabilir.');
+        $isVideo = str_starts_with((string)$a['mime'], 'video/');
+        if ((int)$a['size'] > ($isVideo ? C_MAX_VIDEO : C_MAX_FILE)) fail($isVideo ? 'Video en fazla 64 MB olabilir; daha kısa çekin.' : 'Dosya en fazla 25 MB olabilir.');
         if (c_has_tckn((string)$a['orig_name'])) fail('Dosya adında T.C. kimlik numarası var; adını değiştirip tekrar gönderin.', 422);
         $stored = date('Ym') . '_' . bin2hex(random_bytes(10)) . '.bin';
         if (!@rename(nm_upload_dir() . '/' . $a['stored_name'], c_dir() . '/' . $stored)) fail('Dosya taşınamadı.', 500);
         h_q('INSERT INTO c_files (chat_id, name, stored, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)', [(int)$c['id'], $a['orig_name'], $stored, $a['mime'], (int)$a['size'], now()]);
         $fileId = (int)cdb()->lastInsertId();
         q('DELETE FROM attachments WHERE id = ?', [$aid]);
-        $kind = str_starts_with((string)$a['mime'], 'image/') ? 'image' : (str_starts_with((string)$a['mime'], 'audio/') ? 'audio' : 'file');
+        $kind = str_starts_with((string)$a['mime'], 'image/') ? 'image' : (str_starts_with((string)$a['mime'], 'audio/') ? 'audio' : ($isVideo ? 'video' : 'file'));
     }
     if ($body === '' && !$fileId) fail('Boş mesaj gönderilemez.');
     $reply = i('reply_to');
     if ($reply && !h_one('SELECT id FROM c_msgs WHERE id = ? AND chat_id = ?', [$reply, (int)$c['id']])) $reply = null;
     $meta = [];
-    if ($kind === 'audio' && ($dur = (int)i('dur')) > 0) $meta['dur'] = min(600, $dur);
+    if (($kind === 'audio' || $kind === 'video') && ($dur = (int)i('dur')) > 0) $meta['dur'] = min(3600, $dur);
+    if (($kind === 'image' || $kind === 'video') && b('once')) $meta['once'] = 1; // tek seferlik görüntüleme
     $mid = c_insert_msg($c, $me, $body, $kind, $fileId, $reply ?: null, $meta);
     c_notify_local(h_one('SELECT * FROM c_chats WHERE id = ?', [(int)$c['id']]), $me);
     c_mentions($c, $me, $body, $mid);
@@ -407,13 +429,15 @@ function c_mentions(array $c, array $me, string $body, int $mid): void
         ? array_map(fn($u) => ['tkey' => c_tk(), 'user_id' => (int)$u['id'], 'name' => $u['name']], all("SELECT id, name FROM users WHERE status = 'active'"))
         : h_all('SELECT tkey, user_id, name FROM c_members WHERE chat_id = ?', [(int)$c['id']]);
     $local = [];
+    // @herkes: grup yöneticisi herkese (sessize alanlara da) seslenir
+    $all = mb_strpos($low, '@herkes') !== false && (($GLOBALS['C_ME_ROW']['role'] ?? '') === 'admin' || ($c['kind'] === 'unit' && in_array($me['role'] ?? '', ['admin', 'editor'], true)));
     foreach ($cands as $p) {
         if ($p['tkey'] === c_tk() && (int)$p['user_id'] === (int)$me['id']) continue;
-        if (mb_strpos($low, '@' . tr_lower((string)$p['name'])) === false) continue;
+        if (!$all && mb_strpos($low, '@' . tr_lower((string)$p['name'])) === false) continue;
         if ($p['tkey'] === c_tk()) $local[] = (int)$p['user_id'];
         else h_q('UPDATE c_members SET mentioned = ? WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$mid, (int)$c['id'], $p['tkey'], (int)$p['user_id']]);
     }
-    if ($local) c_push($local, (int)$c['id'], $me['name'] . ' sizden bahsetti', ($c['kind'] === 'direct' ? '' : $c['name'] . ' · ') . mb_substr($body, 0, 160));
+    if ($local) c_push($local, (int)$c['id'], $me['name'] . ($all ? ' herkese seslendi' : ' sizden bahsetti'), ($c['kind'] === 'direct' ? '' : $c['name'] . ' · ') . mb_substr($body, 0, 160));
 }
 
 /** Birebirde engel: engellediğim kişiye yazamam, beni engelleyene mesaj gitmez */
@@ -515,7 +539,7 @@ function a_chat_react(): void
     $e = s('emoji', 16);
     $cur = h_one('SELECT emoji FROM c_reacts WHERE msg_id = ? AND tkey = ? AND user_id = ?', [$x['id'], c_tk(), (int)$me['id']]);
     if ($e === '' || ($cur && $cur['emoji'] === $e)) h_q('DELETE FROM c_reacts WHERE msg_id = ? AND tkey = ? AND user_id = ?', [$x['id'], c_tk(), (int)$me['id']]);
-    elseif (in_array($e, C_EMOJIS, true)) h_q('INSERT OR REPLACE INTO c_reacts (msg_id, tkey, user_id, emoji) VALUES (?, ?, ?, ?)', [$x['id'], c_tk(), (int)$me['id'], $e]);
+    elseif (in_array($e, C_EMOJIS, true) || c_is_emoji($e)) h_q('INSERT OR REPLACE INTO c_reacts (msg_id, tkey, user_id, emoji) VALUES (?, ?, ?, ?)', [$x['id'], c_tk(), (int)$me['id'], $e]);
     else fail('Geçersiz tepki.');
     c_touch((int)$x['id']);
     out(['msg' => c_msgs_out([h_one('SELECT * FROM c_msgs WHERE id = ?', [$x['id']])])[0]]);
@@ -572,7 +596,8 @@ function a_chat_forward(): void
 {
     $me = c_need();
     $x = h_one('SELECT * FROM c_msgs WHERE id = ? AND deleted_at IS NULL', [(int)i('id')]) ?? fail('Mesaj bulunamadı.', 404);
-    if ($x['kind'] === 'system' || $x['kind'] === 'poll') fail('Bu mesaj iletilemez.');
+    if ($x['kind'] === 'system' || $x['kind'] === 'poll' || $x['kind'] === 'call') fail('Bu mesaj iletilemez.');
+    if (!empty((json_decode((string)($x['meta'] ?? ''), true) ?: [])['once'])) fail('Tek seferlik görüntülenen mesaj iletilemez.');
     c_access($me, (int)$x['chat_id']);
     [$to, , $adm] = c_access($me, (int)i('to'));
     if ((int)$to['only_admins'] === 1 && !$adm) fail('Hedef grupta yalnız yöneticiler yazabilir.', 403);
@@ -585,6 +610,7 @@ function a_chat_forward(): void
     }
     $meta = json_decode((string)($x['meta'] ?? ''), true) ?: [];
     $meta['fwd'] = 1;
+    if (function_exists('c_restricted') && c_restricted((int)$to['id'], c_tk(), (int)$me['id'])) fail('Hedef grupta yazmanız kısıtlandı.', 403);
     $mid = c_insert_msg($to, $me, (string)$x['body'], (string)$x['kind'], $fileId, null, $meta);
     c_notify_local(h_one('SELECT * FROM c_chats WHERE id = ?', [(int)$to['id']]), $me);
     out(['id' => $mid, 'chat' => (int)$to['id']]);
@@ -628,6 +654,7 @@ function a_chat_join(): void
     $tok = s('token', 40);
     $c = $tok !== '' ? h_one("SELECT * FROM c_chats WHERE kind = 'group' AND invite_token = ? AND (invite_expires IS NULL OR invite_expires > ?)", [$tok, now()]) : null;
     if (!$c) fail('Davet bağlantısı geçersiz ya da süresi dolmuş.', 404);
+    if (function_exists('c_banned') && c_banned((int)$c['id'], c_tk(), (int)$me['id'])) fail('Bu gruba katılmanız yönetici tarafından engellendi.', 403);
     if (!h_one('SELECT 1 FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], c_tk(), (int)$me['id']])) {
         // Katılım onayı açıksa istek yöneticilere düşer
         if ((int)($c['approve_join'] ?? 0) === 1) {
@@ -829,10 +856,13 @@ function a_chat_members(): void
     $me = c_need();
     [$c, , $adm] = c_access($me, (int)i('id'));
     $op = s('op', 10);
+    if (in_array($op, ['restrict', 'unrestrict', 'unban'], true) && function_exists('c_member_mod')) { c_member_mod($c, $me, $adm, $op); out(); }
     if ($c['kind'] !== 'group') fail('Yalnız gruplarda.', 400);
     if ($op === 'add') {
         if (!$adm && ($c['perm_add'] ?? 'admins') !== 'all') fail('Bu grupta yalnız yöneticiler üye ekleyebilir.', 403);
         [$people, $skipped] = c_add_policy($me, c_valid_people($me, arr('members')));
+        if (function_exists('c_banned')) foreach ($people as $k => $p) if (c_banned((int)$c['id'], (string)$p['tk'], (int)$p['uid'])) { $skipped[] = $p['name'] . ' (gruptan engelli)'; unset($people[$k]); }
+        $people = array_values($people);
         $new = array_values(array_filter($people, fn($p) => !h_one('SELECT 1 FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], $p['tk'], $p['uid']])));
         c_add_members((int)$c['id'], $new);
         if ($new) c_system((int)$c['id'], $me, $me['name'] . ' ekledi: ' . implode(', ', array_column($new, 'name')));
@@ -841,10 +871,13 @@ function a_chat_members(): void
     if (!$adm) fail('Üyeleri yalnız grup yöneticisi değiştirebilir.', 403);
     $tk = s('tk', 16); $uid = (int)i('uid');
     $t = h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], $tk, $uid]) ?? fail('Üye bulunamadı.', 404);
-    if ($op === 'remove') {
+    if ($op === 'remove' || $op === 'ban') {
         if ($t['role'] === 'admin' && (int)h_val("SELECT COUNT(*) FROM c_members WHERE chat_id = ? AND role = 'admin'", [$c['id']]) <= 1) fail('Grupta en az bir yönetici kalmalı.');
         h_q('DELETE FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], $tk, $uid]);
-        c_system((int)$c['id'], $me, $me['name'] . ' çıkardı: ' . $t['name']);
+        if ($op === 'ban') {
+            h_q('INSERT OR REPLACE INTO c_bans (chat_id, tkey, user_id, kind, name, by_name, at) VALUES (?, ?, ?, ?, ?, ?, ?)', [$c['id'], $tk, $uid, 'ban', $t['name'], $me['name'], now()]);
+            c_system((int)$c['id'], $me, $me['name'] . ' çıkardı ve engelledi: ' . $t['name']);
+        } else c_system((int)$c['id'], $me, $me['name'] . ' çıkardı: ' . $t['name']);
     } elseif ($op === 'admin' || $op === 'member') {
         if ($op === 'member' && $t['role'] === 'admin' && (int)h_val("SELECT COUNT(*) FROM c_members WHERE chat_id = ? AND role = 'admin'", [$c['id']]) <= 1) fail('Grupta en az bir yönetici kalmalı.');
         h_q('UPDATE c_members SET role = ? WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$op, $c['id'], $tk, $uid]);
@@ -879,21 +912,50 @@ function a_cfile_get(): void
     $me = current_user();
     $f = $me && cdb() && nm_mod_on('mesaj') ? h_one('SELECT * FROM c_files WHERE id = ?', [(int)($_GET['id'] ?? 0)]) : null;
     $ok = false;
+    $once = false;
     if ($f) {
         $c = h_one('SELECT * FROM c_chats WHERE id = ?', [(int)$f['chat_id']]);
         $ok = $c && ($c['kind'] === 'unit' ? $c['tkey'] === c_tk() : (bool)h_one('SELECT 1 FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$c['id'], c_tk(), (int)$me['id']]));
+        // Tek seferlik: gönderen açamaz; alıcı ilk açışından sonra 10 dakika (videonun parça parça yüklenmesi için), sonra hiç
+        $msg = $ok ? h_one('SELECT id, tkey, user_id, meta FROM c_msgs WHERE file_id = ? AND deleted_at IS NULL', [(int)$f['id']]) : null;
+        if ($msg && !empty((json_decode((string)($msg['meta'] ?? ''), true) ?: [])['once'])) {
+            $once = true;
+            if ($msg['tkey'] === c_tk() && (int)$msg['user_id'] === (int)$me['id']) $ok = false;
+            else {
+                $v = h_one('SELECT at FROM c_once WHERE msg_id = ? AND tkey = ? AND user_id = ?', [(int)$msg['id'], c_tk(), (int)$me['id']]);
+                if (!$v) h_q('INSERT OR IGNORE INTO c_once (msg_id, tkey, user_id, at) VALUES (?, ?, ?, ?)', [(int)$msg['id'], c_tk(), (int)$me['id'], now()]);
+                elseif ((string)$v['at'] < date('Y-m-d H:i:s', time() - 600)) $ok = false;
+            }
+        }
     }
     $path = $ok ? c_dir() . '/' . $f['stored'] : '';
     if (!$ok || !is_file($path)) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'Dosya bulunamadı veya erişim yetkiniz yok.'; return; }
     session_write_close();
     $inline = empty($_GET['dl']) && in_array($f['mime'], INLINE_SAFE, true);
+    if ($once) $inline = true;
     $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $f['name']) ?: 'dosya');
+    $size = (int)filesize($path);
     header('Content-Type: ' . $f['mime']);
     header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($f['name']));
-    header('Content-Length: ' . filesize($path));
-    header('Cache-Control: private, max-age=31536000, immutable');
+    header('Accept-Ranges: bytes');
+    header($once ? 'Cache-Control: no-store' : 'Cache-Control: private, max-age=31536000, immutable');
     if ($f['mime'] !== 'application/pdf') header("Content-Security-Policy: default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
-    readfile($path);
+    // Parça isteği (video/ses oynatıcıları; iPhone videoyu yalnız böyle oynatır)
+    $start = 0; $end = $size - 1;
+    if (preg_match('/^bytes=(\d*)-(\d*)$/', (string)($_SERVER['HTTP_RANGE'] ?? ''), $rm) && $size > 0) {
+        if ($rm[1] === '' && $rm[2] !== '') { $start = max(0, $size - (int)$rm[2]); }
+        else { $start = (int)$rm[1]; if ($rm[2] !== '') $end = min((int)$rm[2], $size - 1); }
+        if ($start > $end || $start >= $size) { http_response_code(416); header('Content-Range: bytes */' . $size); return; }
+        http_response_code(206);
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . $size);
+    }
+    $len = $end - $start + 1;
+    header('Content-Length: ' . $len);
+    if ($start === 0 && $len === $size) { readfile($path); return; }
+    $fh = fopen($path, 'rb');
+    fseek($fh, $start);
+    while ($len > 0 && !feof($fh)) { $chunk = fread($fh, (int)min(262144, $len)); if ($chunk === false) break; echo $chunk; $len -= strlen($chunk); flush(); }
+    fclose($fh);
 }
 $GLOBALS['NM_GET']['cfile'] = 'a_cfile_get';
 
