@@ -390,3 +390,37 @@ Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık za
 - Yönetici: öğün saatleri ve birim varsayılanı (**Herkes, her gün** ya da **Yalnız nöbetçiler**).
 - Herkes kendisi için: birimin ayarına uy / her gün göster / **yalnız nöbetlerimde göster** (nöbet sürerken ya da 18 saat içinde başlayacakken) / **gizle** (menüde ve ana sayfada görünmez). Aynı seçim Ayarlar › Genel'de de var.
 - Modül sistem yöneticisi tarafından hastane ya da birim için kapatılabilir; rollerde “Yemek listesi” yetkisi ayrıca verilir.
+
+## 27. Kişi kartı ve güvenlik güncellemesi (4.13)
+
+**Kişi kartı:** Uygulamanın her yerinde bir kişinin adına ya da fotoğrafına dokununca kart açılır. Bu yerler:
+- ana sayfa "Bugün nöbette" ve bloklar, ekip rehberi, telefon rehberindeki ekip
+- nöbet ilanları ve başvurular, eksik personel çağrısı, ekstra nöbet / devral listeleri
+- nöbet istekleri, duyuru yazarları, okuma raporu
+
+Kartta şunlar bulunur:
+- **Mesaj**, **Sesli ara**, **Görüntülü** (uygulama içi)
+- **Telefon**, **SMS**, **WhatsApp**, **E-posta** (kişi izin verdiyse)
+- dahili numara, son görülme
+- **yaklaşan nöbetleri** (şu an nöbetteyse işaretli) ve izin günleri
+
+Hesabı olmayan, yalnız listede adı geçen kişide nöbetler görünür.
+
+**İletişim gizliliği (KVKK):** Hesabım › Profil:
+- "Cep telefonum ekip rehberinde görünsün" — varsayılan açık.
+- "E-posta adresim ekip arkadaşlarıma görünsün" — varsayılan kapalı.
+
+Yöneticiler ve sorumlular her zaman görür.
+
+**QR girişi:** Bilgisayarda karekodun yanında 2 haneli bir sayı çıkar. Telefonda 3 sayıdan doğrusuna dokunmadan onay olmaz; yanlış sayı seçilirse karekod iptal olur. Size bağlantı gönderilerek hesabınıza girilmesine karşı.
+
+**Yemek listesi sahipliği:** Çok birimli kurulumda hastanenin yemek listesini ilk yükleyen birim yönetir. Diğer birimler listeyi görür ve yalnız kendi görünürlük ayarını değiştirir. Yöneten birim, yemek ayarlarından "Liste yönetimini bırak" ile listeyi devredebilir.
+
+**Güvenlik:**
+- Şifre değişince diğer tüm cihazlardaki oturumlar kapanır; sıfırlanınca hepsi kapanır.
+- Geçici şifreyle giren kişi şifresini değiştirmeden uygulamayı kullanamaz.
+- Giriş denemeleri hesap başına da sınırlıdır. E-postanın kayıtlı olup olmadığı yanıttan anlaşılmaz.
+- Davetsiz kayıt IP başına saatte 20 ile sınırlıdır.
+- Nöbet listesi ve mesaj / hastane belgesi dosyaları rol yetkisine göre indirilir.
+- Ortak bilgisayardaki (tarayıcı kapanınca biten) oturumda kişisel önbellek kalıcı tutulmaz.
+- HTTPS'te HSTS açıktır.

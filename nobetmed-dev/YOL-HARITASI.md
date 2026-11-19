@@ -69,6 +69,9 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.12 — Hastane yemek listesi ✓ (4.12.0)
 - Aylık listeyi PDF / Excel / CSV'den içe aktarma (düzenlenebilir önizleme), gün gün ve ay görünümü, saate göre şimdiki/sıradaki öğün (01:00 / 12:00 / 18:00, ayarlanabilir), nöbet saatlerine düşen öğünler, ana sayfa kartı, kişisel görünürlük (her gün / yalnız nöbetlerimde / gizle); çok birimlide hastane ortak.
 
+### 4.13 — Kişi kartı ve güvenlik taraması ✓ (4.13.0)
+- Her yerde ada dokununca kişi kartı (mesaj, sesli/görüntülü arama, telefon, SMS, WhatsApp, yaklaşan nöbetler); iletişim gizliliği; QR'da sayı doğrulaması; oturum/kayıt/giriş sertleştirmesi; yemek listesi sahipliği.
+
 ### 5.0+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
