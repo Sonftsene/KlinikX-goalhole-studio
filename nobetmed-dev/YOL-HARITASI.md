@@ -57,7 +57,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.7 — Bildirim sistemi ✓ (4.7.0)
 - Sayfa yenilemeden canlı bildirim kartları (hızlı yanıt, ses, titreşim, rozet), uçtan uca şifreli telefon bildirimi (site simgesi, gruplanan sohbet bildirimi, Aç/Okundu düğmeleri), kategori bazlı kişisel tercihler, duraklatma, sessiz saatler, içerik gizleme, cihazlar; yönetici politikası (varsayılanlar, zorunlu kategoriler, KVKK içerik gizleme, kapsama istatistiği); bildirim merkezi sayfası; birimler arası anında bildirim.
 
-### 4.8+ — Ek modüller (her biri aç/kapat)
+### 4.8 — WhatsApp özellikleri ✓ (4.8.0)
+- Birebir sesli/görüntülü arama (WebRTC, birimler arası, arama geçmişi, TURN ayarı), grupta gönderen profili (mesaj/ara/telefon), yönetici yazma kısıtlaması ve gruptan engelleme, @herkes, uzun bas menüsü ve her emojiyle tepki, sağa kaydırıp yanıt, çoklu seçim, emoji paneli, kamera (fotoğraf/video), video, tek seferlik görüntüleme, konum ve kişi paylaşımı, taslaklar, okunmamış ayıracı, sesli mesaj hızı, bağlantı/telefon tanıma, yapıştır/sürükle-bırak. (Durum paylaşımı bilinçli olarak yok.)
+
+### 4.9+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
 ### Sürekli: KVKK ve güvenlik

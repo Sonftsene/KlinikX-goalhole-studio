@@ -326,3 +326,25 @@ Excel kullanmayan birimler için: **Nöbet → Çizelge** sekmesi (yönetici, ya
 **Bildirim merkezi:** zil → **Tüm bildirimler**: kategori süzgeci, okunmamışlar, tek tek silme, tümünü okundu say, okunanları sil (bildirimler 90 gün saklanır).
 
 Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık zamanlanmış görevi beklemeden hemen gider (site kendi adresine imzalı kısa bir istek atar; zamanlanmış görev yedek olarak çalışmaya devam eder).
+
+## 23. Mesajlaşma 4.8 — WhatsApp özellikleri
+
+**Yazma çubuğu:** solda 😊 emoji paneli (son kullanılanlar + kategoriler), sağda 📎 Ekle ve 📷 Kamera; boşken mikrofon (sesli mesaj), yazınca gönder düğmesi. Yazdığınız ama göndermediğiniz mesaj **taslak** olarak kalır (listede “Taslak:”). Ekran görüntüsünü yapıştırabilir, bilgisayarda dosyaları sohbete sürükleyip bırakabilirsiniz.
+
+**Ekle:** Fotoğraf ve video (birden çok), **Kamera** (telefonda kamera uygulaması açılır; bilgisayarda tarayıcı içinden fotoğraf çekme ve video kaydı), Belge, **Tek seferlik fotoğraf/video** (alıcı bir kez açar, iletilemez, gönderen de açamaz; “Açıldı” görünür), **Konum** (Google Haritalar / OpenStreetMap ile açılır), **Kişi** (birim kişileri ve telefon rehberinden; kartta “Ara” ve “Mesaj”), Anket. Video en fazla 64 MB, diğer dosyalar 25 MB; videolar iPhone'da da oynar.
+
+**Mesaja dokunma:**
+- **Telefonda mesaja uzun basın** (bilgisayarda sağ tık ya da ⋯): üstte tepki emojileri (+ ile istediğiniz emoji), tek dokunuşla **Yanıtla, Yıldızla, Kopyala, İlet**; altta Özelden yanıtla, Seç, Düzenle, Sabitle, Bilgi (kimler okudu), Benden sil, Herkesten sil.
+- **Mesajı sağa kaydırın** → alıntıyla yanıt. Alıntıya dokununca asıl mesaja gider.
+- Bilgisayarda mesajın yanındaki 😊 → hızlı tepki, yıldız, yanıt.
+- **Seç** ile birden çok mesajı birlikte yıldızlayın, kopyalayın, iletin ya da silin.
+- Sesli mesajlarda **1× / 1,5× / 2×** hız; metindeki bağlantılar ve telefon numaraları tıklanır; tek emoji büyük görünür.
+- Sohbete girince “**N okunmamış mesaj**” ayıracı ve aşağıda yeni mesaj sayılı “en alta in” düğmesi.
+
+**Grupta gönderene dokunun** (ad ya da fotoğraf): profil açılır — **Mesaj**, **Sesli ara**, **Görüntülü ara**, **Telefonu ara** (birim kişisinin kayıtlı telefonu), engelle.
+
+**Grup yöneticisi:** üye menüsünde **Yazmasını kısıtla** (okur ama yazamaz; birim grubunda da), **Gruptan çıkar ve engelle** (davet bağlantısıyla ya da eklenerek dönemez; grup bilgisinde “Gruptan engellenenler” → Engeli kaldır). **@herkes** ile gruptaki herkese (sessize alanlara da) seslenebilir.
+
+**Sesli ve görüntülü arama:** birebir sohbetin üstündeki 📞 / 🎥 ya da profilden. Aranan kişiye uygulama kapalıyken de telefon bildirimi gider; açınca gelen arama ekranı çalar (Yanıtla / Reddet). Görüşmede sessize alma, kamera aç/kapa, kamerayı çevirme, küçültüp sohbete dönme. Ses ve görüntü cihazlar arasında doğrudan, şifreli akar; sunucudan geçmez, kaydedilmez. Sohbette “Sesli arama 2:31”, “Cevapsız arama” kaydı ve **Mesajlar › Aramalar** sekmesinde geçmiş. Hastanenin farklı birimleri arasında da çalışır.
+- Yönetici: **Ayarlar › Genel › Sesli ve görüntülü arama** ile kapatabilir. Bazı hastane ağları / mobil operatörler doğrudan bağlantıyı engellerse orada bir **TURN sunucusu** (adres, kullanıcı adı, parola) tanımlayın; böylece arama her ağda çalışır.
+- Güncellemede yeni `.htaccess` dosyası da yüklenmeli (kamera ve konum izni yalnız kendi sitemize açılır).

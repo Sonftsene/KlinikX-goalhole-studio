@@ -88,8 +88,9 @@ ACT['ch-once'] = (el) => {
   const m = CH.msgs.find((x) => x.id === +el.dataset.id);
   if (!m || !m.file) return;
   const v = m.kind === 'video';
-  const md = openModal({ title: 'Tek seferlik ' + (v ? 'video' : 'fotoğraf'), size: 'wide', body: html`<div class="ch-oncev" oncontextmenu="return false">${v ? html`<video src="${m.file.url}" autoplay playsinline controls controlslist="nodownload"></video>` : html`<img src="${m.file.url}" alt="" draggable="false">`}</div><p class="tiny faint" style="text-align:center">Kapattıktan sonra bir daha açılamaz.</p>`,
+  const md = openModal({ title: 'Tek seferlik ' + (v ? 'video' : 'fotoğraf'), size: 'wide', body: html`<div class="ch-oncev">${v ? html`<video src="${m.file.url}" autoplay playsinline controls controlslist="nodownload"></video>` : html`<img src="${m.file.url}" alt="" draggable="false">`}</div><p class="tiny faint" style="text-align:center">Kapattıktan sonra bir daha açılamaz.</p>`,
     onClose: () => { m.opened = 1; delete m.file; chatDraw(); } });
+  const v2 = $('.ch-oncev', md.el); if (v2) v2.addEventListener('contextmenu', (e) => e.preventDefault()); // kaydetme menüsü açılmasın
   return md;
 };
 

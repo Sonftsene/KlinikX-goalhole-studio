@@ -76,7 +76,8 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 ## Mesajlaşma (4.3–4.6)
 - `inc/mod_mesaj.php` (sohbet, grup, birebir, ekler, tepki/anket/ilet/sabitle/davet/saklama) + `inc/mod_mesaj2.php` (gizlilik, sohbet durumu, düzenleme, yıldız, arama, grup izinleri). Tablolar hastane veritabanında (`hdb()`); kişi anahtarı `(tkey, user_id)`. Şema değişikliği `C_SCHEMA` artırılarak `c_migrate()` içinde yapılır (NM_SCHEMA değil).
 - Başka modül bir kişiye sohbetten bildirim göndermek isterse `c_push()` (aynı birim) ya da kendi `NM_JOBS` görevini kullanır. Kişinin gizlilik tercihleri `c_pref()`; “kişilerim” `c_is_contact()`.
-- Test: `nobetmed-dev/e2e-mesaj.mjs` (e2e-hastane'den sonra).
+- 4.8: `inc/mod_mesaj3.php` (paylaşım, engel/kısıtlama, aramalar), istemci `mesaj3.js` ve `arama.js`. Yeni bir mesaj türü eklerken: sunucuda `c_msg_meta_out` ve `c_preview`, istemcide `chatBodyHtml`.
+- Test: `nobetmed-dev/e2e-mesaj.mjs` (e2e-hastane'den sonra), `e2e-bildirim.mjs`, `e2e-mesaj2.mjs`.
 
 ## Bildirimler (4.7)
 - Bildirim göndermek için her zaman `notify_users($users, '<kind>', başlık, metin, '#/adres', $mail)` kullanın; telefon bildirimi kişinin kategori tercihi ve birim politikasına göre kendiliğinden süzülür, içerik şifrelenir. Yeni bir `kind` eklerseniz `inc/mod_bildirim.php` › `NB_KIND_CAT` ve `assets/js/bildirim.js` › `NB_KIND_CAT` içine kategorisini yazın (yoksa “Sistem” sayılır).
