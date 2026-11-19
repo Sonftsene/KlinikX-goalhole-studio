@@ -76,6 +76,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 - Paketler, birim aboneliği, deneme, ek süre, ücretsiz paket / salt okunur, kişi sınırı; PayTR, iyzico, havale; sistem yöneticisi tam kontrol (görünürlük ve zorunluluk ayrı anahtarlar, varsayılan kapalı); hatırlatmalar; sözleşme onayı.
 - Sonra: kayıtlı kartla otomatik yenileme (PayTR kart saklama / iyzico abonelik API), e-Fatura entegrasyonu, kupon/indirim, kendi kendine birim açma (tanıtım sayfası).
 
+### Sırada — kullanıcının aklında tutulmasını istediği fikirler
+1. **Davet et, kazan + kendi kendine birim açma:** birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
+2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).
+
 ### 5.0+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
