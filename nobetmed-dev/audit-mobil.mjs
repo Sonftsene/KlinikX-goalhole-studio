@@ -62,7 +62,8 @@ async function audit(mobile, email, pw) {
         // Kaydırma çubuğu görünüyorsa fareyle ulaşılır; görünmüyorsa ve tekerlek desteği yoksa sorun
         const bar = el.offsetHeight - el.clientHeight - (parseFloat(cs.borderTopWidth) || 0) - (parseFloat(cs.borderBottomWidth) || 0);
         if (bar >= 3) return;
-        if (window.NM_HSCROLL && !el.closest('.xv-scroll, table')) return;
+        if (window.NM_HSCROLL && !el.closest('table')) return;
+        if (el.closest('.xv-scroll')) return; // Excel görüntüleyici: iki yönlü kayar (kaydırma çubukları, Shift + tekerlek)
         out.push(`masaüstünde fareyle kaydırılamayan şerit: .${(el.className || el.tagName).toString().split(' ')[0]} (${el.scrollWidth}/${el.clientWidth}px)`);
       });
       return [...new Set(out)];

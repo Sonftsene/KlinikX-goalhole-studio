@@ -157,12 +157,14 @@ function tkDraw() {
     if (x.asked) return html`<span class="badge warn">İstendi</span>`;
     if (!x.user_id) return html`<span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`;
     if (!x.parts) return askBtn(x, date, '', 'İste', true);
-    return html`<div class="tk-parts">${x.ok ? askBtn(x, date, '', 'Tümünü iste', true) : ''}${x.parts.day.ok ? askBtn(x, date, 'day', 'Gündüzü 08-16', !x.ok) : ''}${x.parts.night.ok ? askBtn(x, date, 'night', 'Gecesi 16-08', !x.ok && !x.parts.day.ok) : ''}</div>`;
+    return html`<div class="tk-parts">${x.ok ? askBtn(x, date, '', 'Tümü', true) : ''}${x.parts.day.ok ? askBtn(x, date, 'day', 'Gündüz 08-16', !x.ok) : ''}${x.parts.night.ok ? askBtn(x, date, 'night', 'Gece 16-08', !x.ok && !x.parts.day.ok) : ''}</div>`;
   };
   const item = (x, date) => html`<div class="list-row tk-it ${tkAny(x) ? '' : 'dim'}">${pAvatar(x.display, 'sm', null, x.user_id)}<div class="grow" style="min-width:0">
       <div class="lr-t"><b>${pName(x.display, x.user_id)}</b>${x.title ? html` <span class="tiny faint">· ${x.title}</span>` : ''}</div>
       <div class="row wrap" style="gap:4px;margin-top:2px">${codeChip(mkEntry(x))}<span class="small muted">${shiftDesc(mkEntry(x))}</span>${x.listed ? html`<span class="badge brand" title="Bu nöbeti ilana koydu">${icon('megaphone', 'sm')}İlanda</span>` : ''}${x.roster ? html`<span class="tiny faint">${x.roster}</span>` : ''}</div>
-      ${x.ok ? '' : html`${x.parts && tkAny(x) ? html`<div class="tiny faint">Tamamı alınamaz; ${x.parts.day.ok && x.parts.night.ok ? 'gündüzü ya da gecesi' : x.parts.day.ok ? 'yalnız gündüzü (08-16)' : 'yalnız gecesi (16-08)'} alınabilir.</div>` : ''}${x.my_why ? html`<div class="tiny mk-no">${x.parts && tkAny(x) ? 'Tamamı · ' : ''}Sen: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
+      ${x.ok ? '' : x.parts && tkAny(x)
+        ? html`<div class="tk-why"><span class="tk-can">${x.parts.day.ok && x.parts.night.ok ? 'Gündüzü ya da gecesi alınabilir' : x.parts.day.ok ? 'Yalnız gündüzü (08-16) alınabilir' : 'Yalnız gecesi (16-08) alınabilir'}</span>${x.my_why || x.their_why ? html`<span class="mk-no">Tamamı alınamaz: ${x.my_why ? x.my_why.replace(/^Senin için /, '') : x.display.split(' ')[0] + ' için ' + x.their_why}</span>` : ''}</div>`
+        : html`${x.my_why ? html`<div class="tiny mk-no">Sen: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
     ${acts(x, date)}</div>`;
   setHTML(box, html`${tkReqHtml(d.requests)}
     <div class="tk-strip"><a class="tk-dc all ${TK.date ? '' : 'on'}" href="#/ekstra/${TK.ym}"><b>Tümü</b><span>gün</span><em>${gen.days.reduce((a, x) => a + x.items.filter(tkAny).length, 0)}</em></a>${strip}</div>
