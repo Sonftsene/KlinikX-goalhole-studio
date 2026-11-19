@@ -13,7 +13,7 @@ Object.assign(ICON_PATHS, {
 });
 
 /* ---------------- Mesaj içeriği ---------------- */
-const CH_URL_RE = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)|((?:\+90|0)\s?5\d{2}\s?\d{3}\s?\d{2}\s?\d{2})/g;
+const CH_URL_RE = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)|((?:\+90\s?|0)[2-5]\d{2}\s?\d{3}\s?\d{2}\s?\d{2})(?!\d)/g;
 /** Metin: bağlantılar ve telefon numaraları tıklanır, @bahsetmeler vurgulanır (hepsi güvenli parçalar) */
 function chatRich(text) {
   const parts = [];

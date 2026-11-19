@@ -1552,3 +1552,4 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .call-ov.min { inset: auto 12px calc(env(safe-area-inset-bottom) + 80px) auto; padding: 0; background: none; animation: none; }
 .call-ov.min > *:not(.call-pill):not(audio) { display: none !important; }
 .call-ov.min .call-pill { display: flex; align-items: center; gap: 8px; border: 0; background: #2fb36d; color: #fff; padding: 10px 16px; border-radius: 999px; font-weight: 600; box-shadow: var(--shadow-lg); cursor: pointer; font-variant-numeric: tabular-nums; }
+.call-b span { color: #fff; }
