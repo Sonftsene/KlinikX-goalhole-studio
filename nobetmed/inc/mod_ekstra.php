@@ -220,20 +220,32 @@ function tk_my_lists(array $me, string $ym): array
     return $out;
 }
 
-/** Bir nöbeti devralma denetimi: [ok, benim nedenim, onun nedeni] */
-function tk_eval(array $tl, string $myK, string $myName, string $pk, string $date): array
+/** Bir nöbeti (ya da 24 saatin gündüz / gece parçasını) devralma denetimi: [ok, benim nedenim, onun nedeni] */
+function tk_eval(array $tl, string $myK, string $myName, string $pk, string $date, string $part = ''): array
 {
     $rules = rules_cfg();
     $p = $tl[$pk];
     $row = $p['days'][$date];
     $mine = $tl[$myK]['days'];
+    $part = swap_part($part);
+    $kept = null;
+    if ($part !== '') {
+        if (!swap_splittable($row)) return [false, 'Bu nöbet 24 saat değil; parça olarak alınamaz', null];
+        [$row, $kept] = swap_split($row, $part, (int)($row['roster_id'] ?? 0));
+    }
     $why = null;
-    if (isset($mine[$date])) { $x = $mine[$date]; $why = 'O gün senin de ' . ($x['kind'] === 'shift' ? 'nöbetin' : ($x['kind'] === 'leave' ? 'iznin' : 'kaydın')) . ' var (' . $x['code'] . ')'; }
+    $merged = $part !== '' && isset($mine[$date]) ? swap_merge($mine[$date], $row, (int)($row['roster_id'] ?? 0)) : null;
+    if (isset($mine[$date]) && !$merged) { $x = $mine[$date]; $why = 'O gün senin de ' . ($x['kind'] === 'shift' ? 'nöbetin' : ($x['kind'] === 'leave' ? 'iznin' : 'kaydın')) . ' var (' . $x['code'] . ')'; }
     elseif ($q = rules_req_on($myName, $date, ['izin', 'bosluk'], true)) $why = 'O gün için ' . ($q['kind'] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteğin var';
+    elseif ($merged) { $m2 = $mine; unset($m2[$date]); $why = rules_check_add($m2, $date, $merged, 'Senin'); }
     else $why = rules_check_add($mine, $date, $row, 'Senin');
-    $without = $p['days'];
-    unset($without[$date]);
-    $theirs = swap_check($without, [], [$date], $rules, mk_first((string)(mk_user_for((string)$p['name'])['name'] ?? $p['name'])));
+    // Veren: tamamını verirse o gün boşalır (uzun boşluk denetimi); parçasını verirse o gün nöbeti kalır
+    $theirs = null;
+    if (!$kept) {
+        $without = $p['days'];
+        unset($without[$date]);
+        $theirs = swap_check($without, [], [$date], $rules, mk_first((string)(mk_user_for((string)$p['name'])['name'] ?? $p['name'])));
+    }
     return [$why === null && $theirs === null, $why, $theirs];
 }
 
@@ -273,8 +285,20 @@ function a_extra_take(): void
                 $iv = swap_interval($d, $row);
                 if (!$iv || $iv[0] <= $now) continue; // başlamış nöbet devredilemez
                 [$ok, $myWhy, $theirWhy] = tk_eval($tl, $myK, $myName, $pk, $d);
-                if (!$ok && !$day) continue;
-                $it = tk_item($p, $row, $d, $rid) + ['ok' => $ok, 'my_why' => $myWhy, 'their_why' => $theirWhy,
+                // 24 saatlik nöbet: gündüzü (08-16) ya da gecesi (16-08) ayrı istenebilir
+                $parts = null;
+                if (swap_splittable($row)) {
+                    $parts = [];
+                    foreach (['day', 'night'] as $pt) {
+                        [$st] = swap_split($row, $pt, $rid);
+                        if (strtotime($d . ' ' . $st['start_time']) <= $now) { $parts[$pt] = ['ok' => false, 'why' => 'Başladı']; continue; }
+                        [$pok, $pw, $tw] = tk_eval($tl, $myK, $myName, $pk, $d, $pt);
+                        $parts[$pt] = ['ok' => $pok, 'why' => $pw ?? $tw, 'code' => $st['code']];
+                    }
+                }
+                $any = $ok || ($parts && ($parts['day']['ok'] || $parts['night']['ok']));
+                if (!$any && !$day) continue;
+                $it = tk_item($p, $row, $d, $rid) + ['ok' => $ok, 'any' => $any, 'parts' => $parts, 'my_why' => $myWhy, 'their_why' => $theirWhy,
                     'listed' => isset($listed[$d . '|' . $pk]), 'asked' => isset($asked[$d . '|' . $pk]), 'roster' => mk_roster_names()[$rid] ?? ''];
                 $days[$d]['date'] = $d;
                 $days[$d]['items'][] = $it;
@@ -283,7 +307,7 @@ function a_extra_take(): void
         }
     }
     ksort($days);
-    foreach ($days as &$x) usort($x['items'], fn($a, $b) => [!$a['ok'], !$a['listed'], $a['display']] <=> [!$b['ok'], !$b['listed'], $b['display']]);
+    foreach ($days as &$x) usort($x['items'], fn($a, $b) => [!$a['any'], !$a['ok'], !$a['listed'], $a['display']] <=> [!$b['any'], !$b['ok'], !$b['listed'], $b['display']]);
     unset($x);
     out($base + ['found' => true, 'days' => array_values($days)]);
 }
@@ -291,7 +315,7 @@ function a_extra_take(): void
 function tk_requests_out(array $me): array
 {
     $rows = all("SELECT * FROM take_requests WHERE (taker_user = ? OR giver_user = ?) AND date >= ? ORDER BY id DESC LIMIT 60", [$me['id'], $me['id'], date('Y-m-d', strtotime('-7 days'))]);
-    return array_map(fn($r) => ['id' => (int)$r['id'], 'date' => $r['date'], 'code' => $r['code'], 'giver' => $r['giver_name'], 'taker' => $r['taker_name'], 'status' => $r['status'],
+    return array_map(fn($r) => ['id' => (int)$r['id'], 'date' => $r['date'], 'code' => $r['code'], 'part' => swap_part($r['part'] ?? null), 'giver' => $r['giver_name'], 'taker' => $r['taker_name'], 'status' => $r['status'],
         'note' => (string)($r['note'] ?? ''), 'dir' => (int)$r['taker_user'] === (int)$me['id'] ? 'out' : 'in', 'at' => $r['created_at'], 'reason' => (string)($r['reason'] ?? '')], $rows);
 }
 
@@ -301,22 +325,24 @@ function a_extra_take_ask(): void
     $me = need_user();
     $date = s('date', 10);
     $name = s('name', 120);
+    $part = swap_part(s('part', 5));
     if (!valid_ymd($date) || $date < date('Y-m-d')) fail('Geçersiz gün.');
     $ym = substr($date, 0, 7);
     foreach (tk_my_lists($me, $ym) as [$rid, $tl, $myK, $myName]) {
         $pk = swap_key($name);
         $row = $tl[$pk]['days'][$date] ?? null;
         if (!$row || ($row['kind'] ?? '') !== 'shift') continue;
-        [$ok, $myWhy, $theirWhy] = tk_eval($tl, $myK, $myName, $pk, $date);
+        [$ok, $myWhy, $theirWhy] = tk_eval($tl, $myK, $myName, $pk, $date, $part);
         if (!$ok) fail(($myWhy ?? $theirWhy) . '.');
         $u = mk_user_for((string)$tl[$pk]['name']);
         if (!$u) fail($tl[$pk]['name'] . ' uygulamada kayıtlı değil; telefonla sorabilirsiniz.');
-        if (one("SELECT id FROM take_requests WHERE taker_user = ? AND giver_user = ? AND date = ? AND status = 'pending'", [$me['id'], $u['id'], $date])) fail('Bu nöbeti zaten istedin; yanıt bekleniyor.');
+        if (one("SELECT id FROM take_requests WHERE taker_user = ? AND giver_user = ? AND date = ? AND COALESCE(part, '') = ? AND status = 'pending'", [$me['id'], $u['id'], $date, $part])) fail('Bu nöbeti zaten istedin; yanıt bekleniyor.');
         $note = s('note', 200);
-        q('INSERT INTO take_requests (roster_id, date, code, giver_user, giver_name, taker_user, taker_name, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [$rid, $date, $row['code'], $u['id'], $tl[$pk]['name'], $me['id'], $myName, 'pending', $note ?: null, now()]);
-        notify_users(mk_full_users([(int)$u['id']]), 'swap', 'Nöbet devralma isteği: ' . $me['name'], $me['name'] . ', ' . swap_fmt_date($date) . ' (' . $row['code'] . ') nöbetini senden almak istiyor' . ($note ? ' · “' . $note . '”' : '') . '. Kabul ya da ret için dokun.', '#/ekstra');
-        audit($me, 'take.ask', swap_fmt_date($date) . ' ' . $row['code'], $tl[$pk]['name']);
+        q('INSERT INTO take_requests (roster_id, date, code, giver_user, giver_name, taker_user, taker_name, status, note, created_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$rid, $date, $row['code'], $u['id'], $tl[$pk]['name'], $me['id'], $myName, 'pending', $note ?: null, now(), $part ?: null]);
+        $pt = $part !== '' ? ', ' . swap_part_text($part) : '';
+        notify_users(mk_full_users([(int)$u['id']]), 'swap', 'Nöbet devralma isteği: ' . $me['name'], $me['name'] . ', ' . swap_fmt_date($date) . ' (' . $row['code'] . $pt . ') nöbetini senden almak istiyor' . ($note ? ' · “' . $note . '”' : '') . '. Kabul ya da ret için dokun.', '#/ekstra');
+        audit($me, 'take.ask', swap_fmt_date($date) . ' ' . $row['code'] . $pt, $tl[$pk]['name']);
         out(['requests' => tk_requests_out($me)]);
     }
     fail('Bu nöbet listede artık görünmüyor.');
@@ -341,13 +367,13 @@ function a_extra_take_respond(): void
     if ($taker) foreach (tk_my_lists($taker, substr((string)$t['date'], 0, 7)) as [$rid, $tl, $myK, $myName]) {
         $pk = swap_key((string)$t['giver_name']);
         if (($tl[$pk]['days'][$t['date']]['kind'] ?? '') !== 'shift') continue;
-        [$ok, $a, $b2] = tk_eval($tl, $myK, $myName, $pk, (string)$t['date']);
+        [$ok, $a, $b2] = tk_eval($tl, $myK, $myName, $pk, (string)$t['date'], swap_part($t['part'] ?? null));
         if (!$ok) $err = 'Liste değiştiği için artık kurallara uymuyor: ' . ($a ?? $b2);
         break;
     }
     if (!$ok) fail($err);
-    q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [(int)$t['roster_id'], 'give', $me['id'], $t['giver_name'], $t['date'], $t['code'], $t['taker_user'], $t['taker_name'], null, null, 'accepted', $t['note'], now(), now()]);
+    q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, decided_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [(int)$t['roster_id'], 'give', $me['id'], $t['giver_name'], $t['date'], $t['code'], $t['taker_user'], $t['taker_name'], null, null, 'accepted', $t['note'], now(), now(), swap_part($t['part'] ?? null) ?: null]);
     $sid = insert_id();
     q("UPDATE take_requests SET status = 'accepted', decided_at = ?, swap_id = ? WHERE id = ?", [now(), $sid, $t['id']]);
     // Aynı nöbet için diğer bekleyen istekler kapanır

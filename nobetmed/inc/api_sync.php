@@ -439,14 +439,14 @@ function a_swap_options(): void
     $date = s('date', 10);
     if (!valid_ymd($date)) fail('Geçersiz tarih.');
     if ($date < date('Y-m-d')) fail('Geçmiş günlerin nöbeti değiştirilemez.');
-    try { $o = swap_options($me, $date); } catch (RuntimeException $e) { fail($e->getMessage()); }
+    try { $o = swap_options($me, $date, s('part', 5)); } catch (RuntimeException $e) { fail($e->getMessage()); }
     out($o);
 }
 
 function swap_req_out(array $r, array $me): array
 {
     return ['id' => (int)$r['id'], 'kind' => $r['kind'], 'status' => $r['status'], 'roster_id' => (int)$r['roster_id'],
-        'from_user' => (int)$r['from_user'], 'from_name' => $r['from_name'], 'from_date' => $r['from_date'], 'from_code' => $r['from_code'],
+        'from_user' => (int)$r['from_user'], 'from_name' => $r['from_name'], 'from_date' => $r['from_date'], 'from_code' => $r['from_code'], 'part' => swap_part($r['part'] ?? null),
         'to_user' => $r['to_user'] !== null ? (int)$r['to_user'] : null, 'to_name' => $r['to_name'], 'to_date' => $r['to_date'], 'to_code' => $r['to_code'],
         'note' => $r['note'], 'created_at' => $r['created_at'], 'decided_at' => $r['decided_at'], 'applied_at' => $r['applied_at'],
         'mine' => (int)$r['from_user'] === (int)$me['id'], 'incoming' => (int)($r['to_user'] ?? 0) === (int)$me['id']];
@@ -456,7 +456,7 @@ function swap_req_text(array $r): string
 {
     return $r['kind'] === 'swap'
         ? $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . ') ↔ ' . $r['to_name'] . ' ' . swap_fmt_date((string)$r['to_date']) . ' (' . $r['to_code'] . ')'
-        : $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . ') nöbetini devrediyor → ' . $r['to_name'];
+        : $r['from_name'] . ' ' . swap_fmt_date($r['from_date']) . ' (' . $r['from_code'] . (swap_part($r['part'] ?? null) !== '' ? ', ' . swap_part_text(swap_part($r['part'])) : '') . ') nöbetini devrediyor → ' . $r['to_name'];
 }
 
 function a_swap_request(): void
@@ -467,7 +467,8 @@ function a_swap_request(): void
     $toDate = s('to_date', 10);
     if (!valid_ymd($date) || ($toDate !== '' && !valid_ymd($toDate))) fail('Geçersiz tarih.');
     if ($date < date('Y-m-d') || ($toDate !== '' && $toDate < date('Y-m-d'))) fail('Geçmiş günlerin nöbeti değiştirilemez.');
-    try { $o = swap_options($me, $date); } catch (RuntimeException $e) { fail($e->getMessage()); }
+    $part = $toDate === '' ? swap_part(s('part', 5)) : '';
+    try { $o = swap_options($me, $date, $part); } catch (RuntimeException $e) { fail($e->getMessage()); }
     $target = null;
     $code = null;
     if ($toDate === '') {
@@ -481,9 +482,9 @@ function a_swap_request(): void
         fail('Bu seçenek artık uygun değil; liste değişmiş olabilir.');
     }
     if (!$target['user_id']) fail($toName . ' uygulamada kayıtlı değil. İsteği WhatsApp ile iletebilirsiniz.');
-    if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND to_name = ? AND COALESCE(to_date, '') = ? AND status IN ('pending', 'accepted')", [$me['id'], $date, $toName, $toDate])) fail('Bu istek zaten gönderildi.');
-    q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [$o['mine']['roster_id'], $toDate === '' ? 'give' : 'swap', $me['id'], $o['mine']['name'], $date, $o['mine']['code'], $target['user_id'], $toName, $toDate ?: null, $code, 'pending', s('note', 300) ?: null, now()]);
+    if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND to_name = ? AND COALESCE(to_date, '') = ? AND COALESCE(part, '') = ? AND status IN ('pending', 'accepted')", [$me['id'], $date, $toName, $toDate, $part])) fail('Bu istek zaten gönderildi.');
+    q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$o['mine']['roster_id'], $toDate === '' ? 'give' : 'swap', $me['id'], $o['mine']['name'], $date, $o['mine']['code'], $target['user_id'], $toName, $toDate ?: null, $code, 'pending', s('note', 300) ?: null, now(), $part ?: null]);
     $id = insert_id();
     $r = one('SELECT * FROM swap_requests WHERE id = ?', [$id]);
     $to = one('SELECT * FROM users WHERE id = ?', [$target['user_id']]);
@@ -513,7 +514,7 @@ function a_swap_respond(): void
     $from = one('SELECT * FROM users WHERE id = ?', [(int)$r['from_user']]);
     if (b('accept')) {
         // Liste değişmiş olabilir: kuralları yeniden denetle
-        try { $o = $from ? swap_options($from, $r['from_date']) : null; } catch (RuntimeException $e) { $o = null; }
+        try { $o = $from ? swap_options($from, $r['from_date'], swap_part($r['part'] ?? null)) : null; } catch (RuntimeException $e) { $o = null; }
         $ok = false;
         if ($o) {
             if ($r['kind'] === 'give') { foreach ($o['give'] as $p) if ($p['name'] === $r['to_name']) $ok = true; }

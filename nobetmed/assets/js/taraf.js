@@ -508,9 +508,12 @@ ACT['tr-setup'] = () => {
 /* =================================================================== */
 const SWAP = { items: [], todo: [] };
 const SWAP_ST = { pending: ['Yanıt bekleniyor', 'warn'], accepted: ['Kabul edildi · Excel’e işlenmesi bekleniyor', 'info'], applied: ['Listeye işlendi', 'success'], declined: ['Reddedildi', 'danger'], cancelled: ['İptal edildi', ''], expired: ['Süresi geçti', ''] };
+/** 24 saatlik nöbetin parçası: '' (tümü) | 'day' | 'night' */
+const PART_TXT = { day: 'yalnız gündüz 08-16', night: 'yalnız gece 16-08' };
+function partTxt(p) { return PART_TXT[p] || ''; }
 function swapText(r) {
   return r.kind === 'swap' ? html`<b>${r.from_name}</b> ${shortDate(r.from_date)} (${r.from_code}) ⇄ <b>${r.to_name}</b> ${shortDate(r.to_date)} (${r.to_code})`
-    : html`<b>${r.from_name}</b> ${shortDate(r.from_date)} (${r.from_code}) → <b>${r.to_name}</b>`;
+    : html`<b>${r.from_name}</b> ${shortDate(r.from_date)} (${r.from_code}${r.part ? ', ' + partTxt(r.part) : ''}) → <b>${r.to_name}</b>`;
 }
 async function mountSwapBox() {
   try { const r = await api('swap.list'); SWAP.items = r.items; SWAP.todo = r.todo || []; } catch (e) { return; }
@@ -564,7 +567,8 @@ ACT['swap-open'] = async (el) => {
   const m = openModal({ title: 'Nöbetini değiş veya devret', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
   let o;
   try { o = await api('swap.options', { date }); } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
-  const st = { tab: o.swap.length || !o.give.length ? 'swap' : 'give', same: true, pick: null, why: false };
+  const st = { tab: o.swap.length || !o.give.length ? 'swap' : 'give', same: true, pick: null, why: false, part: '' };
+  const full = o; // tümü için seçenekler (parça seçilince devir listesi yeniden hesaplanır)
   const mineEntry = { code: o.mine.code, kind: 'shift', hours: o.mine.hours, start: o.mine.start, end: o.mine.end, label: o.mine.label };
   const draw = () => {
     if (st.pick) return drawPick();
@@ -580,6 +584,8 @@ ACT['swap-open'] = async (el) => {
           : html`<div class="card empty"><p class="small">Kurallara uyan değişim seçeneği yok${st.same ? '; “aynı süre” işaretini kaldırmayı deneyin' : ''}.</p></div>`}
         <p class="tiny faint">Seçtiğin gün onun nöbeti olur, bu gün senin nöbetin ona geçer.</p>`
       : html`
+        ${o.mine.parts ? html`<div class="seg seg-block sw-parts" role="group" aria-label="Nöbetin hangi kısmı">${[['', 'Tümü (24 saat)'], ['day', 'Yalnız gündüz 08-16'], ['night', 'Yalnız gece 16-08']].map(([k, l]) => html`<button type="button" class="${st.part === k ? 'on' : ''}" data-part="${k}">${l}</button>`)}</div>
+          <p class="tiny faint" style="margin:-4px 0 0">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} devredilir; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sende kalır.` : '24 saatlik nöbetin yalnız gündüzünü ya da gecesini de devredebilirsin.'}</p>` : ''}
         ${o.give_error ? html`<div class="banner danger">${icon('alert')}<span>Devredemezsin: ${o.give_error}</span></div>` : ''}
         ${o.give.length ? html`<div class="card"><div class="list">${o.give.map((p, i) => html`<button type="button" class="list-row sw-give" data-g="${i}"><div class="grow" style="min-width:0;text-align:left"><div class="lr-t">${p.name}${p.user_id ? '' : html` <span class="badge">hesabı yok</span>`}</div><div class="lr-s">${p.title || ''} · o gün boş</div></div>${icon('chevR', 'sm')}</button>`)}</div></div>`
           : !o.give_error ? html`<div class="card empty"><p class="small">Bu nöbeti kurallara uyarak alabilecek kimse yok.</p></div>` : ''}`}
@@ -591,9 +597,10 @@ ACT['swap-open'] = async (el) => {
   const drawPick = () => {
     const p = st.pick;
     const x = p.x;
+    const pt = st.part ? ` (${partTxt(st.part)})` : '';
     const txt = x ? `${p.name} ile değiş: sen ${shortDate(x.date)} (${x.code}) nöbetini tutarsın, ${p.name.split(' ')[0]} ${shortDate(o.mine.date)} (${o.mine.code}) nöbetini tutar.`
-      : `${shortDate(o.mine.date)} (${o.mine.code}) nöbetini ${p.name}’e devret.`;
-    const wa = `Merhaba ${p.name.split(' ')[0]}, ${x ? `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimi senin ${shortDate(x.date)} (${x.code}) nöbetinle değişebilir miyiz?` : `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimi alabilir misin?`}`;
+      : `${shortDate(o.mine.date)} (${o.mine.code})${pt} nöbetini ${p.name}’e devret.${st.part ? ` ${st.part === 'day' ? 'Gecesi (16-08)' : 'Gündüzü (08-16)'} sende kalır.` : ''}`;
+    const wa = `Merhaba ${p.name.split(' ')[0]}, ${x ? `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimi senin ${shortDate(x.date)} (${x.code}) nöbetinle değişebilir miyiz?` : `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimin${st.part ? ' ' + (st.part === 'day' ? 'gündüzünü (08-16)' : 'gecesini (16-08)') : 'i'} alabilir misin?`}`;
     m.setBody(html`<div class="stack"><div class="sw-sum">${txt}</div>
       ${p.user_id ? html`<div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="swNote" maxlength="300" placeholder="Örn. ailevi bir durum var"></div>
         <p class="tiny faint">${p.name.split(' ')[0]} kabul ederse sorumluya iletilir. Sorumlu Excel’de güncelleyince takvimlerinize kendiliğinden işlenir.</p>`
@@ -603,8 +610,17 @@ ACT['swap-open'] = async (el) => {
     st.wa = wa;
   };
   m.el.addEventListener('click', async (e) => {
-    const t = e.target.closest('[data-t],[data-why],.sw-opt,.sw-give,[data-back],[data-send],[data-copy]');
+    const t = e.target.closest('[data-t],[data-why],.sw-opt,.sw-give,[data-back],[data-send],[data-copy],[data-part]');
     if (!t) return;
+    if (t.dataset.part !== undefined) {
+      if (t.dataset.part === st.part) return;
+      st.part = t.dataset.part;
+      if (!st.part) { o = full; draw(); return; }
+      m.setBody(html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>`);
+      try { o = await api('swap.options', { date, part: st.part }); } catch (er) { toast(er.message, 'err'); st.part = ''; o = full; }
+      draw();
+      return;
+    }
     if (t.dataset.t) { st.tab = t.dataset.t; draw(); }
     else if (t.dataset.why) { st.why = !st.why; draw(); }
     else if (t.classList.contains('sw-opt')) { const p = o.swap[+t.dataset.p]; st.pick = { ...p, x: p.options.find((x) => x.date === t.dataset.x) }; draw(); }
@@ -614,7 +630,7 @@ ACT['swap-open'] = async (el) => {
     else if (t.dataset.send) {
       await busy(t, async () => {
         try {
-          await api('swap.request', { date: o.mine.date, to_name: st.pick.name, to_date: st.pick.x ? st.pick.x.date : '', note: ($('#swNote', m.el) || {}).value || '' });
+          await api('swap.request', { date: o.mine.date, to_name: st.pick.name, to_date: st.pick.x ? st.pick.x.date : '', part: st.pick.x ? '' : st.part, note: ($('#swNote', m.el) || {}).value || '' });
           m.close(); toast('İstek gönderildi'); mountSwapBox();
         } catch (er) { toast(er.message, 'err'); }
       });

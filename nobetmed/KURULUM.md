@@ -424,3 +424,18 @@ Yöneticiler ve sorumlular her zaman görür.
 - Nöbet listesi ve mesaj / hastane belgesi dosyaları rol yetkisine göre indirilir.
 - Ortak bilgisayardaki (tarayıcı kapanınca biten) oturumda kişisel önbellek kalıcı tutulmaz.
 - HTTPS'te HSTS açıktır.
+
+## 28. 24 saatlik nöbetin gündüzünü / gecesini ayrı verme (4.14)
+
+24 saatlik (08-08) nöbetin tamamı yerine yalnız **gündüzü (08-16)** ya da yalnız **gecesi (16-08)** de verilip alınabilir. Kalan kısım nöbet sahibinde kalır; o gün boşalmadığı için uzun boşluk kuralı etkilenmez.
+
+**Nerede seçilir:**
+- **Değiş / Devret** penceresinin Devret sekmesinde: Tümü / Yalnız gündüz / Yalnız gece.
+- **Nöbetini ilana koy** penceresinde (Devret).
+- **Ekstra nöbet › Nöbet devral** sayfasında. 24 saatlik nöbetlerde "Tümünü iste", "Gündüzü 08-16" ve "Gecesi 16-08" düğmeleri çıkar. Gündüz / Gece süzgeci, alınabilir parçası olan 24 saatlik nöbetleri de gösterir.
+
+**Kurallar:** Alan kişi için dinlenme ve üst üste çalışma süresi parçaya göre denetlenir. Alanın o gün tamamlayan parçası varsa (ör. kendisi 08-16, gecesini alıyor) iki parça 24 saate birleşir.
+
+**Excel'e işleme:** Sorumluya "Excel'e işlenecek" olarak hangi parçanın kime geçtiği yazılır (ör. "8 8, yalnız gündüz 08-16"). Excel'de veren 16-08 (ya da 08-16), alan diğer parça olarak güncellenince istek kendiliğinden "listeye işlendi" olur.
+
+**Excel görüntüleyicide "Sadece ben":** Ad artık kelime kelime ve sırasıyla eşleşir. Adı benzeyen başka kişiler (ör. ad ve soyadı yer değiştirmiş biri ya da adının içinde sizin adınız geçen biri) artık sizin satırınız sayılmaz.

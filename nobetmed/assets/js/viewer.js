@@ -672,16 +672,31 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
 
 /** Türkçe harf/aksan farkını yok sayan küçük harf ('DEMIR' ~ 'Demir') */
 function foldName(s) { return trLower(s).replace(/[çğıöşüâîûê]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u', ê: 'e' }[c])); }
+/**
+ * Hücrede bu kişinin adı geçiyor mu? Kelime kelime (parça eşleşmesi yok: "Ali" ≠ "Alişan"), sunucudaki names_match gibi:
+ * ad ve soyad yerinde olmalı, aradaki ikinci ad olabilir ("Ayşe Nur Kaya" ~ "Ayşe Kaya"). Soyad önce yazılmışsa ("KAYA Ayşe")
+ * yalnız hücrede başka kelime yoksa kabul edilir (başka birinin adındaki iki kelime yer değiştirince karışmasın).
+ */
 function nameMatcher(name) {
-  const full = foldName(name || '').replace(/\s+/g, ' ').trim();
-  const parts = full.split(' ').filter((p) => p.length >= 2);
-  if (!parts.length) return () => false;
-  const first = parts[0], last = parts[parts.length - 1];
+  const tok = (x) => foldName(x || '').split(/[^a-z0-9]+/).filter(Boolean);
+  const N = tok(name);
+  if (!N.length) return () => false;
+  const first = N[0], last = N[N.length - 1];
+  const fits = (W) => { // W: hücredeki aday kelime dizisi (ilk = ad, son = soyad)
+    const [sh, lo] = W.length <= N.length ? [W, N] : [N, W];
+    return sh.every((t) => lo.includes(t));
+  };
   return (text) => {
-    const t = foldName(text).replace(/\s+/g, ' ');
-    if (!t) return false;
-    if (t.includes(full)) return true;
-    return parts.length > 1 && t.includes(first) && t.includes(last);
+    const T = tok(text);
+    if (!T.length) return false;
+    if (N.length === 1) return T.length === 1 && T[0] === first;
+    for (let i = 0; i < T.length; i++) {
+      if (T[i] !== first) continue;
+      for (let j = i + 1; j < Math.min(T.length, i + N.length + 2); j++) if (T[j] === last && fits(T.slice(i, j + 1))) return true;
+    }
+    // Soyad önce: "KAYA AYŞE" — hücre yalnız bu adı içeriyorsa
+    if (T.length === N.length && T[0] === last && T[T.length - 1] === first && fits(T)) return true;
+    return false;
   };
 }
 

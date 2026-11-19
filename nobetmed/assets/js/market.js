@@ -31,7 +31,7 @@ function mkDayBlock(d) {
   if (!x) return '';
   return html`<div class="mk-date"><b>${x.getDate()}</b><span>${TR_MONTHS_S[x.getMonth()]}</span><em>${TR_DAYS_S[x.getDay()]}</em></div>`;
 }
-function mkEntry(o) { return { code: o.code, kind: 'shift', hours: o.hours, start: o.start, end: o.end, label: o.label }; }
+function mkEntry(o) { return { code: o.part_code || o.code, kind: 'shift', hours: o.hours, start: o.start, end: o.end, label: o.label }; }
 function mkSpin() { return html`<div class="mk-spin"><div class="spinner"></div></div>`; }
 function mkErr(msg) { return html`<div class="card empty"><div class="e-ico">${icon('alert', 'lg')}</div><h3>Yüklenemedi</h3><p class="small">${msg}</p></div>`; }
 function mkDT(s) { const d = parseDT(s); return d ? `${d.getDate()} ${TR_MONTHS_S[d.getMonth()]} ${hm(d)}` : ''; }
@@ -76,7 +76,7 @@ ACT['mk-tab'] = (el) => { MKT.tab = el.dataset.t; mkDraw(); };
 
 function mkHead(L) {
   const e = mkEntry(L);
-  return html`<div class="mk-l1">${codeChip(e)}<b>${shiftDesc(e) || L.code}</b><span class="badge ${L.kind === 'give' ? 'tone-violet' : 'tone-sky'}">${L.kind === 'give' ? 'Devrediyor' : 'Değişmek istiyor'}</span></div>`;
+  return html`<div class="mk-l1">${codeChip(e)}<b>${shiftDesc(e) || L.code}</b><span class="badge ${L.kind === 'give' ? 'tone-violet' : 'tone-sky'}">${L.kind === 'give' ? 'Devrediyor' : 'Değişmek istiyor'}</span>${L.part ? html`<span class="badge warn" title="24 saatlik (${L.code}) nöbetin yalnız bu kısmı">${L.part === 'day' ? 'Yalnız gündüz' : 'Yalnız gece'} · 24’ün parçası</span>` : ''}</div>`;
 }
 function mkBoardItem(L) {
   const closed = L.status !== 'open';
@@ -175,28 +175,33 @@ async function mkPostModal(date) {
     m.setFoot(html`<button class="btn" data-act="close-modal">Kapat</button><a class="btn primary" href="#/ilanlar/${o.open.id}">İlanı aç</a>`);
     return;
   }
-  const st = { kind: o.give_error ? 'swap' : 'give' };
+  const st = { kind: o.give_error && !o.mine.parts ? 'swap' : 'give', part: '' };
   const draw = () => {
     const note = ($('#mkNote', m.el) || {}).value || '';
+    const gerr = st.part ? null : o.give_error; // parçasını verirken o gün nöbetin kalır: boşluk oluşmaz
+    const nCan = st.part ? o.can[st.part] || 0 : o.can.give;
     m.setBody(html`<div class="stack">${head}
       <div class="seg seg-block" role="tablist"><button type="button" class="${st.kind === 'give' ? 'on' : ''}" data-k="give">Devret</button><button type="button" class="${st.kind === 'swap' ? 'on' : ''}" data-k="swap">Değiş</button></div>
-      ${st.kind === 'give' ? html`<p class="small muted">Nöbetin başkasına geçer. Kurallara uyan liste arkadaşların başvurur, sen aralarından seçersin.</p>
-        ${o.give_error ? html`<div class="mk-box danger">${icon('alert', 'sm')}<span>Devredemezsin: ${o.give_error}. “Değiş” seçeneğini deneyebilirsin.</span></div>`
-          : html`<div class="mk-box ${o.can.give ? 'ok' : 'warn'}">${icon(o.can.give ? 'users' : 'info', 'sm')}<span>${o.can.give ? `Şu an ${o.can.give} kişi kurallara uyarak bu nöbeti alabilir; onlara haber veririz.` : 'Şu an kurallara uyarak alabilecek kimse yok; yine de ilana koyabilirsin, liste değişince başvurabilirler.'}</span></div>`}`
+      ${st.kind === 'give' && o.mine.parts ? html`<div class="seg seg-block mk-parts" role="group" aria-label="Nöbetin hangi kısmı">${[['', 'Tümü (24 saat)'], ['day', 'Yalnız gündüz 08-16'], ['night', 'Yalnız gece 16-08']].map(([k, l]) => html`<button type="button" class="${st.part === k ? 'on' : ''}" data-part="${k}">${l}</button>`)}</div>` : ''}
+      ${st.kind === 'give' ? html`<p class="small muted">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} başkasına geçer; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sende kalır.` : 'Nöbetin başkasına geçer.'} Kurallara uyan liste arkadaşların başvurur, sen aralarından seçersin.</p>
+        ${gerr ? html`<div class="mk-box danger">${icon('alert', 'sm')}<span>Devredemezsin: ${gerr}. ${o.mine.parts ? 'Yalnız gündüzünü ya da gecesini vermeyi' : '“Değiş” seçeneğini'} deneyebilirsin.</span></div>`
+          : html`<div class="mk-box ${nCan ? 'ok' : 'warn'}">${icon(nCan ? 'users' : 'info', 'sm')}<span>${nCan ? `Şu an ${nCan} kişi kurallara uyarak ${st.part ? 'bu kısmı' : 'bu nöbeti'} alabilir; onlara haber veririz.` : 'Şu an kurallara uyarak alabilecek kimse yok; yine de ilana koyabilirsin, liste değişince başvurabilirler.'}</span></div>`}`
         : html`<p class="small muted">Başvuran, kendi nöbetlerinden birini karşılık önerir. Yalnız ikiniz için de kurallara uyan günler önerilebilir.</p>
           <div class="mk-box ${o.can.swap ? 'ok' : 'warn'}">${icon(o.can.swap ? 'users' : 'info', 'sm')}<span>${o.can.swap ? `${o.can.swap} kişinin kurallara uyan bir değişim seçeneği var.` : 'Şu an uygun değişim seçeneği olan kimse yok; yine de ilana koyabilirsin.'}</span></div>`}
       <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="mkNote" maxlength="300" placeholder="Örn. ailevi bir durum var" value="${note}"></div>
       <p class="tiny faint">${icon('lock', 'sm')} Başvuranları yalnız sen ve sorumlular görür. Seçtiğin kişi sorumluya iletilir; Excel güncellenince takvimlere işlenir.</p></div>`);
-    m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-go="1" ${st.kind === 'give' && o.give_error ? raw('disabled') : ''}>${icon('megaphone', 'sm')}İlana koy</button>`);
+    m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-go="1" ${st.kind === 'give' && gerr ? raw('disabled') : ''}>${icon('megaphone', 'sm')}İlana koy</button>`);
   };
   m.el.addEventListener('click', async (ev) => {
     const k = ev.target.closest('[data-k]');
     if (k) { st.kind = k.dataset.k; draw(); return; }
+    const pp = ev.target.closest('[data-part]');
+    if (pp) { st.part = pp.dataset.part; draw(); return; }
     const go = ev.target.closest('[data-go]');
     if (!go) return;
     await busy(go, async () => {
       try {
-        const r = await api('listing.create', { date, kind: st.kind, note: ($('#mkNote', m.el) || {}).value || '' });
+        const r = await api('listing.create', { date, kind: st.kind, part: st.kind === 'give' ? st.part : '', note: ($('#mkNote', m.el) || {}).value || '' });
         m.close();
         toast(r.notified ? `İlana kondu · ${r.notified} kişiye haber verildi` : 'İlana kondu');
         MKT.tab = 'mine';

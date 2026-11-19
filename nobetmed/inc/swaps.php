@@ -37,6 +37,40 @@ function shift_is_night(array $row): bool
     return (int)($row['hours'] ?? 0) >= 16;
 }
 
+/* ---------------- 24 saatlik nöbetin parçaları (4.14) ---------------- */
+
+/** '' (tümü) | 'day' (08-16) | 'night' (16-08) */
+function swap_part($p): string { return in_array($p, ['day', 'night'], true) ? (string)$p : ''; }
+function swap_part_text(string $p): string { return ['day' => 'yalnız gündüz 08-16', 'night' => 'yalnız gece 16-08'][$p] ?? ''; }
+/** 08-08 (24 saat) nöbet gündüz / gece olarak bölünebilir mi */
+function swap_splittable(?array $row): bool
+{
+    if (!$row || ($row['kind'] ?? '') !== 'shift') return false;
+    $st = $row['start_time'] ?? ($row['start'] ?? null);
+    $en = $row['end_time'] ?? ($row['end'] ?? null);
+    if ($st && $en) return $st === $en && $st === '08:00';
+    return (int)($row['hours'] ?? 0) === 24;
+}
+/** [verilen parça, kalan parça] — kodlar listenin kendi gündüz / gece kodlarından */
+function swap_split(array $row, string $part, int $rid): array
+{
+    $mk = function (string $p) use ($row, $rid): array {
+        return co_row($p, $rid ? [$rid] : []) + ['date' => $row['date'] ?? null, 'name' => $row['name'] ?? null, 'title' => $row['title'] ?? null, 'roster_id' => $row['roster_id'] ?? $rid, 'part_of' => $row['code'] ?? null];
+    };
+    return [$mk($part), $mk($part === 'day' ? 'night' : 'day')];
+}
+/** Alan kişinin o günkü kaydına verilen parçayı ekle: boşsa parça; tamamlayan parçası varsa 24 saat; başka kayıt varsa null */
+function swap_merge(?array $cur, array $given, int $rid): ?array
+{
+    if (!$cur) return $given;
+    if (($cur['kind'] ?? '') !== 'shift') return null;
+    $cs = $cur['start_time'] ?? null; $ce = $cur['end_time'] ?? null;
+    $gs = $given['start_time'] ?? null; $ge = $given['end_time'] ?? null;
+    if ($cs && $ce && $gs && $ge && (($ce === $gs && $cs === '08:00' && $ge === '08:00') || ($ge === $cs && $gs === '08:00' && $ce === '08:00')))
+        return co_row('24', $rid ? [$rid] : []) + ['date' => $given['date'] ?? null, 'name' => $cur['name'] ?? null, 'roster_id' => $cur['roster_id'] ?? $rid];
+    return null;
+}
+
 /** Bir listedeki kişilerin gün gün kayıtları: key => ['name','title','days' => [date => row]] */
 function swap_timeline(int $rid, string $from, string $to): array
 {
@@ -63,6 +97,16 @@ function swap_pending_overlay(array $tl, string $from, string $to, int $rid = 0)
         $gk = swap_key((string)$r['from_name']); $tk = swap_key((string)$r['to_name']);
         $gRow = $tl[$gk]['days'][$r['from_date']] ?? null;
         if (!$gRow || ($gRow['kind'] ?? '') !== 'shift') continue; // başka listenin değişimi ya da zaten işlenmiş
+        $part = swap_part($r['part'] ?? null);
+        if ($part !== '' && $r['kind'] === 'give') {
+            // Parçalı devir: veren kalan parçayı tutar, alan verilen parçayı alır (Excel'e işlendiyse veren artık 24 saat değildir)
+            if (!swap_splittable($gRow)) continue;
+            [$given, $kept] = swap_split($gRow, $part, (int)$r['roster_id']);
+            $tl[$gk]['days'][$r['from_date']] = $kept;
+            $mv($tk, (string)$r['to_name']);
+            $tl[$tk]['days'][$r['from_date']] = swap_merge($tl[$tk]['days'][$r['from_date']] ?? null, $given, (int)$r['roster_id']) ?? $given;
+            continue;
+        }
         $tRow = $r['kind'] === 'swap' && $r['to_date'] ? ($tl[$tk]['days'][$r['to_date']] ?? null) : null;
         unset($tl[$gk]['days'][$r['from_date']]);
         $mv($tk, (string)$r['to_name']);
@@ -187,8 +231,9 @@ function swap_user_for(string $name, ?array $users = null): ?array
 }
 
 /** Değişim/devir seçenekleri */
-function swap_options(array $me, string $date): array
+function swap_options(array $me, string $date, string $part = ''): array
 {
+    $part = swap_part($part);
     $mine = swap_my_shift($me, $date);
     if (!$mine) throw new RuntimeException('Bu gün listede nöbetin görünmüyor.');
     $rid = (int)$mine['roster_id'];
@@ -202,11 +247,15 @@ function swap_options(array $me, string $date): array
     $today = date('Y-m-d');
     $myDays = $tl[$mk]['days'];
     $myRow = $myDays[$date];
+    $fullRow = $myRow;
+    if ($part !== '' && !swap_splittable($myRow)) throw new RuntimeException('Yalnız 24 saatlik (08-08) nöbetin gündüzü ya da gecesi ayrı devredilebilir.');
+    $kept = null;
+    if ($part !== '') [$myRow, $kept] = swap_split($myRow, $part, $rid);
     $users = all("SELECT id, name, phone FROM users WHERE status = 'active'");
-    // Devredersem bende boşluk oluşur mu?
+    // Devredersem bende boşluk oluşur mu? (parçalı devirde o gün nöbetim kalır: boşluk oluşmaz)
     $meWithout = $myDays;
-    unset($meWithout[$date]);
-    $myGive = swap_check($meWithout, [], [$date], $rules, 'Senin');
+    if ($kept) $meWithout[$date] = $kept; else unset($meWithout[$date]);
+    $myGive = $kept ? null : swap_check($meWithout, [], [$date], $rules, 'Senin');
     $give = [];
     $swap = [];
     $blocked = [];
@@ -218,19 +267,21 @@ function swap_options(array $me, string $date): array
         $person = ['name' => $p['name'], 'title' => $p['title'], 'user_id' => $u ? (int)$u['id'] : null, 'phone' => $u['phone'] ?? null];
         $pd = $p['days'];
         $first = explode(' ', trim((string)$p['name']))[0];
-        // Devir
-        if (isset($pd[$date])) {
+        // Devir (parçalıda: tamamlayan parçası olan kişi 24 saate tamamlayabilir)
+        $merged = $part !== '' ? swap_merge($pd[$date] ?? null, $myRow, $rid) : (isset($pd[$date]) ? null : $myRow);
+        if (!$merged) {
             $blocked[] = $person + ['reason' => swap_fmt_date($date) . ' günü zaten listede (' . $pd[$date]['code'] . ')'];
         } else {
             $np = $pd;
-            $np[$date] = $myRow;
+            unset($np[$date]);
+            $np[$date] = $merged;
             $err = swap_check($np, [$date], [], $rules, $first);
             if ($err) $blocked[] = $person + ['reason' => $err];
             elseif (!$myGive) $give[] = $person;
         }
-        // Değişim: onun nöbetlerinden biriyle
+        // Değişim: onun nöbetlerinden biriyle (yalnız nöbetin tamamı)
         $opts = [];
-        foreach ($pd as $e => $row) {
+        if ($part === '') foreach ($pd as $e => $row) {
             if ($e === $date || $row['kind'] !== 'shift' || $e < $today || isset($myDays[$e]) || isset($pd[$date])) continue;
             if (abs(strtotime($e) - strtotime($date)) > 31 * 86400) continue;
             $nm = $meWithout;
@@ -246,8 +297,9 @@ function swap_options(array $me, string $date): array
     usort($give, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
     usort($swap, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
     return [
-        'mine' => ['date' => $date, 'code' => $myRow['code'], 'label' => $myRow['label'], 'hours' => $myRow['hours'] !== null ? (int)$myRow['hours'] : null,
-            'start' => $myRow['start_time'], 'end' => $myRow['end_time'], 'roster_id' => $rid, 'roster' => $mine['roster_name'], 'name' => $mine['name']],
+        'mine' => ['date' => $date, 'code' => $fullRow['code'], 'label' => $fullRow['label'], 'hours' => $fullRow['hours'] !== null ? (int)$fullRow['hours'] : null,
+            'start' => $fullRow['start_time'], 'end' => $fullRow['end_time'], 'roster_id' => $rid, 'roster' => $mine['roster_name'], 'name' => $mine['name'],
+            'parts' => swap_splittable($fullRow), 'part' => $part, 'part_code' => $part !== '' ? $myRow['code'] : null],
         'give' => $give, 'give_error' => $myGive, 'swap' => $swap, 'blocked' => $blocked, 'rules' => $rules,
     ];
 }
@@ -264,7 +316,18 @@ function swap_check_applied(int $rid): int
         return false;
     };
     $n = 0;
+    $rowOf = function (string $name, string $date) use ($rid): ?array {
+        foreach (all("SELECT s.* FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.roster_id = ? AND s.date = ? AND s.kind = 'shift'", [$rid, $date]) as $r) {
+            if (names_match((string)$r['name'], $name)) return $r;
+        }
+        return null;
+    };
     foreach ($reqs as $q) {
+        if (swap_part($q['part'] ?? null) !== '' && $q['kind'] === 'give') {
+            // Parçalı devir: alanın o gün nöbeti var, verenin nöbeti artık 24 saat değil
+            $g = $rowOf($q['from_name'], $q['from_date']);
+            $ok = $has($q['to_name'], $q['from_date']) && $g && !swap_splittable($g);
+        } else
         $ok = $has($q['to_name'], $q['from_date']) && !$has($q['from_name'], $q['from_date']);
         if ($ok && $q['kind'] === 'swap' && $q['to_date']) $ok = $has($q['from_name'], $q['to_date']) && !$has($q['to_name'], $q['to_date']);
         if (!$ok) continue;
@@ -272,7 +335,7 @@ function swap_check_applied(int $rid): int
         $users = all('SELECT * FROM users WHERE id IN (?, ?)', [(int)$q['from_user'], (int)($q['to_user'] ?? 0)]);
         $txt = $q['kind'] === 'swap'
             ? swap_fmt_date($q['from_date']) . ' ↔ ' . swap_fmt_date((string)$q['to_date']) . ' değişimi listeye işlendi.'
-            : swap_fmt_date($q['from_date']) . ' nöbetinin devri listeye işlendi.';
+            : swap_fmt_date($q['from_date']) . ' nöbetinin ' . (swap_part($q['part'] ?? null) !== '' ? '(' . swap_part_text(swap_part($q['part'])) . ') ' : '') . 'devri listeye işlendi.';
         notify_users($users, 'swap', 'Nöbet değişimi listede', $q['from_name'] . ' – ' . $q['to_name'] . ': ' . $txt, '#/nobetim', null);
         $n++;
     }

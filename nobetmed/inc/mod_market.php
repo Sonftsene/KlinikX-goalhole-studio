@@ -184,6 +184,19 @@ function mk_eligible(array $tl, array $L, string $uk, string $who = 'Senin'): ar
     $P = $tl[$pk]['days'];
     $U = $tl[$uk]['days'];
     $pName = mk_first((string)(mk_user_for((string)$L['name'])['name'] ?? $L['name']));
+    $part = $L['kind'] === 'give' ? swap_part(mk_meta($L['meta'] ?? null)['part'] ?? null) : '';
+    if ($part !== '') {
+        // 24 saatin yalnız gündüzü / gecesi: ilan sahibi kalan parçayı tutar (boşluk oluşmaz); alanın o günü boş olmalı ya da tamamlayan parçası olmalı
+        if (!swap_splittable($row)) return ['ok' => false, 'reason' => 'İlan sahibinin bu nöbeti artık 24 saat değil.', 'offers' => []];
+        [$given] = swap_split($row, $part, (int)$L['roster_id']);
+        $merged = swap_merge($U[$date] ?? null, $given, (int)$L['roster_id']);
+        if (!$merged) return ['ok' => false, 'reason' => swap_fmt_date($date) . ' günü zaten listede kaydın var (' . $U[$date]['code'] . ').', 'offers' => []];
+        $nu = $U;
+        unset($nu[$date]);
+        $nu[$date] = $merged;
+        $err = swap_check($nu, [$date], [], $rules, $who);
+        return $err ? ['ok' => false, 'reason' => $err . '.', 'offers' => []] : ['ok' => true, 'reason' => null, 'offers' => [], 'merge' => isset($U[$date])];
+    }
     if (isset($U[$date])) {
         $x = $U[$date];
         $what = $x['kind'] === 'shift' ? 'nöbetin var' : ($x['kind'] === 'leave' ? 'iznin var' : 'listede kaydın var');
@@ -229,6 +242,7 @@ function mk_listing_out(array $L, array $me, bool $manage, ?array $elig = null, 
         'id' => (int)$L['id'], 'roster_id' => (int)$L['roster_id'], 'roster' => mk_roster_names()[(int)$L['roster_id']] ?? '',
         'date' => $L['date'], 'code' => $L['code'], 'label' => $m['label'] ?? null, 'hours' => isset($m['hours']) ? (int)$m['hours'] : null,
         'start' => $m['start'] ?? null, 'end' => $m['end'] ?? null, 'kind' => $L['kind'], 'note' => $L['note'],
+        'part' => swap_part($m['part'] ?? null), 'part_code' => $m['part_code'] ?? null,
         'status' => $manage || $status === 'open' ? $status : 'closed', 'created_at' => $L['created_at'], 'closed_at' => $L['closed_at'],
         'poster' => $poster ? $poster['name'] : $L['name'], 'poster_user' => (int)$L['user_id'], 'mine' => $mine, 'manage' => $manage,
         'my_app' => $myApp ? ['id' => (int)$myApp['id'], 'status' => $myApp['status'], 'offer_date' => $myApp['offer_date'], 'offer_code' => $myApp['offer_code'], 'note' => $myApp['note'], 'created_at' => $myApp['created_at']] : null,
@@ -311,6 +325,12 @@ function mk_post_info(array $me, string $date): array
         $L = ['name' => $mine['name'], 'date' => $date, 'kind' => $kind, 'roster_id' => $rid];
         foreach ($tl as $k => $p) if ($k !== $mk && mk_eligible($tl, $L, $k, 'O')['ok']) $n[$kind]++;
     }
+    // 24 saatlik nöbet: gündüzü / gecesi ayrı ilana konabilir (kalan parça sende kalır, boşluk oluşmaz)
+    if (swap_splittable($row)) foreach (['day', 'night'] as $pt) {
+        $n[$pt] = 0;
+        $L = ['name' => $mine['name'], 'date' => $date, 'kind' => 'give', 'roster_id' => $rid, 'meta' => json_encode(['part' => $pt])];
+        foreach ($tl as $k => $p) if ($k !== $mk && mk_eligible($tl, $L, $k, 'O')['ok']) $n[$pt]++;
+    }
     return ['rid' => $rid, 'name' => (string)$mine['name'], 'row' => $row, 'roster' => (string)$mine['roster_name'], 'give_error' => $giveErr, 'n' => $n, 'tl' => $tl];
 }
 
@@ -322,7 +342,7 @@ function a_listing_check(): void
     $open = one("SELECT id, kind FROM listings WHERE user_id = ? AND date = ? AND status = 'open'", [$me['id'], $date]);
     $row = $x['row'];
     out(['mine' => ['date' => $date, 'code' => $row['code'], 'label' => $row['label'], 'hours' => $row['hours'] !== null ? (int)$row['hours'] : null,
-        'start' => $row['start_time'], 'end' => $row['end_time'], 'roster' => $x['roster'], 'roster_id' => $x['rid']],
+        'start' => $row['start_time'], 'end' => $row['end_time'], 'roster' => $x['roster'], 'roster_id' => $x['rid'], 'parts' => swap_splittable($row)],
         'give_error' => $x['give_error'], 'can' => $x['n'], 'open' => $open ? ['id' => (int)$open['id'], 'kind' => $open['kind']] : null, 'rules' => rules_cfg()]);
 }
 
@@ -333,11 +353,17 @@ function a_listing_create(): void
     $kind = s('kind', 10) === 'swap' ? 'swap' : 'give';
     $note = s('note', 300);
     $x = mk_post_info($me, $date);
-    if ($kind === 'give' && $x['give_error']) fail('Devredemezsin: ' . $x['give_error'] . '. “Değiş” seçeneğini deneyebilirsin.');
+    $part = $kind === 'give' ? swap_part(s('part', 5)) : '';
+    if ($part !== '' && !swap_splittable($x['row'])) fail('Yalnız 24 saatlik (08-08) nöbetin gündüzü ya da gecesi ayrı ilana konabilir.');
+    if ($kind === 'give' && $part === '' && $x['give_error']) fail('Devredemezsin: ' . $x['give_error'] . '. Gündüzünü / gecesini ayrı vermeyi ya da “Değiş” seçeneğini deneyebilirsin.');
     if (one("SELECT id FROM listings WHERE user_id = ? AND date = ? AND status = 'open'", [$me['id'], $date])) fail('Bu nöbet zaten ilanda.');
     if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND status = 'accepted'", [$me['id'], $date])) fail('Bu nöbet için kabul edilmiş bir değişim var; Excel’e işlenmesi bekleniyor.');
     $row = $x['row'];
     $meta = ['label' => $row['label'], 'hours' => $row['hours'] !== null ? (int)$row['hours'] : null, 'start' => $row['start_time'], 'end' => $row['end_time']];
+    if ($part !== '') {
+        [$given] = swap_split($row, $part, $x['rid']);
+        $meta = ['label' => $given['label'], 'hours' => (int)$given['hours'], 'start' => $given['start_time'], 'end' => $given['end_time'], 'part' => $part, 'part_code' => $given['code']];
+    }
     q('INSERT INTO listings (roster_id, user_id, name, date, code, kind, note, status, created_at, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$x['rid'], $me['id'], $x['name'], $date, $row['code'], $kind, $note ?: null, 'open', now(), json_encode($meta, JSON_UNESCAPED_UNICODE)]);
     $id = insert_id();
@@ -350,9 +376,9 @@ function a_listing_create(): void
         if (!$u || (int)$u['id'] === (int)$me['id']) continue;
         if (mk_eligible($x['tl'], $L, $k, 'O')['ok']) $ids[] = (int)$u['id'];
     }
-    $txt = $me['name'] . ' · ' . swap_fmt_date($date) . ' ' . mk_row_text($row) . ' (' . $row['code'] . ') nöbetini ' . ($kind === 'give' ? 'devrediyor' : 'değişmek istiyor') . ($note ? ' · “' . $note . '”' : '');
+    $txt = $me['name'] . ' · ' . swap_fmt_date($date) . ' ' . mk_row_text($row) . ' (' . $row['code'] . ($part !== '' ? ', ' . swap_part_text($part) : '') . ') nöbetini ' . ($kind === 'give' ? 'devrediyor' : 'değişmek istiyor') . ($note ? ' · “' . $note . '”' : '');
     $n = $ids ? notify_users(mk_full_users($ids), 'listing', 'Yeni nöbet ilanı', $txt, '#/ilanlar/' . $id, null) : 0;
-    audit($me, 'listing.create', swap_fmt_date($date) . ' (' . $row['code'] . ')', $kind === 'give' ? 'Devret' : 'Değiş');
+    audit($me, 'listing.create', swap_fmt_date($date) . ' (' . $row['code'] . ')', $kind === 'give' ? 'Devret' . ($part !== '' ? ' · ' . swap_part_text($part) : '') : 'Değiş');
     out(['listing' => mk_listing_out($L, $me, true), 'notified' => $n]);
 }
 
@@ -466,11 +492,12 @@ function a_listing_choose(): void
     if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND status = 'accepted'", [$me['id'], $L['date']])) fail('Bu nöbet için zaten kabul edilmiş bir değişim var.');
     $row = $tl[swap_key((string)$L['name'])]['days'][$L['date']];
     $swap = $L['kind'] === 'swap';
+    $part = $swap ? '' : swap_part(mk_meta($L['meta'])['part'] ?? null);
     try {
-    $sid = mk_tx(function () use ($L, $a, $me, $row, $swap) {
-        q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    $sid = mk_tx(function () use ($L, $a, $me, $row, $swap, $part) {
+        q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, decided_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$L['roster_id'], $swap ? 'swap' : 'give', $L['user_id'], $L['name'], $L['date'], $row['code'], $a['user_id'], $a['name'], $swap ? $a['offer_date'] : null, $swap ? $a['offer_code'] : null,
-                'accepted', 'Nöbet ilanından', now(), now()]);
+                'accepted', 'Nöbet ilanından', now(), now(), $part ?: null]);
         $sid = insert_id();
         $n = q("UPDATE listings SET status = 'taken', taker_user = ?, taker_name = ?, taker_date = ?, taker_code = ?, swap_request_id = ?, closed_at = ? WHERE id = ? AND status = 'open'",
             [$a['user_id'], $a['name'], $swap ? $a['offer_date'] : null, $swap ? $a['offer_code'] : null, $sid, now(), $L['id']])->rowCount();
@@ -486,7 +513,7 @@ function a_listing_choose(): void
     // Seçilen kişi
     $chosenTxt = $swap
         ? $me['name'] . ' ile değişim: sen ' . $d . ' (' . $L['code'] . '), ' . mk_first((string)$me['name']) . ' ' . swap_fmt_date((string)$a['offer_date']) . ' (' . $a['offer_code'] . ') nöbetini tutacak.'
-        : $me['name'] . ' ' . $d . ' (' . $L['code'] . ') nöbetini sana devretti.';
+        : $me['name'] . ' ' . $d . ' (' . $L['code'] . ($part !== '' ? ', ' . swap_part_text($part) : '') . ') nöbetini sana devretti.';
     notify_users(mk_full_users([(int)$a['user_id']]), 'listing', 'İlan: seçildin', $chosenTxt . ' Sorumlu Excel’de güncelleyince listene işlenir.', '#/ilanlar', null);
     // Seçilmeyenler (kimin seçildiği söylenmez)
     $rej = array_values(array_unique(array_map(fn($x) => (int)$x['user_id'], all("SELECT user_id FROM listing_apps WHERE listing_id = ? AND status = 'rejected' AND user_id <> ?", [$L['id'], $a['user_id']]))));

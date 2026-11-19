@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.13.0';
+const NM_VERSION = '4.14.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 19;
+const NM_SCHEMA = 20;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -407,7 +407,9 @@ function nm_migrate(PDO $pdo): void
         'rosters' => ['period VARCHAR(7) NULL', 'parsed_file_id INT NULL', 'src_on INT NOT NULL DEFAULT 0', "src_tab VARCHAR(60) NOT NULL DEFAULT ''", 'src_sync_at VARCHAR(19) NULL', 'src_status VARCHAR(255) NULL', 'src_tabname VARCHAR(100) NULL', 'src_source INT NULL', 'src_tabs TEXT NULL', "kind VARCHAR(10) NOT NULL DEFAULT 'nobet'"],
         'gs_sources' => ['mask_cols TEXT NULL', "mask_mode VARCHAR(10) NOT NULL DEFAULT 'none'", 'show_tabs TEXT NULL'],
         // Değişim isteğini taraflar kendi listesinden gizleyebilir
-        'swap_requests' => ['hide_from INT NOT NULL DEFAULT 0', 'hide_to INT NOT NULL DEFAULT 0'],
+        'swap_requests' => ['hide_from INT NOT NULL DEFAULT 0', 'hide_to INT NOT NULL DEFAULT 0', 'part VARCHAR(5) NULL'],
+        // Sürüm 20: 24 saatlik nöbetin yalnız gündüzü (08-16) ya da gecesi (16-08) devredilebilir / devralınabilir
+        'take_requests' => ['part VARCHAR(5) NULL'],
         // Blok yerleşimi: work (çalışıyor) | off (oflandı) | called (çağrıldı, listede yokken geldi) | standby (nöbete gelecek kişi)
         'placements' => ["status VARCHAR(10) NOT NULL DEFAULT 'work'"],
     ];

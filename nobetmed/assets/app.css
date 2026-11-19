@@ -1645,3 +1645,6 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .qrl-num b { font-size: 34px; letter-spacing: 2px; line-height: 1.1; }
 .qra-codes { display: flex; gap: 10px; flex-wrap: wrap; }
 .qra-code { min-width: 76px; height: 56px; font-size: 24px; font-weight: 700; }
+/* 24 saatlik nöbetin parçası (gündüz / gece) */
+.tk-parts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 240px; }
+.sw-parts button, .mk-parts button { font-size: 12.5px; }
