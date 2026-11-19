@@ -171,7 +171,8 @@ const tg = await apiCall(E.p, 'extra.take', { ym });
 if (!tg.found) fail('devral: Elif listede bulunamadı');
 const okItems = tg.days.flatMap((d) => d.items.filter((x) => x.ok).map((x) => ({ ...x, date: d.date })));
 if (!okItems.length) fail('devral: hiç alınabilir nöbet yok (veri?)');
-if (tg.days.some((d) => d.date < today || d.items.some((x) => !x.ok))) fail('genel listede uygunsuz ya da geçmiş gün var');
+// 4.14: tamamı alınamasa da gündüzü / gecesi alınabilen 24 saatlik nöbet de genel listede yer alır
+if (tg.days.some((d) => d.date < today || d.items.some((x) => !(x.any ?? x.ok) || (!x.ok && !(x.parts && (x.parts.day.ok || x.parts.night.ok)))))) fail('genel listede uygunsuz ya da geçmiş gün var');
 const isElif = (n) => String(n).toLocaleLowerCase('tr').includes('elif');
 if (tg.days.some((d) => d.items.some((x) => isElif(x.name)))) fail('kendi nöbetim listede');
 // Elif'in kendi nöbeti olan günde (örn. listede nöbeti var) o günden bir şey alınamaz; seçili gün görünümü nedenleri verir
