@@ -373,3 +373,20 @@ Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık za
 **Güvenli çıkış:** QR ile açılan bilgisayar oturumu **tarayıcı kapanınca** ve **8 saat işlem yapılmayınca** kendiliğinden kapanır (ortak bilgisayarlar için). Kendi bilgisayarınızda karekod ekranındaki “Bu bilgisayarda oturumum açık kalsın”ı açabilirsiniz.
 
 **Bağlı cihazlar:** Hesabım › Güvenlik › **Bağlı cihazlar** — hesabınızın açık olduğu her cihaz (tarayıcı, giriş yolu, son etkinlik, IP). Herhangi birinde **Çıkış yap** ya da **Diğer tüm cihazlardan çıkış yap**: o cihaz bir sonraki işleminde giriş ekranına düşer ve o cihazdaki önbellek ve taslaklar silinir. Hesabım › Çıkış yap da bu cihazdaki oturumu kapatır.
+
+## 26. Hastane yemek listesi (4.12)
+
+**Listeyi yükleme (yöneticiler / “Yemek listesi: Yönetir” yetkisi olanlar):** Sol menü › **Yemek listesi** › **Liste yükle** → mutfağın aylık listesi (PDF, Excel ya da CSV). Okunan menü kaydetmeden önce gün gün tabloda gösterilir; yanlış bölünen ya da birleşen satırları düzeltip **Kaydet**. “Bu dosyada olmayan günleri sil” açıksa o ayın listesi tamamen yenilenir.
+- PDF: “TARİH / KAHVALTI / ÖĞLE YEMEĞİ / AKŞAM YEMEĞİ” sütunlu tablo (aylık yemek listesi formu). Satır kıran yemekler (“Domates-” + “salatalık”) birleştirilir; sayfaya bölünen günler ve satırın ortasındaki tarihler doğru güne yazılır.
+- Excel / CSV: aynı sütunlar. Tarih yalnız günün ilk satırındaysa alt satırlar aynı güne eklenir; hücrede alt alta ya da virgülle yazılmış yemekler ayrı kalem olur.
+- **Elle gir:** ayın tüm günleri tabloda açılır (her satıra bir yemek). **Bu günü düzenle:** tek günü değiştirir.
+- Çok birimli kurulumda liste hastanenin ortak veritabanındadır: bir birimin yüklediğini aynı hastanenin tüm birimleri görür.
+
+**Görüntüleme:** Gün gün (oklar, gün şeridi, telefonda sağa/sola kaydırma) ya da **Ay** tablosu. Saate göre o an geçerli öğün **Şimdi**, ardından gelen **Sıradaki** olarak işaretlenir: kahvaltı 01:00'den, öğle 12:00'den, akşam 18:00'den itibaren (saatler yemek ayarlarından değişir). Nöbet günlerinde o nöbetin saatlerine düşen öğünler **Nöbetinde** olarak işaretlenir (ör. 08–08 nöbette öğle, akşam ve ertesi günün kahvaltısı; 16–08 nöbette akşam ve kahvaltı). Takvimim'de nöbet günü seçilince “Bu nöbetteki yemekler” de görünür.
+
+**Ana sayfa kartı:** Şimdiki öğün ve oklarla sıradaki öğünler; nöbet yaklaşırken o nöbetin öğünleri. Kart Hesabım › Görünüm › Ana sayfam'dan ya da yemek ayarlarındaki “Ana sayfamda göster” ile kapatılır.
+
+**Kim görür:** Yemek listesi › ayarlar (kaydırıcı simgesi):
+- Yönetici: öğün saatleri ve birim varsayılanı (**Herkes, her gün** ya da **Yalnız nöbetçiler**).
+- Herkes kendisi için: birimin ayarına uy / her gün göster / **yalnız nöbetlerimde göster** (nöbet sürerken ya da 18 saat içinde başlayacakken) / **gizle** (menüde ve ana sayfada görünmez). Aynı seçim Ayarlar › Genel'de de var.
+- Modül sistem yöneticisi tarafından hastane ya da birim için kapatılabilir; rollerde “Yemek listesi” yetkisi ayrıca verilir.

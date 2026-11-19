@@ -337,7 +337,8 @@ async function loadDayPanel() {
         ${e.kind === 'shift' && canSwap ? html`<div class="dm-acts"><button class="btn sm" data-act="swap-open" data-d="${e.date}">${icon('history', 'sm')}<span>Değiş / Devret</span></button>${NM_EXT.dayActions.map((f) => f(e, CAL.sel))}</div>` : ''}</div>`)}
       ${mv ? html`<div class="dm-move">${icon('layers', 'sm')}<span>Bu gün <b>${mv.unit}</b>’ta çalıştın${mv.method === 'kura' ? ' (kura)' : ''}${mv.counted ? ' · karşı tarafa geçiş sayıldı' : ''}</span></div>` : ''}</div>`
     : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
-  setHTML(box, html`${head}${mineHtml}<div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
+  setHTML(box, html`${head}${mineHtml}<div id="dayMeal"></div><div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
+  if (typeof mlDayPanel === 'function') mlDayPanel($('#dayMeal'), CAL.sel, mine).catch(() => {});
   const want = CAL.sel;
   let day = null;
   try { day = await api('shifts.day', { date: want }); } catch (e) { /* */ }

@@ -21,6 +21,7 @@ const NM_MODULES = [
     'mesaj' => ['Mesajlaşma', 'Birim grubu, özel gruplar (birimler arası olabilir), birebir sohbet, dosya ve fotoğraf', null],
     'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okudum onayı', null],
     'cizelge' => ['Nöbet çizelgesi hazırlama', 'Excel kullanmayan birimler için çizelgeyi portalda hazırlama: kural denetimi, otomatik doldurma, yayınlama', 'nobet'],
+    'yemek' => ['Yemek listesi', 'Hastane yemek menüsü: aylık listeyi PDF / Excel’den yükleme, gün gün menü, saate göre sıradaki öğün, nöbetteki öğünler', null],
     'ucret' => ['Fazla mesai ücreti', 'Kişinin kendi ücretini girip tahmini tutarı görmesi (yalnız kendisi görür)', 'nobet'],
 ];
 
@@ -39,6 +40,7 @@ const NM_ACTION_MODULE = [
     'chat.' => 'mesaj',
     'call.' => 'mesaj',
     'plan.' => 'cizelge',
+    'meal.' => 'yemek',
 ];
 
 function nm_action_module(string $action): ?string
