@@ -72,6 +72,7 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Ortak kayıtlarda ekleyen birim `tkey` ile tutulur; düzenleme/silme yalnız `tkey === h_tkey()` ise. Kişi adı içeren ortak kayıtlar (ör. `h_reads`) yalnız kendi birimine adıyla, diğer birimlere sayı olarak gösterilir.
 - Birimler arası bildirim: bir birim başka birimin veritabanına YAZMAZ; her birimin kendi görevi (`NM_JOBS`) hastane verisini okuyup kendi kişilerine bildirir (ör. `hdoc_notify`).
 - Test: `nobetmed-dev/e2e-hastane.mjs` (e2e-tenant'tan sonra).
+- Ortak tabloyu H_SCHEMA'yı artırmadan eklemek için modül kendi `CREATE TABLE IF NOT EXISTS` işlevini ilk kullanımda çağırabilir (ör. `ml_ensure()` → `h_meals`). Yemek listesi (4.12) hastane geneli ortaktır: aynı hastanenin “Yönetir” yetkili her birimi düzenler; tek birimli (MySQL) kurulumda birimin `meals` tablosu kullanılır (`ml_all/ml_q` `{T}` yer tutucusu).
 
 ## Mesajlaşma (4.3–4.6)
 - `inc/mod_mesaj.php` (sohbet, grup, birebir, ekler, tepki/anket/ilet/sabitle/davet/saklama) + `inc/mod_mesaj2.php` (gizlilik, sohbet durumu, düzenleme, yıldız, arama, grup izinleri). Tablolar hastane veritabanında (`hdb()`); kişi anahtarı `(tkey, user_id)`. Şema değişikliği `C_SCHEMA` artırılarak `c_migrate()` içinde yapılır (NM_SCHEMA değil).

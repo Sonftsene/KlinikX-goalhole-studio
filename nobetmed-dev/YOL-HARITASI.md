@@ -63,6 +63,12 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.9 — İzin bitişiği hafta sonu ve ekstra nöbet ✓ (4.9.0)
 - Hafta içi 5 iş günü izinliyi izin öncesi/sonrası hafta sonu ekstra çağırmama (ayarlanabilir); ekstra nöbet isteyenler: istek gününden ay sonuna kurallara uygun günler, sorumlu için gün gün uygun gönüllüler, çağrıda öncelik.
 
+### 4.10–4.11 — Nöbet devral, QR ile giriş ✓ (4.10.0, 4.11.0)
+- Hem kişinin hem nöbet sahibinin kurallarına uyan nöbetleri toplu görüp devralma isteği; bilgisayarda karekodla giriş, bağlı cihazlar ve uzaktan çıkış.
+
+### 4.12 — Hastane yemek listesi ✓ (4.12.0)
+- Aylık listeyi PDF / Excel / CSV'den içe aktarma (düzenlenebilir önizleme), gün gün ve ay görünümü, saate göre şimdiki/sıradaki öğün (01:00 / 12:00 / 18:00, ayarlanabilir), nöbet saatlerine düşen öğünler, ana sayfa kartı, kişisel görünürlük (her gün / yalnız nöbetlerimde / gizle); çok birimlide hastane ortak.
+
 ### 5.0+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
