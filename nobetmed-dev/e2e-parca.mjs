@@ -155,13 +155,19 @@ if (found) {
 } else console.log('(devral denemesi için parçası alınabilir 24 saatlik nöbet yok)');
 
 // ---- 4) Doğrulama: 24 saat olmayan nöbet parça olarak verilemez ----
+let checked = false;
 for (const n of Object.keys(ACC)) {
   const my = await apiCall(P[n].p, 'shifts.my');
-  const e = (my.entries || []).find((x) => x.kind === 'shift' && x.date > today && !is24(x));
-  if (!e) continue;
-  if (!/24 saatlik/.test(await apiErr(P[n].p, 'swap.options', { date: e.date, part: 'day' }))) fail('24 saat olmayan nöbet parça olarak verilebildi');
-  else step('24 saat olmayan nöbette parça seçimi reddediliyor');
-  break;
+  for (const e of (my.entries || []).filter((x) => x.kind === 'shift' && x.date > today && !is24(x))) {
+    const res = await apiCall(P[n].p, 'swap.options', { date: e.date, part: 'day' }).then((r) => r, (er) => er.message);
+    // Kabul edilmiş devirle o gün 24 saate tamamlanmışsa (kendi gündüzü + aldığı gece) bölünebilir: atla
+    if (typeof res === 'object' && res.mine && res.mine.hours === 24) continue;
+    const msg = typeof res === 'object' ? 'kabul' : res;
+    if (msg === 'kabul') { fail(`24 saat olmayan nöbet (${e.date} ${e.code}) parça olarak verilebildi`); checked = true; break; }
+    if (/24 saatlik/.test(msg)) { step('24 saat olmayan nöbette parça seçimi reddediliyor'); checked = true; break; }
+    // başka neden (ör. önceki testlerde devredilmiş): sıradakini dene
+  }
+  if (checked) break;
 }
 
 await browser.close();
