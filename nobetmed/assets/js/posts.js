@@ -8,6 +8,7 @@ function renderShell() {
     <aside class="sidebar" id="sidebar"></aside>
     <div class="main">
       <div id="bannerSlot"></div>
+      <div id="blBar"></div>
       <header class="topbar">
         <button class="btn ghost icon mobile-only" data-act="nav-open" aria-label="Menü">${icon('menu')}</button>
         <a class="top-logo mobile-only" href="#/" aria-label="Ana sayfa">${brandLogo()}</a>
@@ -30,6 +31,7 @@ function renderShell() {
   </div>`);
   renderNav();
   renderBanner();
+  if (typeof blBanner === 'function') blBanner();
   updateNotifBadge();
 }
 
@@ -162,7 +164,7 @@ async function refreshCounts() {
 }
 
 /** Yönetim menüsündeki modül sayfaları: kişinin o modülde “Yönetir” yetkisi olanlar */
-function mgmtNav() { return NM_EXT.nav.filter((n) => n.sec === 'yonetim' && modOn(n.mod) && (n.mod ? canManage(n.mod) : isPublisherBase()) && (!n.admin || isAdmin())); }
+function mgmtNav() { return NM_EXT.nav.filter((n) => n.sec === 'yonetim' && modOn(n.mod) && (n.mod ? canManage(n.mod) : isPublisherBase()) && (!n.admin || isAdmin()) && (!n.visible || n.visible())); }
 
 /* ================= Yönlendirme ================= */
 function route() {

@@ -14,7 +14,7 @@ let css = read(path.join(app, 'app.css')) + ['placement', 'requests', 'market', 
 const dark = css.match(/\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
 css += `\n@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {${dark}\n} }\n`;
 const safe = (s) => s.replace(/<\/script/gi, '<\\/script');
-const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
+const js = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'].map((n) => `<script>\n${safe(read(path.join(app, 'js', n + '.js')))}\n</script>`).join('\n');
 const html = `<!doctype html>
 <html lang="tr">
 <meta charset="utf-8">

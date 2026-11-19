@@ -65,6 +65,11 @@ function nm_mods(): array
             foreach (m_all("SELECT module, on_ FROM module_cfg WHERE scope = 't' AND sid = ?", [(int)$t['id']]) as $r) if (isset($c[$r['module']])) $c[$r['module']] = (int)$r['on_'] === 1;
         } catch (Throwable $e) { /* merkez okunamadıysa hepsi açık */ }
     }
+    // Abonelik paketi (zorunluluk açıksa): pakette olmayan modüller kapalı
+    if (function_exists('bl_state_cur')) {
+        $bs = bl_state_cur();
+        if (is_array($bs['modules'] ?? null)) foreach ($c as $k => $v) if (!in_array($k, $bs['modules'], true)) $c[$k] = false;
+    }
     foreach (NM_MODULES as $k => [, , $dep]) if ($dep && empty($c[$dep])) $c[$k] = false; // bağlı olduğu modül kapalıysa
     return $c;
 }

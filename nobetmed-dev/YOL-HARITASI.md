@@ -72,6 +72,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.13 — Kişi kartı ve güvenlik taraması ✓ (4.13.0)
 - Her yerde ada dokununca kişi kartı (mesaj, sesli/görüntülü arama, telefon, SMS, WhatsApp, yaklaşan nöbetler); iletişim gizliliği; QR'da sayı doğrulaması; oturum/kayıt/giriş sertleştirmesi; yemek listesi sahipliği.
 
+### 4.15 — Abonelik ve ödeme ✓ (4.15.0)
+- Paketler, birim aboneliği, deneme, ek süre, ücretsiz paket / salt okunur, kişi sınırı; PayTR, iyzico, havale; sistem yöneticisi tam kontrol (görünürlük ve zorunluluk ayrı anahtarlar, varsayılan kapalı); hatırlatmalar; sözleşme onayı.
+- Sonra: kayıtlı kartla otomatik yenileme (PayTR kart saklama / iyzico abonelik API), e-Fatura entegrasyonu, kupon/indirim, kendi kendine birim açma (tanıtım sayfası).
+
 ### 5.0+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 

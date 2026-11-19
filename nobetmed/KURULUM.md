@@ -445,3 +445,65 @@ Yöneticiler ve sorumlular her zaman görür.
 - Masaüstünde Nöbet sekmeleri (Takvimim … Excel liste) tek satıra sığmazsa alt satıra geçer.
 - Yatay kayan şeritler (gün şeridi, filtreler) fare tekerleğiyle ve basılı tutup sürükleyerek kaydırılır; ince kaydırma çubuğu da görünür.
 - Geliştirici için `nobetmed-dev/audit-mobil.mjs` tüm sayfaları telefonda ve masaüstünde gezip sıkışan yazıyı, yatay taşmayı ve fareyle ulaşılamayan şeritleri raporlar (test setinin sonunda çalışır).
+
+## 29. Abonelik ve ödeme (4.15)
+
+Tamamı **sistem yöneticisi panelinde, "Abonelik ve ödeme" sekmesinde** yönetilir. Kurulumda her şey kapalıdır; siz açana kadar hiçbir birim bir şey görmez ve kısıtlanmaz. Yalnız çok birimli (SQLite) kurulumda çalışır; tek birimli MySQL kurulumunda abonelik yoktur.
+
+### Anahtarlar (birbirinden bağımsız)
+- **Abonelik sayfası birimlere görünsün:** Birim yöneticileri Yönetim › Abonelik sayfasında paketleri görür ve isterse öder. Kimse kısıtlanmaz. Yayılma döneminde gönüllü ödemeye açmak için kullanın.
+- **Ödeme zorunluluğu:** Açıkken süresi dolan birim önce *ek süre* (varsayılan 7 gün) boyunca çalışır, sonra **ücretsiz pakete** düşer. Ücretsiz paket yoksa **salt okunur** olur: görüntüleme ve ödeme açık, yazma kapalı. Paketteki modüller ve kişi sınırı uygulanır.
+  - Açarken aboneliği olmayan birimler için seçim sorulur: deneme başlat / ücretsiz tanımla / dokunma.
+- **Yeni birimlere otomatik deneme:** Aboneliği olmayan birim ilk açılışta deneme süresini (varsayılan 30 gün) başlatır.
+- **Hatırlatmalar:** Deneme ya da abonelik bitmeden 7, 3 ve 1 gün önce ve bitince birim yöneticilerine bildirim gider; her eşik bir kez.
+
+### Birim işlemleri ("İşlemler" düğmesi)
+- **Etkinleştir:** Bir paketi 1 / 3 / 6 ay, 1 yıl ya da belirli bir tarihe kadar açar (sözleşmeli kurum, havale vb.).
+- **Deneme:** İstediğiniz gün sayısıyla deneme başlatır.
+- **Uzat:** Denemeye ya da aboneliğe gün ekler.
+- **Diğer:** Ücretsiz tanımla (süresiz, kısıtsız; pilot birim), Askıya al, Kaydı sıfırla, not.
+- **Geçmiş:** Birimin abonelik olayları ve fatura bilgileri.
+- Toplu: "Aboneliği olmayan tüm birimlere deneme başlat".
+
+### Paketler
+Ad, açıklama, aylık ve yıllık fiyat (TL, KDV hariç), kişi sınırı (0 = sınırsız), açık modüller, "ücretsiz paket" ve "satışta" işaretlerinden oluşur.
+- Duyurular, belgeler, kullanıcılar ve ayarlar her pakette vardır.
+- Örnek paketler (Temel ücretsiz, Profesyonel, Kurumsal) ve fiyatları yalnızca başlangıç içindir; satıştan önce fiyatları kendiniz belirleyin.
+- Kullanılmış paket silinmez, satıştan kaldırılır.
+
+### Ödeme (birim yöneticisi öder)
+Yönetim › Abonelik sayfasında birim yöneticisi:
+1. Fatura bilgilerini girer: unvan, vergi no ya da T.C. kimlik no, adres, il, telefon, e-posta.
+2. Paketi ve aylık ya da yıllık dönemi seçer.
+3. Sözleşmeyi onaylar (metin girildiyse).
+4. Yöntemi seçer:
+   - **PayTR:** Ödeme sayfası pencere içinde açılır. PayTR'nin imzalı bildirimi gelince abonelik uzar.
+   - **iyzico:** iyzico ödeme sayfasına gider ve geri döner. Sonuç iyzico'dan imzalı sorguyla doğrulanır.
+   - **Havale / EFT:** Banka bilgisi ve **ödeme kodu** gösterilir; açıklamaya bu kod yazılır. Para hesaba geçince panelde Ödemeler › ilgili kayıt › "Ödeme alındı" ile onaylarsınız.
+
+Ödemeden sonra:
+- Süre, kalan deneme ya da abonelik süresinin üstüne eklenir.
+- Otomatik yenileme yoktur; bitişe yakın hatırlatma gider.
+- Tutar her zaman sunucuda paketten hesaplanır.
+- Aynı bildirim iki kez işlenmez; eksik tutar kabul edilmez.
+- Kart bilgisi sunucuya hiç gelmez.
+
+Paneldeki Ödemeler bölümünden fatura numarası girilir ve iade edilen ödemeler işaretlenir. Paranın iadesi sağlayıcı panelinden yapılır; abonelik süresini gerekirse elle kısaltın.
+
+### PayTR kurulumu
+1. PayTR'de mağaza başvurusu yapın; onaylanınca Mağaza Paneli › Bilgi sayfasında **Mağaza no**, **Mağaza parola** ve **Mağaza gizli anahtar** yazar.
+2. Mağaza Paneli › Destek & Kurulum › Ayarlar › **Bildirim URL** alanına panelde gösterilen adresi girin: `https://siteniz/odeme.php?p=paytr`.
+3. Panelde PayTR'yi açın, üç bilgiyi girin, **Test modu** açıkken PayTR test kartlarıyla deneyin, sonra test modunu kapatın.
+
+### iyzico kurulumu
+1. iyzico'da üye iş yeri başvurusu yapın. Önce **sandbox** (sandbox-merchant.iyzipay.com) hesabıyla deneyin.
+2. Ayarlar › Firma Ayarları'ndaki **API anahtarı** ve **Gizli anahtar**ı panele girin; deneme ortamı açıkken deneyin, sonra canlı anahtarlarla deneme ortamını kapatın.
+3. Dönüş adresi (`https://siteniz/odeme.php?p=iyzico`) ödeme başlatılırken otomatik gönderilir.
+
+### Satışa geçmeden önce
+- **Sözleşme metni:** Paneldeki "Mesafeli satış sözleşmesi ve ön bilgilendirme metni" alanını doldurun. Birim yöneticisi ödeme öncesi onaylar; onay (tarih, kişi, IP) ödeme kaydına yazılır.
+- **Sağlayıcıların istedikleri:** PayTR ve iyzico başvuruda sitenizde iletişim bilgisi, iade/iptal koşulları, gizlilik ve KVKK metinleri ile mesafeli satış sözleşmesi görmek ister.
+- **Fatura:** e-Fatura / e-Arşiv faturayı muhasebe programınızdan kesip numarasını panele girin.
+- **Sunucu:** Hostinger'da PHP **cURL** eklentisi açık olmalı; kapalıysa panel uyarır. Site **HTTPS** üzerinden yayında olmalı.
+- **KVKK:** Sağlık personeli verisi için sunucunun Türkiye'de olması, VERBİS kaydı ve hastanelerle veri işleme sözleşmesi önerilir.
+- **Gizli anahtarlar:** Veritabanında şifreli saklanır ve panele geri gönderilmez. Değiştirmek için yeniden yazmanız yeterli.

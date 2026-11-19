@@ -43,7 +43,7 @@ async function renderSistem() {
     <main class="sys-main">
       <div class="page-head"><div><h1>Hastaneler ve birimler</h1><p>Her birimin verisi ayrı tutulur. Birimin içini yönetmek için <b>Birime gir</b>: yönetici yetkisiyle girersiniz; giriş, çıkış ve her işlem birimin günlüğüne de yazılır.</p></div>
         <button class="btn primary" data-act="sys-h-new">${icon('plus', 'sm')}<span>Hastane ekle</span></button></div>
-      <div class="seg" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
+      <div class="seg" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'abonelik' ? 'on' : ''}" data-act="sys-tab" data-t="abonelik">Abonelik ve ödeme</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
       <div id="sysBody"><div class="empty"><div class="spinner"></div></div></div>
     </main></div>`);
   sysLoad();
@@ -53,6 +53,7 @@ ACT['sys-tab'] = (el) => { SYS.tab = el.dataset.t; $$('[data-act=sys-tab]').forE
 async function sysLoad() {
   const box = $('#sysBody');
   if (!box) return;
+  if (SYS.tab === 'abonelik' && typeof blSaRender === 'function') return blSaRender(box);
   try {
     if (SYS.tab === 'gunluk') {
       const r = await api('sa.audit');
@@ -77,6 +78,8 @@ const SYS_ACT = {
   login: 'Giriş', logout: 'Çıkış', password: 'Şifre değişti', 'sa.created': 'Hesap etkinleşti', 'hospital.create': 'Hastane eklendi', 'hospital.rename': 'Hastane adı değişti',
   'hospital.freeze': 'Hastane donduruldu', 'hospital.unfreeze': 'Hastane açıldı', 'tenant.create': 'Birim eklendi', 'tenant.rename': 'Birim düzenlendi',
   'tenant.enter': 'Birime girdi', 'tenant.exit': 'Birimden çıktı', 'tenant.freeze': 'Birim donduruldu', 'tenant.unfreeze': 'Birim açıldı', 'tenant.admin': 'Birim yöneticisi açıldı', modules: 'Modüller değişti',
+  'billing.cfg': 'Abonelik ayarları', 'billing.plan': 'Paket kaydedildi', 'billing.plan.off': 'Paket satıştan kaldırıldı', 'billing.plan.del': 'Paket silindi', 'billing.sub': 'Birim aboneliği değişti',
+  'billing.bulk': 'Toplu deneme', 'billing.pay': 'Ödeme işlemi', 'billing.note': 'Abonelik bildirimi',
 };
 function sysTenantRow(t) {
   return html`<div class="list-row sys-t ${t.status === 'frozen' ? 'frozen' : ''}"><div class="grow">

@@ -231,6 +231,8 @@ if (nm_multi() && nm_tenant_frozen() && empty($_SESSION['sa_in']) && !in_array($
 // Geçici şifreyle giren kişi şifresini değiştirene kadar yalnız şifre değiştirebilir (istemciye güvenilmez)
 if (!in_array($action, ['boot', 'me.password', 'auth.logout', 'live'], true) && strncmp($action, 'push.', 5) !== 0 && strncmp($action, 'sa.', 3) !== 0
     && ($fu = current_user()) && (int)($fu['must_change'] ?? 0) === 1 && empty($fu['sa_virtual'])) fail('Devam etmek için önce geçici şifrenizi değiştirin.', 403);
+// Abonelik: süresi dolmuş ve ücretsiz paketi olmayan birim salt okunur (zorunluluk açıksa)
+if (function_exists('bl_gate')) bl_gate($action);
 // Modül kapalıysa / kişinin bu modülde yetkisi yoksa dur; is_publisher() bu modülün yetkisine göre karar verir
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
@@ -731,6 +733,7 @@ function a_register(): void
         if ((int)$inv['auto_approve'] === 1) $status = 'active';
         $role = in_array($inv['role'], ROLES, true) ? $inv['role'] : 'member';
     }
+    if ($status === 'active' && function_exists('bl_user_room') && bl_user_room()) $status = 'pending'; // paketin kişi sınırı dolu: yönetici onayına
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now(), setting('default_notify_mode', 'instant')]);
     $newId = insert_id();
@@ -785,6 +788,7 @@ function a_google(): void
         $mode = setting('registration', 'approval');
         if ($mode === 'closed') fail('Bu Google hesabıyla kayıtlı bir üye yok ve yeni kayıt kapalı.', 403);
         $status = $mode === 'open' ? 'active' : 'pending';
+        if ($status === 'active' && function_exists('bl_user_room') && bl_user_room()) $status = 'pending'; // paketin kişi sınırı dolu
         $name = mb_substr((string)($info['name'] ?? explode('@', $email)[0]), 0, 120);
         q('INSERT INTO users (name, email, google_sub, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$name, $email, $sub, 'member', $status, now(), default_notify_mode()]);
@@ -1576,6 +1580,7 @@ function a_admin_user_save(): void
     if ($id) {
         $u = one('SELECT * FROM users WHERE id = ?', [$id]);
         if (!$u) fail('Kullanıcı bulunamadı.', 404);
+        if ($status === 'active' && $u['status'] !== 'active' && function_exists('bl_user_room') && ($e = bl_user_room())) fail($e, 402);
         $approved = $u['status'] === 'pending' && $status === 'active';
         $losingAdmin = $u['role'] === 'admin' && $u['status'] === 'active' && ($role !== 'admin' || $status !== 'active');
         if ($losingAdmin && admin_count() <= 1) fail('Sistemde en az bir aktif yönetici kalmalıdır.');
@@ -1595,6 +1600,7 @@ function a_admin_user_save(): void
         $pw = $generated;
     }
     validate_password($pw);
+    if ($status === 'active' && function_exists('bl_user_room') && ($e = bl_user_room())) fail($e, 402);
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now()]);
     $newId = insert_id();
