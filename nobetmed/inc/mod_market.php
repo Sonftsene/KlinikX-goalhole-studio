@@ -542,7 +542,7 @@ function a_listing_delete(): void
 /* Eksik personel çağrısı                                               */
 /* =================================================================== */
 
-const CO_KEYS = ['free', 'leave', 'req', 'rest', 'cont', 'gap', 'exempt'];
+const CO_KEYS = ['free', 'leave', 'wknd', 'req', 'rest', 'cont', 'gap', 'exempt'];
 
 /** [başlangıç, bitiş, saat, etiket, varsayılan kod] */
 function co_def(string $shift): array
@@ -562,6 +562,7 @@ function co_conds(): array
     return [
         ['key' => 'free', 'label' => 'O gün nöbeti yok', 'short' => 'Gün boş'],
         ['key' => 'leave', 'label' => 'İzinli değil', 'short' => 'İzin yok'],
+        ['key' => 'wknd', 'label' => 'İzin öncesi/sonrası hafta sonu değil (en az ' . max(1, (int)($r['leave_wknd'] ?? 5)) . ' iş günü izin)', 'short' => 'İzin hafta sonu'],
         ['key' => 'req', 'label' => 'Onaylı boşluk isteği yok', 'short' => 'İstek yok'],
         ['key' => 'rest', 'label' => 'Dinlenme en az ' . $r['rest'] . ' saat', 'short' => 'Dinlenme'],
         ['key' => 'cont', 'label' => 'Üst üste ' . (2 * $r['max_cont']) . ' saat yok', 'short' => (2 * $r['max_cont']) . ' sa yok'],
@@ -731,6 +732,9 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
         if (!$c['free']) $why['free'] = 'O gün listede: ' . $dRow['code'];
         $c['leave'] = !$dRow || !in_array($dRow['kind'], ['leave', 'off'], true);
         if (!$c['leave']) $why['leave'] = ($dRow['label'] ?: 'İzinli') . ' (' . $dRow['code'] . ')';
+        $lw = rules_leave_weekend($p['days'], $date, (string)$p['name']);
+        $c['wknd'] = $lw === null;
+        if ($lw) $why['wknd'] = $lw;
         $rq = null;
         foreach ($reqs as $q) if (names_match((string)$q['name'], (string)$p['name'])) $rq = $q;
         $c['req'] = $rq === null;
@@ -766,6 +770,7 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
             }
             $people[] = $base($p, $sd, $stats[$k] ?? [], $days, $k) + [
                 'c' => $c, 'why' => (object)$why, 'ok' => !in_array(false, $c, true), 'day_code' => $dRow['code'] ?? null, 'day_kind' => $dRow['kind'] ?? null,
+                'extra' => function_exists('ex_wants') && ex_wants((string)$p['name'], $date, $shift),
                 'prev_end' => $tsOut($ev['prev_end']), 'next_start' => $tsOut($ev['next_start']), 'rest_before' => $ev['rest_before'], 'rest_after' => $ev['rest_after'],
                 'move' => null,
             ];
@@ -810,7 +815,8 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
     }
     // Adalet sırası: en çok boşluk → bu ay az saat (az fazla mesai) → son 7 günde az nöbet; eşitler "eşit" (kura)
     $fair = fn($x) => [-$x['free_days'], $x['month_hours'], $x['last7']];
-    $sortFn = fn($a, $b) => [!$a['ok'], ...$fair($a), $a['display']] <=> [!$b['ok'], ...$fair($b), $b['display']];
+    // Ekstra nöbet isteyenler (uygunsa) en üstte
+    $sortFn = fn($a, $b) => [!$a['ok'], empty($a['extra']), ...$fair($a), $a['display']] <=> [!$b['ok'], empty($b['extra']), ...$fair($b), $b['display']];
     usort($people, $sortFn);
     usort($moves, $sortFn);
     foreach ([&$people, &$moves] as &$list) {

@@ -17,6 +17,8 @@ function swap_rules(): array
         'max_cont' => max(8, min(72, (int)setting('swap_max_cont', '24'))),
         'max_gap' => max(1, min(30, (int)setting('swap_max_gap', '4'))),
         'rest' => max(0, min(48, (int)setting('rule_rest', '16'))),
+        // Hafta içi en az N iş günü izinli kişi iznin hemen öncesi/sonrasındaki Cmt-Paz ekstra çağrılmaz (0 = kapalı)
+        'leave_wknd' => max(0, min(10, (int)setting('rule_leave_wknd', '5'))),
     ];
 }
 

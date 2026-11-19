@@ -6,7 +6,7 @@ const NB = { since: '', seen: new Set(), timer: 0, active: Date.now(), audio: nu
 const NB_CAT_UI = { mesaj: ['violet', 'chat', 'Mesaj'], eksik: ['rose', 'alert', 'Eksik personel'], duyuru: ['teal', 'megaphone', 'Duyuru'], belge: ['sky', 'file', 'Hastane belgesi'],
   nobet: ['emerald', 'calendar', 'Nöbet'], degisim: ['amber', 'history', 'Değişim / ilan'], istek: ['indigo', 'inbox', 'Nöbet isteği'], yonetim: ['rose', 'inbox', 'Onay bekliyor'], sistem: ['slate', 'bell', 'Bildirim'] };
 const NB_KIND_CAT = { chat: 'mesaj', post: 'duyuru', remind: 'duyuru', digest: 'duyuru', hdoc: 'belge', roster: 'nobet', shift: 'nobet', side: 'nobet', callout: 'eksik',
-  swap: 'degisim', listing: 'degisim', request: 'istek', review: 'yonetim', pending_post: 'yonetim', pending_user: 'yonetim', call: 'mesaj' };
+  swap: 'degisim', listing: 'degisim', request: 'istek', review: 'yonetim', pending_post: 'yonetim', pending_user: 'yonetim', call: 'mesaj', extra: 'yonetim' };
 const nbCatOf = (n) => n.cat || NB_KIND_CAT[n.kind] || 'sistem';
 function nbIconUrl() { const b = (S.settings && S.settings.brand) || {}; return b.icon192 || 'assets/icon-192.png'; }
 const nbPrefs = () => (S.me && S.me.notif) || { cats: {}, sound: 1, vibrate: 1, preview: 1, quiet: { on: false }, locked: [] };

@@ -288,10 +288,11 @@ function swapRulesCardHtml(A) {
     <div class="row wrap"><span class="small muted">Üst üste en fazla</span><input class="input" type="number" id="swCont" aria-label="Üst üste en fazla saat" min="8" max="72" value="${A.swap_max_cont || 24}" style="width:80px"><span class="small muted">saat çalışılabilir (24 = 24 saatlik nöbet çıkışına yeni nöbet eklenemez)</span></div>
     <div class="row wrap"><span class="small muted">İki nöbet arasında en fazla</span><input class="input" type="number" id="swGap" aria-label="En fazla boş gün" min="1" max="30" value="${A.swap_max_gap || 4}" style="width:80px"><span class="small muted">boş gün olabilir (4 = 5 günlük boşluk olamaz; izinli günler boşluk sayılmaz)</span></div>
     <div class="row wrap"><span class="small muted">Nöbetten çıkan en az</span><input class="input" type="number" id="swRest" aria-label="En az dinlenme saati" min="0" max="48" value="${A.swap_rest ?? 16}" style="width:80px"><span class="small muted">saat dinlenmeden yeni nöbete giremez (değişim, devir, ilan ve eksik personel çağrısında uygulanır)</span></div>
+    <div class="row wrap"><span class="small muted">Hafta içi en az</span><input class="input" type="number" id="swLw" aria-label="İzin bitişiği hafta sonu kuralı" min="0" max="10" value="${A.swap_leave_wknd ?? 5}" style="width:80px"><span class="small muted">iş günü izinli olan kişi, izninin hemen öncesindeki ve sonrasındaki Cumartesi–Pazar ekstra nöbete çağrılmaz (0 = kapalı; resmî tatiller izin haftasına sayılır)</span></div>
     <div><button type="button" class="btn" data-act="swap-rules">Kuralları kaydet</button></div></div>`;
 }
 ACT['swap-rules'] = (el) => busy(el, async () => {
-  try { await api('swap.rules', { max_cont: +$('#swCont').value, max_gap: +$('#swGap').value, rest: +$('#swRest').value }); toast('Değişim kuralları kaydedildi'); } catch (e) { toast(e.message, 'err'); }
+  try { await api('swap.rules', { max_cont: +$('#swCont').value, max_gap: +$('#swGap').value, rest: +$('#swRest').value, leave_wknd: +$('#swLw').value }); toast('Değişim kuralları kaydedildi'); } catch (e) { toast(e.message, 'err'); }
 });
 
 /* =================================================================== */

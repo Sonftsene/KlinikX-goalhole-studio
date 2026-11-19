@@ -1745,7 +1745,7 @@ function admin_settings(): array
         'auto_remind_days' => (int)setting('auto_remind_days', '3'),
         'review_warn_days' => (int)setting('review_warn_days', '14'),
         'backup_weekly' => setting('backup_weekly', '1') === '1',
-        'swap_max_cont' => swap_rules()['max_cont'], 'swap_max_gap' => swap_rules()['max_gap'], 'swap_rest' => swap_rules()['rest'],
+        'swap_max_cont' => swap_rules()['max_cont'], 'swap_max_gap' => swap_rules()['max_gap'], 'swap_rest' => swap_rules()['rest'], 'swap_leave_wknd' => swap_rules()['leave_wknd'],
         'default_notify_mode' => setting('default_notify_mode', 'instant'),
         'mail_on' => setting('mail_on') === '1',
         'mail_host' => setting('mail_host'),

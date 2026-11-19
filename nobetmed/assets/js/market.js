@@ -470,7 +470,7 @@ function coRow(P, x, ties) {
     <td class="co-name"><div class="co-who">${avatar(x.display, 'sm')}<div style="min-width:0"><b>${x.display}</b>${x.user_id ? '' : html` <span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`}
       <div class="tiny faint">${[x.title, x.other ? x.side_name : ''].filter(Boolean).join(' · ')}</div>
       ${x.move ? html`<div class="tiny co-mv">${icon('history', 'sm')} ${mkShort(x.move.from)} ${x.move.code} → ${mkShort(D.date)}</div>${x.move.warn ? html`<div class="tiny mk-no">${icon('alert', 'sm')} ${x.move.warn}</div>` : ''}` : ''}
-      <div class="co-tags">${pass && !x.move && !asked && x.rank === top ? html`<span class="badge brand">Öncelikli</span>` : ''}
+      <div class="co-tags">${x.extra ? html`<span class="badge success" title="Bu gün için ekstra nöbet almak istediğini bildirdi">${icon('plus', 'sm')}Ekstra istiyor</span>` : ''}${pass && !x.move && !asked && x.rank === top ? html`<span class="badge brand">Öncelikli</span>` : ''}
         ${tie ? html`<span class="badge warn" title="Adalet ölçüleri eşit">eşit</span><button type="button" class="btn sm ghost co-kura" data-act="co-draw" data-fair="${x.fair}">${icon('star', 'sm')}Kura</button>` : ''}
         ${drawn ? html`<span class="badge tone-violet">Kura ile seçildi</span>` : ''}
         ${asked ? html`<span class="badge ${(CO_ANS[x.resp.answer] || [])[1] || ''}">${x.resp.chosen ? 'Seçildi' : 'Soruldu · ' + (CO_ANS[x.resp.answer] || ['?'])[0]}</span>` : ''}</div></div></div></td>

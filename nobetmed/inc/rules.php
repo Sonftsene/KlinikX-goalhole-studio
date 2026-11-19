@@ -25,6 +25,57 @@ function rules_check_add(array $days, string $date, array $row, string $who = 'B
     return swap_check($days, [$date], [], rules_cfg(), $who);
 }
 
+/** Onaylı yıllık izin isteği var mı (istek modülü; $pending: bekleyenler de) */
+function rules_req_on(string $name, string $date, array $kinds = ['izin'], bool $pending = false): ?array
+{
+    static $cache = [];
+    $k = $date . ($pending ? '+p' : '');
+    if (!array_key_exists($k, $cache)) {
+        try { $cache[$k] = all('SELECT name, kind, status FROM shift_requests WHERE date = ? AND status IN (' . ($pending ? "'approved', 'pending'" : "'approved'") . ')', [$date]); } catch (Throwable $e) { $cache[$k] = []; }
+    }
+    foreach ($cache[$k] as $q) if (in_array($q['kind'], $kinds, true) && names_match((string)$q['name'], $name)) return $q;
+    return null;
+}
+
+/**
+ * İzin bitişiği hafta sonu: hafta içi en az N iş günü (varsayılan 5) izinli kişi, izninin hemen öncesindeki ve
+ * sonrasındaki Cumartesi–Pazar ekstra nöbete (eksik çağrısı, kaydırma, ekstra nöbet listesi) çağrılmaz.
+ * İzin: listedeki izin kodları (Yİ, Rp, İ…) ya da onaylı yıllık izin isteği. Tam gün resmî tatil izin haftasına sayılır.
+ * Döner: neden metni ya da null.
+ */
+function rules_leave_weekend(array $days, string $date, string $name = ''): ?string
+{
+    $min = (int)(rules_cfg()['leave_wknd'] ?? 5);
+    if ($min <= 0) return null;
+    $w = (int)date('w', strtotime($date));
+    if ($w !== 0 && $w !== 6) return null;
+    $isLeave = function (string $d) use ($days, $name): bool {
+        $r = $days[$d] ?? null;
+        if ($r) return ($r['kind'] ?? '') === 'leave';
+        return $name !== '' && rules_req_on($name, $d) !== null;
+    };
+    // $start'tan $dir yönünde hafta sonlarını atlayarak kesintisiz izinli iş günlerini say
+    $count = function (string $start, int $dir) use ($isLeave): int {
+        $n = 0; $leave = false; $d = $start;
+        for ($i = 0; $i < 70; $i++) {
+            $wd = (int)date('w', strtotime($d));
+            if ($wd !== 0 && $wd !== 6) {
+                $h = holiday_on($d);
+                if ($isLeave($d)) { $n++; $leave = true; }
+                elseif ($h && !$h['half']) $n++;
+                else break;
+            }
+            $d = date('Y-m-d', strtotime($d . ($dir > 0 ? ' +1 day' : ' -1 day')));
+        }
+        return $leave ? $n : 0;
+    };
+    $fri = date('Y-m-d', strtotime($date . ($w === 6 ? ' -1 day' : ' -2 day')));
+    $mon = date('Y-m-d', strtotime($date . ($w === 6 ? ' +2 day' : ' +1 day')));
+    if (($n = $count($fri, -1)) >= $min) return 'İzin dönüşü hafta sonu (' . $n . ' iş günü izinden hemen sonra)';
+    if (($n = $count($mon, 1)) >= $min) return 'İzin öncesi hafta sonu (' . $n . ' iş günü iznin hemen öncesi)';
+    return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Resmî tatiller                                                      */
 /* ------------------------------------------------------------------ */

@@ -31,6 +31,7 @@ const NM_ACTION_MODULE = [
     'req.' => 'istekler',
     'listing.' => 'ilan', 'swap.' => 'ilan',
     'callout.' => 'eksik',
+    'extra.' => 'eksik',
     'history.' => 'gecmis',
     'phonebook.' => 'rehber',
     'hdoc.' => 'hbelge',

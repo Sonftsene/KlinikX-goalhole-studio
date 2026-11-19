@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.8.0';
+const NM_VERSION = '4.9.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 15;
+const NM_SCHEMA = 16;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -293,6 +293,8 @@ function nm_migrate(PDO $pdo): void
         // --- Sürüm 11: istekler, ilanlar, eksik çağrısı, blok yerleşimi, kurallar, tatiller ---
         "CREATE TABLE IF NOT EXISTS req_periods (id $pk, ym VARCHAR(7) NOT NULL, roster_id INT NULL, deadline VARCHAR(10) NULL, status VARCHAR(10) NOT NULL DEFAULT 'open', note VARCHAR(300) NULL, created_by INT NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
         "CREATE TABLE IF NOT EXISTS shift_requests (id $pk, period_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, roster_id INT NULL, date VARCHAR(10) NOT NULL, kind VARCHAR(10) NOT NULL, note VARCHAR(200) NULL, status VARCHAR(10) NOT NULL DEFAULT 'pending', reason VARCHAR(300) NULL, decided_by INT NULL, decided_at VARCHAR(19) NULL, created_at VARCHAR(19) NOT NULL, meta TEXT NULL)$end",
+        // Sürüm 16: ekstra nöbet isteyenler (kişi × ay; days boşsa tüm uygun günler)
+        "CREATE TABLE IF NOT EXISTS extra_pool (id $pk, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, ym VARCHAR(7) NOT NULL, from_date VARCHAR(10) NOT NULL, shifts VARCHAR(20) NOT NULL, days TEXT NULL, note VARCHAR(200) NULL, created_at VARCHAR(19) NOT NULL, updated_at VARCHAR(19) NULL)$end",
         "CREATE TABLE IF NOT EXISTS staff_needs (id $pk, unit VARCHAR(40) NOT NULL, day_type VARCHAR(10) NOT NULL, period VARCHAR(5) NOT NULL, count INT NOT NULL DEFAULT 0)$end",
         "CREATE TABLE IF NOT EXISTS listings (id $pk, roster_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, date VARCHAR(10) NOT NULL, code VARCHAR(20) NOT NULL, kind VARCHAR(10) NOT NULL DEFAULT 'give', note VARCHAR(300) NULL, status VARCHAR(10) NOT NULL DEFAULT 'open', taker_user INT NULL, taker_name VARCHAR(120) NULL, taker_date VARCHAR(10) NULL, taker_code VARCHAR(20) NULL, swap_request_id INT NULL, created_at VARCHAR(19) NOT NULL, closed_at VARCHAR(19) NULL, meta TEXT NULL)$end",
         "CREATE TABLE IF NOT EXISTS listing_apps (id $pk, listing_id INT NOT NULL, user_id INT NOT NULL, name VARCHAR(120) NOT NULL, offer_date VARCHAR(10) NULL, offer_code VARCHAR(20) NULL, note VARCHAR(300) NULL, status VARCHAR(10) NOT NULL DEFAULT 'applied', created_at VARCHAR(19) NOT NULL)$end",
