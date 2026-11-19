@@ -361,3 +361,15 @@ Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık za
 - Sorumlu: aynı sayfada **İsteyenler** sekmesi — kimler istedi, gün gün kimler uygun, o gün kaç kişi eksik; satırdan doğrudan **Çağrı aç**.
 - Eksik personel çağrısında ekstra nöbet isteyen ve uygun olan kişiler **“Ekstra istiyor”** rozetiyle en üstte çıkar.
 - Kurallar her açılışta güncel listeye göre yeniden hesaplanır (liste değişirse uygun günler de değişir).
+
+## 25. QR ile bilgisayara giriş ve bağlı cihazlar (4.11)
+
+**Bilgisayarda şifresiz giriş:** Giriş ekranında **Telefonla QR kod okutarak giriş** → karekod çıkar. Telefonda dupcii açıkken **Hesabım › Güvenlik › Bilgisayarda oturum aç › QR kodu okut** (ya da telefonun kendi kamerasıyla okutun). Telefonda bilgisayarın tarayıcısı ve IP adresi görünür; **Onayla** deyince bilgisayar girer.
+- Karekod 2 dakika geçerli ve tek kullanımlık; süresi dolunca yenisi kendiliğinden çıkar.
+- Karekodun fotoğrafını çeken başkası giremez: oturum yalnız karekodu ekranında gösteren tarayıcıda açılır.
+- Karekodu siz okutmadıysanız onaylamayın (başkası size karekod okutarak hesabınıza girmeye çalışıyor olabilir).
+- Çok birimli kurulumda bilgisayar doğrudan sizin biriminize girer.
+
+**Güvenli çıkış:** QR ile açılan bilgisayar oturumu **tarayıcı kapanınca** ve **8 saat işlem yapılmayınca** kendiliğinden kapanır (ortak bilgisayarlar için). Kendi bilgisayarınızda karekod ekranındaki “Bu bilgisayarda oturumum açık kalsın”ı açabilirsiniz.
+
+**Bağlı cihazlar:** Hesabım › Güvenlik › **Bağlı cihazlar** — hesabınızın açık olduğu her cihaz (tarayıcı, giriş yolu, son etkinlik, IP). Herhangi birinde **Çıkış yap** ya da **Diğer tüm cihazlardan çıkış yap**: o cihaz bir sonraki işleminde giriş ekranına düşer ve o cihazdaki önbellek ve taslaklar silinir. Hesabım › Çıkış yap da bu cihazdaki oturumu kapatır.
