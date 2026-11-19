@@ -348,3 +348,12 @@ Başka birimdeki grup üyelerine mesaj ve hastane belgesi bildirimi de artık za
 **Sesli ve görüntülü arama:** birebir sohbetin üstündeki 📞 / 🎥 ya da profilden. Aranan kişiye uygulama kapalıyken de telefon bildirimi gider; açınca gelen arama ekranı çalar (Yanıtla / Reddet). Görüşmede sessize alma, kamera aç/kapa, kamerayı çevirme, küçültüp sohbete dönme. Ses ve görüntü cihazlar arasında doğrudan, şifreli akar; sunucudan geçmez, kaydedilmez. Sohbette “Sesli arama 2:31”, “Cevapsız arama” kaydı ve **Mesajlar › Aramalar** sekmesinde geçmiş. Hastanenin farklı birimleri arasında da çalışır.
 - Yönetici: **Ayarlar › Genel › Sesli ve görüntülü arama** ile kapatabilir. Bazı hastane ağları / mobil operatörler doğrudan bağlantıyı engellerse orada bir **TURN sunucusu** (adres, kullanıcı adı, parola) tanımlayın; böylece arama her ağda çalışır.
 - Güncellemede yeni `.htaccess` dosyası da yüklenmeli (kamera ve konum izni yalnız kendi sitemize açılır).
+
+## 24. İzin bitişiği hafta sonu ve ekstra nöbet (4.9)
+
+**İzin bitişiği hafta sonu:** Hafta içi en az 5 iş günü (Pazartesi–Cuma) izinli olan kişi, izninin **hemen öncesindeki** ve **hemen sonrasındaki** Cumartesi–Pazar günlerinde ekstra nöbete çağrılmaz. Eksik personel çağrısında (ve kaydırmada) “İzin hafta sonu” şartı olarak görünür, nedeni yazar. İzin: listedeki izin kodları (Yİ, Rp, İ…) ya da onaylı yıllık izin isteği; o haftadaki tam gün resmî tatil izin haftasına sayılır; iki haftalık izinde aradaki hafta sonu da korunur. Gün sayısı **Ayarlar › Nöbet › Nöbet kuralları**ndan değiştirilir (0 = kapalı).
+
+**Ekstra nöbet:** Nöbet › **Ekstra nöbet**. Kişi ay için “Ekstra nöbet istiyorum” der; hangi vardiyaları (24 saat / gündüz / gece) alabileceğini ve uygun tüm günler mi yoksa seçtiği günler mi olduğunu belirtir. İstek gününden ay sonuna kadar her gün, her vardiya için kurallara göre ✓/✗ ve nedeni listelenir: o gün nöbeti ya da izni olmaması, onaylı/bekleyen boşluk ve yıllık izin isteği, izin bitişiği hafta sonu, dinlenme süresi, üst üste çalışma (kabul edilmiş değişimler ve seçilmiş çağrılar dahil); gereken sayıya göre eksik olan günler işaretlenir. İstek verince sorumlulara bildirim gider.
+- Sorumlu: aynı sayfada **İsteyenler** sekmesi — kimler istedi, gün gün kimler uygun, o gün kaç kişi eksik; satırdan doğrudan **Çağrı aç**.
+- Eksik personel çağrısında ekstra nöbet isteyen ve uygun olan kişiler **“Ekstra istiyor”** rozetiyle en üstte çıkar.
+- Kurallar her açılışta güncel listeye göre yeniden hesaplanır (liste değişirse uygun günler de değişir).

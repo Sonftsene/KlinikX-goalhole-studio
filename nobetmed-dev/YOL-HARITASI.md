@@ -60,7 +60,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.8 — WhatsApp özellikleri ✓ (4.8.0)
 - Birebir sesli/görüntülü arama (WebRTC, birimler arası, arama geçmişi, TURN ayarı), grupta gönderen profili (mesaj/ara/telefon), yönetici yazma kısıtlaması ve gruptan engelleme, @herkes, uzun bas menüsü ve her emojiyle tepki, sağa kaydırıp yanıt, çoklu seçim, emoji paneli, kamera (fotoğraf/video), video, tek seferlik görüntüleme, konum ve kişi paylaşımı, taslaklar, okunmamış ayıracı, sesli mesaj hızı, bağlantı/telefon tanıma, yapıştır/sürükle-bırak. (Durum paylaşımı bilinçli olarak yok.)
 
-### 4.9+ — Ek modüller (her biri aç/kapat)
+### 4.9 — İzin bitişiği hafta sonu ve ekstra nöbet ✓ (4.9.0)
+- Hafta içi 5 iş günü izinliyi izin öncesi/sonrası hafta sonu ekstra çağırmama (ayarlanabilir); ekstra nöbet isteyenler: istek gününden ay sonuna kurallara uygun günler, sorumlu için gün gün uygun gönüllüler, çağrıda öncelik.
+
+### 5.0+ — Ek modüller (her biri aç/kapat)
 - Kontrol listeleri (acil arabası, cihaz kontrolleri; günlük/haftalık, kim yaptı), nöbet devir notu (hasta adı korumalı), eğitim ve sertifika takibi (geçerlilik hatırlatması), arıza/malzeme bildirimi, olay/güvenlik bildirimi (isteğe bağlı anonim), anket/oylama, toplantı ve eğitim takvimi + katılım.
 
 ### Sürekli: KVKK ve güvenlik
