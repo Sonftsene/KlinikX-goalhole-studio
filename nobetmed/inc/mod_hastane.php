@@ -314,7 +314,7 @@ function a_hdoc_report(): void
 function a_hfile_get(): void
 {
     $me = current_user();
-    $f = $me && hdb() && nm_mod_on('hbelge') ? h_one('SELECT * FROM h_files WHERE id = ?', [(int)($_GET['id'] ?? 0)]) : null;
+    $f = $me && hdb() && nm_mod_on('hbelge') && user_perm($me, 'hbelge') !== 'off' ? h_one('SELECT * FROM h_files WHERE id = ?', [(int)($_GET['id'] ?? 0)]) : null;
     $path = $f ? h_upload_dir() . '/' . $f['stored'] : '';
     if (!$f || !is_file($path)) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'Dosya bulunamadı veya erişim yetkiniz yok.'; return; }
     session_write_close();

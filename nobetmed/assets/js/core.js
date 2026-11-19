@@ -91,15 +91,18 @@ function newVersionNotice(v) {
    Dosyalar (PDF/Excel) service worker önbelleğinden gelir. Çıkışta tümü silinir. */
 const OFFLINE_READ = new Set(['boot', 'counts', 'posts.list', 'posts.get', 'rosters.list', 'shifts.my', 'shifts.day', 'people.list', 'notif.list', 'phonebook.list']);
 const OFFLINE = { on: false };
+/** Ortak bilgisayarda (tarayıcı kapanınca biten QR oturumu) önbellek yalnız bu sekmenin ömrü kadar tutulur */
+function offlineStore() { return S.me && S.me.ephemeral ? sessionStorage : localStorage; }
 function offlineGet(k) {
-  try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  try { const v = sessionStorage.getItem(k) || localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; }
 }
 function offlinePut(k, json, action) {
   if (action === 'boot' && !json.me) return;
   try {
     const s = JSON.stringify({ ...json, csrf: undefined });
     if (s.length > 400000) return;
-    localStorage.setItem(k, s);
+    const st = action === 'boot' ? (json.me.ephemeral ? sessionStorage : localStorage) : offlineStore();
+    st.setItem(k, s);
   } catch (e) {
     // Kota doldu: eski kayıtları sil, bir kez daha dene
     offlineCacheClear(['nm-off:boot:']);
@@ -107,9 +110,9 @@ function offlinePut(k, json, action) {
   }
 }
 function offlineCacheClear(keep = []) {
-  try {
-    Object.keys(localStorage).filter((k) => k.startsWith('nm-off:') && !keep.some((p) => k.startsWith(p))).forEach((k) => localStorage.removeItem(k));
-  } catch (e) { /* */ }
+  [localStorage, sessionStorage].forEach((st) => {
+    try { Object.keys(st).filter((k) => k.startsWith('nm-off:') && !keep.some((p) => k.startsWith(p))).forEach((k) => st.removeItem(k)); } catch (e) { /* */ }
+  });
 }
 function setOffline(on) {
   OFFLINE.on = on;

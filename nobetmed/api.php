@@ -228,6 +228,9 @@ nm_route_tenant($action);
 // Birimdeki sistem yöneticisi kişi değildir: kişisel hesap işlemleri ve birim adına mesaj kapalı
 if (!empty($_SESSION['sa_in']) && preg_match('/^(me\.|passkey\.|push\.(subscribe|unsubscribe)|chat\.)/', $action) && ($vu = current_user()) && !empty($vu['sa_virtual'])) fail('Sistem yöneticisi bu işlemi birimde yapamaz (birimin bir kişisi değildir).', 403);
 if (nm_multi() && nm_tenant_frozen() && empty($_SESSION['sa_in']) && !in_array($action, ['boot', 'auth.logout'], true)) fail('Bu birim geçici olarak kullanıma kapatıldı. Yöneticinizle görüşün.', 423);
+// Geçici şifreyle giren kişi şifresini değiştirene kadar yalnız şifre değiştirebilir (istemciye güvenilmez)
+if (!in_array($action, ['boot', 'me.password', 'auth.logout', 'live'], true) && strncmp($action, 'push.', 5) !== 0 && strncmp($action, 'sa.', 3) !== 0
+    && ($fu = current_user()) && (int)($fu['must_change'] ?? 0) === 1 && empty($fu['sa_virtual'])) fail('Devam etmek için önce geçici şifrenizi değiştirin.', 403);
 // Modül kapalıysa / kişinin bu modülde yetkisi yoksa dur; is_publisher() bu modülün yetkisine göre karar verir
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
@@ -369,6 +372,7 @@ function user_out(array $u): array
         'extension' => $u['extension'] ?? null,
         'avatar' => avatar_url($u),
         'must_change' => (int)($u['must_change'] ?? 0) === 1,
+        'ephemeral' => !empty($_SESSION['eph']), // tarayıcı kapanınca biten oturum: çevrimdışı önbellek bu cihazda kalıcı tutulmaz
         'role_id' => isset($u['role_id']) && $u['role_id'] !== null ? (int)$u['role_id'] : null,
     ];
 }
@@ -380,6 +384,7 @@ function login_user(array $u, array $opt = []): void
     $_SESSION['uid'] = (int)$u['id'];
     $_SESSION['t'] = (string)nm_tenant()['tkey'];
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
+    $_SESSION['login_at'] = time();
     if (function_exists('us_start')) us_start($u, $opt); // bağlı cihazlar kaydı
     q('UPDATE users SET last_seen_at = ? WHERE id = ?', [now(), $u['id']]);
 }
@@ -515,7 +520,8 @@ function a_boot(): void
         if ($u !== setting('site_url')) set_setting('site_url', $u);
     }
     $setup = nm_setup_allowed();
-    if ($me && PHP_SAPI !== 'cli' && $me['role'] === 'admin' && nm_multi() && m_setting('site_url') !== request_base_url()) m_q("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('site_url', ?)", [request_base_url()]);
+    // Merkezdeki site adresini (tüm birimlerin QR / yeni birim bağlantıları) yalnız ana birimin yöneticisi günceller; APP_URL tanımlıysa hiç
+    if ($me && PHP_SAPI !== 'cli' && $me['role'] === 'admin' && nm_multi() && (string)APP_URL === '' && (int)(nm_tenant()['is_default'] ?? 0) === 1 && m_setting('site_url') !== request_base_url()) m_q("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('site_url', ?)", [request_base_url()]);
     $data = [
         'csrf' => $_SESSION['csrf'],
         'setup_needed' => $setup,
@@ -634,10 +640,13 @@ function a_login(): void
     // Kilit kişi+cihaz bazında: aynı ağdaki (hastane NAT) başkaları etkilenmesin
     $fails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND email = ? AND at > ?', [$ip, $email, $since]);
     $ipFails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at > ?', [$ip, $since]);
-    if ($fails >= 8 || $ipFails >= 60) fail('Çok fazla hatalı deneme. Lütfen 15 dakika sonra tekrar deneyin.', 429);
+    $acctFails = (int)val('SELECT COUNT(*) FROM login_attempts WHERE email = ? AND at > ?', [$email, $since]);
+    if ($fails >= 8 || $ipFails >= 60 || $acctFails >= 30) fail('Çok fazla hatalı deneme. Lütfen 15 dakika sonra tekrar deneyin.', 429);
 
     $u = one('SELECT * FROM users WHERE email = ?', [$email]);
-    if (!$u || empty($u['password_hash']) || !password_verify($pw, $u['password_hash'])) {
+    // Hesap yoksa da aynı sürede yanıt ver (e-postanın kayıtlı olup olmadığı süreden anlaşılmasın)
+    $okPw = password_verify($pw, ($u && !empty($u['password_hash'])) ? $u['password_hash'] : '$2y$10$usesomesillystringfore7hnbRJHxXVLeakoG8K30oukPsA.ztMG');
+    if (!$u || empty($u['password_hash']) || !$okPw) {
         q('INSERT INTO login_attempts (ip, email, at) VALUES (?, ?, ?)', [$ip, $email, time()]);
         fail('E-posta veya şifre hatalı.', 401);
     }
@@ -657,10 +666,11 @@ function a_forgot(): void
     $email = mb_strtolower(s('email', 180));
     if (!mail_ready()) fail('E-posta gönderimi henüz ayarlanmamış. Yöneticinizden geçici şifre isteyin.', 400);
     $ip = client_ip();
-    $recent = (int)val('SELECT COUNT(*) FROM login_attempts WHERE (ip = ? OR email = ?) AND at > ?', ['reset:' . $ip, 'reset:' . $email, time() - 3600]);
-    if ($recent >= 5) fail('Çok fazla deneme. Lütfen bir saat sonra tekrar deneyin.', 429);
+    $recent = (int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at > ?', ['reset:' . $ip, time() - 3600]);
+    if ($recent >= 10) fail('Çok fazla deneme. Lütfen bir saat sonra tekrar deneyin.', 429);
+    $perMail = (int)val('SELECT COUNT(*) FROM login_attempts WHERE email = ? AND at > ?', ['reset:' . $email, time() - 3600]);
     q('INSERT INTO login_attempts (ip, email, at) VALUES (?, ?, ?)', ['reset:' . $ip, 'reset:' . $email, time()]);
-    $u = one("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]);
+    $u = $perMail < 3 ? one("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]) : null;
     if ($u) {
         $token = bin2hex(random_bytes(24));
         q('DELETE FROM password_resets WHERE user_id = ? OR expires < ?', [$u['id'], time()]);
@@ -685,6 +695,7 @@ function a_reset(): void
     if (!$u) fail('Hesap bulunamadı veya devre dışı.', 404);
     q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
     q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$u['id']]);
+    if (function_exists('us_revoke_user')) us_revoke_user((int)$u['id'], 'password'); // şifre sıfırlanınca tüm cihazlardan çıkış
     login_user($u);
     out();
 }
@@ -704,8 +715,14 @@ function a_register(): void
     validate_password($pw);
     if (!valid_id('titles', $titleId)) $titleId = null;
     if (!valid_id('units', $unitId)) $unitId = null;
-    if (one('SELECT id FROM users WHERE email = ?', [$email])) fail('Bu e-posta ile zaten bir hesap var.', 409);
-    nm_email_guard($email);
+    $ip = client_ip();
+    // Davetsiz kayıt IP başına saatte 20 (hastane ağı tek IP'den çıkabilir; davetle kayıt sınırsız)
+    if (!$inv) {
+        if ((int)val('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND at > ?', ['reg:' . $ip, time() - 3600]) >= 20) fail('Çok fazla kayıt denemesi. Lütfen bir saat sonra tekrar deneyin.', 429);
+        q('INSERT INTO login_attempts (ip, email, at) VALUES (?, ?, ?)', ['reg:' . $ip, 'reg:', time()]);
+    }
+    if (one('SELECT id FROM users WHERE email = ?', [$email]) || (function_exists('nm_email_in_other_tenant') && nm_email_in_other_tenant($email)))
+        fail('Bu e-posta ile kayıt yapılamıyor. Hesabınız varsa giriş yapın ya da “Şifremi unuttum” deyin; bir kişi yalnız bir birimde hesap açabilir.', 409);
     $status = $mode === 'open' ? 'active' : 'pending';
     $role = 'member';
     if ($inv) {
@@ -825,6 +842,14 @@ function a_me_update(): void
         foreach (all("SELECT id, name FROM users WHERE status IN ('active', 'pending') AND id <> ?", [$me['id']]) as $o) {
             if (names_match((string)$o['name'], $name)) fail('Bu ad başka bir kullanıcıya ait. Adınız farklıysa yöneticinize başvurun.');
         }
+        // Hesabı olmayan birinin nöbet listesindeki / istek kayıtlarındaki adı da alınamaz (o kişinin nöbetleri ve istekleri bu hesaba geçerdi)
+        if ($me['role'] !== 'admin') {
+            $names = array_column(all('SELECT DISTINCT name FROM roster_shifts'), 'name');
+            foreach (all('SELECT DISTINCT name FROM shift_requests WHERE user_id IS NULL OR user_id <> ?', [$me['id']]) as $r) $names[] = $r['name'];
+            foreach ($names as $n) {
+                if (names_match((string)$n, $name) && !names_match((string)$n, (string)$me['name'])) fail('Bu ad nöbet listesinde başka bir kişiye ait. Adınız listede farklı yazılmışsa yöneticiniz düzeltebilir.');
+            }
+        }
         q('UPDATE users SET name = ? WHERE id = ?', [$name, $me['id']]);
         audit($me, 'user.edit', $me['name'] . ' → ' . $name, 'Ad değişikliği (kendisi)');
     }
@@ -839,10 +864,13 @@ function a_me_password(): void
     $new = (string)($IN['password'] ?? '');
     $forced = (int)($me['must_change'] ?? 0) === 1;
     if (!$forced && !empty($me['password_hash']) && !password_verify($cur, $me['password_hash'])) fail('Mevcut şifre hatalı.');
+    // Şifresiz (Google ile açılmış) hesapta ilk şifre: oturum yeni açılmış olmalı (çalınmış eski bir oturumla şifre konamasın)
+    if (!$forced && empty($me['password_hash']) && time() - (int)($_SESSION['login_at'] ?? 0) > 900) fail('Güvenlik için çıkış yapıp yeniden giriş yapın; sonra şifrenizi belirleyin.', 403);
     validate_password($new);
     if (!empty($me['password_hash']) && password_verify($new, $me['password_hash'])) fail($forced ? 'Yeni şifre geçici şifreden farklı olmalıdır.' : 'Yeni şifre mevcut şifrenizden farklı olmalıdır.');
     q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($new, PASSWORD_DEFAULT), $me['id']]);
     q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$me['id']]);
+    if (function_exists('us_revoke_user')) us_revoke_user((int)$me['id'], 'password', true); // diğer cihazlardaki oturumlar kapanır
     out();
 }
 
@@ -1195,7 +1223,11 @@ function a_upload_init(): void
     if (MAX_UPLOAD_MB > 0 && $size > MAX_UPLOAD_MB * 1048576) fail('Dosya çok büyük. En fazla ' . MAX_UPLOAD_MB . ' MB yükleyebilirsiniz.');
     $dir = upload_dir();
     $free = function_exists('disk_free_space') ? @disk_free_space($dir) : false;
-    if ($free !== false && $size > $free) fail('Sunucuda yeterli disk alanı yok.', 507);
+    if ($free !== false && $size + 200 * 1048576 > $free) fail('Sunucuda yeterli disk alanı yok.', 507);
+    // Bir oturumda aynı anda en çok 20 yarım yükleme (diski doldurmaya karşı); en eskisi bırakılır
+    $up = $_SESSION['uploads'] ?? [];
+    while (count($up) >= 20) { $k = array_key_first($up); @unlink($dir . '/' . preg_replace('/[^a-f0-9]/', '', (string)$k) . '.part'); unset($up[$k]); }
+    $_SESSION['uploads'] = $up;
     // Yarım kalmış eski yüklemeleri temizle
     foreach (glob($dir . '/*.part') ?: [] as $old) {
         if (filemtime($old) < time() - 86400) @unlink($old);
@@ -1269,7 +1301,7 @@ function serve_file(): void
     if ($a) {
         $me = current_user();
         if ($a['roster_id'] !== null) {
-            $allowed = (bool)$me;
+            $allowed = $me && function_exists('user_perm') && user_perm($me, 'nobet') !== 'off'; // nöbet listesi dosyası: modül ve rol yetkisi
         } elseif ($a['post_id'] === null) {
             $allowed = $me && (int)$a['user_id'] === (int)$me['id'];
         } else {
@@ -1602,6 +1634,8 @@ function a_admin_user_resetpw(): void
     if (!one('SELECT id FROM users WHERE id = ?', [$id])) fail('Kullanıcı bulunamadı.', 404);
     $pw = random_token(6);
     q('UPDATE users SET password_hash = ?, must_change = 1 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $id]);
+    q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$id]);
+    if (function_exists('us_revoke_user')) us_revoke_user($id, 'password');
     $u = one('SELECT name, email FROM users WHERE id = ?', [$id]);
     audit(current_user(), 'user.resetpw', $u['name']);
     $mailed = b('send_email') ? send_credentials($u, $pw, false) : 0;

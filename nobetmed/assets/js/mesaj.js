@@ -168,7 +168,7 @@ function chatAtSuggest(ta) {
 ACT['ch-at'] = (el) => {
   const ta = $('#chInput');
   const pos = ta.selectionStart;
-  const before = ta.value.slice(0, pos).replace(/@([^\s@]{0,20})$/, '@' + el.dataset.n + ' ');
+  const before = ta.value.slice(0, pos).replace(/@([^\s@]{0,20})$/, () => '@' + el.dataset.n + ' ');
   ta.value = before + ta.value.slice(pos);
   ta.focus(); ta.selectionStart = ta.selectionEnd = before.length;
   $('#chAt').classList.add('hidden');
@@ -510,7 +510,7 @@ ACT['ch-info'] = () => {
       ${grp && c.admin ? html`<div class="field"><label>Davet bağlantısı</label><div id="chInv"></div>
         <p class="hint">Hastanenizdeki biri bu bağlantıyla gruba katılabilir. Yalnız güvendiğiniz kişilerle paylaşın; işiniz bitince kapatın.</p></div>` : ''}
       ${c.kind !== 'direct' ? html`<div class="row" style="justify-content:space-between"><div class="sec-title" style="margin:0">${CH.members.length} kişi</div>${grp && c.can_add ? html`<button class="btn sm" data-act="ch-add">${icon('plus', 'sm')}<span>Üye ekle</span></button>` : ''}</div>
-        <div class="card"><div class="list ch-members">${CH.members.map((p) => { const self = p.uid === S.me.id && !p.unit; return html`<div class="list-row">${avatar(p.name, 'sm')}<button type="button" class="grow ch-headbtn" style="min-width:0" ${self ? raw('disabled') : raw(`data-act="ch-profile" data-tk="${p.tk}" data-uid="${p.uid}"`)}><div class="lr-t ellipsis">${p.name}${self ? ' (siz)' : ''}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></button>
+        <div class="card"><div class="list ch-members">${CH.members.map((p) => { const self = p.uid === S.me.id && !p.unit; return html`<div class="list-row">${avatar(p.name, 'sm')}<button type="button" class="grow ch-headbtn" style="min-width:0" ${self ? raw('disabled') : html`data-act="ch-profile" data-tk="${p.tk}" data-uid="${+p.uid}"`}><div class="lr-t ellipsis">${p.name}${self ? ' (siz)' : ''}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></button>
           ${p.role === 'admin' ? html`<span class="badge brand">yönetici</span>` : ''}
           ${(c.bans || []).some((b) => b.kind === 'mute' && b.tk === p.tk && b.uid === p.uid) ? html`<span class="badge warn" title="Yazması kısıtlı">${icon('lock', 'sm')}</span>` : ''}
           ${c.admin && !self ? html`<button class="btn sm icon ghost" data-act="ch-mmenu" data-tk="${p.tk}" data-uid="${p.uid}" aria-label="Üye işlemleri">${icon('more', 'sm')}</button>` : ''}

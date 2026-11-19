@@ -910,7 +910,7 @@ function a_chat_mute(): void
 function a_cfile_get(): void
 {
     $me = current_user();
-    $f = $me && cdb() && nm_mod_on('mesaj') ? h_one('SELECT * FROM c_files WHERE id = ?', [(int)($_GET['id'] ?? 0)]) : null;
+    $f = $me && cdb() && nm_mod_on('mesaj') && user_perm($me, 'mesaj') !== 'off' ? h_one('SELECT * FROM c_files WHERE id = ?', [(int)($_GET['id'] ?? 0)]) : null;
     $ok = false;
     $once = false;
     if ($f) {
@@ -932,7 +932,7 @@ function a_cfile_get(): void
     if (!$ok || !is_file($path)) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'Dosya bulunamadı veya erişim yetkiniz yok.'; return; }
     session_write_close();
     $inline = empty($_GET['dl']) && in_array($f['mime'], INLINE_SAFE, true);
-    if ($once) $inline = true;
+    if ($once && in_array($f['mime'], INLINE_SAFE, true)) $inline = true; // tek seferlik yalnız güvenli türde satır içi açılır
     $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $f['name']) ?: 'dosya');
     $size = (int)filesize($path);
     header('Content-Type: ' . $f['mime']);

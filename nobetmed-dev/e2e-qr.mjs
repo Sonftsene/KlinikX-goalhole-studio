@@ -4,6 +4,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:8240/';
@@ -41,6 +42,8 @@ async function desktopQr(D, keep) {
   const url = await D.p.getAttribute('#qrlCode', 'data-url');
   return (/#\/qr\/([A-Za-z0-9_-]+)/.exec(url) || [])[1];
 }
+/** Bilgisayarda karekodun yanında görünen sayı (sunucudaki qr_code ile aynı hesap) */
+const qcode = (t) => 10 + parseInt(crypto.createHash('sha256').update('qrc|' + t).digest('hex').slice(0, 6), 16) % 90;
 const isIn = (D, name) => D.p.waitForFunction((n) => typeof S !== 'undefined' && S.me && S.me.name === n, name, { timeout: 15000 });
 
 const E = await ctx('elif-tel', true); await login(E.p, 'elif@test.com', 'YeniSifre99');
@@ -55,7 +58,10 @@ await E.p.locator('.qra-dev').waitFor();
 if (!/Chrome/.test(await E.p.locator('.qra-dev').innerText())) fail('telefonda bilgisayarın tarayıcısı görünmüyor');
 await D.p.getByText('Telefonda onay bekleniyor').first().waitFor({ timeout: 8000 }).catch(() => fail('bilgisayarda “onay bekleniyor” görünmedi'));
 await E.p.screenshot({ path: path.join(OUT, 'q-onay-mobile.png') });
-await E.p.click('[data-act=qr-ok]');
+const dcode = await D.p.getAttribute('#qrlCode', 'data-code');
+if (+dcode !== qcode(tok) || !(await D.p.locator('#qrlNum').innerText()).includes(dcode)) fail('bilgisayarda doğrulama sayısı görünmüyor');
+if ((await E.p.locator('[data-act=qr-ok]').count()) !== 3) fail('telefonda 3 sayı seçeneği yok');
+await E.p.click(`[data-act=qr-ok][data-c="${dcode}"]`);
 await E.p.getByText('Bilgisayarda oturum açıldı').first().waitFor();
 await isIn(D, 'Elif Yılmaz');
 const ck = (await D.c.cookies()).find((c) => c.name === 'nm_sid');
@@ -69,7 +75,7 @@ const tok2 = await desktopQr(D2, false);
 const X = await ctx('saldirgan');
 await X.p.goto(BASE);
 await X.p.waitForFunction(() => typeof api === 'function');
-await apiCall(E.p, 'qr.approve', { token: tok2, ok: true });
+await apiCall(E.p, 'qr.approve', { token: tok2, ok: true, code: qcode(tok2) });
 const xp = await apiCall(X.p, 'qr.poll', {});
 if (xp.state !== 'none') fail('karekodu oluşturmayan tarayıcı oturumu ele geçirdi: ' + JSON.stringify(xp));
 await isIn(D2, 'Elif Yılmaz');
@@ -82,8 +88,19 @@ if (await D3.p.evaluate(() => !!(S && S.me))) fail('reddedilen bilgisayar girdi'
 await D3.p.locator('[data-act=qr-renew]').click();
 await D3.p.locator('#qrlCode:not(.dim) svg').waitFor();
 const tok3b = (/#\/qr\/([A-Za-z0-9_-]+)/.exec(await D3.p.getAttribute('#qrlCode', 'data-url')) || [])[1];
+// Bağlantıyla gönderilen karekod: yanlış sayı seçilirse giriş reddedilir ve karekod yanar
+const D7 = await ctx('bilgisayar7');
+const tok7 = await desktopQr(D7, false);
+await E.p.goto(BASE + '#/qr/' + tok7);
+await E.p.locator('.qra-codes').waitFor();
+const wrong = await E.p.evaluate((c) => [...document.querySelectorAll('[data-act=qr-ok]')].map((b) => +b.dataset.c).find((x) => x !== c), qcode(tok7));
+await E.p.click(`[data-act=qr-ok][data-c="${wrong}"]`);
+await E.p.getByText('Giriş reddedildi').first().waitFor({ timeout: 8000 }).catch(() => fail('yanlış sayıda telefonda “reddedildi” görünmedi'));
+await D7.p.getByText('Telefondan reddedildi').first().waitFor({ timeout: 8000 }).catch(() => fail('yanlış sayıda bilgisayar reddedildi demedi'));
+if (!/süresi dolmuş/.test(await apiErr(E.p, 'qr.approve', { token: tok7, ok: true, code: qcode(tok7) }))) fail('yanlış sayıdan sonra karekod yeniden onaylandı');
+step('bilgisayardaki sayı doğrulaması: telefonda yanlış sayı seçilince giriş reddedildi ve karekod yandı (gönderilen bağlantıyla kandırmaya karşı)');
 mq("UPDATE qr_logins SET expires_at = '2020-01-01 00:00:00' WHERE status IN ('wait', 'seen')");
-if (!/süresi dolmuş/.test(await apiErr(E.p, 'qr.approve', { token: tok3b, ok: true }))) fail('süresi dolmuş karekod onaylandı');
+if (!/süresi dolmuş/.test(await apiErr(E.p, 'qr.approve', { token: tok3b, ok: true, code: qcode(tok3b) }))) fail('süresi dolmuş karekod onaylandı');
 step('güvenlik: karekod adresini bilen başka tarayıcı giremez (yalnız karekodu oluşturan oturum), telefondan reddet, süresi dolmuş karekod onaylanamaz, yeni karekod');
 
 // ---- 3) Bağlı cihazlar: telefondan uzaktan çıkış (bilgisayardaki izler de silinir), boşta kapanma ----
@@ -104,7 +121,7 @@ if (await D.p.evaluate(() => localStorage.getItem('nm-draft-99'))) fail('uzaktan
 // Boşta kapanma (8 saat)
 const D4 = await ctx('bilgisayar4');
 const tok4 = await desktopQr(D4, false);
-await apiCall(E.p, 'qr.approve', { token: tok4, ok: true });
+await apiCall(E.p, 'qr.approve', { token: tok4, ok: true, code: qcode(tok4) });
 await isIn(D4, 'Elif Yılmaz');
 php(`nm_tenant_use(nm_tenant_default()); q("UPDATE user_sessions SET last_seen = '2020-01-01 00:00:00' WHERE via = 'qr' AND revoked_at IS NULL");`);
 if (!/Oturum|giriş/.test(await apiErr(D4.p, 'counts'))) fail('8 saat boşta kalan QR oturumu kapanmadı');
@@ -114,7 +131,7 @@ step('bağlı cihazlar: telefondan bilgisayardaki oturumu kapat (bilgisayar heme
 // ---- 4) "Açık kalsın" seçeneği, diğer tüm cihazlardan çıkış ----
 const D5 = await ctx('bilgisayar5');
 const tok5 = await desktopQr(D5, true);
-await apiCall(E.p, 'qr.approve', { token: tok5, ok: true });
+await apiCall(E.p, 'qr.approve', { token: tok5, ok: true, code: qcode(tok5) });
 await isIn(D5, 'Elif Yılmaz');
 const ck5 = (await D5.c.cookies()).find((c) => c.name === 'nm_sid');
 if (!ck5 || ck5.expires < Date.now() / 1000 + 86400) fail('“açık kalsın” seçilince kalıcı çerez verilmedi');
@@ -132,7 +149,7 @@ if (multi) {
   const K = await ctx('kerem-tel', true); await login(K.p, 'kerem@test.com', 'KeremSifre123');
   const D6 = await ctx('bilgisayar6');
   const tok6 = await desktopQr(D6, false);
-  await apiCall(K.p, 'qr.approve', { token: tok6, ok: true });
+  await apiCall(K.p, 'qr.approve', { token: tok6, ok: true, code: qcode(tok6) });
   await isIn(D6, 'Kerem Acar');
   const unit = await D6.p.evaluate(() => S.settings.org_name);
   if (!/Acil/.test(unit)) fail('bilgisayar Kerem’in birimine girmedi: ' + unit);

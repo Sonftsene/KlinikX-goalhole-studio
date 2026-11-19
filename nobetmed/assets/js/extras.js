@@ -22,6 +22,9 @@ function shiftTone(s) {
   if (s.start && s.end && s.end <= s.start) return 'indigo';
   return 'amber';
 }
+/** İletişim gizliliği tercihi (KVKK): telefon varsayılan görünür, e-posta varsayılan gizli */
+function contactPref() { const c = (S.my_prefs && S.my_prefs.ui && S.my_prefs.ui.contact) || {}; return { phone: c.phone !== false, email: !!c.email }; }
+CHANGE['ct-vis'] = (el) => { const c = contactPref(); c[el.dataset.k] = el.checked; if (typeof prefsRemember === 'function') prefsRemember({ contact: c }); toast('Gizlilik tercihi kaydedildi'); };
 function telLink(p) { return p ? 'tel:' + String(p).replace(/[^0-9+]/g, '') : ''; }
 function waNumber(p) {
   let d = String(p || '').replace(/\D/g, '');
@@ -455,7 +458,7 @@ function drawDirectory() {
         <div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ')}${p.extension ? html` · Dahili <b>${p.extension}</b>` : ''}${p.phone ? html` · <span class="sel">${p.phone}</span>` : ''}</div></div>
       <div class="row" style="gap:4px">
         ${p.phone ? html`<a class="btn sm icon" href="${telLink(p.phone)}" aria-label="Ara" title="Ara">${icon('phone', 'sm')}</a><a class="btn sm icon" href="https://wa.me/${waNumber(p.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp" title="WhatsApp">${icon('chat', 'sm')}</a>` : ''}
-        <a class="btn sm icon" href="mailto:${p.email}" aria-label="E-posta" title="E-posta">${icon('mail', 'sm')}</a>
+        ${p.email ? html`<a class="btn sm icon" href="mailto:${p.email}" aria-label="E-posta" title="E-posta">${icon('mail', 'sm')}</a>` : ''}
       </div></div>`)}</div></div>` : html`<div class="card empty"><p class="small">Eşleşen kişi yok.</p></div>`);
 }
 CHANGE['dir-q'] = debounce((el) => { DIR.q = el.value; drawDirectory(); }, 150);
@@ -523,7 +526,9 @@ function profileTabHtml(tab) {
         <div class="field"><label>Cep telefonu</label><input class="input" name="phone" type="tel" value="${me.phone || ''}" placeholder="05xx xxx xx xx" autocomplete="tel"></div>
         <div class="field"><label>Dahili</label><input class="input" name="extension" value="${me.extension || ''}" placeholder="1234" maxlength="12"></div>
       </div>
-      <p class="tiny faint">Telefon ve dahili, ekip rehberinde yalnızca giriş yapmış ekip üyelerine görünür.</p>
+      <p class="tiny faint">Telefon ve dahili, ekip rehberinde yalnızca giriş yapmış ekip üyelerine görünür. Yöneticiler ve sorumlular iletişim bilgilerinizi her zaman görür.</p>
+      <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" data-change="ct-vis" data-k="phone" ${contactPref().phone ? raw('checked') : ''}><span class="track"></span></span><span class="grow small">Cep telefonum ekip rehberinde ve kişi kartında görünsün</span></label>
+      <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" data-change="ct-vis" data-k="email" ${contactPref().email ? raw('checked') : ''}><span class="track"></span></span><span class="grow small">E-posta adresim ekip arkadaşlarıma görünsün</span></label>
       <div class="form-error hidden" data-err></div>
       <div><button class="btn primary" type="submit">Kaydet</button></div>
     </form>

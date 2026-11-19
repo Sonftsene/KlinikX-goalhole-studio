@@ -108,7 +108,26 @@ function ml_last_update(): ?array
     return $r ? ['at' => $r['updated_at'], 'unit' => '', 'by' => (string)($r['name'] ?? '')] : null;
 }
 
-function ml_can_edit(array $me): bool { return user_perm($me, 'yemek') === 'manage'; }
+/** Hastane ortak listesini yöneten birim (ilk yükleyen; devredilene kadar yalnız o birim değiştirir): ['tkey', 'unit'] ya da null */
+function ml_owner(): ?array
+{
+    if (!ml_hosp()) return null;
+    $v = h_val("SELECT v FROM h_settings WHERE k = 'meal_owner'");
+    $d = $v ? json_decode((string)$v, true) : null;
+    return is_array($d) && !empty($d['tkey']) ? $d : null;
+}
+function ml_manage(array $me): bool { return user_perm($me, 'yemek') === 'manage'; }
+/** Listeyi değiştirebilir mi: yemek yetkisi “Yönetir” + (çok birimlide) listeyi yöneten birimden ya da henüz sahibi yok */
+function ml_can_edit(array $me): bool
+{
+    if (!ml_manage($me)) return false;
+    $o = ml_owner();
+    return !$o || $o['tkey'] === h_tkey();
+}
+function ml_claim(): void
+{
+    if (ml_hosp() && !ml_owner()) h_q('INSERT OR REPLACE INTO h_settings (k, v) VALUES (?, ?)', ['meal_owner', json_encode(['tkey' => h_tkey(), 'unit' => h_unit_name()], JSON_UNESCAPED_UNICODE)]);
+}
 
 /** meal.get: {from, to} ya da {ym} */
 function a_meal_get(): void
@@ -123,7 +142,8 @@ function a_meal_get(): void
         if ((strtotime($to) - strtotime($from)) / 86400 > 62) $to = date('Y-m-d', strtotime($from . ' +62 days'));
     }
     out(['days' => (object)ml_days($from, $to), 'from' => $from, 'to' => $to, 'times' => ml_times(), 'meals' => ML_MEALS, 'mode' => ml_mode(),
-        'months' => ml_months(), 'last' => ml_last_update(), 'can_edit' => ml_can_edit($me), 'shared' => ml_hosp(),
+        'months' => ml_months(), 'last' => ml_last_update(), 'can_edit' => ml_can_edit($me), 'manage' => ml_manage($me), 'shared' => ml_hosp(),
+        'owner' => ($o = ml_owner()) ? ['unit' => (string)($o['unit'] ?? ''), 'me' => $o['tkey'] === h_tkey()] : null,
         'hospital' => ml_hosp() ? (string)(nm_tenant()['hospital_name'] ?? '') : '']);
 }
 
@@ -165,7 +185,8 @@ function ml_put(array $me, string $date, array $meals): int
 function ml_need_edit(): array
 {
     $me = need_user();
-    if (!ml_can_edit($me)) fail('Yemek listesini düzenleme yetkiniz yok.', 403);
+    if (!ml_manage($me)) fail('Yemek listesini düzenleme yetkiniz yok.', 403);
+    if (!ml_can_edit($me)) fail('Hastanenin yemek listesini “' . (ml_owner()['unit'] ?? '') . '” birimi yönetiyor; o birim listeyi devredene kadar yalnız görüntüleyebilirsiniz.', 403);
     ml_ensure();
     return $me;
 }
@@ -194,6 +215,7 @@ function a_meal_save(): void
     $ym = s('replace_ym', 7);
     if ($ym !== '' && !preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym)) fail('Geçersiz ay.');
     [$n, $del] = ml_tx(function () use ($me, $clean, $ym) {
+        ml_claim();
         $del = 0;
         if ($ym !== '') {
             $keep = array_keys($clean);
@@ -230,24 +252,39 @@ function a_meal_delete(): void
 /** meal.cfg: öğün saatleri (hastane ortak) ve birim varsayılanı (herkes / yalnız nöbetçiler) */
 function a_meal_cfg(): void
 {
-    $me = ml_need_edit();
-    $in = arr('times');
-    $t = [];
-    foreach (ML_TIMES as $k => $def) {
-        $v = (string)($in[$k] ?? $def);
-        if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v)) fail(ML_MEALS[$k] . ' saati SS:DD biçiminde olmalı.');
-        $t[$k] = $v;
-    }
-    if (!($t['kahvalti'] < $t['ogle'] && $t['ogle'] < $t['aksam'])) fail('Saatler sırayla olmalı: kahvaltı < öğle < akşam.');
-    $cfg = ml_cfg_raw(); $cfg['times'] = $t;
-    $json = json_encode($cfg, JSON_UNESCAPED_UNICODE);
-    if (ml_hosp()) h_q('INSERT OR REPLACE INTO h_settings (k, v) VALUES (?, ?)', ['meal_cfg', $json]);
-    else set_setting('meal_cfg', $json);
+    $me = need_user();
+    if (!ml_manage($me)) fail('Yemek ayarlarını değiştirme yetkiniz yok.', 403);
+    ml_ensure();
+    $did = [];
+    // Birim varsayılanı (her birimin kendi ayarı)
     $mode = s('mode', 10);
-    if (in_array($mode, ML_MODES, true)) set_setting('meal_mode', $mode);
+    if (in_array($mode, ML_MODES, true)) { set_setting('meal_mode', $mode); $did[] = $mode === 'shift' ? 'Yalnız nöbetçiler' : 'Herkes'; }
+    // Listeyi devret (yalnız yöneten birim)
+    if (b('release')) {
+        if (!ml_hosp() || !ml_owner() || !ml_can_edit($me)) fail('Listeyi yalnız yöneten birim devredebilir.', 403);
+        h_q("DELETE FROM h_settings WHERE k = 'meal_owner'");
+        $did[] = 'Liste yönetimi bırakıldı';
+    }
+    // Öğün saatleri (hastane ortak: yalnız listeyi yöneten birim)
+    $in = arr('times');
+    if ($in) {
+        if (!ml_can_edit($me)) fail('Öğün saatlerini listeyi yöneten “' . (ml_owner()['unit'] ?? '') . '” birimi değiştirir.', 403);
+        $t = [];
+        foreach (ML_TIMES as $k => $def) {
+            $v = (string)($in[$k] ?? $def);
+            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v)) fail(ML_MEALS[$k] . ' saati SS:DD biçiminde olmalı.');
+            $t[$k] = $v;
+        }
+        if (!($t['kahvalti'] < $t['ogle'] && $t['ogle'] < $t['aksam'])) fail('Saatler sırayla olmalı: kahvaltı < öğle < akşam.');
+        $cfg = ml_cfg_raw(); $cfg['times'] = $t;
+        $json = json_encode($cfg, JSON_UNESCAPED_UNICODE);
+        if (ml_hosp()) { ml_claim(); h_q('INSERT OR REPLACE INTO h_settings (k, v) VALUES (?, ?)', ['meal_cfg', $json]); }
+        else set_setting('meal_cfg', $json);
+        $did[] = implode(' · ', $t);
+    }
     setting('', '', true);
-    audit($me, 'meal.cfg', implode(' · ', $t), $mode === 'shift' ? 'Yalnız nöbetçiler' : 'Herkes');
-    out(['times' => ml_times(), 'mode' => ml_mode()]);
+    if ($did) audit($me, 'meal.cfg', implode(' · ', $did));
+    out(['times' => ml_times(), 'mode' => ml_mode(), 'owner' => ($o = ml_owner()) ? ['unit' => (string)($o['unit'] ?? ''), 'me' => $o['tkey'] === h_tkey()] : null]);
 }
 
 /* ---------------- Açılış verisi ---------------- */

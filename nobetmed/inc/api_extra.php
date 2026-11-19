@@ -89,14 +89,15 @@ function a_push_pending_get(): void
 
 function a_people_list(): void
 {
-    need_user();
+    $me = need_user();
     $today = date('Y-m-d');
     $todayShifts = all("SELECT s.name, s.code, s.label, s.kind, s.start_time, s.end_time, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ?", [$today]);
-    $rows = all("SELECT id, name, email, phone, extension, title_id, unit_id, role, last_seen_at, avatar FROM users WHERE status = 'active' ORDER BY name");
-    out(['people' => array_map(function ($u) use ($todayShifts) {
+    $rows = all("SELECT id, name, email, phone, extension, title_id, unit_id, role, last_seen_at, avatar, ui_prefs FROM users WHERE status = 'active' ORDER BY name");
+    out(['people' => array_map(function ($u) use ($todayShifts, $me) {
+        $cv = contact_vis($u, $me);
         $on = null;
         foreach ($todayShifts as $s) if (names_match((string)$s['name'], (string)$u['name'])) { $on = ['code' => $s['code'], 'label' => $s['label'], 'kind' => $s['kind'], 'start' => $s['start_time'], 'end' => $s['end_time']]; break; }
-        return ['id' => (int)$u['id'], 'name' => $u['name'], 'email' => $u['email'], 'phone' => $u['phone'], 'extension' => $u['extension'],
+        return ['id' => (int)$u['id'], 'name' => $u['name'], 'email' => $cv['email'] ? $u['email'] : null, 'phone' => $cv['phone'] ? $u['phone'] : null, 'extension' => $u['extension'],
             'title_id' => $u['title_id'] !== null ? (int)$u['title_id'] : null, 'unit_id' => $u['unit_id'] !== null ? (int)$u['unit_id'] : null,
             'role' => $u['role'], 'last_seen_at' => $u['last_seen_at'], 'avatar' => avatar_url($u), 'today' => $on];
     }, $rows)]);
@@ -105,14 +106,15 @@ function a_people_list(): void
 /** Bugün (veya verilen gün) nöbette olanlar, vardiyaya göre gruplu */
 function a_shifts_day(): void
 {
-    need_user();
+    $me = need_user();
     $date = s('date', 10) ?: date('Y-m-d');
     if (!valid_ymd($date)) fail('Geçersiz tarih.');
     $rows = all("SELECT s.*, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? ORDER BY s.start_time, s.name", [$date]);
     // Dünden devam eden gece / 24 saat nöbetleri (bitiş saati başlangıçtan önce)
     $prev = date('Y-m-d', strtotime($date . ' -1 day'));
     $carry = all("SELECT s.*, r.name AS roster_name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? AND s.kind = 'shift' AND s.start_time IS NOT NULL AND s.end_time IS NOT NULL AND s.end_time <= s.start_time ORDER BY s.name", [$prev]);
-    $users = all("SELECT id, name, phone, extension FROM users WHERE status = 'active'");
+    $users = all("SELECT id, name, phone, extension, role, ui_prefs FROM users WHERE status = 'active'");
+    foreach ($users as &$uu) { if (!contact_vis($uu, $me)['phone']) $uu['phone'] = null; } unset($uu);
     $find = function ($name) use ($users) { foreach ($users as $u) if (names_match((string)$name, (string)$u['name'])) return $u; return null; };
     $person = function ($r) use ($find) { $u = $find($r['name']); return ['name' => $r['name'], 'title' => $r['title'], 'user_id' => $u ? (int)$u['id'] : null, 'phone' => $u['phone'] ?? null, 'extension' => $u['extension'] ?? null, 'roster' => $r['roster_name']]; };
     $groups = [];
@@ -451,6 +453,8 @@ function a_attachments_text(): void
     $id = (int)i('id');
     $a = one('SELECT * FROM attachments WHERE id = ?', [$id]) ?? fail('Dosya bulunamadı.', 404);
     if ((int)$a['user_id'] !== (int)$me['id'] && !is_publisher($me)) fail('Yetkiniz yok.', 403);
+    // Başkasının dosyasında yalnız henüz çıkarılmamış metin doldurulur (var olan arama metni üzerine yazılamaz)
+    if ((int)$a['user_id'] !== (int)$me['id'] && (int)($a['text_done'] ?? 0) === 1) out(['length' => mb_strlen((string)($a['text_content'] ?? ''))]);
     global $IN;
     $text = is_string($IN['text'] ?? null) ? $IN['text'] : '';
     $text = mb_substr(preg_replace('/[ \t]+/u', ' ', str_replace("\0", '', $text)), 0, 400000);

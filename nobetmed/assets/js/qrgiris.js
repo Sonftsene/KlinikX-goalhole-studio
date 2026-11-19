@@ -17,7 +17,7 @@ async function qrLoginScreen() {
       <ol class="qrl-steps">
         <li>Telefonunuzda <b>dupcii</b>’yi açın (giriş yapmış olun).</li>
         <li><b>Hesabım › Güvenlik › Bilgisayarda oturum aç</b>’a dokunun ya da telefonun kamerasıyla bu kodu okutun.</li>
-        <li>Telefonda bilgisayar bilgisini kontrol edip <b>Onayla</b>’ya dokunun.</li>
+        <li>Telefonda bu bilgisayarda görünen <b>sayıya</b> dokunun.</li>
       </ol>
     </div>
     <div class="qrl-st" id="qrlSt" role="status">Karekod hazırlanıyor…</div>
@@ -37,6 +37,9 @@ async function qrLoginNew() {
   box.classList.remove('dim');
   setHTML(box, raw(qrSvg(r.url, 232)));
   box.dataset.url = r.url;
+  box.dataset.code = r.code;
+  const cd = $('#qrlNum'); if (cd) cd.remove();
+  box.insertAdjacentHTML('afterend', fmtVal(html`<div class="qrl-num" id="qrlNum"><span class="tiny faint">Telefonda bu sayıyı seçin</span><b>${r.code}</b></div>`));
   let left = r.ttl;
   const st = $('#qrlSt');
   setHTML(st, html`${icon('phone', 'sm')} Telefonla okutun · <span id="qrlLeft">${left}</span> sn`);
@@ -75,14 +78,19 @@ NM_EXT.routes.qr = async (view, r) => {
     <div class="qra-dev">${icon('grid', 'lg')}<div><b>${d.label}</b><div class="small muted">IP ${d.ip}${d.same_net ? ' · telefonunuzla aynı ağ' : ''}</div><div class="tiny faint">${fmtDateTime(d.at)}</div></div></div>
     <p><b>${S.me.name}</b> hesabıyla bu bilgisayarda oturum açılacak.</p>
     <div class="mk-box warn">${icon('alert', 'sm')}<span>Karekodu <b>siz</b> okutmadıysanız ya da bilgisayar şu an önünüzde değilse <b>onaylamayın</b>. Başkası size karekod okutarak hesabınıza girmeye çalışıyor olabilir.</span></div>
-    <div class="row wrap" style="gap:8px"><button class="btn primary" data-act="qr-ok" data-t="${token}">${icon('check', 'sm')}Onayla</button><button class="btn ghost danger" data-act="qr-no" data-t="${token}">Reddet</button></div>
+    <div><b>Bilgisayarda karekodun yanında görünen sayıya dokunun:</b></div>
+    <div class="qra-codes">${(d.codes || []).map((c) => html`<button class="btn qra-code" data-act="qr-ok" data-t="${token}" data-c="${c}">${c}</button>`)}</div>
+    <div class="row wrap" style="gap:8px"><button class="btn ghost danger" data-act="qr-no" data-t="${token}">Reddet — karekodu ben okutmadım</button></div>
     <p class="tiny faint">Bilgisayardaki oturumu istediğiniz an Hesabım › Güvenlik › Bağlı cihazlar’dan kapatabilirsiniz.</p></div>`);
 };
 ACT['qr-ok'] = (el) => busy(el, async () => {
   try {
-    const r = await api('qr.approve', { token: el.dataset.t, ok: true });
+    const r = await api('qr.approve', { token: el.dataset.t, ok: true, code: +el.dataset.c });
     setHTML($('#qrBody'), html`<div class="card empty"><div class="e-ico" style="background:var(--success-soft);color:var(--success)">${icon('checkCircle', 'lg')}</div><h3>Bilgisayarda oturum açıldı</h3><p class="small">${r.label}</p><a class="btn" href="#/profil/guvenlik">Bağlı cihazlar</a></div>`);
-  } catch (e) { toast(e.message, 'err'); }
+  } catch (e) {
+    if (e.status === 409) setHTML($('#qrBody'), html`<div class="card empty"><div class="e-ico" style="background:var(--danger-soft);color:var(--danger)">${icon('alert', 'lg')}</div><h3>Giriş reddedildi</h3><p class="small">${e.message}</p><a class="btn" href="#/profil/guvenlik">Bağlı cihazlar</a></div>`);
+    else toast(e.message, 'err');
+  }
 });
 ACT['qr-no'] = async (el) => {
   try { await api('qr.approve', { token: el.dataset.t, ok: false }); } catch (e) { /* süresi dolmuş olabilir */ }

@@ -132,6 +132,18 @@ function names_match(string $a, string $b): bool
     return true;
 }
 
+/**
+ * İletişim bilgisi gizliliği (KVKK): kişi cep telefonunu ekipten gizleyebilir (varsayılan görünür);
+ * e-posta yalnız kişi izin verdiyse görünür (varsayılan gizli). Yöneticiler, sorumlular (editor) ve kişinin kendisi hep görür.
+ * $u: users satırı (ui_prefs sütunu dahil), $viewer: isteği yapan
+ */
+function contact_vis(array $u, ?array $viewer): array
+{
+    if ($viewer && (in_array($viewer['role'] ?? '', ['admin', 'editor'], true) || (int)$viewer['id'] === (int)($u['id'] ?? 0))) return ['phone' => true, 'email' => true];
+    $c = (json_decode((string)($u['ui_prefs'] ?? ''), true) ?: [])['contact'] ?? [];
+    return ['phone' => !array_key_exists('phone', $c) || (bool)$c['phone'], 'email' => !empty($c['email'])];
+}
+
 /** Hesabın nöbet kayıtları (tarih aralığında) */
 function shifts_for_user(array $u, string $from, string $to): array
 {

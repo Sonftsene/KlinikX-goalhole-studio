@@ -12,9 +12,9 @@ function a_person_card(): void
     $uid = i('uid');
     $name = trim(s('name', 120));
     $u = null;
-    if ($uid) $u = one("SELECT id, name, email, phone, extension, title_id, unit_id, last_seen_at, avatar FROM users WHERE id = ? AND status = 'active'", [$uid]);
+    if ($uid) $u = one("SELECT id, name, email, phone, extension, title_id, unit_id, last_seen_at, avatar, ui_prefs FROM users WHERE id = ? AND status = 'active'", [$uid]);
     if (!$u && $name !== '') {
-        foreach (all("SELECT id, name, email, phone, extension, title_id, unit_id, last_seen_at, avatar FROM users WHERE status = 'active'") as $r) {
+        foreach (all("SELECT id, name, email, phone, extension, title_id, unit_id, last_seen_at, avatar, ui_prefs FROM users WHERE status = 'active'") as $r) {
             if (names_match($name, (string)$r['name'])) { $u = $r; break; }
         }
     }
@@ -22,7 +22,8 @@ function a_person_card(): void
     $shown = $u ? (string)$u['name'] : $name;
     $o = ['uid' => $u ? (int)$u['id'] : null, 'name' => $shown, 'self' => $u && (int)$u['id'] === (int)$me['id'], 'account' => (bool)$u];
     if ($u) {
-        $o += ['phone' => $u['phone'] ?: null, 'extension' => $u['extension'] ?: null, 'email' => $u['email'] ?: null,
+        $cv = contact_vis($u, $me);
+        $o += ['phone' => $cv['phone'] ? ($u['phone'] ?: null) : null, 'extension' => $u['extension'] ?: null, 'email' => $cv['email'] ? ($u['email'] ?: null) : null,
             'title' => $u['title_id'] ? (string)(val('SELECT name FROM titles WHERE id = ?', [(int)$u['title_id']]) ?? '') : '',
             'unit' => $u['unit_id'] ? (string)(val('SELECT name FROM units WHERE id = ?', [(int)$u['unit_id']]) ?? '') : '',
             'avatar' => avatar_url($u), 'last_seen_at' => $u['last_seen_at']];

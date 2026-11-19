@@ -121,7 +121,7 @@ async function logout() {
   S.me = null;
   offlineCacheClear();
   if (typeof resetAppState === 'function') resetAppState();
-  if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
+  if (typeof pwaClearFileCache === 'function') await pwaClearFileCache();
   // Ortak cihaz: taslaklar ve görünüm tercihleri bir sonraki kişiye geçmesin
   try { Object.keys(localStorage).filter((k) => k.startsWith('nm-draft-')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* */ }
   if (typeof applyUi === 'function') applyUi({ theme: 'auto', accent: 'varsayilan', fs: '', shape: 'round', density: 'cozy', oled: false });

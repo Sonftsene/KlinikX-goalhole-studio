@@ -149,13 +149,15 @@ function a_sa_totp(): void
     $p = $_SESSION['sa_pending'] ?? null;
     if (!is_array($p) || (int)$p['t'] < time() - 300) fail('Süre doldu. Yeniden giriş yapın.', 401);
     $ip = client_ip();
-    $fails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE ip = ? AND email = ? AND at > ?', [$ip, 'totp:' . $p['id'], time() - 900]);
-    if ($fails >= 6) { unset($_SESSION['sa_pending']); fail('Çok fazla hatalı kod. 15 dakika sonra tekrar deneyin.', 429); }
+    // Hatalı kodlar hesap başına (tüm IP'lerden) sayılır; bir şifre girişiyle en çok 3 kod denenir
+    $fails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE email = ? AND at > ?', ['totp:' . $p['id'], time() - 900]);
+    if ($fails >= 8 || (int)($p['n'] ?? 0) >= 3) { unset($_SESSION['sa_pending']); fail('Çok fazla hatalı kod. Yeniden giriş yapın; çok sayıda denemede 15 dakika beklemeniz gerekir.', 429); }
     $u = m_one('SELECT * FROM superadmins WHERE id = ? AND totp_on = 1', [(int)$p['id']]);
     $last = (int)m_setting('totp_last_' . (int)$p['id'], '0');
     $st = $u ? sa_totp_check((string)$u['totp_secret'], s('code', 10), $last) : null;
     if ($st === null) {
         m_q('INSERT INTO sa_attempts (ip, email, at) VALUES (?, ?, ?)', [$ip, 'totp:' . $p['id'], time()]);
+        $_SESSION['sa_pending']['n'] = (int)($p['n'] ?? 0) + 1;
         fail('Kod hatalı veya kullanılmış. Uygulamadaki yeni kodu girin.', 401);
     }
     m_q("INSERT OR REPLACE INTO m_settings (k, v) VALUES (?, ?)", ['totp_last_' . $u['id'], (string)$st]);

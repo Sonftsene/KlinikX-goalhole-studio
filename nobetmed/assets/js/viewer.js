@@ -533,7 +533,7 @@ function fontCss(font, theme, z) {
   if (font.underline || font.strike) css += `text-decoration:${font.underline ? 'underline ' : ''}${font.strike ? 'line-through' : ''};`;
   const col = resolveColor(font.color, theme);
   if (col) css += `color:${col};`;
-  if (font.name && !/^(Calibri|Arial)$/i.test(font.name)) css += `font-family:'${String(font.name).replace(/['";<>]/g, '')}',Calibri,Carlito,Arial,sans-serif;`;
+  if (font.name && !/^(Calibri|Arial)$/i.test(font.name)) css += `font-family:'${String(font.name).replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 60)}',Calibri,Carlito,Arial,sans-serif;`;
   return css;
 }
 
@@ -951,6 +951,9 @@ function sanitizeHTML(htmlStr) {
       if (/^on/i.test(a.name)) n.removeAttribute(a.name);
       if (/^(href|xlink:href|formaction|action)$/i.test(a.name) && !/^(https?:|mailto:|tel:|#)/i.test(a.value.trim())) n.removeAttribute(a.name);
       if (a.name === 'src' && !/^(data:image\/|blob:|https?:)/i.test(a.value.trim())) n.removeAttribute(a.name);
+      // Belgedeki yer imleri sayfanın genel adlarını (window.X) ezmesin: yalnız önekli kimlikler kalır
+      if ((a.name === 'id' || a.name === 'name') && !/^docx-[\w-]*$/.test(a.value)) n.removeAttribute(a.name);
+      if (a.name === 'srcdoc' || a.name === 'style') n.removeAttribute(a.name);
     });
     if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); }
   });
@@ -959,7 +962,7 @@ function sanitizeHTML(htmlStr) {
 async function mountDocx(el, att) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Belge açılıyor…</span></div>`);
   const [buf] = await Promise.all([fetchBuffer(att.url), loadVendor('mammoth')]);
-  const res = await window.mammoth.convertToHtml({ arrayBuffer: buf.slice(0) });
+  const res = await window.mammoth.convertToHtml({ arrayBuffer: buf.slice(0) }, { idPrefix: 'docx-' });
   el.innerHTML = `<div class="dv-wrap"><article class="dv-page">${sanitizeHTML(res.value) || '<p><em>Belge boş görünüyor.</em></p>'}</article></div>`;
 }
 async function mountText(el, att) {

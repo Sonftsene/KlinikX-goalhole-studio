@@ -14,6 +14,8 @@ async function start() {
     if (typeof pwaClearFileCache === 'function') pwaClearFileCache();
     if (typeof resetAppState === 'function') resetAppState();
   }
+  // Ortak bilgisayar oturumu: bu cihazda kalıcı (localStorage) kişisel önbellek bırakılmaz
+  if (r.me && r.me.ephemeral && !OFFLINE.on) { try { Object.keys(localStorage).filter((k) => k.startsWith('nm-off:')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* */ } }
   S.mail_ready = !!r.mail_ready;
   S.csrf = r.csrf || S.csrf;
   ['me', 'settings', 'categories', 'units', 'titles', 'rosters', 'google_client_id', 'upload_max_mb'].forEach((k) => { if (k in r) S[k] = r[k]; });

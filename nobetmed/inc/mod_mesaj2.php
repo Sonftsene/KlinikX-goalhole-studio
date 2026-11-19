@@ -99,6 +99,8 @@ function a_chat_block(): void
     if ($tk === c_tk() && $uid === (int)$me['id']) fail('Kendinizi engelleyemezsiniz.');
     if (b('on')) {
         $p = c_pref($tk, $uid);
+        // Başka birimden yalnız ortak sohbeti olan ya da bulunabilir kişi engellenir (başka birimlerin kadrosu ad ad taranamasın)
+        if (!c_is_contact(c_tk(), (int)$me['id'], $tk, $uid) && !(int)$p['findable']) fail('Kişi bulunamadı.', 404);
         $name = $p['name'] ?: (string)(h_val('SELECT name FROM c_members WHERE tkey = ? AND user_id = ? LIMIT 1', [$tk, $uid]) ?: ($tk === c_tk() ? (string)val('SELECT name FROM users WHERE id = ?', [$uid]) : ''));
         if ($name === '') fail('Kişi bulunamadı.', 404);
         h_q('INSERT OR IGNORE INTO c_blocks (tkey, user_id, btkey, buid, bname, at) VALUES (?, ?, ?, ?, ?, ?)', [c_tk(), (int)$me['id'], $tk, $uid, $name, now()]);
@@ -116,8 +118,8 @@ function a_chat_profile(): void
     $o = c_profile_out($me, $tk, $uid);
     if ($o['name'] === '' && $tk === c_tk()) $o['name'] = (string)val('SELECT name FROM users WHERE id = ?', [$uid]);
     // Aynı birimden: telefon (ekip rehberinde zaten görünür) ve unvan
-    if ($tk === c_tk() && ($u = one("SELECT phone, title_id FROM users WHERE id = ? AND status = 'active'", [$uid]))) {
-        if (!empty($u['phone'])) $o['phone'] = $u['phone'];
+    if ($tk === c_tk() && ($u = one("SELECT id, phone, title_id, ui_prefs FROM users WHERE id = ? AND status = 'active'", [$uid]))) {
+        if (!empty($u['phone']) && contact_vis($u, $me)['phone']) $o['phone'] = $u['phone'];
         if ($u['title_id']) $o['title'] = (string)(val('SELECT name FROM titles WHERE id = ?', [(int)$u['title_id']]) ?? '');
     }
     $o['self'] = $tk === c_tk() && $uid === (int)$me['id'];

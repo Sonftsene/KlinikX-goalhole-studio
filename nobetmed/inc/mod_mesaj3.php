@@ -118,7 +118,7 @@ function a_chat_contacts(): void
 {
     $me = c_need();
     $o = [];
-    foreach (all("SELECT id, name, phone FROM users WHERE status = 'active' ORDER BY name") as $u) $o[] = ['name' => $u['name'], 'phone' => (string)($u['phone'] ?? ''), 'title' => '', 'tk' => c_tk(), 'uid' => (int)$u['id']];
+    foreach (all("SELECT id, name, phone, ui_prefs FROM users WHERE status = 'active' ORDER BY name") as $u) $o[] = ['name' => $u['name'], 'phone' => contact_vis($u, $me)['phone'] ? (string)($u['phone'] ?? '') : '', 'title' => '', 'tk' => c_tk(), 'uid' => (int)$u['id']];
     try { foreach (all('SELECT name, number, category FROM phonebook ORDER BY name LIMIT 400') as $p) $o[] = ['name' => $p['name'], 'phone' => $p['number'], 'title' => (string)$p['category']]; } catch (Throwable $e) { /* rehber yok */ }
     try { foreach (h_all('SELECT name, number, category FROM h_phonebook ORDER BY name LIMIT 400') as $p) $o[] = ['name' => $p['name'], 'phone' => $p['number'], 'title' => (string)$p['category']]; } catch (Throwable $e) { /* */ }
     out(['items' => $o]);

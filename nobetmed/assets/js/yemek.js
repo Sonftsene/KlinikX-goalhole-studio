@@ -74,7 +74,7 @@ async function mlFetchMonth(ym, force) {
   mlInfo(r);
 }
 function mlInfo(r) {
-  ML.info = { months: r.months || [], last: r.last, can: !!r.can_edit, shared: !!r.shared, hospital: r.hospital || '' };
+  ML.info = { months: r.months || [], last: r.last, can: !!r.can_edit, manage: !!r.manage, owner: r.owner || null, shared: !!r.shared, hospital: r.hospital || '' };
   S.meal = Object.assign({}, S.meal || {}, { times: r.times, mode: r.mode });
 }
 function mlItems(date, meal) { return ((ML.days[date] || {})[meal]) || []; }
@@ -167,17 +167,18 @@ function mlDraw() {
   const monthHas = Object.keys(ML.days).some((d) => d.startsWith(ym));
   const y = +ym.slice(0, 4), mo = +ym.slice(5, 7);
   const n = mlNow();
+  const lock = ML.info.manage && !ML.info.can && ML.info.owner ? html`<div class="mk-box">${icon('lock', 'sm')}<span>Hastanenin yemek listesini <b>${ML.info.owner.unit}</b> birimi yönetiyor; liste ve öğün saatleri o birimden değiştirilir.</span></div>` : '';
   const off = mlEff() === 'off' ? html`<div class="mk-box">${icon('eyeOff', 'sm')}<span>Yemek menüsünü kendin için gizledin; menüde ve ana sayfada görünmüyor. <button type="button" class="btn sm ghost" data-act="ml-settings">Değiştir</button></span></div>` : '';
   const seg = html`<div class="row wrap" style="gap:8px;justify-content:space-between;align-items:center">
     <div class="seg"><button type="button" class="${ML.view === 'gun' ? 'on' : ''}" data-act="ml-view" data-v="gun">Gün</button><button type="button" class="${ML.view === 'ay' ? 'on' : ''}" data-act="ml-view" data-v="ay">Ay</button></div>
     <div class="row" style="gap:6px;align-items:center"><button type="button" class="btn ghost icon sm" data-act="ml-month" data-d="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b class="small">${TR_MONTHS[mo - 1]} ${y}</b><button type="button" class="btn ghost icon sm" data-act="ml-month" data-d="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div></div>`;
   if (!monthHas) {
-    setHTML(box, html`${off}${seg}<div class="card empty" style="margin-top:12px"><div class="e-ico">${icon('utensils', 'lg')}</div><h3>${TR_MONTHS[mo - 1]} ayının yemek listesi yok</h3>
+    setHTML(box, html`${lock}${off}${seg}<div class="card empty" style="margin-top:12px"><div class="e-ico">${icon('utensils', 'lg')}</div><h3>${TR_MONTHS[mo - 1]} ayının yemek listesi yok</h3>
       <p class="small">${ML.info.can ? 'Aylık listeyi PDF ya da Excel olarak yükleyin; okunan menüyü kaydetmeden önce görüp düzeltebilirsiniz.' : 'Liste yüklenince burada gün gün görünür.'}</p>
       ${ML.info.can ? html`<div class="row" style="gap:8px;justify-content:center"><button type="button" class="btn primary" data-act="ml-import">${icon('upload', 'sm')}<span>Liste yükle</span></button><button type="button" class="btn" data-act="ml-manual">Elle gir</button></div>` : ''}</div>`);
     return;
   }
-  if (ML.view === 'ay') { setHTML(box, html`${off}${seg}${mlMonthHtml(ym)}`); return; }
+  if (ML.view === 'ay') { setHTML(box, html`${lock}${off}${seg}${mlMonthHtml(ym)}`); return; }
   // Gün şeridi
   const last = new Date(y, mo, 0).getDate();
   const shiftDays = new Set((MY.entries || []).filter((e) => e.kind === 'shift').map((e) => e.date));
@@ -198,7 +199,7 @@ function mlDraw() {
       ${items.length ? html`<ul class="ml-items">${items.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="small muted" style="margin:8px 0 0">Listede yok.</p>`}</div>`;
   };
   const dutyLine = mine.length ? html`<div class="mk-box">${icon('calendar', 'sm')}<span>${mine.map((e) => html`${codeChip(e)} ${e.date === ML.sel ? '' : 'Dünden süren '}nöbetin (${shiftDesc(e)}) · bu nöbette: <b>${mlShiftLabel(mlShiftMeals(e))}</b>${raw('<br>')}`)}</span></div>` : '';
-  setHTML(box, html`${off}${seg}<div class="tk-strip" id="mlStrip">${strip}</div>
+  setHTML(box, html`${lock}${off}${seg}<div class="tk-strip" id="mlStrip">${strip}</div>
     <div class="row" style="gap:8px;align-items:center;margin:4px 0 10px">
       <button type="button" class="btn ghost icon" data-act="ml-day" data-d="-1" aria-label="Önceki gün">${icon('chevL')}</button>
       <h2 class="grow" style="font-size:17px;margin:0;text-align:center">${dateLabel(ML.sel)}</h2>
@@ -275,25 +276,40 @@ CHANGE['ml-home'] = (el) => {
   saveHome({ hidden: el.checked ? P.hidden.filter((x) => x !== 'yemek') : [...new Set([...P.hidden, 'yemek'])] });
 };
 function mlCfgHtml() {
-  const T = mlTimes(), mode = (S.meal && S.meal.mode) || 'all';
-  return html`<div class="stack" style="gap:10px"><div class="ml-times">${ML_ORDER.map((m) => html`<div class="field"><label>${ML_SHORT[m]} saati</label><input class="input" type="time" data-mlt="${m}" value="${T[m]}"></div>`)}</div>
-    <p class="tiny faint" style="margin:0">Bu saatten itibaren o öğünün menüsü “şimdi” olarak gösterilir; nöbet saatlerine düşen öğünler bu saatlere göre bulunur.${ML.info && ML.info.shared ? ' Saatler hastanedeki tüm birimler için ortaktır.' : ''}</p>
+  const T = mlTimes(), mode = (S.meal && S.meal.mode) || 'all', I = ML.info || {};
+  const own = I.owner;
+  return html`<div class="stack" style="gap:10px">
+    ${I.can ? html`<div class="ml-times">${ML_ORDER.map((m) => html`<div class="field"><label>${ML_SHORT[m]} saati</label><input class="input" type="time" data-mlt="${m}" value="${T[m]}"></div>`)}</div>
+      <p class="tiny faint" style="margin:0">Bu saatten itibaren o öğünün menüsü “şimdi” olarak gösterilir; nöbet saatlerine düşen öğünler bu saatlere göre bulunur.${I.shared ? ' Saatler hastanedeki tüm birimler için ortaktır.' : ''}</p>`
+    : html`<p class="small muted" style="margin:0">Öğün saatleri: ${ML_ORDER.map((m) => `${ML_SHORT[m]} ${T[m]}`).join(' · ')}${own ? ` (listeyi “${own.unit}” birimi yönetiyor)` : ''}</p>`}
     <div class="field"><label>Birimde kim görsün (kişi kendisi için değiştirebilir)</label><select class="input" data-mlmode><option value="all" ${mode === 'all' ? raw('selected') : ''}>Herkes, her gün</option><option value="shift" ${mode === 'shift' ? raw('selected') : ''}>Yalnız nöbetçiler (nöbet günlerinde)</option></select></div>
-    <div><button type="button" class="btn" data-act="ml-cfg-save">Yemek ayarlarını kaydet</button></div></div>`;
+    <div class="row wrap" style="gap:8px"><button type="button" class="btn" data-act="ml-cfg-save">Yemek ayarlarını kaydet</button>
+      ${I.shared && own && own.me ? html`<button type="button" class="btn ghost" data-act="ml-release">Liste yönetimini bırak</button>` : ''}</div>
+    ${I.shared && own && own.me ? html`<p class="tiny faint" style="margin:0">Hastanenin yemek listesini biriminiz yönetiyor; diğer birimler yalnız görüntüler. Bırakırsanız listeyi ilk kaydeden birim yönetir.</p>` : ''}</div>`;
 }
 ACT['ml-settings'] = async () => {
   if (!ML.info) { try { await mlFetchRange(ymd(new Date()), ymd(new Date())); } catch (e) { /* */ } }
-  const can = ML.info && ML.info.can;
-  openModal({ title: 'Yemek menüsü ayarları', body: html`<h3 class="ph" style="font-size:14px">Benim için</h3>${mlPrefHtml()}${can ? html`<hr class="sep"><h3 class="ph" style="font-size:14px">Birim / hastane (yönetici)</h3><div id="mlCfgBox">${mlCfgHtml()}</div>` : ''}`, foot: html`<button type="button" class="btn" data-close>Kapat</button>` });
+  const man = ML.info && ML.info.manage;
+  openModal({ title: 'Yemek menüsü ayarları', body: html`<h3 class="ph" style="font-size:14px">Benim için</h3>${mlPrefHtml()}${man ? html`<hr class="sep"><h3 class="ph" style="font-size:14px">Birim / hastane (yönetici)</h3><div id="mlCfgBox">${mlCfgHtml()}</div>` : ''}`, foot: html`<button type="button" class="btn" data-close>Kapat</button>` });
 };
 ACT['ml-cfg-save'] = (el) => busy(el, async () => {
   const box = el.closest('.modal, .card') || document;
   const times = {}; $$('[data-mlt]', box).forEach((i) => { times[i.dataset.mlt] = i.value; });
   try {
-    const r = await api('meal.cfg', { times, mode: $('[data-mlmode]', box).value });
+    const r = await api('meal.cfg', Object.assign({ mode: $('[data-mlmode]', box).value }, Object.keys(times).length ? { times } : {}));
     S.meal = Object.assign({}, S.meal || {}, { times: r.times, mode: r.mode });
+    if (ML.info) ML.info.owner = r.owner;
     toast('Yemek ayarları kaydedildi');
     if (location.hash.startsWith('#/yemek')) mlDraw();
+  } catch (e) { toast(e.message, 'err'); }
+});
+ACT['ml-release'] = (el) => busy(el, async () => {
+  if (!(await confirmDialog({ title: 'Liste yönetimi bırakılsın mı?', text: 'Hastanenin yemek listesini bundan sonra listeyi ilk kaydeden birim yönetir. Mevcut liste silinmez.', ok: 'Bırak' }))) return;
+  try {
+    await api('meal.cfg', { release: true });
+    toast('Liste yönetimi bırakıldı');
+    while (modalStack.length) modalStack[modalStack.length - 1].close();
+    if (location.hash.startsWith('#/yemek')) mlPage($('#view'), ML.sel);
   } catch (e) { toast(e.message, 'err'); }
 });
 NM_EXT.settingsCards.push({

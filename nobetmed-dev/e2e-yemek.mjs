@@ -237,6 +237,22 @@ if (nilIn) {
   const nv = await apiCall(N.p, 'meal.get', { from: today, to: today });
   if (!nv.days[today] || !nv.days[today].aksam.includes('Tavuk sote')) fail('aynı hastanenin diğer birimi listeyi görmüyor');
   else step('aynı hastanenin diğer birimi (Dahiliye) aynı listeyi görüyor');
+  // Liste ilk yükleyen birime ait: başka birimin yöneticisi değiştiremez / silemez
+  if (nv.can_edit || !nv.manage || !nv.owner || nv.owner.me) fail('diğer birimde liste sahipliği yanlış: ' + JSON.stringify(nv.owner));
+  if (!/yönetiyor/.test(await apiErr(N.p, 'meal.delete', { ym: today.slice(0, 7) }))) fail('başka birim hastanenin yemek listesini silebildi');
+  if (!/yönetiyor|değiştirir/.test(await apiErr(N.p, 'meal.cfg', { times: { kahvalti: '02:00', ogle: '12:00', aksam: '18:00' } }))) fail('başka birim öğün saatlerini değiştirebildi');
+  await apiCall(N.p, 'meal.cfg', { mode: 'shift' }); // kendi biriminin varsayılanı serbest
+  await N.p.goto(BASE + '#/yemek');
+  await N.p.getByText('birimi yönetiyor').first().waitFor({ timeout: 8000 }).catch(() => fail('diğer birimde “listeyi X birimi yönetiyor” notu yok'));
+  if (await N.p.locator('#mlActs [data-act=ml-import]').count()) fail('diğer birimde “Liste yükle” düğmesi görünüyor');
+  step('liste sahipliği: diğer birim yöneticisi listeyi ve saatleri değiştiremez/silemez, yalnız kendi biriminin görünürlük ayarını yapar');
+  // Devret: sahip birim bırakınca diğer birim yükleyebilir
+  await apiCall(A.p, 'meal.cfg', { release: true });
+  await apiCall(N.p, 'meal.save', { days: { [today]: { kahvalti: ['Çay', 'Peynir'] } } });
+  const own2 = (await apiCall(A.p, 'meal.get', { from: today, to: today }));
+  if (own2.can_edit || !own2.owner || own2.owner.me) fail('devirden sonra sahiplik geçmedi');
+  await apiCall(N.p, 'meal.cfg', { release: true });
+  step('liste yönetimi devredilebilir (bırakınca ilk kaydeden birim sahiplenir)');
   await N.c.close();
 }
 

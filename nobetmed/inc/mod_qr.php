@@ -29,6 +29,8 @@ function qr_q(string $sql, array $p = []): PDOStatement
 }
 function qr_one(string $sql, array $p = []): ?array { $r = qr_q($sql, $p)->fetch(); return $r === false ? null : $r; }
 function qr_hash(string $s): string { return hash('sha256', $s); }
+/** Bilgisayarda karekodun yanında görünen 2 haneli sayı: telefonda doğru sayı seçilmeden onay olmaz (gönderilen bağlantıyla kandırmaya karşı) */
+function qr_code(string $token): int { return 10 + hexdec(substr(hash('sha256', 'qrc|' . $token), 0, 6)) % 90; }
 
 function qr_label(): string
 {
@@ -52,7 +54,7 @@ function a_qr_new(): void
         [qr_hash($token), qr_hash($secret), 'wait', qr_label(), $ip, now(), date('Y-m-d H:i:s', time() + QR_TTL)]);
     $_SESSION['qr'] = ['t' => $token, 's' => $secret];
     $base = nm_multi() && ($m = m_setting('site_url')) !== '' ? $m : base_url();
-    out(['url' => rtrim($base, '/') . '/#/qr/' . $token, 'ttl' => QR_TTL]);
+    out(['url' => rtrim($base, '/') . '/#/qr/' . $token, 'ttl' => QR_TTL, 'code' => qr_code($token)]);
 }
 
 /** Bilgisayar: onay bekle; onaylanınca bu tarayıcıda oturum açılır */
@@ -85,7 +87,11 @@ function a_qr_info(): void
     $r = qr_one('SELECT * FROM qr_logins WHERE token_hash = ?', [qr_hash(s('token', 64))]);
     if (!$r || !in_array($r['status'], ['wait', 'seen'], true) || $r['expires_at'] < now()) fail('Karekodun süresi dolmuş ya da kullanılmış. Bilgisayarda yeni karekod çıkar.', 410);
     qr_q("UPDATE qr_logins SET status = 'seen' WHERE token_hash = ? AND status = 'wait'", [$r['token_hash']]);
-    out(['label' => $r['label'], 'ip' => $r['ip'], 'at' => $r['created_at'], 'same_net' => $r['ip'] === client_ip(), 'left' => max(0, strtotime((string)$r['expires_at']) - time())]);
+    $c = qr_code(s('token', 64));
+    $opts = [$c];
+    while (count($opts) < 3) { $x = random_int(10, 99); if (!in_array($x, $opts, true)) $opts[] = $x; }
+    shuffle($opts);
+    out(['codes' => $opts, 'label' => $r['label'], 'ip' => $r['ip'], 'at' => $r['created_at'], 'same_net' => $r['ip'] === client_ip(), 'left' => max(0, strtotime((string)$r['expires_at']) - time())]);
 }
 
 /** Telefon: onayla / reddet */
@@ -98,6 +104,12 @@ function a_qr_approve(): void
     if (!b('ok')) {
         qr_q("UPDATE qr_logins SET status = 'deny' WHERE token_hash = ?", [$r['token_hash']]);
         out(['state' => 'denied']);
+    }
+    // Bilgisayarda görünen sayı seçilmeli; yanlış seçimde karekod iptal olur (tahminle denenemez)
+    if ((int)i('code') !== qr_code(s('token', 64))) {
+        qr_q("UPDATE qr_logins SET status = 'deny' WHERE token_hash = ?", [$r['token_hash']]);
+        audit($me, 'qr.approve', (string)$r['label'], 'Yanlış sayı seçildi; giriş reddedildi (IP ' . $r['ip'] . ')');
+        fail('Seçtiğiniz sayı bilgisayardakiyle aynı değil; giriş reddedildi. Karekodu siz okutmadıysanız biri hesabınıza girmeye çalışmış olabilir.', 409);
     }
     qr_q("UPDATE qr_logins SET status = 'ok', tkey = ?, user_id = ?, user_name = ?, approved_at = ? WHERE token_hash = ? AND status IN ('wait', 'seen')",
         [(string)nm_tenant()['tkey'], (int)$me['id'], $me['name'], now(), $r['token_hash']]);
@@ -120,6 +132,7 @@ function us_start(array $u, array $opt = []): void
     q('INSERT INTO user_sessions (user_id, sk_hash, label, via, ip, created_at, last_seen, idle_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [(int)$u['id'], qr_hash($sk), mb_substr((string)($opt['label'] ?? qr_label()), 0, 160), (string)($opt['via'] ?? us_via()), client_ip(), now(), now(), (int)($opt['idle'] ?? 0)]);
     $_SESSION['sk'] = $sk;
+    if (!empty($opt['session_cookie'])) $_SESSION['eph'] = 1; else unset($_SESSION['eph']);
     if (!empty($opt['session_cookie']) && PHP_SAPI !== 'cli' && !headers_sent()) {
         // Tarayıcı kapanınca biten çerez (ortak bilgisayar)
         setcookie(session_name(), session_id(), ['expires' => 0, 'path' => '/', 'secure' => nm_is_https(), 'httponly' => true, 'samesite' => 'Lax']);
@@ -139,6 +152,17 @@ function us_check(array $u): bool
     }
     if ((string)$r['last_seen'] < date('Y-m-d H:i:s', time() - 60)) q('UPDATE user_sessions SET last_seen = ?, ip = ? WHERE id = ?', [now(), client_ip(), $r['id']]);
     return true;
+}
+
+/** Kişinin oturumlarını kapat (şifre değişince / sıfırlanınca); $keepCurrent: bu isteğin oturumu açık kalır */
+function us_revoke_user(int $uid, string $reason, bool $keepCurrent = false): int
+{
+    try {
+        $cur = qr_hash((string)($_SESSION['sk'] ?? ''));
+        return $keepCurrent
+            ? q('UPDATE user_sessions SET revoked_at = ?, reason = ? WHERE user_id = ? AND revoked_at IS NULL AND sk_hash <> ?', [now(), $reason, $uid, $cur])->rowCount()
+            : q('UPDATE user_sessions SET revoked_at = ?, reason = ? WHERE user_id = ? AND revoked_at IS NULL', [now(), $reason, $uid])->rowCount();
+    } catch (Throwable $e) { return 0; }
 }
 
 /** a_logout çağırır */
