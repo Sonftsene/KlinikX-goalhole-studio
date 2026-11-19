@@ -429,13 +429,13 @@ function drawBoard() {
       <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
       <div class="cal-legend"><span><i class="rq-dot k-bosluk"></i>Boşluk</span><span><i class="rq-dot k-izin"></i>Yıllık izin</span><span><i class="rq-me-dot static"></i>Senin isteğin</span></div></div>
     <div class="card"><div class="card-head"><h3>${dateLabel(RQ.bsel)}</h3><span class="tiny faint">${sel.filter((x) => x.status !== 'rejected').length} kişi</span></div>
-      <div class="list">${sel.length ? sel.map((x) => html`<div class="list-row ${x.status === 'rejected' ? 'rq-dim' : ''}">${avatar(rqName(x.name), 'sm')}<div class="grow" style="min-width:0"><div class="lr-t ellipsis">${rqName(x.name)}${x.me ? html` <span class="tiny faint">(sen)</span>` : ''}</div></div>${rqKindBadge(x.kind)}${rqStBadge(x.status)}</div>`)
+      <div class="list">${sel.length ? sel.map((x) => html`<div class="list-row ${x.status === 'rejected' ? 'rq-dim' : ''}">${pAvatar(rqName(x.name), 'sm', null, x.user_id)}<div class="grow" style="min-width:0"><div class="lr-t ellipsis">${pName(rqName(x.name), x.user_id)}${x.me ? html` <span class="tiny faint">(sen)</span>` : ''}</div></div>${rqKindBadge(x.kind)}${rqStBadge(x.status)}</div>`)
         : html`<div class="list-row small muted">Bu gün için istek yok.</div>`}</div></div></div>`);
 }
 function rqBoardRows(ppl) {
   if (!ppl.length) return html`<div class="list-row small muted">Eşleşen kişi yok.</div>`;
-  return ppl.map((x) => html`<div class="list-row rq-brow ${x.me ? 'me' : ''}">${avatar(rqName(x.name), 'sm')}
-    <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${rqName(x.name)}${x.me ? html` <span class="badge brand">Sen</span>` : ''}</div>
+  return ppl.map((x) => html`<div class="list-row rq-brow ${x.me ? 'me' : ''}">${pAvatar(rqName(x.name), 'sm', null, x.user_id)}
+    <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${pName(rqName(x.name), x.user_id)}${x.me ? html` <span class="badge brand">Sen</span>` : ''}</div>
       <div class="rq-chips">${rqChips(x.items)}</div>${x.roster ? html`<div class="tiny faint">${x.roster}</div>` : ''}</div>
     <span class="tiny faint rq-n">${x.items.filter((i) => i.status !== 'rejected').length} gün</span></div>`);
 }

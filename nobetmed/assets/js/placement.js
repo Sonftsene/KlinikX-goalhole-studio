@@ -167,7 +167,7 @@ function plSegChip(e, seg, editable) {
   const ui = plUnitInfo(seg.unit);
   const moved = !off && seg.unit !== PL_TEAM && e.side && ui.side && ui.side !== e.side;
   const chip = p && seg.period === p.shift && e.segs.length === 1 ? plCodeChip(p) : plPerChip(seg.period);
-  const inner = html`${chip}<span class="pl-nm">${plName(e.name)}</span><span class="pl-cnt" title="Karşı tarafa toplam geçiş">(${plCrossShown(e)})</span>
+  const inner = html`${chip}<span class="pl-nm">${editable ? plName(e.name) : pName(plName(e.name))}</span><span class="pl-cnt" title="Karşı tarafa toplam geçiş">(${plCrossShown(e)})</span>
     ${moved ? html`<span class="pl-from" title="${plSideName(e.side)} listesinden">${plSideShort(e.side)}</span>` : ''}
     ${seg.status === 'called' ? html`<span class="pl-tag called">Çağrıldı</span>` : ''}
     ${off ? html`<span class="pl-tag off">Ofl. ${PL_PER_WORD[seg.period]}</span>` : ''}
@@ -984,14 +984,14 @@ NM_EXT.homeCards.push({
     r.sides.forEach((sd) => sd.units.forEach((u) => { sideOf[u] = sd.key; }));
     const person = (s) => {
       const moved = s.status !== 'off' && s.unit !== PL_TEAM && s.side && sideOf[s.unit] && sideOf[s.unit] !== s.side;
-      return html`<span class="pl-hp ${moved ? 'in' : ''} ${s.status === 'off' ? 'off' : ''} ${plIsMe(s.name) ? 'me' : ''}" title="${s.code || PL_PER[s.period]}${moved ? ' · ' + plSideName(s.side, src) + ' listesinden' : ''}"><span class="pl-hpn">${plName(s.name)}</span> <small>(${s.cross_total})</small>${s.period !== '24' && s.status !== 'off' ? html` <small class="pl-hper">${PL_PER_WORD[s.period]}</small>` : ''}${s.status === 'off' ? html` <span class="pl-tag off">Ofl. ${PL_PER_WORD[s.period]}</span>` : ''}${s.status === 'called' ? html` <span class="pl-tag called">Çağrıldı</span>` : ''}</span>`;
+      return html`<span class="pl-hp ${moved ? 'in' : ''} ${s.status === 'off' ? 'off' : ''} ${plIsMe(s.name) ? 'me' : ''}" title="${s.code || PL_PER[s.period]}${moved ? ' · ' + plSideName(s.side, src) + ' listesinden' : ''}"><span class="pl-hpn">${pName(plName(s.name))}</span> <small>(${s.cross_total})</small>${s.period !== '24' && s.status !== 'off' ? html` <small class="pl-hper">${PL_PER_WORD[s.period]}</small>` : ''}${s.status === 'off' ? html` <span class="pl-tag off">Ofl. ${PL_PER_WORD[s.period]}</span>` : ''}${s.status === 'called' ? html` <span class="pl-tag called">Çağrıldı</span>` : ''}</span>`;
     };
     const body = work.length
       ? html`<div class="pl-hgrid">${units.map((u) => {
           const l = work.filter((s) => s.unit === u.unit).sort((a, b) => (a.status === 'off') - (b.status === 'off') || a.name.localeCompare(b.name, 'tr'));
           return html`<div class="pl-hu"><span class="pl-ul tone-${u.tone}" title="${u.label} · ${u.sideName}">${plLetter(u.unit, src)}</span><div class="pl-hn">${u.unit === PL_TEAM ? html`<span class="pl-hlbl">${u.label}</span>` : ''}${l.length ? l.map(person) : html`<span class="tiny faint">—</span>`}</div></div>`;
         })}</div>
-        ${sb.length ? html`<div class="pl-hsb"><span class="tiny faint">(Nöbete gelecek kişi)</span>${sb.map((s) => html`<span class="pl-hp sb ${plIsMe(s.name) ? 'me' : ''}">${plName(s.name)}</span>`)}</div>` : ''}`
+        ${sb.length ? html`<div class="pl-hsb"><span class="tiny faint">(Nöbete gelecek kişi)</span>${sb.map((s) => html`<span class="pl-hp sb ${plIsMe(s.name) ? 'me' : ''}">${pName(plName(s.name))}</span>`)}</div>` : ''}`
       : html`<div class="pl-hempty small muted">${icon('clock', 'sm')}<span class="grow">Bugünün blok yerleşimi henüz yapılmadı${r.on_duty ? ` · ${r.on_duty} kişi nöbette` : ''}.</span>${r.can_edit ? html`<a class="btn sm primary" href="#/taraf/${r.date}">Yerleştir</a>` : ''}</div>`;
     setHTML(el, html`<div class="card pl-home"><div class="card-head"><h3>${icon('layers', 'sm')} Bugün bloklar</h3>
       ${r.mine ? html`<span class="badge brand pl-mine">Sen: ${r.mine}</span>` : ''}

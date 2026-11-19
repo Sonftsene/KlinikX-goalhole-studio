@@ -91,7 +91,7 @@ function mkBoardItem(L) {
     ${mkDayBlock(L.date)}
     <div class="mk-main">
       ${mkHead(L)}
-      <div class="mk-l2">${avatar(L.poster, 'sm')}<span class="ellipsis"><b>${L.poster}</b>${L.manage && L.roster ? ' · ' + L.roster : ''} · ${fmtRel(L.created_at)}</span></div>
+      <div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b>${L.manage && L.roster ? ' · ' + L.roster : ''} · ${fmtRel(L.created_at)}</span></div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${!closed && !app && L.elig && !L.elig.ok ? html`<div class="mk-why">${icon('info', 'sm')}<span>${L.elig.reason}</span></div>` : ''}
       ${!closed && L.kind === 'swap' && L.elig && L.elig.ok && !app ? html`<div class="tiny faint">${L.elig.offers.length} nöbetinle değişebilirsin</div>` : ''}
@@ -144,7 +144,7 @@ function mkAppliedHtml(D) {
     const [t, tone] = mkAppState(L);
     const a = L.my_app || {};
     return html`<div class="mk-item ${L.status === 'open' ? '' : 'closed'}">${mkDayBlock(L.date)}
-      <div class="mk-main">${mkHead(L)}<div class="mk-l2">${avatar(L.poster, 'sm')}<span class="ellipsis"><b>${L.poster}</b> · ${fmtRel(a.created_at)} başvurdun</span></div>
+      <div class="mk-main">${mkHead(L)}<div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b> · ${fmtRel(a.created_at)} başvurdun</span></div>
         ${a.offer_date ? html`<div class="small">Karşılığında: <b>${mkShort(a.offer_date)}</b> ${codeChip({ code: a.offer_code, kind: 'shift' })}</div>` : ''}
         <div><span class="badge ${tone}">${t}</span></div></div>
       <div class="mk-act">${a.status === 'applied' && L.status === 'open' ? html`<button class="btn sm ghost" data-act="mk-withdraw" data-id="${L.id}">Geri çek</button>` : ''}</div></div>`;
@@ -271,7 +271,7 @@ async function mkOpenListing(id) {
     const sw = L.swap_status && MK_SW[L.swap_status];
     const apps = L.apps || [];
     const live = apps.filter((a) => a.status === 'applied');
-    const appRow = (a) => html`<div class="list-row mk-app">${avatar(a.name, 'sm')}
+    const appRow = (a) => html`<div class="list-row mk-app">${pAvatar(a.name, 'sm', null, a.user_id)}
       <div class="grow"><div class="lr-t">${a.name}</div>
         ${a.offer_date ? html`<div class="small">Karşılığında <b>${mkShort(a.offer_date)}</b> ${codeChip(mkEntry({ code: a.offer_code, ...(a.offer || {}) }))} ${a.offer ? html`<span class="tiny faint">${shiftDesc(mkEntry({ code: a.offer_code, ...a.offer }))}</span>` : ''}</div>` : ''}
         ${a.note ? html`<div class="tiny muted">“${a.note}”</div>` : ''}
@@ -281,7 +281,7 @@ async function mkOpenListing(id) {
         : L.mine && L.status === 'open' ? html`<button class="btn sm primary" data-ch="${a.id}" data-n="${a.name}" ${a.valid && !a.valid.ok ? raw('disabled') : ''}>Seç</button>` : html`<span class="badge warn">Bekliyor</span>`}</div></div>`;
     m.setBody(html`<div class="stack">
       <div class="sw-mine">${codeChip(e, true)}<div class="grow"><b>${dateLabel(L.date)}</b><div class="tiny faint">${shiftDesc(e)} · ${L.roster}</div></div><span class="badge ${L.kind === 'give' ? 'tone-violet' : 'tone-sky'}">${L.kind === 'give' ? 'Devret' : 'Değiş'}</span></div>
-      <div class="row wrap">${avatar(L.poster, 'sm')}<span class="small"><b>${L.poster}</b> · ${fmtRel(L.created_at)}</span><span class="badge ${tone}">${t}</span>${sw ? html`<span class="badge ${sw[1]}">${sw[0]}</span>` : ''}</div>
+      <div class="row wrap">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="small"><b>${pName(L.poster, L.poster_user)}</b> · ${fmtRel(L.created_at)}</span><span class="badge ${tone}">${t}</span>${sw ? html`<span class="badge ${sw[1]}">${sw[0]}</span>` : ''}</div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${L.manage ? html`
         ${L.status === 'taken' && L.taker ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>${L.taker}</b> aldı${L.taker_date ? ` · karşılığında ${mkShort(L.taker_date)} (${L.taker_code})` : ''}. ${L.swap_status === 'applied' ? 'Listeye işlendi.' : 'Sorumlu Excel’de güncelleyince listeye işlenir.'}</span></div>` : ''}
@@ -467,7 +467,7 @@ function coRow(P, x, ties) {
   const why = pass ? '' : coFirstWhy(P, x);
   return html`<tr class="${pass ? '' : 'dim'} ${sel ? 'co-sel' : ''}">
     <td class="co-ck"><input type="checkbox" aria-label="${x.display} seç" data-change="co-sel" data-k="${key}" data-n="${x.name}" data-f="${x.move ? x.move.from : ''}" ${sel ? raw('checked') : ''} ${!pass || asked ? raw('disabled') : ''}></td>
-    <td class="co-name"><div class="co-who">${avatar(x.display, 'sm')}<div style="min-width:0"><b>${x.display}</b>${x.user_id ? '' : html` <span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`}
+    <td class="co-name"><div class="co-who">${pAvatar(x.display, 'sm', null, x.user_id)}<div style="min-width:0"><b>${pName(x.display, x.user_id)}</b>${x.user_id ? '' : html` <span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`}
       <div class="tiny faint">${[x.title, x.other ? x.side_name : ''].filter(Boolean).join(' · ')}</div>
       ${x.move ? html`<div class="tiny co-mv">${icon('history', 'sm')} ${mkShort(x.move.from)} ${x.move.code} → ${mkShort(D.date)}</div>${x.move.warn ? html`<div class="tiny mk-no">${icon('alert', 'sm')} ${x.move.warn}</div>` : ''}` : ''}
       <div class="co-tags">${x.extra ? html`<span class="badge success" title="Bu gün için ekstra nöbet almak istediğini bildirdi">${icon('plus', 'sm')}Ekstra istiyor</span>` : ''}${pass && !x.move && !asked && x.rank === top ? html`<span class="badge brand">Öncelikli</span>` : ''}
@@ -735,7 +735,7 @@ async function coDetailPage(view, id) {
   const open = c.status === 'open';
   const respRow = (x) => {
     const [t, tone] = CO_ANS[x.answer] || [x.answer, ''];
-    return html`<div class="list-row co-resp">${avatar(x.name, 'sm')}<div class="grow"><div class="lr-t">${x.name}${x.user_id ? '' : html` <span class="badge">hesabı yok</span>`}</div>
+    return html`<div class="list-row co-resp">${pAvatar(x.name, 'sm', null, x.user_id)}<div class="grow"><div class="lr-t">${pName(x.name, x.user_id)}${x.user_id ? '' : html` <span class="badge">hesabı yok</span>`}</div>
       <div class="lr-s">${x.move_from ? `${mkShort(x.move_from)} nöbetini kaydırarak · ` : ''}${x.answered_at ? fmtRel(x.answered_at) + ' yanıtladı' : fmtRel(x.created_at) + ' soruldu'}</div></div>
       <div class="mk-act">${x.chosen ? html`<span class="badge brand">${icon('check', 'sm')}Seçildi</span>` : html`<span class="badge ${tone}">${t}</span>`}
         ${open && !x.chosen && x.answer === 'yes' ? html`<button class="btn sm primary" data-act="co-choose" data-id="${c.id}" data-r="${x.id}" data-n="${x.name}">Seç</button>` : ''}

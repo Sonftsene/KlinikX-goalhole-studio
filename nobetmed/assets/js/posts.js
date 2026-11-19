@@ -481,7 +481,7 @@ function renderDetail() {
       <div class="stack" style="gap:10px">
         ${(() => { const b = postBadges(p, true); if (p.review_at && isPublisher()) b.push(reviewBadge(p.review_at)); return b.length ? html`<div class="row wrap" style="gap:6px">${b}</div>` : ''; })()}
         <h1 class="detail-title">${p.title}</h1>
-        <div class="row small muted" style="gap:10px">${avatar(p.author_name, 'sm')}<span><b style="color:var(--text)">${p.author_name}</b>${p.author_title_id ? ' · ' + titleName(p.author_title_id) : ''}</span><span class="faint">·</span><span title="${fmtDateTime(p.published_at || p.created_at)}">${fmtDate(p.published_at || p.created_at, true)}</span></div>
+        <div class="row small muted" style="gap:10px">${pAvatar(p.author_name, 'sm', null, p.author_id)}<span><b style="color:var(--text)">${pName(p.author_name, p.author_id)}</b>${p.author_title_id ? ' · ' + titleName(p.author_title_id) : ''}</span><span class="faint">·</span><span title="${fmtDateTime(p.published_at || p.created_at)}">${fmtDate(p.published_at || p.created_at, true)}</span></div>
       </div>
       ${ackBox}
       <div class="detail-body">${raw(linkify(p.body))}</div>
@@ -510,7 +510,7 @@ function detailReadersHtml(p) {
           <button class="${DETAIL.tab === 'missing' ? 'on' : ''}" data-act="readers-tab" data-tab="missing">Okumayanlar <span class="count ${p.missing.length ? 'warn' : 'muted'}">${p.missing.length}</span></button>
         </div>
         <div class="list" style="max-height:280px;overflow:auto">
-          ${list.length ? list.map((u) => html`<div class="list-row">${avatar(u.name, 'sm')}<div class="grow"><div class="lr-t">${u.name}</div><div class="lr-s">${titleName(u.title_id)}</div></div>${u.at ? html`<span class="tiny faint">${fmtRel(u.at)}</span>` : ''}</div>`)
+          ${list.length ? list.map((u) => html`<div class="list-row">${pAvatar(u.name, 'sm', null, u.id)}<div class="grow"><div class="lr-t">${pName(u.name, u.id)}</div><div class="lr-s">${titleName(u.title_id)}</div></div>${u.at ? html`<span class="tiny faint">${fmtRel(u.at)}</span>` : ''}</div>`)
             : html`<div class="list-row muted small">${DETAIL.tab === 'readers' ? 'Henüz kimse onaylamadı.' : 'Herkes okudu.'}</div>`}
         </div>
         ${DETAIL.tab === 'missing' && p.missing.length ? html`<div class="row wrap" style="padding:10px 18px 14px">

@@ -191,7 +191,7 @@ function relDayShort(d) {
   return diff === 0 ? 'Bugün' : diff === 1 ? 'Yarın' : `${dt.getDate()} ${TR_MONTHS_S[dt.getMonth()]} ${TR_DAYS_S[dt.getDay()]}`;
 }
 function dutyPerson(p) {
-  return html`<span class="duty-chip">${avatar(p.name, 'sm')}<span class="ellipsis">${p.name}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="${p.name} ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
+  return html`<span class="duty-chip">${pAvatar(p.name, 'sm', null, p.user_id)}<span class="ellipsis">${pName(p.name, p.user_id)}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="${p.name} ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
 }
 /** Bir günün nöbetçileri (vardiyaya göre gruplu) */
 function dutyListHtml(day, compact) {
@@ -450,8 +450,8 @@ function drawDirectory() {
   const q = avKey(DIR.q);
   const list = DIR.people.filter((p) => (DIR.filter !== 'today' || p.today) && (!q || avKey([p.name, titleName(p.title_id), unitName(p.unit_id), p.extension].join(' ')).includes(q)));
   setHTML(box, list.length ? html`<div class="card"><div class="list">${list.map((p) => html`<div class="list-row dir-row">
-      ${avatar(p.name, '', p.avatar || null)}
-      <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div>
+      ${pAvatar(p.name, '', p.avatar || null, p.id)}
+      <div class="grow" style="min-width:0"><div class="lr-t">${pName(p.name, p.id)}${p.today ? html` ${codeChip(p.today)}` : ''}</div>
         <div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ')}${p.extension ? html` · Dahili <b>${p.extension}</b>` : ''}${p.phone ? html` · <span class="sel">${p.phone}</span>` : ''}</div></div>
       <div class="row" style="gap:4px">
         ${p.phone ? html`<a class="btn sm icon" href="${telLink(p.phone)}" aria-label="Ara" title="Ara">${icon('phone', 'sm')}</a><a class="btn sm icon" href="https://wa.me/${waNumber(p.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp" title="WhatsApp">${icon('chat', 'sm')}</a>` : ''}
@@ -1508,8 +1508,8 @@ function pbRowHtml(it, favs, showCat = true) {
 }
 function pbPersonHtml(p) {
   const nums = [p.extension, p.phone].filter(Boolean);
-  return html`<div class="list-row pb-row">${avatar(p.name, 'sm', p.avatar || null)}
-    <div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.today ? html` ${codeChip(p.today)}` : ''}</div><div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ') || 'Ekip'}</div></div>
+  return html`<div class="list-row pb-row">${pAvatar(p.name, 'sm', p.avatar || null, p.id)}
+    <div class="grow" style="min-width:0"><div class="lr-t">${pName(p.name, p.id)}${p.today ? html` ${codeChip(p.today)}` : ''}</div><div class="lr-s">${[titleName(p.title_id), unitName(p.unit_id)].filter(Boolean).join(' · ') || 'Ekip'}</div></div>
     <div class="pb-nums">${nums.map(pbNumHtml)}</div></div>`;
 }
 async function renderPhonebook(view) {

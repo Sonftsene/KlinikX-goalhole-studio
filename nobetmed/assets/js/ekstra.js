@@ -93,13 +93,13 @@ async function exBoardPage(view, ym0) {
   if (!r.people.length) { setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('users', 'lg')}</div><h3>${exMonthName(ym)} için ekstra nöbet isteyen yok</h3><p class="small">Kişiler Nöbet › Ekstra nöbet’ten istek verince burada, uygun oldukları günlerle görünür.</p></div>`); return; }
   setHTML(box, html`
     <div class="sec-title mk-sec">İsteyenler <span class="faint">(${r.people.length})</span></div>
-    <div class="card"><div class="list">${r.people.map((p) => html`<div class="list-row">${avatar(p.name, 'sm')}<div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.roster ? html` <span class="tiny faint">· ${p.roster}</span>` : ''}</div>
+    <div class="card"><div class="list">${r.people.map((p) => html`<div class="list-row">${pAvatar(p.name, 'sm', null, p.user_id)}<div class="grow" style="min-width:0"><div class="lr-t">${pName(p.name, p.user_id)}${p.roster ? html` <span class="tiny faint">· ${p.roster}</span>` : ''}</div>
       <div class="lr-s">${fmtDate(p.from)}’den itibaren · ${p.shifts.map((s) => EX_SHORT[s]).join(', ')} · ${p.days ? p.days.length + ' seçili gün' : 'uygun tüm günler'}${p.note ? ' · “' + p.note + '”' : ''}</div></div>
       <span class="badge ${p.ok_days ? 'success' : 'warn'}">${p.found ? p.ok_days + ' gün uygun' : 'listede yok'}</span></div>`)}</div></div>
     <div class="sec-title mk-sec">Gün gün uygun olanlar</div>
     ${r.days.length ? html`<div class="card"><div class="list ex-days">${r.days.map((d) => html`<div class="list-row ex-day">${mkDayBlock(d.date)}<div class="grow" style="min-width:0">
         ${d.short && (d.short.day || d.short.night) ? html`<span class="badge danger">${[d.short.day ? 'gündüz ' + d.short.day : '', d.short.night ? 'gece ' + d.short.night : ''].filter(Boolean).join(', ')} eksik</span>` : ''}
-        <div class="ex-ppl">${d.people.map((p) => html`<span class="ex-p">${avatar(p.name, 'sm')}<b>${p.name}</b><span class="tiny faint">${p.shifts.map((s) => EX_SHORT[s]).join(' / ')}</span></span>`)}</div></div>
+        <div class="ex-ppl">${d.people.map((p) => html`<span class="ex-p">${pAvatar(p.name, 'sm', null, p.user_id)}<b>${pName(p.name, p.user_id)}</b><span class="tiny faint">${p.shifts.map((s) => EX_SHORT[s]).join(' / ')}</span></span>`)}</div></div>
         <button class="btn sm" data-act="ex-callout" data-d="${d.date}" data-s="${d.short && d.short.night && !d.short.day ? 'night' : d.short && d.short.day && !d.short.night ? 'day' : (d.people[0].shifts[0] || 'night')}">${icon('alert', 'sm')}Çağrı aç</button></div>`)}</div></div>`
       : html`<div class="card empty"><p class="small">Kalan günlerde kurallara uyan gönüllü yok.</p></div>`}`);
 }
@@ -147,8 +147,8 @@ function tkDraw() {
   const flt = (x) => TK.f === 'all' || tkShiftOf(x) === TK.f;
   const days = d.days.map((x) => ({ ...x, items: x.items.filter(flt) })).filter((x) => x.items.length);
   const total = days.reduce((a, x) => a + x.items.filter((i) => i.ok).length, 0);
-  const item = (x, date) => html`<div class="list-row tk-it ${x.ok ? '' : 'dim'}">${avatar(x.display, 'sm')}<div class="grow" style="min-width:0">
-      <div class="lr-t"><b>${x.display}</b>${x.title ? html` <span class="tiny faint">· ${x.title}</span>` : ''}</div>
+  const item = (x, date) => html`<div class="list-row tk-it ${x.ok ? '' : 'dim'}">${pAvatar(x.display, 'sm', null, x.user_id)}<div class="grow" style="min-width:0">
+      <div class="lr-t"><b>${pName(x.display, x.user_id)}</b>${x.title ? html` <span class="tiny faint">· ${x.title}</span>` : ''}</div>
       <div class="row wrap" style="gap:4px;margin-top:2px">${codeChip(mkEntry(x))}<span class="small muted">${shiftDesc(mkEntry(x))}</span>${x.listed ? html`<span class="badge brand" title="Bu nöbeti ilana koydu">${icon('megaphone', 'sm')}İlanda</span>` : ''}${x.roster ? html`<span class="tiny faint">${x.roster}</span>` : ''}</div>
       ${x.ok ? '' : html`${x.my_why ? html`<div class="tiny mk-no">Sen: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
     ${x.ok ? (x.asked ? html`<span class="badge warn">İstendi</span>` : x.user_id ? html`<button class="btn sm primary" data-act="tk-ask" data-d="${date}" data-n="${x.name}" data-l="${x.display}" data-c="${x.code}">${icon('send', 'sm')}İste</button>` : html`<span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`) : ''}</div>`;
