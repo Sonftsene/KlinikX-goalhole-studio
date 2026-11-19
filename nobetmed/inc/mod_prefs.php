@@ -29,7 +29,7 @@ function prefs_clean_ui(array $in): array
     if (isset($in['oled'])) $o['oled'] = (bool)$in['oled'];
     if (isset($in['home']) && is_array($in['home'])) {
         $ids = fn($a) => array_values(array_unique(array_filter(array_map(fn($x) => preg_replace('/[^a-z0-9_-]/', '', strtolower((string)$x)), is_array($a) ? $a : []), fn($x) => $x !== '')));
-        $o['home'] = ['hidden' => array_slice($ids($in['home']['hidden'] ?? []), 0, 40), 'order' => array_slice($ids($in['home']['order'] ?? []), 0, 40), 'side_first' => !empty($in['home']['side_first'])];
+        $o['home'] = ['hidden' => array_slice($ids($in['home']['hidden'] ?? []), 0, 40), 'shown' => array_slice($ids($in['home']['shown'] ?? []), 0, 40), 'order' => array_slice($ids($in['home']['order'] ?? []), 0, 40), 'side_first' => !empty($in['home']['side_first'])];
     }
     return $o;
 }

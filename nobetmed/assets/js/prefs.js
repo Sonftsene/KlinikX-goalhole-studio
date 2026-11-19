@@ -147,10 +147,14 @@ const HOME_BUILTIN = [
   { id: 'rosters', title: 'Nöbet listeleri', place: 'side' },
   { id: 'tips', title: 'İpuçları', place: 'side' },
 ];
+/** Varsayılan kapalı kartlar: kişi Hesabım › Görünüm › Ana sayfam'dan açarsa görünür */
+const HOME_OPTIN = ['countdown'];
 function homePrefs() {
   const h = (S.my_prefs && S.my_prefs.ui && S.my_prefs.ui.home) || {};
-  return { hidden: Array.isArray(h.hidden) ? h.hidden : [], order: Array.isArray(h.order) ? h.order : [], side_first: !!h.side_first };
+  return { hidden: Array.isArray(h.hidden) ? h.hidden : [], shown: Array.isArray(h.shown) ? h.shown : [], order: Array.isArray(h.order) ? h.order : [], side_first: !!h.side_first };
 }
+/** Kart gizli mi (isteğe bağlı kartlar açılmadıkça gizli) */
+function homeOff(id, P = homePrefs()) { return HOME_OPTIN.includes(id) ? !P.shown.includes(id) : P.hidden.includes(id); }
 function homeItems() {
   const ext = NM_EXT.homeCards.filter((c) => !c.visible || c.visible()).map((c) => ({ id: c.id, title: c.title || c.id, place: c.place === 'top' ? 'top' : 'side', ext: true, order: c.order || 50 }));
   const all = [...HOME_BUILTIN, ...ext];
@@ -163,9 +167,9 @@ function homeLayoutHtml() {
   const items = homeItems();
   const groups = [['hero', 'Üst karşılama alanı'], ['top', 'Üst kartlar'], ['main', 'Orta alan'], ['side', 'Yan kartlar (telefonda altta)']];
   const row = (x, list, i) => {
-    const off = P.hidden.includes(x.id);
+    const off = homeOff(x.id, P);
     return html`<div class="hl-item ${off ? 'off' : ''}">
-      <span class="hl-t">${x.title}${x.fixed ? html`<span class="hl-s">Her zaman görünür</span>` : ''}</span>
+      <span class="hl-t">${x.title}${x.fixed ? html`<span class="hl-s">Her zaman görünür</span>` : HOME_OPTIN.includes(x.id) ? html`<span class="hl-s">Varsayılan kapalı · göz simgesiyle açın</span>` : ''}</span>
       ${list.length > 1 && (x.place === 'top' || x.place === 'side') ? html`<button type="button" class="btn ghost icon sm" data-act="hl-move" data-id="${x.id}" data-d="-1" ${i === 0 ? raw('disabled') : ''} aria-label="Yukarı taşı">${icon('up', 'sm')}</button>
         <button type="button" class="btn ghost icon sm" data-act="hl-move" data-id="${x.id}" data-d="1" ${i === list.length - 1 ? raw('disabled') : ''} aria-label="Aşağı taşı">${icon('down', 'sm')}</button>` : ''}
       ${x.fixed ? '' : html`<button type="button" class="btn ghost icon sm" data-act="hl-toggle" data-id="${x.id}" aria-label="${off ? 'Göster' : 'Gizle'}">${icon(off ? 'eyeOff' : 'eye', 'sm')}</button>`}
@@ -179,7 +183,7 @@ function homeLayoutHtml() {
 }
 function saveHome(h) {
   const cur = homePrefs();
-  const home = Object.assign({ hidden: cur.hidden, order: cur.order, side_first: cur.side_first }, h);
+  const home = Object.assign({ hidden: cur.hidden, shown: cur.shown, order: cur.order, side_first: cur.side_first }, h);
   S.my_prefs = S.my_prefs || { ui: {}, pay: {}, remind: null };
   S.my_prefs.ui = Object.assign({}, S.my_prefs.ui, { home });
   api('me.prefs.save', { kind: 'ui', value: { home } }).catch((e) => toast(e.message, 'err'));
@@ -187,7 +191,8 @@ function saveHome(h) {
 }
 ACT['hl-toggle'] = (el) => {
   const id = el.dataset.id, P = homePrefs();
-  saveHome({ hidden: P.hidden.includes(id) ? P.hidden.filter((x) => x !== id) : [...P.hidden, id] });
+  if (HOME_OPTIN.includes(id)) saveHome({ shown: P.shown.includes(id) ? P.shown.filter((x) => x !== id) : [...P.shown, id] });
+  else saveHome({ hidden: P.hidden.includes(id) ? P.hidden.filter((x) => x !== id) : [...P.hidden, id] });
 };
 ACT['hl-move'] = (el) => {
   const items = homeItems();
@@ -203,12 +208,12 @@ ACT['hl-move'] = (el) => {
   saveHome({ order });
 };
 CHANGE['hl-sidefirst'] = (el) => saveHome({ side_first: el.checked });
-ACT['hl-reset'] = () => saveHome({ hidden: [], order: [], side_first: false });
+ACT['hl-reset'] = () => saveHome({ hidden: [], shown: [], order: [], side_first: false });
 
 /** Ana sayfa çizildikten sonra: gizle / sırala (posts.js renderHome çağırır) */
 function applyHomeLayout() {
   const P = homePrefs();
-  $$('[data-home]').forEach((el) => el.classList.toggle('home-hidden', P.hidden.includes(el.dataset.home)));
+  $$('[data-home]').forEach((el) => el.classList.toggle('home-hidden', homeOff(el.dataset.home, P)));
   const grid = $('.home-grid'); if (grid) grid.classList.toggle('side-first', P.side_first);
   const rank = {}; homeItems().forEach((x, i) => { rank[x.id] = i + 1; });
   const side = $('#homeSide');
@@ -246,7 +251,7 @@ function myBlockOn(date) {
 function mountCountdown(anchor, my) {
   clearInterval(_cdTimer);
   const old = $('#cdBox'); if (old) old.remove();
-  if (homePrefs().hidden.includes('countdown')) return;
+  if (homeOff('countdown')) return; // varsayılan kapalı; Hesabım › Görünüm › Ana sayfam'dan açılır
   const ent = (my && my.entries) || [];
   const cur = currentShift(ent);
   const nxt = cur ? null : nextShift(ent);

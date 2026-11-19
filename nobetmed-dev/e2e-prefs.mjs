@@ -91,7 +91,20 @@ try {
   const my = await apiCall(m, 'shifts.my');
   const hasSoon = (my.entries || []).some((e) => e.kind === 'shift' && e.start && e.date >= new Date().toISOString().slice(0, 10));
   if (hasSoon) {
-    await m.locator('#cdBox .cd-u').first().waitFor({ timeout: 6000 }).catch(() => fail('geri sayım görünmedi'));
+    // Varsayılan kapalı: ana sayfada yok; Hesabım › Görünüm › Ana sayfam'dan açılınca görünür
+    await m.waitForTimeout(800);
+    if (await m.locator('#cdBox').count()) fail('geri sayım varsayılan olarak açık');
+    const homeHash = await m.evaluate(() => location.hash);
+    await m.goto(BASE + '#/profil/gorunum');
+    const cdRow = m.locator('.hl-item', { hasText: 'Canlı geri sayım' });
+    await cdRow.waitFor();
+    if (!(await cdRow.innerText()).includes('Varsayılan kapalı')) fail('ayarda “varsayılan kapalı” açıklaması yok');
+    await cdRow.locator('[data-act=hl-toggle]').click();
+    await m.waitForFunction(() => S.my_prefs.ui.home.shown.includes('countdown'));
+    await m.goto(BASE + (homeHash || '#/'));
+    await m.locator('#cdBox .cd-u').first().waitFor({ timeout: 6000 }).catch(() => fail('geri sayım açılınca görünmedi'));
+    await m.reload();
+    await m.locator('#cdBox .cd-u').first().waitFor({ timeout: 8000 }).catch(() => fail('geri sayım tercihi yenileyince kayboldu (sunucuya kaydedilmedi)'));
     const t1 = await m.locator('#cdBox').innerText();
     await m.waitForTimeout(1300);
     const t2 = await m.locator('#cdBox').innerText();
