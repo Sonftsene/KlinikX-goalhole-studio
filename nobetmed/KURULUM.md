@@ -439,3 +439,9 @@ Yöneticiler ve sorumlular her zaman görür.
 **Excel'e işleme:** Sorumluya "Excel'e işlenecek" olarak hangi parçanın kime geçtiği yazılır (ör. "8 8, yalnız gündüz 08-16"). Excel'de veren 16-08 (ya da 08-16), alan diğer parça olarak güncellenince istek kendiliğinden "listeye işlendi" olur.
 
 **Excel görüntüleyicide "Sadece ben":** Ad artık kelime kelime ve sırasıyla eşleşir. Adı benzeyen başka kişiler (ör. ad ve soyadı yer değiştirmiş biri ya da adının içinde sizin adınız geçen biri) artık sizin satırınız sayılmaz.
+
+**4.14.1 görünüm düzeltmeleri:**
+- Telefonda birden çok düğmesi olan satırlarda (ör. Nöbet devral) düğmeler yazının altına iner; yazı tam genişlikte kalır, kelimeler alt alta dizilmez.
+- Masaüstünde Nöbet sekmeleri (Takvimim … Excel liste) tek satıra sığmazsa alt satıra geçer.
+- Yatay kayan şeritler (gün şeridi, filtreler) fare tekerleğiyle ve basılı tutup sürükleyerek kaydırılır; ince kaydırma çubuğu da görünür.
+- Geliştirici için `nobetmed-dev/audit-mobil.mjs` tüm sayfaları telefonda ve masaüstünde gezip sıkışan yazıyı, yatay taşmayı ve fareyle ulaşılamayan şeritleri raporlar (test setinin sonunda çalışır).
