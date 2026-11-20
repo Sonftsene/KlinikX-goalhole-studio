@@ -113,6 +113,12 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.27 — Kullanıcılar: sıralama, süzgeç, çevrimiçi durum ✓ (4.27.0)
 - Sıralama ve etkinlik / yetki süzgeçleri; “Şu an çevrimiçi” ve kişinin açık bölümü (yalnız bölüm adı, ayardan kapatılabilir).
 
+### 4.27 — Mesajlarda tikler ve yerleşim ✓ (4.27.0)
+- Her mesajda tek / çift gri / mavi tik, açılışta son mesaj, yazma kutusu bant ve klavyeyle hep ekranda.
+
+### 4.28 — Sohbet görünümü ✓ (4.28.0)
+- İlet / paylaşta tüm kişiler (arama, çoklu), modern liste, 7 tema, 4 balon biçimi, 8 duvar kağıdı, efektler, sağa kaydırmada ekran kaymaz.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
 1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).

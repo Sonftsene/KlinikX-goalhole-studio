@@ -56,13 +56,13 @@ setTimeout(() => { chatBadge(); chatUnreadSync(); }, 1500);
 async function chatList(view) {
   chatStop();
   CH.filter = CH.filter || 'all';
-  setHTML(view, html`<div class="page-head"><div><h1>Mesajlar</h1><p>Birim grubu, gruplar ve birebir sohbetler</p></div>
-    <div class="row" style="gap:6px"><a class="btn icon" href="#/mesaj/yildizli" aria-label="Yıldızlı mesajlar" title="Yıldızlı mesajlar">${icon('star', 'sm')}</a><a class="btn icon" href="#/mesaj/ayarlar" aria-label="Mesaj ayarları" title="Gizlilik ve ayarlar">${icon('sliders', 'sm')}</a>
+  setHTML(view, html`<div class="page-head ch-head-page"><div><h1>Mesajlar</h1></div>
+    <div class="row" style="gap:6px"><button class="btn icon" data-act="ch-look" aria-label="Görünüm" title="Tema ve duvar kağıdı">${icon('palette', 'sm')}</button><a class="btn icon" href="#/mesaj/yildizli" aria-label="Yıldızlı mesajlar" title="Yıldızlı mesajlar">${icon('star', 'sm')}</a><a class="btn icon" href="#/mesaj/ayarlar" aria-label="Mesaj ayarları" title="Gizlilik ve ayarlar">${icon('sliders', 'sm')}</a>
     <button class="btn primary" data-act="ch-new">${icon('plus', 'sm')}<span>Yeni sohbet</span></button></div></div>
-    <div id="chList"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
+    <div class="${typeof chatHomeClass === 'function' ? chatHomeClass() : 'ch-home'}"><div id="chList"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div></div>`);
   let r;
   try { r = await api('chat.list'); } catch (e) { setHTML($('#chList'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
-  CH.canGroup = r.can_group; CH.callsOn = !!r.calls;
+  CH.canGroup = r.can_group; CH.callsOn = !!r.calls; CH.listAnim = false;
   CH.list = r.items;
   S.chatUnread = r.items.filter((x) => !x.muted).reduce((a, x) => a + x.unread + (x.unread_mark && !x.unread ? 1 : 0), 0); chatBadge();
   chatListDraw();
@@ -75,15 +75,26 @@ function chatListDraw() {
   const list = CH.list.filter((c) => (f === 'arch' ? c.archived : !c.archived) && (f !== 'unread' || c.unread || c.unread_mark) && (f !== 'groups' || c.kind !== 'direct'));
   const tabs = html`<div class="seg ch-filters" role="tablist">${[['all', 'Tümü'], ['unread', 'Okunmamış'], ['groups', 'Gruplar'], ...(CH.callsOn ? [['calls', 'Aramalar']] : []), ['arch', `Arşiv${arch.length ? ' (' + arch.length + ')' : ''}`]].map(([k, l]) => html`<button type="button" class="${f === k ? 'on' : ''}" data-act="ch-filter" data-f="${k}">${l}</button>`)}</div>`;
   if (f === 'calls' && typeof callLogDraw === 'function') { setHTML(box, html`${tabs}<div id="callLog"><div class="card card-pad"><div class="skel" style="height:14px"></div></div></div>`); callLogDraw(); return; }
-  setHTML(box, html`${tabs}
-    ${list.length ? html`<div class="card"><div class="list">${list.map((c) => html`<a class="list-row ch-row ${c.unread || c.unread_mark ? 'unread' : ''}" href="#/mesaj/${c.id}">
-      <span class="ch-ava tone-${c.kind === 'unit' ? 'teal' : c.kind === 'group' ? 'violet' : 'sky'}">${c.photo ? html`<img src="${c.photo}" alt="">` : c.kind === 'direct' ? avatar(c.name, 'sm') : icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}</span>
-      <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${c.name}${c.kind === 'unit' ? html` <span class="badge">birim grubu</span>` : ''}${c.sub ? html` <span class="tiny faint">· ${c.sub}</span>` : ''}</div>
-        <div class="lr-s ellipsis">${typeof chatDraftLoad === 'function' && chatDraftLoad(c.id) ? html`<span class="ch-draft">Taslak:</span> ${chatDraftLoad(c.id)}` : c.last || 'Henüz mesaj yok'}</div></div>
-      <div class="ch-meta"><span class="tiny faint">${c.last_at ? chTime(c.last_at) : ''}</span><span class="row" style="gap:3px">${c.pinned ? icon('pin', 'sm') : ''}${c.muted ? icon('bellOff', 'sm') : ''}${c.unread ? html`<span class="count">${c.unread > 99 ? '99+' : c.unread}</span>` : c.unread_mark ? html`<span class="count"> </span>` : ''}</span></div>
-      <button type="button" class="ch-act" data-act="ch-rowmenu" data-id="${c.id}" aria-label="Sohbet işlemleri">${icon('more', 'sm')}</button></a>`)}</div></div>`
-      : html`<div class="card empty"><p class="small">${f === 'arch' ? 'Arşivde sohbet yok.' : f === 'unread' ? 'Okunmamış sohbet yok.' : 'Sohbet yok.'}</p></div>`}
-    <p class="tiny faint" style="margin-top:10px">${icon('lock', 'sm')} Mesajlar yalnız hastanenizin sunucusunda tutulur. Hasta adı, T.C. kimlik numarası gibi hasta bilgisi paylaşmayın.</p>`);
+  const q = typeof avKey === 'function' ? avKey(CH.q || '') : '';
+  const shown = q ? list.filter((c) => avKey(c.name).includes(q)) : list;
+  // Arama: sohbeti olmayan kişiler de çıkar (dokununca birebir sohbet açılır)
+  const direct = new Set(CH.list.filter((c) => c.kind === 'direct' && c.other).map((c) => c.other.tk + ':' + c.other.uid));
+  const ppl = q && CH.people ? CH.people.filter((p) => !direct.has(p.tk + ':' + p.uid) && avKey(p.name).includes(q)).slice(0, 20) : [];
+  if (q && !CH.people && typeof chatPeopleCache === 'function') chatPeopleCache().then(() => { if (CH.q) chatListDraw(); });
+  const home = $('.ch-home'); if (home && typeof chatHomeClass === 'function') home.className = chatHomeClass();
+  setHTML(box, html`<div class="search ch-search">${icon('search')}<input class="input" type="search" id="chQ" placeholder="Sohbet ya da kişi ara" value="${CH.q || ''}" data-input="ch-q" autocomplete="off"></div>
+    ${tabs}
+    ${shown.length ? html`<div class="ch-cards ${CH.listAnim ? '' : 'anim'}">${shown.map((c, i) => html`<a class="ch-card ch-row ${c.unread || c.unread_mark ? 'unread' : ''} k-${c.kind}" href="#/mesaj/${c.id}" style="--i:${Math.min(i, 14)}">
+      <span class="ch-ava2">${c.photo ? html`<img src="${c.photo}" alt="">` : c.kind === 'direct' ? avatar(c.name) : html`<span class="ch-ava2-i">${icon(c.kind === 'unit' ? 'users' : 'chat')}</span>`}</span>
+      <div class="ch-card-b"><div class="ch-card-t"><b class="ellipsis">${c.name}</b>${c.kind === 'unit' ? html`<span class="ch-tag">birim grubu</span>` : ''}${c.sub ? html`<span class="tiny faint ellipsis">${c.sub}</span>` : ''}<span class="grow"></span><span class="ch-card-time">${c.last_at ? chTime(c.last_at) : ''}</span></div>
+        <div class="ch-card-s"><span class="ellipsis grow">${typeof chatDraftLoad === 'function' && chatDraftLoad(c.id) ? html`<span class="ch-draft">Taslak:</span> ${chatDraftLoad(c.id)}` : c.last || 'Henüz mesaj yok'}</span>
+          ${c.pinned ? icon('pin', 'sm') : ''}${c.muted ? icon('bellOff', 'sm') : ''}${c.unread ? html`<span class="ch-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : c.unread_mark ? html`<span class="ch-badge dot"></span>` : ''}</div></div>
+      <button type="button" class="ch-act" data-act="ch-rowmenu" data-id="${c.id}" aria-label="Sohbet işlemleri">${icon('more', 'sm')}</button></a>`)}</div>`
+      : !ppl.length ? html`<div class="card empty"><p class="small">${q ? 'Bulunamadı.' : f === 'arch' ? 'Arşivde sohbet yok.' : f === 'unread' ? 'Okunmamış sohbet yok.' : 'Sohbet yok.'}</p></div>` : ''}
+    ${ppl.length ? html`<div class="ch-pick-h" style="margin-top:12px">Kişiler · yeni sohbet</div><div class="ch-cards">${ppl.map((p, i) => html`<button type="button" class="ch-card k-person" data-act="ch-start" data-tk="${p.tk}" data-uid="${p.uid}" style="--i:${Math.min(i, 14)}">
+      <span class="ch-ava2">${avatar(p.name)}</span><div class="ch-card-b"><div class="ch-card-t"><b class="ellipsis">${p.name}</b>${p.unit ? html`<span class="tiny faint ellipsis">${p.unit}</span>` : ''}</div><div class="ch-card-s"><span class="ellipsis grow">Yeni sohbet başlat</span>${icon('chat', 'sm')}</div></div></button>`)}</div>` : ''}
+    <p class="tiny faint" style="margin-top:12px">${icon('lock', 'sm')} Mesajlar yalnız hastanenizin sunucusunda tutulur. Hasta adı, T.C. kimlik numarası gibi hasta bilgisi paylaşmayın.</p>`);
+  CH.listAnim = true;
 }
 ACT['ch-filter'] = (el) => { CH.filter = el.dataset.f; chatListDraw(); };
 function chTime(at) {
@@ -96,9 +107,9 @@ function chTime(at) {
 function chatStop() { if (CH.timer) { clearInterval(CH.timer); CH.timer = null; } }
 async function chatOpen(view, id) {
   chatStop();
-  CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null; CH.rc = { d: 0, r: 0 }; CH.stick = true;
+  CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null; CH.rc = { d: 0, r: 0 }; CH.stick = true; CH.seen = null;
   window.scrollTo(0, 0);
-  setHTML(view, html`<div class="ch-view" id="chatView">
+  setHTML(view, html`<div class="ch-view ${typeof chatThemeClass === 'function' ? chatThemeClass() : ''}" id="chatView">
     <div class="ch-head"><a class="btn ghost icon" href="#/mesaj" aria-label="Sohbetler">${icon('chevL')}</a>
       <button type="button" class="grow ch-headbtn" data-act="ch-info" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></button>
       <span id="chCallBtns" class="row" style="gap:0"></span>
@@ -122,6 +133,7 @@ async function chatOpen(view, id) {
   CH.typing = [];
   chatHeadStatus();
   chatAdd(r.msgs, true);
+  CH.seen = new Set(CH.msgs.map((m) => m.id)); // açılıştaki mesajlar canlandırılmaz; sonradan gelenler gelir
   setHTML($('#chMore'), r.more ? html`<button class="btn sm ghost" data-act="ch-older" style="margin:6px auto;display:flex">Önceki mesajlar</button>` : '');
   chatComposer();
   if (typeof chatGestures === 'function') chatGestures($('#chScroll'));
@@ -312,7 +324,8 @@ function chatDraw() {
     const cont = prev && prev.kind !== 'system' && prev.tk === m.tk && prev.uid === m.uid && prev.at.slice(0, 10) === d && !(div && prev.id <= div && m.id > div);
     const sel = CH.sel && CH.sel.has(m.id);
     const other = group && !m.mine;
-    parts.push(html`<div class="ch-msg ${m.mine ? 'mine' : ''} ${cont ? 'cont' : ''} ${sel ? 'sel' : ''} ${CH.sel ? 'selmode' : ''}" data-id="${m.id}">
+    const fresh = CH.seen && !CH.seen.has(m.id);
+    parts.push(html`<div class="ch-msg ${m.mine ? 'mine' : ''} ${cont ? 'cont' : ''} ${sel ? 'sel' : ''} ${CH.sel ? 'selmode' : ''} ${fresh ? 'ch-new' : ''}" data-id="${m.id}">
       ${CH.sel ? html`<span class="ch-chk" aria-hidden="true">${sel ? icon('check', 'sm') : ''}</span>` : ''}
       ${other ? (cont ? html`<span class="ch-avs"></span>` : html`<button type="button" class="ch-avb" data-act="ch-profile" data-tk="${m.tk}" data-uid="${m.uid}" aria-label="${m.name} profili">${avatar(m.name, 'sm')}</button>`) : ''}
       <div class="ch-bub">${other && !cont ? html`<button type="button" class="ch-from" data-act="ch-profile" data-tk="${m.tk}" data-uid="${m.uid}">${m.name}</button>` : ''}
@@ -322,6 +335,7 @@ function chatDraw() {
       </div>${m.deleted || CH.sel ? '' : html`<span class="ch-acts"><button type="button" class="ch-act ch-qr" data-act="ch-qreact" data-id="${m.id}" aria-label="Tepki ver">${icon('smile', 'sm')}</button><button type="button" class="ch-act" data-act="ch-menu" data-id="${m.id}" aria-label="Mesaj işlemleri">${icon('more', 'sm')}</button></span>`}</div>`);
   });
   setHTML(box, parts.length ? html`${parts}` : html`<div class="ch-empty small muted">Henüz mesaj yok. İlk mesajı siz yazın.</div>`);
+  if (CH.seen) CH.msgs.forEach((m) => CH.seen.add(m.id));
   if (typeof chatDownSync === 'function') chatDownSync();
 }
 /** Kendi mesajında tik: tek gri gönderildi, çift gri ulaştı, mavi okundu (gruplarda herkes); gruplarda son mesajda okuyan sayısı */

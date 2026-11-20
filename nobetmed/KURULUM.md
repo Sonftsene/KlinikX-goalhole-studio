@@ -831,3 +831,26 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Gizlilik:** okundu bilgisini kapatan kişi başkalarının okuduğunu da göremez. Birebirde karşı taraf kapattıysa mavi çıkmaz, en fazla çift gri görünür.
 - **Sohbet açılınca** en yeni mesaj görünür; okunmamış mesaj ayıracı yerinde durur. Fotoğraf ve ekler sonradan yüklense de sohbet en altta kalır; siz yukarı kaydırdıysanız yeriniz korunur.
 - **Yazma kutusu her zaman ekranda kalır:** üstte duyuru bandı varken de, duyuru paylaştıktan sonra da, telefonda klavye açıkken de. Bant açılıp kapanınca sohbet ekranı kendiliğinden yeniden sığar.
+
+## 41. Sohbet görünümü, temalar ve iletme (4.28)
+
+**İlet ve sohbette paylaş**
+- Açılan pencerede arama kutusu vardır; yalnız var olan sohbetler değil, biriminizdeki ve size izin verilen diğer birimlerdeki **tüm kişiler** adıyla aranır.
+- Birden çok sohbet ya da kişi seçilebilir (seçilenler üstte çip olarak görünür).
+- Kişiyle henüz sohbetiniz yoksa kendiliğinden açılır.
+
+**Sohbet listesi**
+- Aralıklı, renkli kartlar. Okunmamış sohbetler renkli bir çizgi ve sayıyla öne çıkar.
+- Üstteki “Birim grubu, gruplar ve birebir sohbetler” yazısı kaldırıldı.
+- Arama kutusuna kişi adı yazınca sohbetiniz olmayan kişiler de çıkar; dokununca yeni sohbet açılır.
+
+**Görünüm** (Mesajlar’da 🎨 düğmesi ya da Mesaj ayarları › Tema). Bu cihazda saklanır, başkalarının ekranını değiştirmez:
+- **Renk teması**: Deniz, Gece, Gül, Zümrüt, Gün batımı, Lavanta, Sade.
+- **Balon biçimi**: Yumuşak (renk geçişli), Balon (yuvarlak), Kart (gölgeli), Çizgi (sade).
+- **Duvar kağıdı**: sohbet ve sohbet listesi için ayrı ayrı. Düz, Renk geçişi, Noktalar, Dalgalar, Sağlık, Geometri, Kâğıt, Gece.
+- Pencerede canlı önizleme vardır.
+
+**Efektler ve kaydırma**
+- Yeni gelen mesaj yumuşakça belirir, liste kartları sırayla gelir, okunmamış sayısı belirirken hafifçe büyür.
+- Telefonda “hareketi azalt” açıksa efektler kapanır.
+- Mesajı sağa kaydırarak yanıtlarken ekran artık yana kaymaz.

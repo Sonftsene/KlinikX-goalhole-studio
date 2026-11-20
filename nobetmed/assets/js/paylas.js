@@ -191,6 +191,25 @@ function shareLink(url, title) {
 
 /** Sohbet seç ve gönder: metin ve/veya dosya (görsel) */
 async function shareToChat({ text = '', file = null, title = 'Sohbette paylaş' } = {}) {
+  // 4.28: ortak alıcı seçici (sohbetler + aranabilir tüm kişiler, çoklu seçim)
+  if (typeof chatPickTargets === 'function') {
+    const top = html`${file && /^image\//.test(file.type) ? html`<img class="sh-prev" src="${URL.createObjectURL(file)}" alt="">` : ''}
+      <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="shNote" maxlength="500" value="${file ? text : ''}" placeholder="Mesaja eklenecek yazı"></div>`;
+    const r = await chatPickTargets({ title, top, ok: 'Gönder' });
+    if (!r) return;
+    const note = ($('#shNote', r.el) || {}).value ? $('#shNote', r.el).value.trim() : '';
+    try {
+      let att = null;
+      if (file) att = await uploadFile(file, () => {});
+      for (const id of r.ids) {
+        if (att) await api('chat.send', { id, att_id: att.id, body: note });
+        else await api('chat.send', { id, body: (note ? note + '\n' : '') + text });
+      }
+      r.close();
+      toast(r.names.length > 1 ? `${r.names.length} sohbete gönderildi` : `${r.names[0]} sohbetine gönderildi`);
+    } catch (e) { toast(e.message, 'err'); }
+    return;
+  }
   let r;
   try { r = await api('chat.list'); } catch (e) { toast(e.message, 'err'); return; }
   const items = (r.items || []).filter((c) => !c.archived || true);

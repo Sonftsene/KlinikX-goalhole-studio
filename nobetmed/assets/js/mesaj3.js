@@ -185,8 +185,8 @@ function chatGestures(scroll) {
     const x = e.touches[0].clientX - sx; const y = e.touches[0].clientY - sy;
     if (Math.abs(x) > 8 || Math.abs(y) > 8) { moved = true; clearTimeout(t); }
     if (CH.sel || Math.abs(y) > Math.abs(x) || x <= 0) return;
-    dx = Math.min(80, x);
-    row.style.transform = `translateX(${dx}px)`;
+    dx = Math.min(72, x);
+    row.style.transform = `translateX(${dx}px)`; // .ch-scroll yatayda kaymaz (touch-action: pan-y, overflow-x: hidden)
     row.classList.toggle('swipe-ok', dx > 56);
   }, { passive: true });
   const end = () => {

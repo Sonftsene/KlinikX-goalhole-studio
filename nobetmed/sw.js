@@ -13,6 +13,7 @@ const SHELL_ASSETS = [
   'assets/css/requests.css',
   'assets/css/market.css',
   'assets/css/prefs.css',
+  'assets/css/sohbet.css',
   'assets/theme.js',
   'assets/icon.svg',
   'assets/icon-192.png',
@@ -20,7 +21,7 @@ const SHELL_ASSETS = [
   'manifest.webmanifest',
 ];
 /** assets/js/ altındaki betikler (index.php'deki listeyle aynı tutun). */
-const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa'];
+const JS_FILES = ['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'main', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'mesaj4', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa'];
 const PRECACHE = SHELL_ASSETS.concat(JS_FILES.map((n) => 'assets/js/' + n + '.js'));
 
 const SHELL_CACHE = 'nm-shell-' + VERSION;

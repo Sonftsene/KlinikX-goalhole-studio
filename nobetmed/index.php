@@ -47,7 +47,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
-<?php foreach (['placement', 'requests', 'market', 'prefs'] as $css): ?>
+<?php foreach (['placement', 'requests', 'market', 'prefs', 'sohbet'] as $css): ?>
   <link rel="stylesheet" href="assets/css/<?= $css ?>.css?v=<?= $v ?>">
 <?php endforeach; ?>
   <script id="nm-boot" type="application/json"><?= $boot ?></script>
@@ -56,7 +56,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
 <body>
   <div id="app"><div class="boot-splash"><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
-<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'] as $js): ?>
+<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'mesaj4', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>
 <?php endforeach; ?>
 </body>

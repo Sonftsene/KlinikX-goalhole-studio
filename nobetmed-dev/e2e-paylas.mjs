@@ -131,9 +131,10 @@ try {
   // ---- 6) Sohbette paylaş: bağlantı sayfa adıyla, tıklayınca aynı sekmede ----
   if (MULTI) {
     await E.p.click('.sh-acts [data-sh=chat]');
-    await E.p.locator('.sh-list [data-c]').first().waitFor();
+    await E.p.locator('.ch-pick-row').first().waitFor();
     const grp = await E.p.evaluate(async () => { const r = await api('chat.list'); return r.items.find((c) => c.kind === 'unit') || r.items[0]; });
-    await E.p.click(`.sh-list [data-c="${grp.id}"]`);
+    await E.p.click(`.ch-pick-row[data-key="c${grp.id}"]`);
+    await E.p.click('#chpGo');
     await E.p.getByText('sohbetine gönderildi').first().waitFor();
     await E.p.goto(BASE + '#/mesaj/' + grp.id);
     const chip = E.p.locator('.ch-int').last();
@@ -154,7 +155,8 @@ try {
     }, grp.id);
     await E.p.locator('.modal .sh-prev').waitFor();
     if ((await E.p.inputValue('#shNote')) !== 'Blok yerleşimi · test') fail('görsel notu gelmedi');
-    await E.p.click(`.sh-list [data-c="${grp.id}"]`);
+    await E.p.click(`.ch-pick-row[data-key="c${grp.id}"]`);
+    await E.p.click('#chpGo');
     await E.p.locator('.modal .sh-prev').waitFor({ state: 'detached', timeout: 20000 });
     let msgs = '[]';
     for (let i = 0; i < 40; i++) {
