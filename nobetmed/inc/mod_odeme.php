@@ -45,6 +45,7 @@ function bl_gate(string $action): void
     $s = bl_state_cur();
     if (!$s['read_only']) return;
     if (nm_read_action($action)) return;
+    if (strncmp($action, 'sp.', 3) === 0) return; // destek talebi abonelik bitse de açılabilir
     fail('Biriminizin aboneliği sona erdi; uygulama yalnız görüntülenebilir. Birim yöneticiniz Ayarlar › Abonelik’ten yenileyebilir.', 402);
 }
 

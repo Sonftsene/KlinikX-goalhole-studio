@@ -41,6 +41,7 @@ async function start() {
     history.replaceState(null, '', location.pathname + location.hash);
   }
   if (!S.me && typeof renderApply === 'function' && apIsRoute()) return renderApply();
+  if (!S.me && typeof renderSpPublic === 'function' && spPublicRoute()) return renderSpPublic();
   if (!S.me) return renderAuth('login');
   if (S.me.must_change) return renderForceChange();
   renderShell();

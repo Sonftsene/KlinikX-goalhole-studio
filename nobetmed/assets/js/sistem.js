@@ -43,13 +43,16 @@ async function renderSistem() {
     <main class="sys-main">
       <div class="page-head"><div><h1>Hastaneler ve birimler</h1><p>Her birimin verisi ayrı tutulur. Birimin içini yönetmek için <b>Birime gir</b>: yönetici yetkisiyle girersiniz; giriş, çıkış ve her işlem birimin günlüğüne de yazılır.</p></div>
         <button class="btn primary" data-act="sys-h-new">${icon('plus', 'sm')}<span>Hastane ekle</span></button></div>
-      <div class="seg sys-tabs" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'basvuru' ? 'on' : ''}" data-act="sys-tab" data-t="basvuru">Başvurular<span class="sys-badge" id="sysApN"></span></button><button class="${SYS.tab === 'abonelik' ? 'on' : ''}" data-act="sys-tab" data-t="abonelik">Abonelik ve ödeme</button><button class="${SYS.tab === 'site' ? 'on' : ''}" data-act="sys-tab" data-t="site">Site ve yedek</button><button class="${SYS.tab === 'saglik' ? 'on' : ''}" data-act="sys-tab" data-t="saglik">Sistem sağlığı</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
+      <div class="seg sys-tabs" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'basvuru' ? 'on' : ''}" data-act="sys-tab" data-t="basvuru">Başvurular<span class="sys-badge" id="sysApN"></span></button><button class="${SYS.tab === 'destek' ? 'on' : ''}" data-act="sys-tab" data-t="destek">Destek<span class="sys-badge" id="sysSpN"></span></button><button class="${SYS.tab === 'abonelik' ? 'on' : ''}" data-act="sys-tab" data-t="abonelik">Abonelik ve ödeme</button><button class="${SYS.tab === 'site' ? 'on' : ''}" data-act="sys-tab" data-t="site">Site ve yedek</button><button class="${SYS.tab === 'saglik' ? 'on' : ''}" data-act="sys-tab" data-t="saglik">Sistem sağlığı</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
       <div id="sysBody"><div class="empty"><div class="spinner"></div></div></div>
     </main></div>`);
   sysLoad();
 }
 /** Başvurular sekmesindeki bekleyen sayısı */
-function sysTabBadge() { const b = $('#sysApN'); if (b) b.textContent = SYS.applyOpen ? String(SYS.applyOpen) : ''; }
+function sysTabBadge() {
+  const b = $('#sysApN'); if (b) b.textContent = SYS.applyOpen ? String(SYS.applyOpen) : '';
+  const c = $('#sysSpN'); if (c) c.textContent = SYS.supportOpen ? String(SYS.supportOpen) : '';
+}
 ACT['sys-tab'] = (el) => { SYS.tab = el.dataset.t; $$('[data-act=sys-tab]').forEach((b) => b.classList.toggle('on', b === el)); sysLoad(); };
 
 async function sysLoad() {
@@ -57,6 +60,7 @@ async function sysLoad() {
   if (!box) return;
   if (SYS.tab === 'abonelik' && typeof blSaRender === 'function') return blSaRender(box);
   if (SYS.tab === 'basvuru' && typeof apSaRender === 'function') return apSaRender(box);
+  if (SYS.tab === 'destek' && typeof spSaRender === 'function') return spSaRender(box);
   if (SYS.tab === 'site' && typeof lgSaRender === 'function') return lgSaRender(box);
   if (SYS.tab === 'saglik' && typeof hlRender === 'function') return hlRender(box, 'sa.health');
   try {
@@ -67,7 +71,7 @@ async function sysLoad() {
       return;
     }
     SYS.data = await api('sa.overview');
-    SYS.applyOpen = SYS.data.apply_open || 0; sysTabBadge();
+    SYS.applyOpen = SYS.data.apply_open || 0; SYS.supportOpen = SYS.data.support_open || 0; sysTabBadge();
   } catch (e) {
     if (e.status === 401) { S.sa = null; return start(); }
     setHTML(box, html`<div class="card card-pad small">${e.message}</div>`); return;
@@ -88,6 +92,8 @@ const SYS_ACT = {
   'billing.bulk': 'Toplu deneme', 'billing.pay': 'Ödeme işlemi', 'billing.note': 'Abonelik bildirimi',
   'apply.cfg': 'Başvuru ayarları', 'apply.approve': 'Başvuru onaylandı', 'apply.reject': 'Başvuru reddedildi', 'apply.info': 'Başvurudan bilgi istendi', 'apply.spam': 'Başvuru geçersiz sayıldı',
   'apply.reopen': 'Başvuru yeniden açıldı', 'apply.delete': 'Başvuru silindi', 'apply.note': 'Başvuruya not',
+  'support.reply': 'Destek yanıtı', 'support.close': 'Destek talebi kapandı', 'support.reopen': 'Destek talebi yeniden açıldı', 'support.unit': 'Destek talebi birime aktarıldı',
+  'support.delete': 'Destek talebi silindi', 'support.canned': 'Hazır yanıtlar',
   'legal.save': 'Yasal metinler / künye', 'health.mail': 'Deneme e-postası', 'backup.cfg': 'Yedek ayarları', 'backup.send': 'Yedek gönderildi', 'backup.download': 'Yedek indirildi',
 };
 function sysTenantRow(t) {

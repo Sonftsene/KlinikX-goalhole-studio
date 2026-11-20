@@ -131,7 +131,7 @@ function renderAuth(mode = 'login') {
       <p class="small muted" style="margin-top:18px;text-align:center">
         ${reg === 'closed' ? 'Hesabınız yoksa yöneticinizden davet isteyin.' : html`Hesabınız yok mu? <a href="#" data-act="auth-mode" data-mode="register">Kayıt olun</a>`}
       </p>
-      <p class="tiny faint" style="text-align:center;margin-top:8px">${S.mail_ready ? html`<a href="#" data-act="auth-mode" data-mode="forgot">Şifremi unuttum</a>` : 'Şifrenizi unuttuysanız yöneticiniz geçici şifre oluşturabilir.'}</p>
+      <p class="tiny faint" style="text-align:center;margin-top:8px">${S.mail_ready ? html`<a href="#" data-act="auth-mode" data-mode="forgot">Şifremi unuttum</a>` : 'Şifrenizi unuttuysanız yöneticiniz geçici şifre oluşturabilir.'}${window.NM_DEMO_API ? '' : html` · <a href="#" data-act="sp-help">Giriş yapamıyorum</a>`}</p>
       ${S.apply ? html`<div class="ap-cta"><span>${icon('building', 'sm')} Biriminiz portalda yok mu?</span><a href="#/basvuru" data-act="ap-open">Birim açma başvurusu</a></div>` : ''}
       ${typeof legalLinks === 'function' ? legalLinks() : ''}
       ${S.tenant && S.tenant.sys ? html`<p class="tiny faint" style="text-align:center;margin-top:14px"><a href="#" data-act="sys-login">${icon('shield', 'sm')} Sistem yönetimi</a></p>` : ''}`;

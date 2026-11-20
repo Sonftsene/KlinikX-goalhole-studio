@@ -234,6 +234,11 @@ function kv_export(array $me): array
     $add('Gönderileriniz', fn() => all('SELECT title, body, status, created_at, published_at FROM posts WHERE author_id = ? ORDER BY id', [$uid]));
     $add('Okuduğunuz / onayladığınız duyurular', fn() => all('SELECT p.title, v.post_id, (SELECT a.created_at FROM acks a WHERE a.post_id = v.post_id AND a.user_id = v.user_id) AS onay FROM views v JOIN posts p ON p.id = v.post_id WHERE v.user_id = ?', [$uid]));
     $add('Yüklediğiniz dosyalar', fn() => all('SELECT orig_name, mime, size, created_at FROM attachments WHERE user_id = ? ORDER BY id', [$uid]));
+    if (function_exists('sp_all')) $add('Destek talepleri', function () use ($uid) {
+        $ts = sp_all('SELECT id, subject, topic, route, status, created_at, closed_at FROM sp_tickets WHERE user_id = ? AND tkey = ? ORDER BY id', [$uid, sp_here()[0]]);
+        foreach ($ts as &$t) { $t['mesajlar'] = sp_all('SELECT who, name, body, created_at FROM sp_msgs WHERE ticket_id = ? AND internal = 0 ORDER BY id', [(int)$t['id']]); unset($t['id']); }
+        return $ts;
+    });
     $add('İşlem kayıtlarınız', fn() => all('SELECT action, target, detail, ip, at FROM audit_log WHERE user_id = ? ORDER BY id DESC LIMIT 3000', [$uid]));
     // Ortak alanlar (mesajlaşma, hastane belgeleri): kişi birim anahtarı + kimliğiyle tanınır
     if (function_exists('hdb') && hdb()) {

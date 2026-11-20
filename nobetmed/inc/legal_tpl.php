@@ -30,6 +30,7 @@ Birimlerin portala yüklediği nöbet listeleri, duyurular ve benzeri içerikler
 - **Çalışma düzeni:** nöbet listelerinde adınızın geçtiği satırlar, nöbet istekleri, nöbet değişimi / devri / ilanları, eksik personel çağrılarına verdiğiniz yanıtlar, blok yerleşimi.
 - **İletişim içerikleri:** gönderdiğiniz mesajlar ve dosyalar, sesli / görüntülü arama kayıtları (yalnız zaman ve taraflar; görüşme içeriği kaydedilmez), duyuru okuma ve onay kayıtları, bildirimler.
 - **İsteğe bağlı:** yalnız sizin gördüğünüz fazla mesai ücreti bilgileri, görünüm ve bildirim tercihleri.
+- **Destek taleplerinde:** yazdığınız mesajlar ve isteğe bağlı ekran görüntüsü; talebe kendiliğinden eklenen birim, rol, açık sayfa, uygulama sürümü ve cihaz / tarayıcı türü. Talebi konusuna göre destek ekibi (sistem yöneticisi) ya da birim sorumlusu görür.
 - **Birim açma başvurusunda:** görev bilgisi, cep telefonu ve isteğe bağlı görevlendirme belgesi.
 - **Ödeme yapan birim yöneticileri için:** fatura bilgileri ve ödeme kayıtları. Kart bilgileri ödeme kuruluşunda işlenir, bize ulaşmaz.
 
@@ -40,6 +41,7 @@ Portal hasta verisi işlemek için tasarlanmamıştır. Mesajlara, belgelere ve 
 - ekip içi iletişim, duyuru ve bildirimlerin iletilmesi,
 - hesabınızın oluşturulması, kimliğinizin doğrulanması ve hesap güvenliğinin sağlanması,
 - kötüye kullanımın ve yetkisiz erişimin önlenmesi, hizmetin iyileştirilmesi,
+- destek taleplerinin yanıtlanması,
 - birim açma başvurularının değerlendirilmesi,
 - abonelik, faturalandırma ve mevzuattan doğan yükümlülüklerin yerine getirilmesi.
 
@@ -60,6 +62,7 @@ Verileriniz; sizin ya da birim yöneticinizin portala girdiği bilgilerden, biri
 - Hesap verileri hesabınız açık olduğu sürece saklanır; hesap silindiğinde silinir ya da anonim hale getirilir. Yedeklerdeki kopyalar en geç 90 gün içinde ortadan kalkar.
 - Güvenlik ve erişim kayıtları mevzuatın öngördüğü süre boyunca saklanır.
 - Reddedilen birim başvuruları 90 gün sonra, onaylananların iletişim ayrıntıları 1 yıl sonra silinir; başvuru belgesi karar verilince silinir.
+- Kapanan destek talepleri 1 yıl, giriş yapamayanların talepleri son yazışmadan 6 ay sonra silinir.
 - Fatura ve ödeme kayıtları vergi mevzuatındaki süreler boyunca saklanır.
 
 ## Haklarınız

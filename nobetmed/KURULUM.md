@@ -701,3 +701,38 @@ Bazı birimlerde kişiler ay ay farklı listede (ör. bir ay 2. basamak, bir ay 
 - Önizleme **salt okunurdur**: gönderi, ilan, istek, ayar gibi değişiklikler bu sırada yapılamaz (yanlışlıkla üye adına işlem yapılmasın).
 - Üstteki mor bant hangi rolün gözünden baktığınızı gösterir; **Rolü değiştir** ile başka role geçer, **Çık** ile kendi görünümünüze dönersiniz.
 - Önizleme yalnız o tarayıcı oturumunda geçerlidir (telefonunuzdaki oturum etkilenmez); çıkış yapınca biter. İşlem günlüğüne “viewas” olarak yazılır.
+
+## 36. Destek (4.23)
+
+Herkes uygulamanın içinden destek talebi açabilir. Talep, konusuna göre doğru kişiye gider ve kişinin hangi hastane, birim ve rolden yazdığı kendiliğinden eklenir.
+
+**Nereden açılır**
+- Üst çubuktaki **?** düğmesi (her sayfada; telefonda da görünür). Yanıt gelince düğmede sayı çıkar.
+- Sol menüde **Destek**, adınıza tıklayınca açılan menüde **Destek**.
+- Giriş ekranında **Giriş yapamıyorum**: hesabına giremeyen kişi ad, e-posta ve sorununu yazar. Yanıt e-postasına gelir; e-postadaki bağlantıdan yazışmayı izleyip yanıtlayabilir.
+
+**İki ayrı yol**
+- **Sorumlu desteği** (birim yöneticisi ve yayıncılar): kurulum ve ayarlar, Excel / nöbet listesi yükleme, kullanıcılar ve yetkiler, abonelik ve ödeme, hata, öneri. Hepsi doğrudan **sistem yöneticisine (dupcii destek)** gider.
+- **Kullanıcı desteği** (üyeler), konuya göre ayrılır:
+  - Birim konuları (“Nöbetim görünmüyor”, “İzin, istek, ilan ve değişimler”, “Diğer”) önce **birim sorumlusuna** gider. Sorumlu çözemezse **Destek ekibine ilet** ile tek tuşla sistem yöneticisine geçirir.
+  - Teknik konular (giriş ve şifre, bildirim / e-posta, uygulama hatası, öneri) doğrudan **sistem yöneticisine** gider.
+- Konu seçilince önce kısa hazır çözümler gösterilir. Çoğu soru form gönderilmeden çözülür; çözülmezse “Yine de yazmak istiyorum”.
+
+**Talebe kendiliğinden eklenenler** (kişi formda görebilir): hastane › birim, ad ve e-posta, rol (Yönetici / Yayıncı / Üye), birime özel rolün adı ve yönettiği modüller, talebin açıldığı sayfa, uygulama sürümü, cihaz / tarayıcı, varsa son hata.
+
+**Birim sorumlusu** (yönetici ve yayıncılar): Destek › **Birim talepleri** sekmesi. Yanıtla, yanıtla ve kapat, talebi kapat, destek ekibine ilet. Yayıncıların kendi sorumlu talepleri birim yöneticisine düşmez, doğrudan sistem yöneticisine gider.
+
+**Sistem yöneticisi:** Sistem yönetimi › **Destek** sekmesi (bekleyen sayısı sekmede yazar).
+- Süzgeçler: yanıt bekleyen / yanıtlanan / birimde / kapanan; hastane, birim, sorumlu / kullanıcı / giriş yapamayan; arama.
+- Her talepte kişi ve bağlam kartı; yanıt kişiye **“dupcii destek”** adıyla gider (uygulama içi bildirim ve e-posta).
+- **İç not** yalnız sistem yöneticilerine görünür.
+- **Hazır yanıtlar** (`{ad}` kişinin adıyla değişir). Birim konusu olan bir üye talebini **Birim sorumlusuna aktar**. Kapat / yeniden aç / sil (spam).
+- Yeni talep ve yanıtlar sistem yöneticisinin e-postasına gelir. Bunun için en az bir birimde e-posta ayarlı olmalı (bkz. §4).
+
+**Tek birimli (MySQL) kurulum:** sistem yöneticisi yoktur. Bütün talepler (üyelerinki, yayıncılarınki, giriş yapamayanlarınki) birim yöneticisine gelir; birim yöneticisi kendine talep açmaz.
+
+**KVKK**
+- T.C. kimlik numarası içeren mesaj gönderilemez. Formda hasta ve kişisel bilgi uyarısı vardır.
+- Ekran görüntüleri şifreli saklanır; yalnız talebin sahibi, ilgili sorumlu ve sistem yöneticisi açabilir.
+- Kapanan talepler 1 yıl, giriş yapamayanların talepleri 6 ay sonra kendiliğinden silinir. Talepler **Verilerim › indir** dosyasında da yer alır.
+- Aydınlatma metni taslağına destek talepleri eklendi. Metni kendi metninizle değiştirmediyseniz kişilerden yeniden onay istenir.

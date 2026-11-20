@@ -225,6 +225,8 @@ if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
 // Birim açma başvurusu: giriş gerektirmez, birim veritabanı açmaz (e-posta için yalnız e-posta ayarı olan birim)
 if (strncmp($action, 'apply.', 6) === 0) { $routes[$action](); exit; }
+// Giriş yapamayanın destek talebi: oturum gerektirmez (çok birimlide talep merkeze yazılır)
+if (strncmp($action, 'help.', 5) === 0) { $routes[$action](); exit; }
 // Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
 nm_route_tenant($action);
 // Birimdeki sistem yöneticisi kişi değildir: kişisel hesap işlemleri ve birim adına mesaj kapalı

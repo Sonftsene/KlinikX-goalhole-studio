@@ -98,6 +98,9 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.22 — Bağlantı önizlemesi, gruplu sayfa listesi, rol gözünden görme ✓ (4.22.0)
 - WhatsApp vb. paylaşımda logolu kart (Open Graph); “Bağlantı ekle” listesinde Nöbet sekmeleri ve Hesabım; yönetici kendi hesabıyla yayıncı / üye / özel rol gözünden salt okunur önizleme.
 
+### 4.23 — Destek ✓ (4.23.0)
+- Sorumlu / kullanıcı ayrı konular; birim konuları sorumluya (iletebilir), teknik konular ve sorumluların talepleri sistem yöneticisine; otomatik bağlam (hastane, birim, rol, özel rol, modüller, sayfa, cihaz); hazır çözümler; sistem yöneticisi Destek sekmesi (iç not, hazır yanıt, birime aktar); giriş yapamayanlar için giriş ekranından talep.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
 1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).

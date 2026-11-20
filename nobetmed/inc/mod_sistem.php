@@ -214,7 +214,7 @@ function a_sa_overview(): void
         }
     }
     $hs = m_all('SELECT * FROM hospitals ORDER BY name, id');
-    out(['apply_open' => function_exists('ap_sa_count') ? ap_sa_count() : 0, 'hospitals' => array_map(fn($h) => ['id' => (int)$h['id'], 'name' => $h['name'], 'status' => $h['status'],
+    out(['apply_open' => function_exists('ap_sa_count') ? ap_sa_count() : 0, 'support_open' => function_exists('sp_sa_count') ? sp_sa_count() : 0, 'hospitals' => array_map(fn($h) => ['id' => (int)$h['id'], 'name' => $h['name'], 'status' => $h['status'],
         'tenants' => array_values(array_map('sa_tenant_out', array_filter($ts, fn($t) => (int)$t['hospital_id'] === (int)$h['id'])))], $hs)]);
 }
 
