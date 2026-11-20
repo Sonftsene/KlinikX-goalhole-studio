@@ -235,6 +235,8 @@ if (!in_array($action, ['boot', 'me.password', 'auth.logout', 'live'], true) && 
     && ($fu = current_user()) && (int)($fu['must_change'] ?? 0) === 1 && empty($fu['sa_virtual'])) fail('Devam etmek için önce geçici şifrenizi değiştirin.', 403);
 // Abonelik: süresi dolmuş ve ücretsiz paketi olmayan birim salt okunur (zorunluluk açıksa)
 if (function_exists('bl_gate')) bl_gate($action);
+// Yönetici başka bir rolün gözünden bakıyorsa önizleme salt okunur
+if (function_exists('vw_gate')) vw_gate($action);
 // Modül kapalıysa / kişinin bu modülde yetkisi yoksa dur; is_publisher() bu modülün yetkisine göre karar verir
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
@@ -378,6 +380,7 @@ function user_out(array $u): array
         'must_change' => (int)($u['must_change'] ?? 0) === 1,
         'ephemeral' => !empty($_SESSION['eph']), // tarayıcı kapanınca biten oturum: çevrimdışı önbellek bu cihazda kalıcı tutulmaz
         'role_id' => isset($u['role_id']) && $u['role_id'] !== null ? (int)$u['role_id'] : null,
+        'view_as' => !empty($u['view_as']),
     ];
 }
 

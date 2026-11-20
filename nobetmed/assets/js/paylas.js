@@ -19,15 +19,40 @@ function internalHash(url) {
     return u.hash;
   } catch (e) { return null; }
 }
-/** Menüdeki sayfalar: [{href, label}] (yalnız kişinin görebildikleri) */
+/**
+ * Kişinin görebildiği site içi sayfalar: [{href, label, group}]
+ * Yan menü (bölüm başlıklarıyla) + Nöbet sekmeleri (Takvimim, Kim nöbette, Taraf, İstekler, İlanlar, Ekstra nöbet, Çizelge, Excel liste) + Hesabım sekmeleri.
+ */
 function sitePages() {
   const seen = new Set();
   const out = [];
-  $$('#sidebar a[href^="#/"]').forEach((a) => {
-    const href = a.getAttribute('href'); const label = (a.querySelector('.nav-label') || a).textContent.replace(/\d+$/, '').trim();
-    if (!seen.has(href) && label) { seen.add(href); out.push({ href, label }); }
+  const add = (href, label, group) => { label = String(label || '').trim(); if (href && label && !seen.has(href)) { seen.add(href); out.push({ href, label, group }); } };
+  let group = 'Genel';
+  const sb = $('#sidebar');
+  if (sb) [...sb.children].forEach((el) => {
+    if (el.classList.contains('nav-sec')) { group = el.textContent.trim() || group; return; }
+    if (el.matches('a.nav-item[href^="#/"]')) add(el.getAttribute('href'), (el.querySelector('.grow') || el).textContent.replace(/\s*\d+\+?$/, ''), group);
   });
-  return out;
+  if (typeof modOn === 'function' && modOn('nobet')) {
+    const g = 'Nöbet';
+    add('#/nobetim', 'Takvimim', g);
+    add('#/rehber', 'Kim nöbette', g);
+    if (modOn('taraf')) add('#/taraf', 'Taraf listesi', g);
+    (NM_EXT.hubTabs || []).filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).forEach((x) => add(x.href, x.label, g));
+    add('#/nobet', 'Excel liste', g);
+  }
+  if (typeof profTabs === 'function') profTabs().forEach(([k, l]) => add('#/profil/' + k, l, 'Hesabım'));
+  // Grupları menüdeki ilk görünüş sırasıyla bir arada tut
+  const order = [];
+  out.forEach((p) => { if (!order.includes(p.group)) order.push(p.group); });
+  return order.flatMap((g) => out.filter((p) => p.group === g));
+}
+/** <select> için gruplu seçenekler */
+function pageOptions(selected) {
+  const pages = sitePages();
+  const groups = [];
+  pages.forEach((p) => { if (!groups.includes(p.group)) groups.push(p.group); });
+  return html`${groups.map((g) => html`<optgroup label="${g}">${pages.filter((p) => p.group === g).map((p) => html`<option value="${p.href}" ${p.href === selected ? raw('selected') : ''}>${p.label}</option>`)}</optgroup>`)}`;
 }
 /** #/… yolunun okunur adı */
 function pageTitleOf(hash) {
@@ -98,11 +123,10 @@ ACT['lnk-add'] = (el) => {
   if (!ta) return;
   const s0 = ta.selectionStart || 0, s1 = ta.selectionEnd || 0;
   const sel = ta.value.slice(s0, s1).trim();
-  const pages = sitePages();
   const m = openModal({ title: 'Bağlantı ekle', size: 'narrow', body: html`<form class="stack" id="lnkF">
       <div class="field"><label>Bağlantı yazısı</label><input class="input" name="t" value="${sel}" maxlength="200" required placeholder="Örn: yemek listesine bakın"></div>
       <div class="seg" id="lnkK"><button type="button" class="on" data-k="in">Site içi sayfa</button><button type="button" data-k="out">Web adresi</button></div>
-      <div class="field" id="lnkIn"><label>Sayfa</label><select class="select" name="p">${pages.map((p) => html`<option value="${p.href}" ${p.href === location.hash ? raw('selected') : ''}>${p.label}</option>`)}<option value="${location.hash || '#/'}">Şu an açık sayfa (${currentPageTitle()})</option></select></div>
+      <div class="field" id="lnkIn"><label>Sayfa</label><select class="select" name="p"><option value="${location.hash || '#/'}">Şu an açık sayfa (${currentPageTitle()})</option>${pageOptions(location.hash)}</select></div>
       <div class="field hidden" id="lnkOut"><label>Adres</label><input class="input" name="u" placeholder="https://…" inputmode="url"></div>
       <p class="tiny faint">Metinde <b>[yazı](adres)</b> olarak görünür; okuyanlara yalnız yazı bağlantı olarak çıkar.</p>
       <div class="form-error hidden" data-err></div></form>`,

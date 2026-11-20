@@ -685,3 +685,19 @@ Bazı birimlerde kişiler ay ay farklı listede (ör. bir ay 2. basamak, bir ay 
   - Panoda ve kişi tablosunda liste adı gösterilmez.
 - Seçim hatırlanır: bir kez açınca sonraki dönemlerde açık gelir. Açık bir dönemi **Düzenle** ile sonradan da bu şekle çevirebilirsiniz; girilmiş istekler korunur.
 - Kişilerin hep aynı listede çalıştığı birimlerde seçeneği kapalı bırakın; istekler eskisi gibi listeye / tarafa göre ayrılır.
+
+## 35. Bağlantı önizlemesi, sayfa listesi ve rol gözünden görme (4.22)
+
+**WhatsApp / Telegram önizlemesi.** Sitenin bağlantısı paylaşılınca artık düz adres yerine dupcii logolu büyük bir kart çıkar (başlık, kısa açıklama, görsel). Bağlantıda birim belliyse başlıkta birimin adı yazar. Tanıtım ve yasal sayfalar da aynı kartı verir.
+- Görsel: `assets/og-image.jpg` (1200 × 630). Kendi görselinizi kullanmak isterseniz aynı ad ve boyutta değiştirebilirsiniz (300 KB'tan küçük olsun).
+- `robots.txt` arama motorlarına kapalı kalır; yalnız önizleme botlarına (WhatsApp, Facebook, Telegram, X, LinkedIn, Slack, Discord) izin verir. Giriş gerektiren içerik önizlemede görünmez.
+- WhatsApp önizlemeyi bir süre önbellekte tutar: daha önce paylaşılmış bir bağlantı eski (düz) haliyle görünebilir. Denemek için adresin sonuna `?v=2` gibi bir ek koyun.
+- Önizleme görselinin görünmesi için sitenin HTTPS ile açılması önerilir (Hostinger › SSL).
+
+**Bağlantı ekle › Site içi sayfa.** Liste artık gruplu: Genel, Nöbet (Takvimim, Kim nöbette, Taraf listesi, İstekler, İlanlar, Ekstra nöbet, Çizelge, Excel liste ve nöbet listeleri), Bölümler, Yönetim ve Hesabım sekmeleri. Duyuru bandındaki düğme bağlantısı da aynı listeyi kullanır.
+
+**Başka rolün gözünden gör (yönetici).** Sol alttaki adınıza tıklayın › **Başka rolün gözünden gör** › Yayıncı (sorumlu), Üye ya da birime özel bir rol seçin.
+- Kimsenin hesabına girilmez; kendi hesabınızla, seçtiğiniz rolün menülerini ve sayfalarını görürsünüz.
+- Önizleme **salt okunurdur**: gönderi, ilan, istek, ayar gibi değişiklikler bu sırada yapılamaz (yanlışlıkla üye adına işlem yapılmasın).
+- Üstteki mor bant hangi rolün gözünden baktığınızı gösterir; **Rolü değiştir** ile başka role geçer, **Çık** ile kendi görünümünüze dönersiniz.
+- Önizleme yalnız o tarayıcı oturumunda geçerlidir (telefonunuzdaki oturum etkilenmez); çıkış yapınca biter. İşlem günlüğüne “viewas” olarak yazılır.

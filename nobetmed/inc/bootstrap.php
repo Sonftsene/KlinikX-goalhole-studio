@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.21.0';
+const NM_VERSION = '4.22.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 21;
 const NM_ROOT = __DIR__ . '/..';
@@ -527,6 +527,45 @@ function base_url(): string
     if (PHP_SAPI === 'cli') return 'http://localhost/';
     return request_base_url();
 }
+/**
+ * Bağlantı önizlemesi (WhatsApp, Telegram, Facebook, X, LinkedIn, Slack): Open Graph + Twitter kartı etiketleri.
+ * Görsel mutlak adres olmalı; önizleme botu sayfayı hangi adresten çektiyse o adres kullanılır.
+ */
+function nm_og_tags(string $title, string $desc, string $site = 'dupcii'): string
+{
+    $e = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+    $img = request_base_url() . 'assets/og-image.jpg?v=' . NM_VERSION;
+    $alt = 'dupcii: nöbet listeleri, değişimler ve ekip iletişimi tek yerde';
+    return '<meta property="og:type" content="website">'
+        . '<meta property="og:site_name" content="' . $e($site) . '">'
+        . '<meta property="og:locale" content="tr_TR">'
+        . '<meta property="og:title" content="' . $e($title) . '">'
+        . '<meta property="og:description" content="' . $e($desc) . '">'
+        . '<meta property="og:image" content="' . $e($img) . '">'
+        . (str_starts_with($img, 'https://') ? '<meta property="og:image:secure_url" content="' . $e($img) . '">' : '')
+        . '<meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+        . '<meta property="og:image:alt" content="' . $e($alt) . '">'
+        . '<meta name="twitter:card" content="summary_large_image">'
+        . '<meta name="twitter:title" content="' . $e($title) . '">'
+        . '<meta name="twitter:description" content="' . $e($desc) . '">'
+        . '<meta name="twitter:image" content="' . $e($img) . '">'
+        . '<meta name="twitter:image:alt" content="' . $e($alt) . '">';
+}
+/**
+ * Yalnız okuyan (veri değiştirmeyen) bir istek mi? Salt okunur durumlarda (süresi dolmuş abonelik, rol gözünden önizleme)
+ * bu istekler serbest, diğerleri durdurulur. Kişinin kendi hesabı (me.*), bildirim ve oturum işleri okuyan sayılır.
+ */
+function nm_read_action(string $action): bool
+{
+    // Adı okuma kalıbına uymayan okuma uçları (sohbeti açmak yalnız okundu işaretini günceller)
+    static $reads = ['admin.users', 'attachments.text', 'call.log', 'callout.candidates', 'callout.meta', 'callout.sheet', 'chat.media', 'chat.open',
+        'chat.people', 'chat.readers', 'chat.starred', 'chat.unread', 'chat.voters', 'extra.me', 'extra.take', 'invites.candidates', 'legal.text',
+        'mail.log', 'market.home', 'placement.counts', 'placement.today', 'report.reads', 'report.reviews', 'req.panel', 'req.periods',
+        'rosters.shifts', 'rosters.versions', 'setup.status'];
+    if (in_array($action, $reads, true)) return true;
+    if (preg_match('/^(boot|live|counts|auth\.|me\.|billing\.|push\.|notif\.|qr\.|sa\.|passkey\.login|person\.card$|meal\.get$|shifts\.|people\.)/', $action)) return true;
+    return (bool)preg_match('/\.(list|get|my|mine|day|days|search|board|check|options|info|older|history|report|stats|view|read|calendar|month|profile|contacts|state|members|prefs\.get|cfg\.get)$/', $action);
+}
 function request_base_url(): string
 {
     $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
@@ -598,6 +637,18 @@ function current_user(): ?array
         }
         if ($u && $u['status'] === 'active') {
             $user = $u;
+            // Rol gözünden görme (yalnız gerçek yönetici; inc/mod_gorunum.php): bu oturumda rol geçici olarak düşük
+            if ($u['role'] === 'admin' && !empty($_SESSION['view_as']) && is_array($_SESSION['view_as'])) {
+                $va = $_SESSION['view_as'];
+                $vr = in_array($va['role'] ?? '', ['editor', 'member'], true) ? $va['role'] : 'member';
+                $vid = !empty($va['role_id']) ? (int)$va['role_id'] : null;
+                $user['real_role'] = 'admin';
+                $user['view_as'] = ['role' => $vr, 'role_id' => $vid];
+                $user['role'] = $vr;
+                $user['role_id'] = $vid;
+            } elseif (!empty($_SESSION['view_as'])) {
+                unset($_SESSION['view_as']); // yöneticilikten çıkarıldıysa
+            }
             if (empty($_SESSION['seen']) || $_SESSION['seen'] < time() - 300) {
                 q('UPDATE users SET last_seen_at = ? WHERE id = ?', [now(), $u['id']]);
                 $_SESSION['seen'] = time();

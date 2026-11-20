@@ -79,3 +79,48 @@ async function sysModules(kind, id, title) {
     try { await api('sa.modules.save', { kind, id, modules }); m.close(); toast('Modüller kaydedildi'); } catch (e) { toast(e.message, 'err'); }
   }));
 }
+
+/* ---------------- Rol gözünden görme (4.22) ----------------
+ * Yönetici kendi hesabıyla sitenin yayıncı (sorumlu), üye ya da birime özel bir rolün gözünden nasıl göründüğüne bakar.
+ * Başkasının hesabına girilmez; önizleme salt okunurdur (sunucu değişiklik isteklerini durdurur). */
+const VW_BASE = [
+  { role: 'editor', name: 'Yayıncı (sorumlu)', desc: 'Duyuru yayınlar, nöbet modüllerini yönetir; kullanıcılar ve ayarlar görünmez.', ic: 'megaphone' },
+  { role: 'member', name: 'Üye (normal kullanıcı)', desc: 'Duyuruları okur; kendi nöbetleri, ilanlar, istekler ve mesajlar.', ic: 'user' },
+];
+function vwCanUse() { return !!(S.me && (S.me.view_as || (S.me.role === 'admin' && !S.me.sa_virtual && !(S.sa && S.sa.in)))); }
+function vwBar() {
+  const box = $('#vwBar');
+  if (!box) return;
+  const va = S.me && S.me.view_as ? S.view_as : null;
+  document.documentElement.classList.toggle('vw-on', !!va);
+  if (!va) return setHTML(box, '');
+  setHTML(box, html`<div class="banner vw-bar" role="status">${icon('eye')}<span class="grow"><b>${va.label}</b> gözünden görüyorsunuz<span class="vw-sub"> · kendi hesabınızla, salt okunur önizleme</span></span>
+    <button class="bn-btn" data-act="vw-pick">Rolü değiştir</button><button class="bn-btn vw-exit" data-act="vw-exit">Çık</button></div>`);
+}
+async function vwSet(role, roleId) {
+  try {
+    await api('me.viewas', { role, role_id: roleId || null });
+    // Önbellekteki yönetici verisi kalmasın: sayfa baştan açılır
+    location.hash = '#/';
+    location.reload();
+  } catch (e) { toast(e.message, 'err'); }
+}
+ACT['vw-pick'] = () => {
+  const va = S.view_as || null;
+  const roles = (va && va.roles) || S.roles || [];
+  const cur = va ? (va.role_id ? 'r' + va.role_id : va.role) : '';
+  const row = (key, ic, name, desc) => html`<button type="button" class="list-row vw-opt ${cur === key ? 'on' : ''}" data-k="${key}">
+      <span class="vw-ic">${icon(ic)}</span><span class="grow"><span class="lr-t">${name}</span><span class="tiny faint" style="display:block">${desc}</span></span>${cur === key ? html`<span class="badge brand">Açık</span>` : ''}</button>`;
+  const m = openModal({ title: 'Başka rolün gözünden gör', size: 'narrow', body: html`<div class="stack">
+      <p class="small muted">Siteyi seçtiğiniz rolle giren birinin gördüğü gibi görürsünüz. Kimsenin hesabına girilmez; kendi hesabınızla, <b>salt okunur</b> bakarsınız. Üstteki banttan istediğiniz an çıkabilirsiniz.</p>
+      <div class="card"><div class="list">${VW_BASE.map((b) => row(b.role, b.ic, b.name, b.desc))}
+        ${roles.map((ro) => row('r' + ro.id, 'shield', ro.name, 'Birime özel rol (üye yetkisi üzerine bu rolün modül izinleri)'))}</div></div></div>`,
+    foot: html`${va ? html`<button class="btn" data-act="vw-exit">Kendi görünümüme dön</button>` : ''}<button class="btn" data-close>Vazgeç</button>` });
+  $$('.vw-opt', m.el).forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.k;
+    if (k === cur) return m.close();
+    m.close();
+    if (k[0] === 'r') vwSet('member', +k.slice(1)); else vwSet(k, null);
+  }));
+};
+ACT['vw-exit'] = () => vwSet('', null);

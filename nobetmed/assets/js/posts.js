@@ -7,6 +7,7 @@ function renderShell() {
   <div class="shell" id="shell">
     <aside class="sidebar" id="sidebar"></aside>
     <div class="main">
+      <div id="vwBar"></div>
       <div id="bannerSlot"></div>
       <div id="blBar"></div>
       <header class="topbar">
@@ -31,6 +32,7 @@ function renderShell() {
   </div>`);
   renderNav();
   renderBanner();
+  if (typeof vwBar === 'function') vwBar();
   if (typeof blBanner === 'function') blBanner();
   updateNotifBadge();
 }
@@ -125,6 +127,7 @@ ACT.theme = () => {
 ACT['me-menu'] = (el) => openMenu(el, [
   { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''}</div></div>` },
   { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
+  ...(typeof vwCanUse === 'function' && vwCanUse() ? [{ id: 'v', icon: 'eye', label: S.me.view_as ? 'Rol önizlemesi: değiştir / çık' : 'Başka rolün gözünden gör', run: () => ACT['vw-pick']() }] : []),
   { id: 't', icon: isDark() ? 'sun' : 'moon', label: isDark() ? 'Açık tema' : 'Koyu tema', run: () => ACT.theme() },
   '-',
   { id: 'o', icon: 'logout', label: 'Çıkış yap', danger: true, run: logout },

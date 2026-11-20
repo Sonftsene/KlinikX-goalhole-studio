@@ -11,6 +11,11 @@ $bv = fn(string $k) => (string)setting('brand_' . $k, '');
 $favicon = $bv('icon') !== '' ? 'api.php?action=brand&f=icon&v=' . substr(md5($bv('icon')), 0, 10) : 'assets/icon.svg';
 $favType = ['svg' => 'image/svg+xml', 'png' => 'image/png', 'ico' => 'image/x-icon', 'jpg' => 'image/jpeg', 'webp' => 'image/webp'][strtolower(pathinfo($bv('icon') ?: 'x.svg', PATHINFO_EXTENSION))] ?? 'image/png';
 $touch = $bv('icon192') !== '' ? 'api.php?action=brand&f=icon192&v=' . substr(md5($bv('icon192')), 0, 10) : 'assets/icon-192.png';
+// Bağlantı önizlemesi: birim belliyse birim adı, değilse dupcii
+$org = nm_tenant_hinted() ? trim((string)setting('org_name', '')) : '';
+if ($org === 'Klinik Portalı') $org = '';
+$ogTitle = $org !== '' ? $org . ' · dupcii' : 'dupcii · Nöbet ve ekip portalı';
+$ogDesc = 'Nöbet listeleri, değişim ve devirler, eksik personel ilanları ve ekip mesajlaşması tek yerde. Giriş yaparak devam edin.';
 $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)($_GET['s'] ?? ''), 'reset' => preg_replace('/[^a-f0-9]/', '', (string)($_GET['reset'] ?? '')), 'invite' => preg_replace('/[^A-Za-z0-9_-]/', '', (string)($_GET['davet'] ?? ''))], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?><!DOCTYPE html>
 <html lang="tr">
@@ -19,7 +24,10 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <meta name="theme-color" content="#1f8f80">
-  <title>dupcii</title>
+  <title><?= htmlspecialchars($org !== '' ? $org . ' · dupcii' : 'dupcii') ?></title>
+  <meta name="description" content="<?= htmlspecialchars($ogDesc) ?>">
+  <?= nm_og_tags($ogTitle, $ogDesc) ?>
+
   <link rel="manifest" href="manifest.php">
   <link rel="icon" href="<?= htmlspecialchars($favicon) ?>" type="<?= $favType ?>" id="favicon">
   <link rel="apple-touch-icon" href="<?= htmlspecialchars($touch) ?>">

@@ -1784,3 +1784,13 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .ch-int { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-text); font-weight: 600; text-decoration: none; }
 .ch-int svg.i { width: 13px; height: 13px; }
 a.in-link { font-weight: 600; }
+
+/* Rol gözünden görme (4.22) */
+.banner.vw-bar { background: linear-gradient(90deg, #233a8f, #5b3fc4); color: #fff; align-items: center; position: sticky; top: 0; z-index: 30; }
+.banner.vw-bar .vw-sub { opacity: .85; font-weight: 400; }
+.banner.vw-bar .bn-btn { border: 0; cursor: pointer; font-family: inherit; }
+.banner.vw-bar .vw-exit { background: #fff; color: #3b2f9a; }
+.vw-opt { cursor: pointer; }
+.vw-opt.on { background: var(--brand-soft, rgba(31, 143, 128, .08)); }
+.vw-opt .vw-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2, rgba(0, 0, 0, .05)); flex: none; }
+@media (max-width: 640px) { .banner.vw-bar .vw-sub { display: none; } }

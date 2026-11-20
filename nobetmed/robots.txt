@@ -1,2 +1,14 @@
+# Uygulama arama motorlarına kapalıdır. Bağlantı önizleme botları (WhatsApp, Telegram, Facebook, X, LinkedIn, Slack, Discord)
+# yalnız sayfa başlığını ve paylaşım görselini okuyabilsin diye izinlidir; giriş gerektiren içerik zaten görünmez.
+User-agent: facebookexternalhit
+User-agent: Facebot
+User-agent: WhatsApp
+User-agent: TelegramBot
+User-agent: Twitterbot
+User-agent: LinkedInBot
+User-agent: Slackbot-LinkExpanding
+User-agent: Discordbot
+Allow: /
+
 User-agent: *
 Disallow: /

@@ -34,6 +34,7 @@ DirectoryIndex index.php
     ExpiresByType application/javascript "access plus 30 days"
     ExpiresByType image/svg+xml "access plus 30 days"
     ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
 </IfModule>
 
 # Hız: metin dosyalarını sıkıştır (JS kütüphaneleri ~%70 küçülür)

@@ -44,8 +44,7 @@ function bl_gate(string $action): void
     if (!bl_on() || !empty($_SESSION['sa_in'])) return;
     $s = bl_state_cur();
     if (!$s['read_only']) return;
-    if (preg_match('/^(boot|live|counts|auth\.|me\.|billing\.|push\.|notif\.|qr\.|sa\.|passkey\.login|person\.card$|meal\.get$|shifts\.|people\.)/', $action)) return;
-    if (preg_match('/\.(list|get|my|mine|day|days|search|board|check|options|info|older|history|report|stats|view|read|calendar|month|profile|contacts|state|members|prefs\.get|cfg\.get)$/', $action)) return;
+    if (nm_read_action($action)) return;
     fail('Biriminizin aboneliği sona erdi; uygulama yalnız görüntülenebilir. Birim yöneticiniz Ayarlar › Abonelik’ten yenileyebilir.', 402);
 }
 
