@@ -1796,8 +1796,6 @@ a.in-link { font-weight: 600; }
 @media (max-width: 640px) { .banner.vw-bar .vw-sub { display: none; } }
 
 /* Destek (4.23) */
-.sp-top { position: relative; }
-.sp-top-n { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--danger, #c9354f); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 .sp-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; }
 .sp-row { text-decoration: none; color: inherit; cursor: pointer; }
 .sp-row.unread .lr-t { font-weight: 700; }

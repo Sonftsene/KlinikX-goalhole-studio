@@ -22,7 +22,6 @@ function renderShell() {
         <a class="btn ghost icon mobile-only" href="#/telefon" aria-label="Telefon rehberi" title="Telefon rehberi">${icon('phone')}</a>
         <button class="btn ghost icon mobile-only" data-act="search-open" aria-label="Ara">${icon('search')}</button>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
-        ${typeof spTopBtn === 'function' ? spTopBtn() : ''}
         ${notifButtonHtml()}
         <a class="top-me" href="#/profil" id="topMe" aria-label="Hesabım ve profil ayarları" title="Hesabım">${avatar(S.me.name, 'sm')}</a>
         <button class="btn ghost icon desk-only" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>

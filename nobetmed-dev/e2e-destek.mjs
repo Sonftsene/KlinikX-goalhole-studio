@@ -98,8 +98,10 @@ try {
   await login(E.p, 'elif@test.com', 'YeniSifre99');
   await E.p.goto(BASE + '#/nobetim');
   await E.p.waitForTimeout(500);
-  if (!(await E.p.locator('#spTop').isVisible())) fail('üst çubukta destek düğmesi yok');
-  await E.p.click('#spTop');
+  if (await E.p.locator('#spTop').count()) fail('üst çubukta destek düğmesi hâlâ var');
+  // Telefonda: menü › Destek
+  await E.p.click('[data-act=nav-open]');
+  await E.p.click('#sidebar a[href="#/destek"]');
   await E.p.locator('[data-act=sp-new]').first().click();
   await E.p.locator('.sp-topic').first().waitFor();
   const topics = await E.p.locator('.sp-topic').evaluateAll((els) => els.map((e) => e.dataset.k));

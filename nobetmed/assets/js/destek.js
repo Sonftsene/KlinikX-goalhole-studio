@@ -17,12 +17,13 @@ const SP_TOPIC_IC = { kurulum: 'sliders', liste: 'table', kullanici: 'users', ab
 const SP_TRACK = { lead: ['Sorumlu', 'tone-violet'], user: ['Kullanıcı', 'tone-sky'], public: ['Giriş yapamayan', 'tone-amber'] };
 const SP_ST_CLS = { open: 'warn', answered: 'info', closed: '' };
 
-/** Üst çubuktaki "?" düğmesi (posts.js renderShell) */
-function spTopBtn() {
-  if (!S.support) return '';
-  const n = spCount();
-  return html`<button class="btn ghost icon sp-top" data-act="sp-open" aria-label="Destek" title="Destek" id="spTop">${icon('help')}${n ? html`<span class="sp-top-n">${n > 9 ? '9+' : n}</span>` : ''}</button>`;
-}
+/* Destek sol menüde ve ad menüsünde (üst çubukta yok). Talebe eklenen "açık sayfa", Destek'e gelmeden önceki sayfadır. */
+window.addEventListener('hashchange', (e) => {
+  try {
+    const old = new URL(e.oldURL).hash || '#/';
+    if (/^#\/destek/.test(location.hash) && !/^#\/destek/.test(old)) { SP.from = old; SP.fromTitle = typeof pageTitleOf === 'function' ? pageTitleOf(old) : ''; }
+  } catch (x) { /* */ }
+});
 ACT['sp-open'] = () => {
   if (!/^#\/destek/.test(location.hash)) { SP.from = location.hash || '#/'; SP.fromTitle = typeof currentPageTitle === 'function' ? currentPageTitle() : ''; }
   location.hash = '#/destek';
@@ -262,7 +263,6 @@ ACT['sp-rate'] = async (el) => {
   try { await api('sp.rate', { id: SP.cur.id, rating: +el.dataset.n }); toast('Teşekkürler!'); spTicket($('#view'), SP.cur.id); } catch (e) { toast(e.message, 'err'); }
 };
 function spRefreshBadges() {
-  const b = $('#spTop'); if (b) b.outerHTML = String(spTopBtn());
   if (typeof renderNav === 'function') renderNav();
 }
 

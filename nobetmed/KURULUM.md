@@ -713,7 +713,7 @@ Bazı birimlerde kişiler ay ay farklı listede (ör. bir ay 2. basamak, bir ay 
 Herkes uygulamanın içinden destek talebi açabilir. Talep, konusuna göre doğru kişiye gider ve kişinin hangi hastane, birim ve rolden yazdığı kendiliğinden eklenir.
 
 **Nereden açılır**
-- Üst çubuktaki **?** düğmesi (her sayfada; telefonda da görünür). Yanıt gelince düğmede sayı çıkar.
+- Sol menüde **Destek** (telefonda menü düğmesiyle açılır). Yanıt gelince yanında sayı çıkar. Üst çubukta ayrıca düğme yoktur (4.27).
 - Sol menüde **Destek**, adınıza tıklayınca açılan menüde **Destek**.
 - Giriş ekranında **Giriş yapamıyorum**: hesabına giremeyen kişi ad, e-posta ve sorununu yazar. Yanıt e-postasına gelir; e-postadaki bağlantıdan yazışmayı izleyip yanıtlayabilir.
 
