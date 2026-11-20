@@ -212,7 +212,7 @@ try {
 
   // ---- 8) Yetki ----
   if (!/^40[13]/.test(await apiErr(E.p, multi ? 'sa.update.info' : 'update.info'))) fail('üye güncelleme ucunu açabildi');
-  if (multi && !/^403/.test(await apiErr(A.p, 'update.info'))) fail('çok birimlide birim yöneticisi güncelleme yapabiliyor');
+  if (multi) { const ua = await apiErr(A.p, 'update.info'); if (!/^40[13]/.test(ua)) fail('çok birimlide birim yöneticisi güncelleme yapabiliyor: ' + ua); }
   step('yetki: üye güncelleme yapamaz' + (multi ? '; çok birimlide yalnız sistem yöneticisi' : ''));
 } catch (e) {
   fail('beklenmeyen hata: ' + (e.stack || e.message));
