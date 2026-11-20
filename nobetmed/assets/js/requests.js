@@ -101,7 +101,7 @@ async function renderRequests(view, sub) {
     <div id="rqTop"></div><div id="rqBody">${rqSkel()}</div></div>`);
   try {
     const d = await api('req.periods');
-    RQ.periods = d.periods; RQ.can = d.can_manage; RQ.rosters = d.rosters; RQ.loaded = true;
+    RQ.periods = d.periods; RQ.can = d.can_manage; RQ.rosters = d.rosters; RQ.mergeDefault = !!d.merge_default; RQ.loaded = true;
   } catch (e) { setHTML($('#rqBody'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   if (!RQ.periods.some((p) => p.id === RQ.pid)) {
     const open = RQ.periods.filter((p) => p.open).sort((a, b) => a.ym.localeCompare(b.ym));
@@ -129,7 +129,7 @@ function drawRqTop() {
   setHTML(top, html`<div class="card rq-per">
       <div class="rq-per-h"><span class="cat-ico tone-${p.open ? 'amber' : 'slate'}">${icon('calendar')}</span>
         <div class="grow"><div class="lr-t">${p.label} istekleri ${p.open ? html`<span class="badge success">Açık</span>` : html`<span class="badge">Kapandı</span>`}</div>
-          <div class="lr-s">${p.deadline ? html`Son gün <b>${fmtDate(p.deadline)}</b>${p.open ? ' · ' + rqLeft(p.deadline) : ''}` : ''} · ${p.roster || 'Tüm listeler'}${p.total ? ` · ${p.people} kişi, ${p.total} gün` : ''}</div></div>
+          <div class="lr-s">${p.deadline ? html`Son gün <b>${fmtDate(p.deadline)}</b>${p.open ? ' · ' + rqLeft(p.deadline) : ''}` : ''} · ${p.merge ? 'Tüm birim' : p.roster || 'Tüm listeler'}${p.total ? ` · ${p.people} kişi, ${p.total} gün` : ''}</div></div>
         ${RQ.can ? html`<button class="btn sm" data-act="rq-edit" aria-label="Dönemi düzenle">${icon('edit', 'sm')}<span class="desk-only">Düzenle</span></button>` : ''}</div>
       ${p.note ? html`<div class="rq-per-note small">${icon('info', 'sm')}<span>${p.note}</span></div>` : ''}
       ${others ? html`<div class="rq-per-pick"><select class="select" data-change="rq-period" aria-label="Dönem">${RQ.periods.map((x) => html`<option value="${x.id}" ${x.id === p.id ? raw('selected') : ''}>${x.label}${x.roster ? ' · ' + x.roster : ''} — ${x.open ? 'açık' : 'kapandı'}</option>`)}</select></div>` : ''}
@@ -220,7 +220,8 @@ function drawRqRoster() {
   const ro = d.roster;
   const nm = (id) => (d.choices.find((c) => c.id === id) || {}).name || '';
   let inner;
-  if (ro.fixed) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${ro.name}</b></div>`;
+  if (ro.merged) inner = html`<div class="small muted">${icon('users', 'sm')} İstekler tüm birim için toplanır; hangi listede (basamakta) çalışacağınızı sorumlu belirler.</div>`;
+  else if (ro.fixed) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${ro.name}</b></div>`;
   else if (d.choices.length <= 1 && ro.id) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${nm(ro.id)}</b></div>`;
   else if (ro.found && RQ.rosterSel) inner = html`<div class="row between wrap"><div class="small">${icon('table', 'sm')} ${d.target.self ? 'Listen' : 'Listesi'}: <b>${nm(RQ.rosterSel)}</b> <span class="tiny faint">${ro.auto ? '(adından bulundu)' : ''}</span></div>${d.can_edit ? html`<button class="btn sm ghost" data-act="rq-roster-pick">Değiştir</button>` : ''}</div>`;
   else inner = html`<div class="field"><label>${d.target.self ? 'Hangi listedesin?' : 'Hangi listede?'}</label><select class="select" data-change="rq-roster" ${d.can_edit ? '' : raw('disabled')}><option value="">Seçin</option>${d.choices.map((c) => html`<option value="${c.id}" ${c.id === RQ.rosterSel ? raw('selected') : ''}>${c.name}</option>`)}</select>
@@ -753,7 +754,9 @@ function rqPeriodModal(p) {
     body: html`<form class="stack" data-form="rq-period" id="rqPerForm"><input type="hidden" name="id" value="${p ? p.id : ''}">
       <div class="grid2 rq-g2"><div class="field"><label>Ay</label><select class="select" name="ym" data-change="rq-pym">${months.map((x) => html`<option value="${x}" ${x === ym ? raw('selected') : ''}>${lab(x)}</option>`)}</select></div>
         <div class="field"><label>Son gün</label><input class="input" type="date" name="deadline" value="${p ? p.deadline : rqDefDeadline(ym)}" required></div></div>
-      <div class="field"><label>Liste</label><select class="select" name="roster_id"><option value="">Tüm listeler</option>${RQ.rosters.map((r) => html`<option value="${r.id}" ${p && p.roster_id === r.id ? raw('selected') : ''}>${r.name}</option>`)}</select></div>
+      ${(() => { const mg = p ? !!p.merge : !!RQ.mergeDefault; return html`
+      <label class="switch"><input type="checkbox" name="merge" data-change="rq-merge" ${mg ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Basamak / liste ayrımı yapma</b><span>Kişiler ay ay farklı listede (ör. 2. ve 3. basamak) çalışıyorsa açın: herkes isteğini aya yazar, liste sormaz; panelde tüm birim tek grup görünür.</span></span></label>
+      <div class="field ${mg ? 'hidden' : ''}" id="rqPerRoster"><label>Liste</label><select class="select" name="roster_id"><option value="">Tüm listeler</option>${RQ.rosters.map((r) => html`<option value="${r.id}" ${p && p.roster_id === r.id ? raw('selected') : ''}>${r.name}</option>`)}</select></div>`; })()}
       <div class="field"><label>Not (isteğe bağlı)</label><textarea class="textarea" style="min-height:72px" name="note" maxlength="300" placeholder="Örn: Bayram haftasında en fazla 2 gün boşluk yazın.">${p ? p.note || '' : ''}</textarea></div>
       ${p ? html`<label class="switch"><input type="checkbox" name="open" ${p.status === 'open' ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>İsteklere açık</b><span>Kapalıyken üyeler ekleyemez ve değiştiremez; siz düzeltebilirsiniz. Süreyi uzatıp açarsanız herkese bildirilir.</span></span></label>`
         : html`<p class="form-note">${icon('bell', 'sm')} Açınca herkese bildirim gider. Son günden 2 gün önce isteği olmayanlara hatırlatılır; son gün geçince dönem kendiliğinden kapanır.</p>`}
@@ -762,9 +765,10 @@ function rqPeriodModal(p) {
   });
   return m;
 }
+CHANGE['rq-merge'] = (el) => { const b = $('#rqPerRoster'); if (b) b.classList.toggle('hidden', el.checked); };
 CHANGE['rq-pym'] = (el) => { const f = el.form; if (f && !f.id.value) f.deadline.value = rqDefDeadline(el.value); };
 FORMS['rq-period'] = (f) => submitForm(f, async (d) => {
-  const res = await api('req.period.save', { id: d.id ? +d.id : 0, ym: d.ym, roster_id: d.roster_id ? +d.roster_id : null, deadline: d.deadline, note: d.note, status: d.id ? (d.open ? 'open' : 'closed') : 'open' });
+  const res = await api('req.period.save', { id: d.id ? +d.id : 0, ym: d.ym, merge: !!d.merge, roster_id: d.roster_id && !d.merge ? +d.roster_id : null, deadline: d.deadline, note: d.note, status: d.id ? (d.open ? 'open' : 'closed') : 'open' });
   const mm = modalStack.find((x) => x.el === f.closest('.overlay'));
   if (mm) mm.close();
   RQ.periods = res.periods; RQ.pid = res.id; RQ.mine = null; RQ.board = null; RQ.panel = null; RQ.psel = null;

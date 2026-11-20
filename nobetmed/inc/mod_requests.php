@@ -186,6 +186,9 @@ function rq_users(): array
 /* Dönemler                                                            */
 /* ------------------------------------------------------------------ */
 
+/** Dönemde basamak / liste ayrımı yok mu (kişiler ay ay liste değiştiriyor; istekler tüm birim için toplanır) */
+function rq_merged(array $p): bool { return !empty(rq_meta($p['meta'] ?? '')['merge']); }
+
 function rq_period_out(array $p, array $me, array $stats = []): array
 {
     $rosters = rq_nobet_rosters();
@@ -194,7 +197,7 @@ function rq_period_out(array $p, array $me, array $stats = []): array
     $id = (int)$p['id'];
     return [
         'id' => $id, 'ym' => $p['ym'], 'label' => rq_month_label($p['ym']), 'month' => rq_month_name($p['ym']),
-        'roster_id' => $rid, 'roster' => $rid ? ($rosters[$rid] ?? 'Silinmiş liste') : null,
+        'roster_id' => $rid, 'roster' => $rid ? ($rosters[$rid] ?? 'Silinmiş liste') : null, 'merge' => rq_merged($p),
         'deadline' => $p['deadline'], 'status' => $p['status'], 'open' => $open, 'note' => $p['note'],
         'days' => (int)date('t', strtotime($p['ym'] . '-01')), 'created_at' => $p['created_at'],
         'can_edit' => $open || is_publisher($me),
@@ -234,6 +237,7 @@ function a_req_periods(): void
         'can_manage' => is_publisher($me),
         'rosters' => array_map(fn($id, $n) => ['id' => $id, 'name' => $n], array_keys(rq_nobet_rosters()), rq_nobet_rosters()),
         'sides' => array_map(fn($s) => ['key' => $s['key'], 'name' => $s['name'], 'roster_id' => $s['roster_id']], $sides),
+        'merge_default' => setting('req_merge_default', '0') === '1',
         'today' => date('Y-m-d'),
     ]);
 }
@@ -246,8 +250,9 @@ function a_req_period_save(): void
     $old = $id ? rq_period($id) : null;
     $ym = s('ym', 7) ?: ($old['ym'] ?? '');
     if (!rq_valid_ym($ym)) fail('Ayı seçin.');
+    $merge = b('merge');
     $rid = i('roster_id');
-    $rid = $rid ? (int)$rid : null;
+    $rid = $rid && !$merge ? (int)$rid : null; // ayrım yoksa dönem tüm listeleri kapsar
     if ($rid !== null && !isset(rq_nobet_rosters()[$rid])) fail('Liste bulunamadı.');
     $deadline = s('deadline', 10);
     if (!valid_ymd($deadline)) fail('Son günü seçin.');
@@ -270,10 +275,11 @@ function a_req_period_save(): void
 
     $label = rq_month_name($ym);
     $dl = rq_day_long($deadline);
-    $scope = $rid ? rq_nobet_rosters()[$rid] : 'Tüm listeler';
+    $scope = $merge ? 'Tüm birim (liste ayrımı yok)' : ($rid ? rq_nobet_rosters()[$rid] : 'Tüm listeler');
+    set_setting('req_merge_default', $merge ? '1' : '0');
     if (!$old) {
         q('INSERT INTO req_periods (ym, roster_id, deadline, status, note, created_by, created_at, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$ym, $rid, $deadline, 'open', $note ?: null, $me['id'], now(), '{}']);
+            [$ym, $rid, $deadline, 'open', $note ?: null, $me['id'], now(), $merge ? '{"merge":true}' : '{}']);
         $id = insert_id();
         audit($me, 'req.period', rq_month_label($ym) . ' istekleri açıldı', $scope . ' · son gün ' . $dl);
         if (!b('silent')) {
@@ -286,6 +292,7 @@ function a_req_period_save(): void
         $reopened = $status === 'open' && ($old['status'] !== 'open' || $deadline > (string)$old['deadline']) && $deadline >= date('Y-m-d');
         if ($deadline !== $old['deadline']) unset($meta['reminded']);
         if ($status === 'open') unset($meta['closed_note']);
+        if ($merge) $meta['merge'] = true; else unset($meta['merge']);
         q('UPDATE req_periods SET ym = ?, roster_id = ?, deadline = ?, status = ?, note = ?, meta = ? WHERE id = ?',
             [$ym, $rid, $deadline, $status, $note ?: null, json_encode((object)$meta, JSON_UNESCAPED_UNICODE), $id]);
         $what = $status === 'closed' ? 'kapatıldı' : ($reopened ? ($old['status'] !== 'open' ? 'yeniden açıldı' : 'süre uzatıldı') : 'düzenlendi');
@@ -349,7 +356,8 @@ function rq_mine_out(array $p, array $t, array $me): array
     $cands = rq_detect_roster($t['name'], $people);
     $saved = null;
     foreach ($rows as $r) if ($r['roster_id'] !== null && $r['roster_id'] !== '') { $saved = (int)$r['roster_id']; break; }
-    $rid = $p['roster_id'] ? (int)$p['roster_id'] : ($saved ?? ($cands[0] ?? null));
+    $merged = rq_merged($p);
+    $rid = $merged ? null : ($p['roster_id'] ? (int)$p['roster_id'] : ($saved ?? ($cands[0] ?? null)));
     // Uyum: ayın listesi geldiyse onaylı isteğe rağmen yazılmış nöbet
     $shifts = [];
     if (array_filter($rows, fn($r) => $r['status'] === 'approved')) {
@@ -365,8 +373,8 @@ function rq_mine_out(array $p, array $t, array $me): array
             'reason' => $r['status'] === 'rejected' ? $r['reason'] : null, 'decided_at' => $r['decided_at'],
             'conflict' => $r['status'] === 'approved' && isset($shifts[$r['date']]) ? $shifts[$r['date']] : null,
         ], $rows),
-        'roster' => ['id' => $rid, 'name' => $rid ? ($rosters[$rid] ?? null) : null, 'auto' => !$p['roster_id'] && $rid !== null && in_array($rid, $cands, true), 'fixed' => (bool)$p['roster_id'], 'found' => $cands !== []],
-        'choices' => array_map(fn($id) => ['id' => $id, 'name' => $rosters[$id] ?? ''], $scope),
+        'roster' => ['id' => $rid, 'name' => $rid ? ($rosters[$rid] ?? null) : null, 'auto' => !$p['roster_id'] && $rid !== null && in_array($rid, $cands, true), 'fixed' => (bool)$p['roster_id'], 'found' => $cands !== [], 'merged' => $merged],
+        'choices' => $merged ? [] : array_map(fn($id) => ['id' => $id, 'name' => $rosters[$id] ?? ''], $scope),
         'can_edit' => $isPub || ($t['self'] && rq_member_open($p)),
     ];
     if ($isPub) {
@@ -376,7 +384,7 @@ function rq_mine_out(array $p, array $t, array $me): array
         foreach ($people as $rid2 => $map) foreach ($map as $k => $n) {
             if (isset($list[$k])) continue;
             $u = swap_user_for((string)$n, $users);
-            $list[$k] = ['name' => $u ? $u['name'] : $n, 'roster' => $rosters[$rid2] ?? '', 'account' => (bool)$u, 'me' => $u && (int)$u['id'] === (int)$me['id']];
+            $list[$k] = ['name' => $u ? $u['name'] : $n, 'roster' => $merged ? '' : ($rosters[$rid2] ?? ''), 'account' => (bool)$u, 'me' => $u && (int)$u['id'] === (int)$me['id']];
         }
         uasort($list, fn($a, $b) => strcmp(tr_fold($a['name']), tr_fold($b['name'])));
         $out['people'] = array_values($list);
@@ -413,7 +421,8 @@ function a_req_save(): void
     // Liste: dönemin listesi, seçilen ya da adından bulunan
     $scope = rq_scope_rosters($p);
     $rid = i('roster_id');
-    if ($p['roster_id']) $rid = (int)$p['roster_id'];
+    if (rq_merged($p)) $rid = null;
+    elseif ($p['roster_id']) $rid = (int)$p['roster_id'];
     elseif ($rid) { if (!in_array((int)$rid, $scope, true)) fail('Liste bu dönemde yok.'); }
     else $rid = rq_detect_roster($t['name'], rq_roster_people($scope, $p['ym']))[0] ?? null;
 
@@ -486,7 +495,7 @@ function a_req_board(): void
     $people = [];
     foreach ($rows as $r) {
         $k = (int)$r['user_id'] > 0 ? 'u' . $r['user_id'] : 'n' . swap_key((string)$r['name']);
-        if (!isset($people[$k])) $people[$k] = ['key' => $k, 'name' => $r['name'], 'roster' => $r['roster_id'] ? ($rosters[(int)$r['roster_id']] ?? null) : null,
+        if (!isset($people[$k])) $people[$k] = ['key' => $k, 'name' => $r['name'], 'roster' => $r['roster_id'] && !rq_merged($p) ? ($rosters[(int)$r['roster_id']] ?? null) : null,
             'me' => (int)$r['user_id'] === (int)$me['id'], 'items' => []];
         $people[$k]['items'][] = ['date' => $r['date'], 'kind' => $r['kind'], 'status' => $r['status']];
     }
@@ -519,9 +528,17 @@ function rq_panel_data(array $p, array $me): array
     $sides = [];
     foreach ($cfg as $sd) if (in_array((int)$sd['roster_id'], $scope, true)) $sides[] = ['key' => $sd['key'], 'name' => $sd['name'], 'roster_id' => (int)$sd['roster_id'], 'units' => $sd['units']];
     $people = rq_roster_people($scope, $ym);
+    $merged = rq_merged($p);
+    if ($merged) {
+        // Basamak ayrımı yok: bütün listelerdeki kişiler ve tarafların birimleri tek grupta
+        $units = [];
+        foreach ($cfg as $sd) foreach ((array)$sd['units'] as $u) $units[$u] = true;
+        $sides = [['key' => 'all', 'name' => 'Tüm birim', 'roster_id' => 0, 'units' => array_keys($units)]];
+    }
     if (!$sides) foreach ($scope as $rid) if (!empty($people[$rid]) || (int)$p['roster_id'] === $rid) $sides[] = ['key' => 'r' . $rid, 'name' => $rosters[$rid] ?? 'Liste', 'roster_id' => $rid, 'units' => []];
     $sideOfRoster = [];
     foreach ($sides as $sd) $sideOfRoster[$sd['roster_id']] = $sd['key'];
+    if ($merged) foreach ($scope as $rid) $sideOfRoster[$rid] = 'all';
 
     // Kişi kimliği: listedeki ad anahtarı (tüm listeler), yoksa hesap / ad
     $allNames = [];
@@ -554,7 +571,7 @@ function rq_panel_data(array $p, array $me): array
     foreach ($rows as $r) {
         $k = $resolve((string)$r['name'], (int)$r['user_id']);
         if (!isset($persons[$k])) {
-            $side = $sideOfKey[$k] ?? ($r['roster_id'] && isset($sideOfRoster[(int)$r['roster_id']]) ? $sideOfRoster[(int)$r['roster_id']] : '_');
+            $side = $merged ? 'all' : ($sideOfKey[$k] ?? ($r['roster_id'] && isset($sideOfRoster[(int)$r['roster_id']]) ? $sideOfRoster[(int)$r['roster_id']] : '_'));
             $persons[$k] = ['key' => $k, 'name' => (int)$r['user_id'] > 0 ? $r['name'] : ($allNames[$k] ?? $r['name']), 'user_id' => (int)$r['user_id'] ?: null, 'side' => $side,
                 'roster' => $r['roster_id'] ? ($rosters[(int)$r['roster_id']] ?? null) : null, 'items' => [], 'n' => 0, 'b' => 0, 'i' => 0,
                 'pending' => 0, 'approved' => 0, 'rejected' => 0, 'conflicts' => 0,
@@ -589,6 +606,7 @@ function rq_panel_data(array $p, array $me): array
     foreach ($sideList as $sd) {
         $members = [];
         if ($sd['roster_id']) foreach ($people[$sd['roster_id']] ?? [] as $k => $n) $members[$k] = true;
+        if ($sd['key'] === 'all') foreach ($people as $map) foreach ($map as $k => $n) $members[$k] = true;
         foreach ($persons as $k => $x) if ($x['side'] === $sd['key']) $members[$k] = true;
         $nPeople = count($members);
         $days = [];

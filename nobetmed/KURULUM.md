@@ -674,3 +674,14 @@ Her madde **yeşil** (tamam), **sarı** (öneri), **kırmızı** (düzeltilmeli)
 ### Taraf görselini sohbette paylaşma
 - Taraf listesinde **Paylaş** penceresinde **Sohbette paylaş** düğmesi vardır. Oluşan görsel, seçilen sohbete (birim grubu, özel grup ya da kişi) resim olarak gider; not eklenebilir.
 - WhatsApp'ta paylaşma, indirme ve metin olarak kopyalama aynen duruyor.
+
+## 34. Basamak / liste ayrımı olmadan nöbet istekleri (4.21)
+
+Bazı birimlerde kişiler ay ay farklı listede (ör. bir ay 2. basamak, bir ay 3. basamak) çalışır. İstekler toplanırken o ayın listesi henüz belli değildir; herkes isteğini yalnız aya yazar, sorumlu listeyi hazırlarken istekleri ilgili basamağa yerleştirir.
+
+- **Dönem açarken** (Nöbet › İstekler › Dönem aç) **"Basamak / liste ayrımı yapma"** seçeneğini açın.
+  - Üyeye liste sorulmaz; ekranında "İstekler tüm birim için toplanır" yazar.
+  - Yönetim panelinde tüm birim tek grup ("Tüm birim") görünür. Kişi sayısı bütün listelerdeki kişilerin birleşimidir; gereken kişi sayıları tarafların toplamından hesaplanır.
+  - Panoda ve kişi tablosunda liste adı gösterilmez.
+- Seçim hatırlanır: bir kez açınca sonraki dönemlerde açık gelir. Açık bir dönemi **Düzenle** ile sonradan da bu şekle çevirebilirsiniz; girilmiş istekler korunur.
+- Kişilerin hep aynı listede çalıştığı birimlerde seçeneği kapalı bırakın; istekler eskisi gibi listeye / tarafa göre ayrılır.
