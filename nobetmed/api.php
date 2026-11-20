@@ -673,6 +673,7 @@ function a_setup(): void
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, 'admin', 'active', now()]);
     $nid = insert_id();
     nm_dir_put($email);
+    if (!nm_base_url_known()) set_setting('site_url', request_base_url()); // kurulumu yapan yöneticinin adresi
     login_user(one('SELECT * FROM users WHERE id = ?', [$nid]));
     out();
 }
@@ -720,6 +721,13 @@ function a_forgot(): void
     $perMail = (int)val('SELECT COUNT(*) FROM login_attempts WHERE email = ? AND at > ?', ['reset:' . $email, time() - 3600]);
     q('INSERT INTO login_attempts (ip, email, at) VALUES (?, ?, ?)', ['reset:' . $ip, 'reset:' . $email, time()]);
     $u = $perMail < 3 ? one("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]) : null;
+    // Sitenin adresi henüz bilinmiyorsa (APP_URL yok, yönetici hiç girmedi) bağlantı isteğin Host başlığından kurulurdu:
+    // sahte Host ile sıfırlama bağlantısı başka alan adına gitmesin — sunucunun kendi adıyla eşleşmiyorsa gönderme
+    if ($u && !nm_base_url_known()) {
+        $h = strtolower(preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+        $sn = strtolower((string)($_SERVER['SERVER_NAME'] ?? ''));
+        if ($sn === '' || $h !== $sn) $u = null;
+    }
     if ($u) {
         $token = bin2hex(random_bytes(24));
         q('DELETE FROM password_resets WHERE user_id = ? OR expires < ?', [$u['id'], time()]);
@@ -742,6 +750,8 @@ function a_reset(): void
     validate_password($pw);
     $u = one("SELECT * FROM users WHERE id = ? AND status = 'active'", [$r['user_id']]);
     if (!$u) fail('Hesap bulunamadı veya devre dışı.', 404);
+    // Bağlantı tek kullanımlık: aynı anda iki istek gelirse yalnız biri geçer
+    if (q('UPDATE password_resets SET used = 1 WHERE token_hash = ? AND used = 0', [$r['token_hash']])->rowCount() !== 1) fail('Bağlantı geçersiz veya süresi dolmuş. Yeniden “Şifremi unuttum” deyin.', 400);
     q('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
     q('UPDATE password_resets SET used = 1 WHERE user_id = ?', [$u['id']]);
     if (function_exists('us_revoke_user')) us_revoke_user((int)$u['id'], 'password'); // şifre sıfırlanınca tüm cihazlardan çıkış
@@ -780,6 +790,8 @@ function a_register(): void
         if ((int)$inv['auto_approve'] === 1) $status = 'active';
         $role = in_array($inv['role'], ROLES, true) ? $inv['role'] : 'member';
     }
+    if (!($inv && $inv['kind'] === 'personal' && $inv['name']) && name_taken_by_user($name))
+        fail('Bu ad zaten kayıtlı bir kullanıcıya ait. Hesabınız varsa giriş yapın; adınız aynıysa ikinci adınızı da yazın ya da yöneticinize başvurun.', 409);
     if ($status === 'active' && function_exists('bl_user_room') && bl_user_room()) $status = 'pending'; // paketin kişi sınırı dolu: yönetici onayına
     q('INSERT INTO users (name, email, password_hash, title_id, unit_id, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$name, $email, password_hash($pw, PASSWORD_DEFAULT), $titleId, $unitId, $role, $status, now(), setting('default_notify_mode', 'instant')]);
@@ -837,6 +849,7 @@ function a_google(): void
         $status = $mode === 'open' ? 'active' : 'pending';
         if ($status === 'active' && function_exists('bl_user_room') && bl_user_room()) $status = 'pending'; // paketin kişi sınırı dolu
         $name = mb_substr((string)($info['name'] ?? explode('@', $email)[0]), 0, 120);
+        if ($status === 'active' && name_taken_by_user($name)) $status = 'pending'; // aynı adlı hesap var: nöbetler karışmasın, yönetici baksın
         q('INSERT INTO users (name, email, google_sub, role, status, created_at, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$name, $email, $sub, 'member', $status, now(), default_notify_mode()]);
         $u = one('SELECT * FROM users WHERE id = ?', [insert_id()]);
@@ -860,6 +873,15 @@ function a_logout(): void
     session_regenerate_id(true);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     out(['csrf' => $_SESSION['csrf']]);
+}
+
+/** Nöbetler ada göre eşleştiği için bir ad iki hesapta olamaz: bu ad başka bir (etkin / bekleyen) kullanıcıya mı ait? */
+function name_taken_by_user(string $name, int $exceptId = 0): bool
+{
+    foreach (all("SELECT id, name FROM users WHERE status IN ('active', 'pending') AND id <> ?", [$exceptId]) as $o) {
+        if (names_match((string)$o['name'], $name)) return true;
+    }
+    return false;
 }
 
 function a_me_update(): void
@@ -891,9 +913,7 @@ function a_me_update(): void
     if (mb_strlen($name) < 3) fail('Ad soyad en az 3 karakter olmalıdır.');
     if ($name !== (string)$me['name']) {
         // Nöbetler ada göre eşleştiği için başka bir kişinin adı alınamaz
-        foreach (all("SELECT id, name FROM users WHERE status IN ('active', 'pending') AND id <> ?", [$me['id']]) as $o) {
-            if (names_match((string)$o['name'], $name)) fail('Bu ad başka bir kullanıcıya ait. Adınız farklıysa yöneticinize başvurun.');
-        }
+        if (name_taken_by_user($name, (int)$me['id'])) fail('Bu ad başka bir kullanıcıya ait. Adınız farklıysa yöneticinize başvurun.');
         // Hesabı olmayan birinin nöbet listesindeki / istek kayıtlarındaki adı da alınamaz (o kişinin nöbetleri ve istekleri bu hesaba geçerdi)
         if ($me['role'] !== 'admin') {
             $names = array_column(all('SELECT DISTINCT name FROM roster_shifts'), 'name');
@@ -1273,6 +1293,10 @@ function a_upload_init(): void
     $size = isset($IN['size']) && is_numeric($IN['size']) ? (int)$IN['size'] : -1;
     if ($name === '' || $size < 0) fail('Dosya bilgisi eksik.');
     if (MAX_UPLOAD_MB > 0 && $size > MAX_UPLOAD_MB * 1048576) fail('Dosya çok büyük. En fazla ' . MAX_UPLOAD_MB . ' MB yükleyebilirsiniz.');
+    // Tek kişi sunucunun diskini dolduramasın (tüm birimler aynı diski kullanır)
+    $me = current_user();
+    $loose = (int)val('SELECT COALESCE(SUM(size), 0) FROM attachments WHERE user_id = ? AND post_id IS NULL AND roster_id IS NULL AND created_at > ?', [(int)$me['id'], date('Y-m-d H:i:s', time() - 86400)]);
+    if ($loose + $size > 2048 * 1048576) fail('Bugün çok fazla dosya yüklediniz (2 GB sınırı). Yarın tekrar deneyin ya da yöneticinize başvurun.', 429);
     $dir = upload_dir();
     $free = function_exists('disk_free_space') ? @disk_free_space($dir) : false;
     if ($free !== false && $size + 200 * 1048576 > $free) fail('Sunucuda yeterli disk alanı yok.', 507);

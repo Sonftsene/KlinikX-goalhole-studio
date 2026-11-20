@@ -33,8 +33,18 @@ FORMS['sys-totp'] = (f) => submitForm(f, async (d) => { await api('sa.totp', d);
 
 /* ---------------- Panel ---------------- */
 const SYS = { data: null, tab: 'birimler' };
+const SYS_TABS = ['birimler', 'basvuru', 'destek', 'abonelik', 'site', 'saglik', 'gunluk'];
+function sysTabFromHash() { const m = /^#\/sistem\/([a-z]+)/.exec(location.hash); return m && SYS_TABS.includes(m[1]) ? m[1] : null; }
+// Sekmeler adreste (#/sistem/<sekme>): telefonun geri tuşu bir önceki sekmeye döner
+window.addEventListener('hashchange', () => {
+  if (!S.sa || !$('.sys')) return;
+  const t = sysTabFromHash() || 'birimler';
+  if (t === SYS.tab) return;
+  SYS.tab = t; $$('[data-act=sys-tab]').forEach((b) => b.classList.toggle('on', b.dataset.t === t)); sysLoad();
+});
 async function renderSistem() {
   document.title = 'dupcii · Sistem yönetimi';
+  SYS.tab = sysTabFromHash() || SYS.tab;
   setHTML(APP(), html`<div class="sys">
     <header class="sys-top"><div class="row" style="gap:10px">${brandLogo()}<b>Sistem yönetimi</b></div><span class="grow"></span>
       <span class="small muted sys-who">${S.sa.name}</span>
@@ -53,7 +63,7 @@ function sysTabBadge() {
   const b = $('#sysApN'); if (b) b.textContent = SYS.applyOpen ? String(SYS.applyOpen) : '';
   const c = $('#sysSpN'); if (c) c.textContent = SYS.supportOpen ? String(SYS.supportOpen) : '';
 }
-ACT['sys-tab'] = (el) => { SYS.tab = el.dataset.t; $$('[data-act=sys-tab]').forEach((b) => b.classList.toggle('on', b === el)); sysLoad(); };
+ACT['sys-tab'] = (el) => { SYS.tab = el.dataset.t; navStep('#/sistem/' + SYS.tab); $$('[data-act=sys-tab]').forEach((b) => b.classList.toggle('on', b === el)); sysLoad(); };
 
 async function sysLoad() {
   const box = $('#sysBody');
@@ -177,10 +187,11 @@ ACT['sys-t-admin'] = (el) => {
 };
 ACT['sys-enter'] = async (el) => {
   if (!(await confirmDialog({ title: `${el.dataset.n} birimine girilsin mi?`, text: 'Birimde yönetici yetkisiyle her şeyi görür ve yönetirsiniz (kişiler, nöbet listeleri, hasta listeleri dahil). Giriş, çıkış ve yaptığınız her işlem birimin kendi işlem günlüğüne de yazılır. Hasta bilgisine yalnız gerektiğinde bakın.', ok: 'Birime gir' }))) return;
-  try { await api('sa.enter', { key: el.dataset.k }); location.hash = '#/'; start(); } catch (e) { toast(e.message, 'err'); }
+  try { await api('sa.enter', { key: el.dataset.k }); if (typeof pwaClearFileCache === 'function') await pwaClearFileCache(); location.hash = '#/'; start(); } catch (e) { toast(e.message, 'err'); }
 };
 ACT['sys-exit'] = async () => {
   try { await api('sa.exit'); } catch (e) { /* oturum düştüyse de panele dön */ }
+  if (typeof pwaClearFileCache === 'function') await pwaClearFileCache(); // başka birimin ek dosyası önbellekten gösterilmesin
   location.hash = ''; start();
 };
 ACT['sys-out'] = async () => { try { const r = await api('sa.logout'); S.csrf = r.csrf || S.csrf; } catch (e) { /* */ } S.sa = null; start(); };

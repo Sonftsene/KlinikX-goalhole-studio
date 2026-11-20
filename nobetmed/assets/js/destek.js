@@ -85,10 +85,16 @@ async function spRoute(view, r) {
   if (r[1] === 'izle' && r[2]) return spPublic(view, r[2]);
   if (!S.support) return setHTML(view, html`<div class="card empty"><h3>Destek</h3><p class="small">Destek bu hesapta kullanılamıyor.</p></div>`);
   if (!SP.cfg) { try { SP.cfg = await api('sp.cfg'); } catch (e) { return setHTML(view, html`<div class="card card-pad small">${e.message}</div>`); } }
-  if (r[1] === 'yeni') return spNew(view);
+  if (r[1] === 'yeni') {
+    // Sihirbazın her adımı adreste: #/destek/yeni → /<konu> → /<konu>/yaz (geri tuşu bir önceki adıma döner)
+    const tp = r[2] || null;
+    if (tp !== SP.topic) SP.file = null;
+    SP.topic = tp; SP.write = r[3] === 'yaz';
+    return spNew(view);
+  }
   if (r[1] === 'birim' && r[2]) return spTicket(view, +r[2]);
   if (r[1] && /^\d+$/.test(r[1])) return spTicket(view, +r[1]);
-  if (r[1] === 'birim') SP.tab = 'unit';
+  SP.tab = r[1] === 'birim' ? 'unit' : 'mine';
   return spList(view);
 }
 
@@ -118,7 +124,7 @@ async function spList(view) {
     }
   } catch (e) { setHTML(box, html`<div class="card card-pad small">${e.message}</div>`); }
 }
-ACT['sp-tab'] = (el) => { SP.tab = el.dataset.t; spList($('#view')); };
+ACT['sp-tab'] = (el) => { SP.tab = el.dataset.t; navStep(SP.tab === 'unit' ? '#/destek/birim' : '#/destek'); spList($('#view')); };
 ACT['sp-uf'] = (el) => { SP.unitFilter = el.dataset.f; spList($('#view')); };
 
 function spRows(items, unit, empty) {
@@ -192,14 +198,16 @@ function spNew(view) {
       <div class="row" style="justify-content:flex-end"><button class="btn primary" type="submit">${icon('send', 'sm')}Gönder</button></div></form>` : ''}</div>`);
   const f = $('#spF [name=subject]'); if (f) f.focus();
 }
-ACT['sp-topic'] = (el) => { SP.topic = el.dataset.k || null; SP.write = false; SP.file = null; spNew($('#view')); window.scrollTo(0, 0); };
-ACT['sp-write'] = () => { SP.write = true; spNew($('#view')); };
+ACT['sp-topic'] = (el) => { location.hash = '#/destek/yeni' + (el.dataset.k ? '/' + el.dataset.k : ''); };
+ACT['sp-write'] = () => { if (SP.topic) location.hash = `#/destek/yeni/${SP.topic}/yaz`; };
 ACT['sp-solved'] = () => { toast('Sevindik! Başka bir sorun olursa yine yazın.'); location.hash = SP.from && !/^#\/destek/.test(SP.from) ? SP.from : '#/'; };
 FORMS['sp-create'] = (f) => submitForm(f, async (d) => {
   const r = await api('sp.create', { topic: SP.topic, subject: d.subject, body: d.body, file: SP.file || '', ctx: spCtx() });
   SP.file = null; SP.topic = null; SP.write = false;
   toast(r.route === 'unit' ? 'Talebiniz birim sorumlunuza gönderildi' : 'Talebiniz destek ekibine gönderildi');
-  location.hash = '#/destek/' + r.ticket.id;
+  // Gönderilen formun adımı geçmişte kalmasın: talep sayfası onun yerine geçer
+  history.replaceState(null, '', '#/destek/' + r.ticket.id);
+  route();
 });
 
 function spCtxGrid(c) {

@@ -165,7 +165,7 @@ function prefetchRosters() {
   }, 300);
 }
 
-ACT['rs-tab'] = (el) => showRoster(+el.dataset.id);
+ACT['rs-tab'] = (el) => { navStep('#/nobet/' + el.dataset.id); showRoster(+el.dataset.id); };
 ACT['rs-full'] = () => { const r = rosterById(RS.active); if (r && r.file) openFullViewer(r.file, r.name); };
 
 async function uploadRosterFile(file) {

@@ -236,7 +236,7 @@ function mlSwipe(el) {
 }
 async function mlGo(d) {
   ML.sel = d;
-  history.replaceState(null, '', '#/yemek/' + d);
+  navStep('#/yemek/' + d);
   const ym = d.slice(0, 7);
   if (!ML.got[ym]) { try { await mlFetchMonth(ym); } catch (e) { toast(e.message, 'err'); } }
   const nx = mlAdd(d, 1).slice(0, 7);

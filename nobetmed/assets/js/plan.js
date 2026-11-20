@@ -23,6 +23,7 @@ function planNextYm(ym, k) { const [y, m] = ym.split('-').map(Number); const d =
 
 async function planPage(view, r) {
   if (!canManage('cizelge')) { location.hash = '#/'; return; }
+  if (PL2.dirty && PL2.d) planSave(true); // geri tuşuyla başka aya / listeye geçilirken taslak kaybolmasın
   const list = planRosters();
   if (r[1] && /^\d+$/.test(r[1])) PL2.rid = +r[1];
   if (!list.some((x) => x.id === PL2.rid)) PL2.rid = list.length ? list[0].id : 0;
@@ -134,8 +135,8 @@ function planSetCell(name, d, code) {
   planDirty();
 }
 
-ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); history.replaceState(null, '', `#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
-CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; history.replaceState(null, '', `#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
+ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); navStep(`#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
+CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; navStep(`#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
 CHANGE['pl2-need'] = (el) => { const [a, b] = el.dataset.k.split('.'); PL2.d.needs[a][b] = Math.max(0, +el.value || 0); planDirty(); };
 CHANGE['pl2-code'] = (el) => { PL2.d[el.dataset.k] = el.value; planDirty(); };
 ACT['pl2-brush'] = (el) => { PL2.brush = el.dataset.c; planDraw(); };

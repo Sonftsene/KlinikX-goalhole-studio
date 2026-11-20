@@ -61,6 +61,10 @@ function plTeamVisible(d, cur) {
 /* ---------------- Sayfa ---------------- */
 async function renderPlacement(view, r) {
   const want = r && /^\d{4}-\d{2}-\d{2}$/.test(r[1] || '') ? r[1] : (PL.date || ymd(new Date()));
+  // Geri tuşuyla başka güne dönülürken kaydedilmemiş yerleşim sessizce silinmesin
+  if (want !== PL.date && (PL.dirty || PL.prop) && $('#plDay')) {
+    if (!(await confirmDialog({ title: 'Kaydedilmedi', text: 'Bu günün yerleşimini kaydetmediniz. Değişiklikler silinsin mi?', ok: 'Sil ve geç', danger: true }))) { navStep('#/taraf/' + PL.date); return; }
+  }
   if (want !== PL.date) plReset();
   PL.date = want;
   setHTML(view, html`${hubHead('taraf', 'Günlük blok yerleşimi · kim hangi blokta, kim kaç kez karşıya geçti', html`<div class="row wrap" style="gap:6px" id="plActs">${isAdmin() ? html`<button class="btn" data-act="pl-setup">${icon('sliders', 'sm')}<span>Taraflar</span></button>` : ''}</div>`)}
@@ -338,7 +342,7 @@ async function plGoto(date) {
   if ((PL.dirty || PL.prop) && !(await confirmDialog({ title: 'Kaydedilmedi', text: 'Bu günün yerleşimini kaydetmediniz. Değişiklikler silinsin mi?', ok: 'Sil ve geç', danger: true }))) { plDrawDay(); return; }
   PL.date = date;
   plReset();
-  try { history.replaceState(null, '', '#/taraf/' + date); } catch (e) { /* */ }
+  navStep('#/taraf/' + date);
   await plLoadDay();
 }
 ACT['pl-go'] = (el) => plGoto(el.dataset.to || plAddDays(PL.date, +el.dataset.d));

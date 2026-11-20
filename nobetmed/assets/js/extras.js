@@ -47,8 +47,10 @@ function updateNotifBadge() {
   el.classList.toggle('hidden', !n);
 }
 let NOTIF_OFF = null;
+let NOTIF_OV = null;
 function closeNotifPop() {
   const p = $('.notif-pop'); if (p) p.remove();
+  if (NOTIF_OV) { const o = NOTIF_OV; NOTIF_OV = null; ovShut(o); }
   if (NOTIF_OFF) { document.removeEventListener('click', NOTIF_OFF, true); NOTIF_OFF = null; }
 }
 ACT.notifs = async (el) => {
@@ -59,6 +61,7 @@ ACT.notifs = async (el) => {
   // Bu cihazda telefon bildirimi kapalıysa hatırlat
   if (S.settings.push_ready && typeof pushState === 'function') pushState().then((st) => { const b = pop.querySelector('.np-push'); if (b && (st === 'off')) setHTML(b, html`<div class="np-pushtip">${icon('bell', 'sm')}<span class="grow">Bu cihazda telefon bildirimleri kapalı.</span><a class="btn sm primary" href="#/profil/bildirim">Aç</a></div>`); }).catch(() => {});
   document.body.appendChild(pop);
+  NOTIF_OV = ovOpen(() => closeNotifPop(), () => document.body.contains(pop));
   const r = el.getBoundingClientRect();
   if (window.innerWidth > 900) { pop.style.top = (r.bottom + 8) + 'px'; pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; }
   const off = (e) => { if (!pop.contains(e.target) && !e.target.closest('[data-act=notifs]')) closeNotifPop(); };
@@ -1259,7 +1262,7 @@ function applySettingsSec(sec) {
   $$('[data-act=set-sec]').forEach((b) => b.classList.toggle('on', b.dataset.s === sec));
   try { localStorage.setItem('nm-setsec', sec); } catch (e) { /* */ }
 }
-ACT['set-sec'] = (el) => { applySettingsSec(el.dataset.s); history.replaceState(null, '', '#/yonetim/ayarlar/' + el.dataset.s); };
+ACT['set-sec'] = (el) => { applySettingsSec(el.dataset.s); navStep('#/yonetim/ayarlar/' + el.dataset.s); };
 
 const CODES = { list: [], dirty: false };
 function shiftCodesCardHtml() {

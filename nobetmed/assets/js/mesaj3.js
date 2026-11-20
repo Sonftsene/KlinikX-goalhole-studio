@@ -133,6 +133,7 @@ ACT['ch-emoji'] = () => {
   if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
   setHTML(box, chatEmoGrid());
   box.classList.remove('hidden');
+  ovOpen(() => box.classList.add('hidden'), () => !box.classList.contains('hidden') && document.body.contains(box));
   if (!box.dataset.wired) {
     box.dataset.wired = '1';
     chatEmoWire(box, (e) => {
@@ -238,14 +239,14 @@ function chatDownSync() {
 ACT['ch-down'] = () => { const s = $('#chScroll'); if (s) s.scrollTo({ top: s.scrollHeight, behavior: 'smooth' }); CH.downN = 0; };
 
 /* Çoklu seçim */
-function chatSelStart(m) { CH.sel = new Set([m.id]); chatSelBar(); chatDraw(); }
+function chatSelStart(m) { CH.sel = new Set([m.id]); CH.selOv = ovOpen(() => chatSelEnd(), () => !!CH.sel); chatSelBar(); chatDraw(); }
 function chatSelToggle(id) {
   if (!CH.sel) return;
   if (CH.sel.has(id)) CH.sel.delete(id); else CH.sel.add(id);
   if (!CH.sel.size) { chatSelEnd(); return; }
   chatSelBar(); chatDraw();
 }
-function chatSelEnd() { CH.sel = null; const b = $('#chSelBar'); if (b) b.classList.add('hidden'); chatDraw(); }
+function chatSelEnd() { CH.sel = null; if (CH.selOv) { const o = CH.selOv; CH.selOv = null; ovShut(o); } const b = $('#chSelBar'); if (b) b.classList.add('hidden'); chatDraw(); }
 function chatSelBar() {
   const b = $('#chSelBar'); if (!b) return;
   const ms = CH.msgs.filter((m) => CH.sel.has(m.id));

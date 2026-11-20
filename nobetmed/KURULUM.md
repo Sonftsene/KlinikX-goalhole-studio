@@ -854,3 +854,28 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Yeni gelen mesaj yumuşakça belirir, liste kartları sırayla gelir, okunmamış sayısı belirirken hafifçe büyür.
 - Telefonda “hareketi azalt” açıksa efektler kapanır.
 - Mesajı sağa kaydırarak yanıtlarken ekran artık yana kaymaz.
+
+## 42. Geri tuşu ve güvenlik düzeltmeleri (4.29)
+
+**Telefonun geri tuşu her zaman bir önceki adıma gider, atlamaz**
+- Açık bir pencere, açılır menü, yan menü (☰), bildirim kutusu, sohbette emoji paneli ya da mesaj seçimi varsa geri tuşu **yalnız onu kapatır**; sayfa yerinde kalır. İç içe pencerelerde her basış bir pencere kapatır.
+- Pencere ✕ ya da “Vazgeç” ile kapatıldıktan sonra geri tuşu doğrudan bir önceki sayfaya gider (boşa basış yok).
+- Sekmeler ve adımlar artık geçmişe yazılır; geri tuşu bir önceki sekmeye / adıma döner:
+  - Ayarlar bölümleri (Genel, Bildirimler, Nöbet, Güvenlik, Yedek), İstekler sekmeleri (İsteklerim, Pano, Yönetim), İlanlar sekmeleri (Pano, İlanlarım, Başvurularım), nöbet listeleri arasında geçiş, Destek (Taleplerim / Birim talepleri).
+  - Çizelgede ay / liste, Taraf'ta gün, yemek listesinde gün.
+  - Destek'te yeni talep sihirbazı: konu seçimi → öneriler → yazma (adres: #/destek/yeni/<konu>/yaz).
+  - Sistem yönetimi paneli sekmeleri (adres: #/sistem/<sekme>).
+- Taraf'ta kaydedilmemiş yerleşim varken geri tuşuyla başka güne dönülürse önce sorulur; çizelgede kaydedilmemiş taslak geri tuşunda kendiliğinden kaydedilir.
+
+**Güvenlik taraması sonucu yapılan düzeltmeler**
+- Excel önizlemesi: dosyanın içindeki biçim bilgisiyle sayfaya HTML sokulabiliyordu (tıklamayla başka bir bilgisayarın QR girişini onaylatma riski). Hizalama artık yalnız izinli değerler, tüm biçim değerleri kaçışlı; dosya önizlemesinin içindeki hiçbir düğme uygulama işlemi tetikleyemez.
+- Kayıt ve Google ile kayıt: başka bir hesabın adı (ör. “Elif Yılmaz”, “Elif Nur Yılmaz”) alınamaz — nöbetler ada göre eşleştiği için o kişinin nöbetleri yeni hesaba geçebiliyordu. Google'da aynı adlı hesap varsa yeni hesap yönetici onayına düşer.
+- Şifre sıfırlama: sitenin adresi henüz bilinmiyorsa bağlantı sahte alan adına gönderilemez; kurulumda adres kaydedilir. Sıfırlama bağlantısı aynı anda iki istekle iki kez kullanılamaz.
+- Gönderilen geçici şifre / sıfırlama / davet e-postalarının içeriği gönderildikten sonra veritabanından (ve yedeklerden) silinir.
+- Abonelik süresi bittiğinde ya da “rol gözünden görme”de salt okunur kipte sohbet üyeliği, bildirim politikası, güncelleme yükleme ve nöbet tablosu yazma artık engellenir.
+- Çok birimli kurulumda e-posta (SMTP) ayarı sunucunun iç ağına bağlanmak için kullanılamaz (yalnız 25 / 465 / 587 / 2525 ve genel adresler; hata metni gizlenir).
+- Bir kişi bir günde, bir yere eklenmemiş en çok 2 GB dosya yükleyebilir (tek kişi diski dolduramasın).
+- Sistem yöneticisi girişi başkası tarafından e-posta yazılarak kilitlenemez (kilit kişi + cihaz bazında).
+- İlan / çağrı seçiminde aynı anda iki kişi işlem yapınca “database is locked” yerine anlaşılır uyarı; nöbet değişimi kabul / ret / iptal aynı anda iki kez sonuçlanamaz.
+- Sunucu dışı yedeği indirme bağlantısı oturum anahtarı ister; güncelleme paketinde “./config.php” gibi yollar korunan dosyaların üzerine yazamaz; sistem yöneticisi birime girip çıkınca telefondaki ek dosyası önbelleği temizlenir.
+- Not: Excel/ODS okumak için kullanılan SheetJS kütüphanesi 0.18.5 sürümündedir (bilinen iki açığı bulunur; dosyalar zaten tarayıcıda ve sanal alanda açılır). Yeni sürüm yalnız cdn.sheetjs.com'dan indirilebiliyor; bir sonraki güncellemede değiştirilecek.

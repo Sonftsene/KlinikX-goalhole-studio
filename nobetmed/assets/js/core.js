@@ -523,20 +523,20 @@ let LAST_ACT = null;
 const CHANGE = {};
 document.addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-act]');
-  if (!t || t.disabled) return;
+  if (!t || t.disabled || t.closest('[data-uc]')) return;
   const fn = ACT[t.dataset.act];
   if (fn) { ev.preventDefault(); LAST_ACT = { act: t.dataset.act, data: { ...t.dataset }, at: Date.now() }; fn(t, ev); }
 });
 document.addEventListener('submit', (ev) => {
   const f = ev.target.closest('form[data-form]');
-  if (!f) return;
+  if (!f || f.closest('[data-uc]')) return;
   ev.preventDefault();
   const fn = FORMS[f.dataset.form];
   if (fn) fn(f, ev);
 });
 ['change', 'input'].forEach((type) => document.addEventListener(type, (ev) => {
   const t = ev.target.closest('[data-' + type + ']');
-  if (!t) return;
+  if (!t || t.closest('[data-uc]')) return;
   const fn = CHANGE[t.dataset[type]];
   if (fn) fn(t, ev);
 }));
@@ -594,6 +594,62 @@ function toast(msg, type = 'ok') {
 
 /* ---------------- Modal ---------------- */
 const modalStack = [];
+/* ---------------- Geri tuşu: açık katmanlar ----------------
+   Pencere, açılır menü, yan menü, bildirim kutusu, sohbet seçimi… açıkken telefonun geri tuşu yalnız
+   en üstteki katmanı kapatır (sayfadan çıkmaz, birden fazla adım atlamaz). Bunun için katman açıkken
+   geçmişe tek bir "koruma" adımı eklenir; geri basılınca en üstteki katman kapanır, başka katman
+   kaldıysa koruma yeniden eklenir. Katman düğmeyle kapanırsa koruma adımı yerinde kalır (kod
+   history.back() çağırmaz: hemen ardından gelen sayfa geçişiyle yarışmasın); o boş adıma geri
+   basılınca görünür bir şey olmayacağından bir adım daha geri gidilir — tek basış = tek görünür adım. */
+const OVH = { list: [], atGuard: false, backing: false, href: location.href };
+function ovPrune() { OVH.list = OVH.list.filter((o) => { try { return !o.alive || o.alive(); } catch (e) { return false; } }); return OVH.list; }
+function ovEnsure() {
+  if (OVH.backing || OVH.atGuard || !ovPrune().length) return;
+  try { history.pushState(Object.assign({}, history.state || {}, { nmov: 1 }), '', location.href); OVH.atGuard = true; OVH.href = location.href; } catch (e) { /* */ }
+}
+/** Katman açıldı: close() geri tuşunda çağrılır; alive() false dönerse katman kapanmış sayılır */
+function ovOpen(close, alive) {
+  const o = { close, alive };
+  OVH.list.push(o);
+  ovEnsure();
+  return o;
+}
+/** Katman düğmeyle / kodla kapandı (koruma adımı boş kalır; geri tuşunda atlanır) */
+function ovShut(o) {
+  const i = OVH.list.indexOf(o);
+  if (i >= 0) OVH.list.splice(i, 1);
+}
+window.addEventListener('popstate', (e) => {
+  // Bağlantıya tıklama / adres değişimi de popstate verir (durum boş, adres farklı): bu geri basış değildir
+  if (!e.state && location.href !== OVH.href) { OVH.atGuard = false; OVH.backing = false; OVH.href = location.href; return; }
+  OVH.href = location.href;
+  const st = e.state || {};
+  const fromGuard = OVH.atGuard;
+  OVH.atGuard = !!st.nmov;
+  if (OVH.backing) { OVH.backing = false; if (ovPrune().length) ovEnsure(); return; }
+  const live = ovPrune();
+  if (live.length) {
+    const top = live[live.length - 1];
+    try { top.close(); } catch (x) { /* */ }
+    setTimeout(ovEnsure, 60);
+    return;
+  }
+  // Kapanmış bir katmanın artık koruma adımı: görünür bir şey olmadı → bir adım daha geri (tek basış = tek görünür adım)
+  if (fromGuard || st.nmov) { OVH.backing = true; OVH.atGuard = false; try { history.back(); } catch (x) { OVH.backing = false; } }
+});
+window.addEventListener('hashchange', () => { OVH.atGuard = !!(history.state && history.state.nmov); OVH.href = location.href; });
+// Sayfa yenilendiğinde koruma adımında kalındıysa o adım boş sayılır (geri tuşunda atlanır)
+try { OVH.atGuard = !!(history.state && history.state.nmov); } catch (e) { /* */ }
+/** Sekme / gün / ay gibi adım değişimi: geri tuşu bir önceki adıma döner (aynı adresse yeni adım eklenmez) */
+function navStep(url) {
+  if (!url || location.hash === url) return;
+  try {
+    if (OVH.atGuard && !ovPrune().length) { history.replaceState(null, '', url); OVH.atGuard = false; }
+    else history.pushState(null, '', url);
+    OVH.href = location.href;
+  } catch (e) { location.hash = url; }
+}
+
 function openModal({ title, body = '', foot = '', size = '', drawer = false, onClose } = {}) {
   const ov = document.createElement('div');
   ov.className = 'overlay' + (drawer ? ' drawer' : '');
@@ -616,6 +672,7 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
     close() {
       const i = modalStack.indexOf(m);
       if (i >= 0) modalStack.splice(i, 1);
+      if (m.ovh) { ovShut(m.ovh); m.ovh = null; }
       ov.remove();
       if (!modalStack.length) document.body.style.overflow = '';
       if (onClose) onClose();
@@ -637,6 +694,7 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
   });
   if (LAST_ACT && Date.now() - LAST_ACT.at < 4000 && !['close-modal', 'reload-app'].includes(LAST_ACT.act)) m.opener = { act: LAST_ACT.act, data: LAST_ACT.data };
   modalStack.push(m);
+  m.ovh = ovOpen(() => m.requestClose(), () => document.body.contains(ov));
   // Klavye odağı pencerede kalsın; kapanınca açan öğeye dönsün
   const opener = document.activeElement;
   const _close = m.close;
@@ -700,7 +758,8 @@ function promptDialog({ title, label, placeholder = '', ok = 'Kaydet', value = '
 }
 
 /* ---------------- Açılır menü ---------------- */
-function closeMenu() { const m = $('.menu'); if (m) m.remove(); }
+let MENU_OV = null;
+function closeMenu() { const m = $('.menu'); if (m) m.remove(); if (MENU_OV) { const o = MENU_OV; MENU_OV = null; ovShut(o); } }
 function openMenu(anchor, items) {
   closeMenu();
   const el = document.createElement('div');
@@ -711,6 +770,7 @@ function openMenu(anchor, items) {
     return html`<button type="button" class="${it.danger ? 'danger' : ''}" data-mi="${it.id}">${icon(it.icon)}<span>${it.label}</span></button>`;
   }));
   document.body.appendChild(el);
+  MENU_OV = ovOpen(() => closeMenu(), () => document.body.contains(el));
   const r = anchor.getBoundingClientRect();
   const w = el.offsetWidth, h = el.offsetHeight;
   let left = Math.min(r.right - w, window.innerWidth - w - 8);

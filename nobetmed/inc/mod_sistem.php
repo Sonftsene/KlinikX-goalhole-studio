@@ -132,8 +132,11 @@ function a_sa_login(): void
     $email = mb_strtolower(trim(s('email', 190)));
     $ip = client_ip();
     m_q('DELETE FROM sa_attempts WHERE at < ?', [time() - 86400]);
-    $fails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE (ip = ? OR email = ?) AND at > ?', [$ip, $email, time() - 900]);
-    if ($fails >= 6) fail('Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 429);
+    $since = time() - 900;
+    $fails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE ip = ? AND email = ? AND at > ?', [$ip, $email, $since]);
+    $ipFails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE ip = ? AND at > ?', [$ip, $since]);
+    $mailFails = (int)m_val('SELECT COUNT(*) FROM sa_attempts WHERE email = ? AND at > ?', [$email, $since]);
+    if ($fails >= 6 || $ipFails >= 12 || $mailFails >= 60) fail('Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 429);
     $u = m_one('SELECT * FROM superadmins WHERE email = ? AND totp_on = 1', [$email]);
     if (!$u || !password_verify((string)($IN['password'] ?? ''), (string)$u['password_hash'])) {
         m_q('INSERT INTO sa_attempts (ip, email, at) VALUES (?, ?, ?)', [$ip, $email, time()]);

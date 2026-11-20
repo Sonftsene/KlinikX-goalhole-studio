@@ -104,6 +104,7 @@ function mail_flush(int $limit = 40): int
         $err = $results[$r['id']] ?? 'Bilinmeyen hata';
         if ($err === true) {
             q('UPDATE mail_queue SET sent_at = ?, error = NULL, locked_at = NULL WHERE id = ?', [now(), $r['id']]);
+            if (in_array((string)($r['kind'] ?? ''), ['credentials', 'reset', 'invite'], true)) q("UPDATE mail_queue SET html = '', text_body = '' WHERE id = ?", [$r['id']]);
             $ok++;
         } else {
             q('UPDATE mail_queue SET attempts = attempts + 1, error = ?, locked_at = NULL WHERE id = ?', [mb_substr((string)$err, 0, 250), $r['id']]);
@@ -234,13 +235,22 @@ function smtp_open()
     $host = trim(setting('mail_host'));
     $port = (int)setting('mail_port', '465');
     $secure = setting('mail_secure', 'ssl');
+    $multi = function_exists('nm_multi') && nm_multi();
+    $target = $host;
+    if ($multi) {
+        // Birim yöneticisi sunucunun iç ağını (127.0.0.1, 10.x, 169.254.x …) tarayamasın: yalnız SMTP portları ve genel adresler
+        if (!in_array($port, [25, 465, 587, 2525], true)) throw new RuntimeException('SMTP portu 465, 587, 25 ya da 2525 olmalıdır.');
+        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) throw new RuntimeException('SMTP sunucusu bulunamadı ya da izin verilmeyen bir adres.');
+        $target = $ip; // ad bir kez çözülür (ikinci çözümde iç adrese dönemesin)
+    }
     $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true, 'peer_name' => $host]]);
-    $remote = ($secure === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $port;
+    $remote = ($secure === 'ssl' ? 'ssl://' : 'tcp://') . $target . ':' . $port;
     $fp = @stream_socket_client($remote, $errno, $errstr, 15, STREAM_CLIENT_CONNECT, $ctx);
-    if (!$fp) throw new RuntimeException("SMTP sunucusuna bağlanılamadı ($host:$port): $errstr");
+    if (!$fp) throw new RuntimeException("SMTP sunucusuna bağlanılamadı ($host:$port)" . ($multi ? '.' : ": $errstr"));
     stream_set_timeout($fp, 20);
     [$code, $text] = smtp_read($fp);
-    if ($code !== 220) throw new RuntimeException('SMTP karşılama hatası: ' . mb_substr($text, 0, 160));
+    if ($code !== 220) throw new RuntimeException('SMTP karşılama hatası' . ($multi ? ' (sunucu bir e-posta sunucusu gibi yanıt vermedi).' : ': ' . mb_substr($text, 0, 160)));
     $me = preg_replace('/[^A-Za-z0-9.-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost') ?: 'localhost';
     $ehlo = smtp_cmd($fp, "EHLO $me", [250]);
     if ($secure === 'tls') {

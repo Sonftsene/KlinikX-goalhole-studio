@@ -554,6 +554,8 @@ function sheetLayout(sh) {
   return { vr, vc, master, covered };
 }
 
+/** Dosyadan gelen yatay hizalama yalnız bu değerlerden biri olabilir (sayfaya HTML sokulamasın) */
+const XV_HA = { left: 1, center: 1, right: 1, justify: 1 };
 function sheetHTML(sh, z, lay, maxRows, fz) {
   const { vc, master, covered } = lay;
   const vr = maxRows && lay.vr.length > maxRows ? lay.vr.slice(0, maxRows) : lay.vr;
@@ -620,7 +622,7 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
       const al = st.alignment || {};
       const wrap = al.wrapText || al.shrinkToFit === false && al.wrapText;
       const ha = al.horizontal === 'centerContinuous' || al.horizontal === 'distributed' ? 'center' : al.horizontal === 'fill' ? 'left' : al.horizontal;
-      if (ha && ha !== 'general') css += `text-align:${ha};`;
+      if (ha && XV_HA[ha]) css += `text-align:${ha};`;
       else if (cell && (cell.isNum)) css += 'text-align:right;';
       else if (cell && cell.isBool) css += 'text-align:center;';
       if (al.vertical) css += `vertical-align:${al.vertical === 'middle' || al.vertical === 'center' ? 'middle' : al.vertical === 'top' ? 'top' : 'bottom'};`;
@@ -648,7 +650,7 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
       let content = '';
       if (cell) {
         if (cell.rich) {
-          content = cell.rich.map((run) => `<span style="${fontCss(run.font, theme, z)}">${esc(run.text)}</span>`).join('');
+          content = cell.rich.map((run) => `<span style="${esc(fontCss(run.font, theme, z))}">${esc(run.text)}</span>`).join('');
         } else content = esc(cell.text);
       }
       if (rot && content) content = `<span class="rot-${rot}">${content}</span>`;
@@ -662,7 +664,7 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
         picHtml = pics.map((p) => `<img class="xv-img" alt="" src="${esc(p.src)}" style="left:${p.x * z}px;top:${p.y * z}px;width:${p.w * z}px;height:${p.h * z}px">`).join('');
       }
       const span = mg ? `${mg.rs > 1 ? ` rowspan="${mg.rs}"` : ''}${mg.cs > 1 ? ` colspan="${mg.cs}"` : ''}` : '';
-      h += `<td class="${cls}"${span}${css ? ` style="${css}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}${picHtml}</td>`;
+      h += `<td class="${cls}"${span}${css ? ` style="${esc(css)}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}${picHtml}</td>`;
     });
     h += '</tr>';
   });
@@ -814,6 +816,7 @@ async function mountSheet(el, att, opts = {}) {
     const out = sheetHTML(sh, state.z, lay, limit, frozenFor(sh, lay));
     width = out.width;
     const left = lay.vr.length - limit;
+    scroll.dataset.uc = '1';
     scroll.innerHTML = out.html
       + (left > 0 ? `<div class="xv-note"><button type="button" class="btn sm xv-more">Sonraki ${Math.min(left, limit)} satırı göster</button> <span>${lay.vr.length} satırın ${limit} tanesi gösteriliyor</span></div>` : '')
       + (sh.truncated ? '<div class="xv-note">Dosya çok büyük olduğu için ilk satırlar gösteriliyor. Tamamı için dosyayı indirin.</div>' : '')
@@ -978,7 +981,7 @@ async function mountDocx(el, att) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Belge açılıyor…</span></div>`);
   const [buf] = await Promise.all([fetchBuffer(att.url), loadVendor('mammoth')]);
   const res = await window.mammoth.convertToHtml({ arrayBuffer: buf.slice(0) }, { idPrefix: 'docx-' });
-  el.innerHTML = `<div class="dv-wrap"><article class="dv-page">${sanitizeHTML(res.value) || '<p><em>Belge boş görünüyor.</em></p>'}</article></div>`;
+  el.innerHTML = `<div class="dv-wrap" data-uc="1"><article class="dv-page">${sanitizeHTML(res.value) || '<p><em>Belge boş görünüyor.</em></p>'}</article></div>`;
 }
 async function mountText(el, att) {
   const buf = await fetchBuffer(att.url);

@@ -135,8 +135,16 @@ function mk_meta(?string $s): array
 function mk_tx(callable $fn)
 {
     $pdo = db();
-    $pdo->beginTransaction();
-    try { $r = $fn(); $pdo->commit(); return $r; } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    try {
+        $pdo->beginTransaction();
+        // SQLite: okuma sonra yazma olan işlemde kilit yükseltmesi "database is locked" verir; yazma kilidini en başta al (bekleme süresi işler)
+        if (DB_DRIVER !== 'mysql') $pdo->exec('UPDATE settings SET v = v WHERE 0');
+        $r = $fn(); $pdo->commit(); return $r;
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('mk_tx: ' . $e->getMessage());
+        throw new RuntimeException('Aynı anda başka bir işlem yapıldı. Lütfen sayfayı yenileyip tekrar deneyin.');
+    } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
 }
 
 /* =================================================================== */

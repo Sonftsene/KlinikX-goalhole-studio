@@ -431,7 +431,7 @@ function c_insert_msg(array $c, array $me, string $body, string $kind, ?int $fil
     h_q('INSERT INTO c_msgs (chat_id, tkey, user_id, name, body, kind, file_id, reply_to, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [(int)$c['id'], c_tk(), (int)$me['id'], $me['name'], $body, $kind, $fileId, $reply, $meta ? json_encode($meta, JSON_UNESCAPED_UNICODE) : null, now()]);
     $mid = (int)cdb()->lastInsertId();
-    h_q('UPDATE c_chats SET last_id = ?, last_at = ? WHERE id = ?', [$mid, now(), (int)$c['id']]);
+    h_q('UPDATE c_chats SET last_id = ?, last_at = ? WHERE id = ? AND (last_id IS NULL OR last_id < ?)', [$mid, now(), (int)$c['id'], $mid]);
     h_q('UPDATE c_members SET last_read = ?, notified = ? WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$mid, $mid, (int)$c['id'], c_tk(), (int)$me['id']]);
     return $mid;
 }
@@ -774,7 +774,7 @@ function c_system(int $chatId, array $me, string $text): void
 {
     h_q("INSERT INTO c_msgs (chat_id, tkey, user_id, name, body, kind, created_at) VALUES (?, ?, ?, ?, ?, 'system', ?)", [$chatId, c_tk(), (int)$me['id'], $me['name'], $text, now()]);
     $id = (int)cdb()->lastInsertId();
-    h_q('UPDATE c_chats SET last_id = ?, last_at = ? WHERE id = ?', [$id, now(), $chatId]);
+    h_q('UPDATE c_chats SET last_id = ?, last_at = ? WHERE id = ? AND (last_id IS NULL OR last_id < ?)', [$id, now(), $chatId, $id]);
     h_q('UPDATE c_members SET last_read = MAX(last_read, ?), notified = MAX(notified, ?) WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$id, $id, $chatId, c_tk(), (int)$me['id']]);
 }
 

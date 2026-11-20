@@ -48,6 +48,7 @@ const MK_SW = { accepted: ['Excel’e işlenmesi bekleniyor', 'info'], applied: 
 async function mkPage(view, sub) {
   const openId = sub && /^\d+$/.test(sub) ? +sub : null;
   if (sub === 'mine' || sub === 'applied' || sub === 'board') MKT.tab = sub;
+  else if (!openId) MKT.tab = 'board';
   setHTML(view, html`${hubHead('ilan', 'Nöbetini ilana koy ya da arkadaşının ilanına başvur', html`<button class="btn primary" data-act="mk-new">${icon('plus', 'sm')}<span>İlana koy</span></button>`)}
     <div id="mkBody">${mkSpin()}</div>`);
   await mkLoad();
@@ -72,7 +73,7 @@ function mkDraw() {
     ${body}
     <p class="tiny faint mk-foot">${icon('lock', 'sm')} Başvuranları ve ilanı kimin aldığını yalnız ilan sahibi ve sorumlular görür. Kurallar: dinlenme en az ${D.rules.rest} saat · üst üste en fazla ${D.rules.max_cont} saat · nöbetler arası en fazla ${D.rules.max_gap} boş gün.</p>`);
 }
-ACT['mk-tab'] = (el) => { MKT.tab = el.dataset.t; mkDraw(); };
+ACT['mk-tab'] = (el) => { MKT.tab = el.dataset.t; navStep(MKT.tab === 'board' ? '#/ilanlar' : '#/ilanlar/' + MKT.tab); mkDraw(); };
 
 function mkHead(L) {
   const e = mkEntry(L);

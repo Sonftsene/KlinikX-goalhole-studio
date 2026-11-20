@@ -148,7 +148,7 @@ async function obkDraw(d) {
     ${d.last ? html`<div class="small ${d.last_ok ? '' : 'tone-danger'}" style="${d.last_ok ? 'color:var(--success)' : 'color:var(--danger)'}">${icon(d.last_ok ? 'checkCircle' : 'alert', 'sm')} Son: ${fmtDateTime(d.last)} · ${d.last_msg}${d.last_size ? ` · ${(d.last_size / 1048576).toFixed(2)} MB` : ''}</div>` : html`<div class="tiny faint">Henüz yedek gönderilmedi.</div>`}
     <div class="row wrap" style="gap:8px"><button class="btn primary" data-act="obk-save">Kaydet</button>
       <button class="btn" data-act="obk-run" ${d.pass_set && d.email ? '' : raw('disabled')}>${icon('send', 'sm')}<span>Şimdi gönder</span></button>
-      ${d.pass_set ? html`<a class="btn" href="api.php?action=sa.obk.download">${icon('download', 'sm')}<span>İndir</span></a>` : ''}</div></div>`);
+      ${d.pass_set ? html`<a class="btn" href="api.php?action=sa.obk.download&csrf=${encodeURIComponent(S.csrf || '')}">${icon('download', 'sm')}<span>İndir</span></a>` : ''}</div></div>`);
 }
 ACT['obk-save'] = (el) => busy(el, async () => {
   try {

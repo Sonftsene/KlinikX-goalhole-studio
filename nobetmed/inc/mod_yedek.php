@@ -195,6 +195,7 @@ function a_sa_obk_run(): void
 function a_sa_obk_download(): void
 {
     if (!obk_on() || !($sa = sa_current())) { http_response_code(401); exit; }
+    if (!hash_equals((string)($_SESSION['csrf'] ?? ''), (string)($_GET['csrf'] ?? ''))) { http_response_code(403); header('Content-Type: text/plain; charset=utf-8'); echo 'Oturum süresi doldu; sayfayı yenileyip tekrar deneyin.'; exit; }
     try { [$path, $size] = obk_build(obk_dec(obk_cfg()['pass'])); }
     catch (Throwable $e) { http_response_code(409); header('Content-Type: text/plain; charset=utf-8'); echo $e->getMessage(); exit; }
     sa_audit($sa, 'backup.download', 'Sunucu dışı yedek', round($size / 1048576, 2) . ' MB');

@@ -142,7 +142,7 @@ function drawRqTop() {
 }
 ACT['rq-tab'] = (el) => {
   RQ.tab = el.dataset.t;
-  history.replaceState(null, '', '#/istekler' + (RQ.tab === 'benim' ? '' : '/' + RQ.tab));
+  navStep('#/istekler' + (RQ.tab === 'benim' ? '' : '/' + RQ.tab));
   drawRqTop();
   loadRqTab();
 };

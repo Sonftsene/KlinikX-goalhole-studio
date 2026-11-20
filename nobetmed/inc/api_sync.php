@@ -521,7 +521,7 @@ function a_swap_respond(): void
             else foreach ($o['swap'] as $p) if ($p['name'] === $r['to_name']) foreach ($p['options'] as $x) if ($x['date'] === $r['to_date']) $ok = true;
         }
         if (!$ok) fail('Liste değiştiği için bu değişim artık kurallara uymuyor.');
-        q("UPDATE swap_requests SET status = 'accepted', decided_at = ? WHERE id = ?", [now(), $r['id']]);
+        if (q("UPDATE swap_requests SET status = 'accepted', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek artık beklemede değil.');
         $r['status'] = 'accepted';
         if ($from) notify_users([$from], 'swap', 'İsteğin kabul edildi', swap_req_text($r) . ' · Sorumlu Excel’de güncelleyince listene işlenir.', '#/nobetim', null);
         $pubs = array_filter(module_managers('ilan'), fn($u) => (int)$u['id'] !== (int)$me['id'] && (int)$u['id'] !== (int)$r['from_user']);
@@ -531,7 +531,7 @@ function a_swap_respond(): void
         ], 'notoff');
         audit($me, 'swap.accept', swap_req_text($r));
     } else {
-        q("UPDATE swap_requests SET status = 'declined', decided_at = ? WHERE id = ?", [now(), $r['id']]);
+        if (q("UPDATE swap_requests SET status = 'declined', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek artık beklemede değil.');
         if ($from) notify_users([$from], 'swap', 'İsteğin reddedildi', $me['name'] . ' isteğini kabul etmedi: ' . swap_fmt_date($r['from_date']), '#/nobetim', null);
         audit($me, 'swap.decline', swap_req_text($r));
     }
@@ -544,7 +544,7 @@ function a_swap_cancel(): void
     $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
     if ((int)$r['from_user'] !== (int)$me['id'] && !is_publisher($me)) fail('Bu isteği iptal edemezsiniz.', 403);
     if (!in_array($r['status'], ['pending', 'accepted'], true)) fail('Bu istek zaten sonuçlandı.');
-    q("UPDATE swap_requests SET status = 'cancelled', decided_at = ? WHERE id = ?", [now(), $r['id']]);
+    if (q("UPDATE swap_requests SET status = 'cancelled', decided_at = ? WHERE id = ? AND status IN ('pending', 'accepted')", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek zaten sonuçlandı.');
     $other = one('SELECT * FROM users WHERE id = ?', [(int)$r['to_user']]);
     if ($other && (int)$other['id'] !== (int)$me['id']) notify_users([$other], 'swap', 'Nöbet isteği iptal edildi', swap_req_text($r), '#/nobetim', null);
     audit($me, 'swap.cancel', swap_req_text($r));

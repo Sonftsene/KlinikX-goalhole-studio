@@ -59,7 +59,10 @@ function up_entries(ZipArchive $z): array
     $names = [];
     for ($i = 0; $i < $z->numFiles; $i++) {
         $n = str_replace('\\', '/', (string)$z->getNameIndex($i));
+        while (str_starts_with($n, './')) $n = substr($n, 2);
         if ($n === '' || str_ends_with($n, '/')) continue;
+        // "a/./b", "a//b" gibi yollar korunan yolları (config.php, data/) atlatamasın
+        if (array_intersect(explode('/', $n), ['', '.', '..'])) fail('Pakette geçersiz dosya yolu var: ' . mb_substr($n, 0, 120));
         if (str_contains($n, '../') || str_starts_with($n, '/') || preg_match('#^[A-Za-z]:#', $n) || str_contains($n, "\0")) fail('Pakette geçersiz dosya yolu var: ' . mb_substr($n, 0, 120));
         $names[] = $n;
     }

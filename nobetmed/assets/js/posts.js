@@ -114,7 +114,7 @@ function renderNav() {
 }
 
 ACT.go = (el) => { location.hash = el.dataset.href; };
-ACT['nav-open'] = () => $('#shell').classList.add('nav-open');
+ACT['nav-open'] = () => { const sh = $('#shell'); if (!sh || sh.classList.contains('nav-open')) return; sh.classList.add('nav-open'); ovOpen(() => sh.classList.remove('nav-open'), () => sh.classList.contains('nav-open') && document.body.contains(sh)); };
 document.addEventListener('click', (e) => {
   const sh = $('#shell');
   if (sh && sh.classList.contains('nav-open') && !e.target.closest('.sidebar') && !e.target.closest('[data-act="nav-open"]')) sh.classList.remove('nav-open');

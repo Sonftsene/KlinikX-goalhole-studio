@@ -12,7 +12,7 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.28.0';
+const NM_VERSION = '4.29.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
 const NM_SCHEMA = 21;
 const NM_ROOT = __DIR__ . '/..';
@@ -561,10 +561,20 @@ function nm_read_action(string $action): bool
     static $reads = ['admin.users', 'attachments.text', 'call.log', 'callout.candidates', 'callout.meta', 'callout.sheet', 'chat.media', 'chat.open',
         'chat.people', 'chat.readers', 'chat.starred', 'chat.unread', 'chat.voters', 'extra.me', 'extra.take', 'invites.candidates', 'legal.text',
         'mail.log', 'market.home', 'placement.counts', 'placement.today', 'report.reads', 'report.reviews', 'req.panel', 'req.periods',
-        'rosters.shifts', 'rosters.versions', 'setup.status', 'sp.cfg', 'sp.inbox', 'cal.link'];
+        'rosters.versions', 'setup.status', 'sp.cfg', 'sp.inbox', 'cal.link'];
+    // Adı okuma kalıbına uyan ama veri değiştiren uçlar
+    static $writes = ['chat.members', 'notif.policy.save', 'update.check', 'sa.update.check'];
+    if (in_array($action, $writes, true)) return false;
     if (in_array($action, $reads, true)) return true;
     if (preg_match('/^(boot|live|counts|auth\.|me\.|billing\.|push\.|notif\.|qr\.|sa\.|passkey\.login|person\.card$|meal\.get$|shifts\.|people\.)/', $action)) return true;
     return (bool)preg_match('/\.(list|get|my|mine|day|days|search|board|check|options|info|older|history|report|stats|view|read|calendar|month|profile|contacts|state|members|prefs\.get|cfg\.get)$/', $action);
+}
+/** Sitenin adresi güvenilir bir kaynaktan biliniyor mu (APP_URL ya da yöneticinin kaydettiği adres)? */
+function nm_base_url_known(): bool
+{
+    if (defined('APP_URL') && APP_URL !== '') return true;
+    if ((string)setting('site_url', '') !== '') return true;
+    return nm_multi() && m_setting('site_url') !== '';
 }
 function request_base_url(): string
 {
