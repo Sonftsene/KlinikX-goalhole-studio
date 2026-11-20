@@ -1,5 +1,5 @@
 // 4.28: sohbet görünümü — iletme / paylaşmada tüm kişiler (arama, çoklu), sağa kaydırınca ekran kaymaz, modern liste
-// (aralıklı kartlar, alt yazı yok, arama ile yeni sohbet), temalar / balon biçimleri / duvar kağıtları, yeni mesaj efekti.
+// (aralıklı kartlar, alt yazı yok, arama ile yeni sohbet), temalar / balon biçimleri / duvar kağıtları; 4.29'dan beri efekt yok.
 // e2e.mjs ve e2e-mesaj.mjs SONRASI (çok birimli).
 //   node e2e-sohbet-gorunum.mjs http://localhost:8240/ <çıktı klasörü> <site klasörü>
 import { createRequire } from 'node:module';
@@ -140,13 +140,21 @@ try {
   if (sw.worst > 0) fail('sağa kaydırınca ekran / sohbet yatayda kaydı: ' + sw.worst);
   if (sw.ta !== 'pan-y' || sw.ox !== 'hidden') fail('sohbet alanı yatay kaydırmaya açık: ' + sw.ta + ' ' + sw.ox);
   if (!sw.reply) fail('sağa kaydırınca yanıtlama açılmadı');
-  // Yeni mesaj efekti
+  // 4.29: hız için efekt yok — yeni mesaj beklemeden görünür, animasyon / bulanıklık uygulanmaz
   await apiCall(A.p, 'chat.send', { id: unit.id, body: 'Efekt denemesi' });
-  await E.p.waitForFunction(() => [...document.querySelectorAll('#chMsgs .ch-msg.ch-new')].some((e) => /Efekt denemesi/.test(e.textContent)), null, { timeout: 15000 })
-    .catch(() => fail('yeni gelen mesajda efekt sınıfı yok'));
-  const anim = await E.p.$$eval('#chMsgs .ch-msg.ch-new .ch-bub', (els) => els.map((e) => getComputedStyle(e).animationName));
-  if (!anim.includes('chPop')) fail('yeni mesaj efekti uygulanmadı: ' + anim.join(','));
-  step(`telefonda: 4 tema / balon / duvar kağıdı ekran görüntüsü; sağa kaydırmada ekran kaymadı (en fazla ${sw.worst} px), yanıtlama açıldı; yeni mesaj efektle geldi`);
+  await E.p.waitForFunction(() => [...document.querySelectorAll('#chMsgs .ch-msg')].some((e) => /Efekt denemesi/.test(e.textContent)), null, { timeout: 15000 })
+    .catch(() => fail('yeni gelen mesaj görünmedi'));
+  const fx = await E.p.evaluate(() => {
+    const bad = [];
+    document.querySelectorAll('#chMsgs .ch-bub, .ch-card, .ch-badge, .topbar, .bottom-nav').forEach((e) => {
+      const cs = getComputedStyle(e);
+      if (cs.animationName && cs.animationName !== 'none') bad.push(e.className + ':' + cs.animationName);
+      if (cs.backdropFilter && cs.backdropFilter !== 'none') bad.push(e.className + ':blur');
+    });
+    return bad;
+  });
+  if (fx.length) fail('sohbette efekt / bulanıklık kaldı: ' + fx.slice(0, 5).join(', '));
+  step(`telefonda: 4 tema / balon / duvar kağıdı ekran görüntüsü; sağa kaydırmada ekran kaymadı (en fazla ${sw.worst} px), yanıtlama açıldı; yeni mesaj efektsiz, beklemeden göründü`);
 } catch (e) {
   fail('beklenmeyen hata: ' + (e.stack || e.message));
 } finally {
