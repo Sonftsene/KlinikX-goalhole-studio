@@ -45,28 +45,37 @@ async function drawUsers(body) {
     setHTML(body, html`<div class="card card-pad">${[1, 2, 3, 4].map(() => html`<div class="skel" style="height:16px;margin:12px 0"></div>`)}</div>`);
     try { AD.users = (await api('admin.users')).users; } catch (e) { toast(e.message, 'err'); return; }
   }
+  if (!AD.pres) await usPresLoad();
+  usPresStart();
   const users = AD.users;
   const q = trLower(AD.userQ);
   const n = { all: users.length, pending: users.filter((u) => u.status === 'pending').length, active: users.filter((u) => u.status === 'active').length, disabled: users.filter((u) => u.status === 'disabled').length };
-  const list = users.filter((u) => (AD.userFilter === 'all' || u.status === AD.userFilter) && (!q || trLower(u.name + ' ' + u.email).includes(q)));
+  const act = US.act; const role = US.role;
+  const list = usSort(users.filter((u) => (AD.userFilter === 'all' || u.status === AD.userFilter) && (!q || trLower(u.name + ' ' + u.email).includes(q))
+    && usActOk(u, act) && (!role || (role[0] === 'r' ? u.role_id === +role.slice(1) && u.role !== 'admin' : u.role === role))));
+  const online = users.filter((u) => usState(u) !== 'off');
   setHTML(body, html`
+    <div class="us-live card card-pad" id="usLive">${usLiveHtml(online)}</div>
     <div class="toolbar">
       <div class="seg">${[['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['active', 'Aktif'], ['disabled', 'Pasif']].map(([k, l]) => html`<button class="${AD.userFilter === k ? 'on' : ''}" data-act="u-filter" data-f="${k}">${l}<span class="count ${k === 'pending' && n[k] ? 'warn' : 'muted'}">${n[k]}</span></button>`)}</div>
       <div class="row wrap">
-        <div class="search" style="width:220px;max-width:100%">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
+        <div class="search us-search" style="flex:1 1 200px;min-width:180px;max-width:100%">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
+        <select class="select us-sel" data-change="us-sort" aria-label="Sırala" title="Sırala">${[['name', 'Ada göre (A–Z)'], ['name_desc', 'Ada göre (Z–A)'], ['online', 'Çevrimiçi olanlar önce'], ['seen', 'Son görülme (yeniden eskiye)'], ['seen_old', 'Son görülme (eskiden yeniye)'], ['new', 'Kayıt tarihi (yeni önce)'], ['role', 'Yetkiye göre']].map(([k, l]) => html`<option value="${k}" ${US.sort === k ? raw('selected') : ''}>${l}</option>`)}</select>
+        <select class="select us-sel" data-change="us-act" aria-label="Etkinlik" title="Etkinlik">${[['all', 'Tüm etkinlik'], ['online', `Şu an çevrimiçi (${users.filter((u) => usState(u) !== 'off').length})`], ['today', 'Bugün girenler'], ['week', 'Son 7 günde girenler'], ['idle30', '30 günden uzun girmeyenler'], ['never', 'Hiç girmeyenler']].map(([k, l]) => html`<option value="${k}" ${US.act === k ? raw('selected') : ''}>${l}</option>`)}</select>
+        <select class="select us-sel" data-change="us-role" aria-label="Yetki" title="Yetki"><option value="">Tüm yetkiler</option>${[['admin', 'Yönetici'], ['editor', 'Yayıncı'], ['member', 'Üye']].map(([k, l]) => html`<option value="${k}" ${US.role === k ? raw('selected') : ''}>${l}</option>`)}${(S.roles || []).map((ro) => html`<option value="r${ro.id}" ${US.role === 'r' + ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
         <button class="btn" data-act="inv-roster" title="Nöbet listesinde adı geçip hesabı olmayanlara davet">${icon('table', 'sm')}Listeden davet et</button>
         <button class="btn" data-act="inv-qr" title="Servise asılacak QR kod">${icon('qr', 'sm')}QR ile kayıt</button>
         <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
       </div>
     </div>
     <div class="card"><div class="table-wrap"><table class="t users-t">
-      <thead><tr><th>Kişi</th><th>Ünvan / Birim</th><th>Yetki</th><th>Durum</th><th>Son giriş</th><th></th></tr></thead>
-      <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}">
-        <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
+      <thead><tr><th>Kişi</th><th>Ünvan / Birim</th><th>Yetki</th><th>Durum</th><th>Çevrimiçi / son görülme</th><th></th></tr></thead>
+      <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}" data-uid="${u.id}">
+        <td><div class="row"><span class="us-av">${avatar(u.name)}<i class="us-dot ${usState(u)}"></i></span><div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
         <td><div class="small">${titleName(u.title_id) || html`<span class="faint">—</span>`}</div><div class="tiny faint">${unitName(u.unit_id)}</div></td>
         <td><span class="badge ${u.role === 'admin' ? 'brand' : u.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[u.role]}</span>${u.role_id && u.role !== 'admin' && (S.roles || []).some((ro) => ro.id === u.role_id) ? html` <span class="badge tone-violet">${S.roles.find((ro) => ro.id === u.role_id).name}</span>` : ''}</td>
         <td>${u.status === 'pending' ? html`<span class="badge warn">Onay bekliyor</span>` : u.status === 'active' ? html`<span class="badge success">Aktif</span>` : html`<span class="badge">Pasif</span>`}${u.del_req ? html` <span class="badge danger" title="KVKK: en geç 30 gün içinde silinmeli">Silme talebi · ${fmtDate(u.del_req)}</span>` : ''}</td>
-        <td class="small muted nowrap">${u.last_seen_at ? fmtRel(u.last_seen_at) : 'Hiç'}</td>
+        <td class="small us-pres">${usPresCell(u)}</td>
         <td style="text-align:right" class="nowrap">
           ${u.status === 'pending' ? html`<button class="btn sm primary" data-act="u-approve" data-id="${u.id}">${icon('check', 'sm')}Onayla</button>` : ''}
           <button class="btn sm icon ghost" data-act="u-menu" data-id="${u.id}" aria-label="İşlemler">${icon('more')}</button>
@@ -75,6 +84,84 @@ async function drawUsers(body) {
     </table></div></div>`);
 }
 ACT['u-filter'] = (el) => { AD.userFilter = el.dataset.f; drawUsers($('#adminBody')); };
+
+/* ---------------- Kullanıcılar: sıralama, süzgeç, çevrimiçi durum (4.27) ----------------
+   Durum canlı yoklamadan gelir (inc/mod_cevrimici.php): çevrimiçi (son 90 sn, sayfa açık), arka planda, ya da son görülme.
+   Açık sayfa yalnız bölüm adıdır (ör. “Mesajlar”); hangi sohbet / kayıt olduğu gönderilmez. Ayarlar › Güvenlik’ten kapatılabilir. */
+const US = (() => { let o = {}; try { o = JSON.parse(localStorage.getItem('nm-us') || '{}'); } catch (e) { /* */ } return { sort: o.sort || 'name', act: o.act || 'all', role: o.role || '', timer: 0 }; })();
+function usSave() { try { localStorage.setItem('nm-us', JSON.stringify({ sort: US.sort, act: US.act, role: US.role })); } catch (e) { /* */ } }
+async function usPresLoad() { try { const r = await api('presence.list'); AD.pres = r.map || {}; AD.presPages = r.pages; } catch (e) { AD.pres = AD.pres || {}; } }
+function usP(u) { return (AD.pres || {})[u.id] || null; }
+function usState(u) { const p = usP(u); return p ? p.state : 'off'; }
+/** Son görülme: canlı durum ya da son giriş, hangisi yeniyse */
+function usSeen(u) { const p = usP(u); const a = p && p.at; const b = u.last_seen_at; return a && (!b || a > b) ? a : b || ''; }
+function usPresCell(u) {
+  const p = usP(u); const st = usState(u);
+  if (st === 'online' || st === 'away') {
+    return html`<div class="us-st ${st}"><b>${st === 'online' ? 'Çevrimiçi' : 'Arka planda'}</b>${p.dev ? html` <span class="tiny faint">· ${p.dev}</span>` : ''}</div>${p.label ? html`<div class="tiny us-page">${icon('eye', 'sm')} ${p.label}</div>` : ''}`;
+  }
+  const s = usSeen(u);
+  return html`<span class="muted nowrap">${s ? fmtRel(s) : 'Hiç girmedi'}</span>`;
+}
+function usActOk(u, act) {
+  const s = usSeen(u); const t = s ? parseDT(s).getTime() : 0; const now = Date.now();
+  if (act === 'online') return usState(u) !== 'off';
+  if (act === 'today') return t && new Date(t).toDateString() === new Date().toDateString();
+  if (act === 'week') return t && now - t < 7 * 864e5;
+  if (act === 'idle30') return u.status === 'active' && (!t || now - t > 30 * 864e5);
+  if (act === 'never') return !s;
+  return true;
+}
+const US_RANK = { online: 0, away: 1, off: 2 };
+function usSort(list) {
+  const by = US.sort; const cmpName = (a, b) => a.name.localeCompare(b.name, 'tr');
+  const seen = (u) => usSeen(u) || '';
+  const roleRank = { admin: 0, editor: 1, member: 2 };
+  const pend = (a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1);
+  return [...list].sort((a, b) => {
+    if (by === 'name') return pend(a, b) || cmpName(a, b);
+    if (by === 'name_desc') return pend(a, b) || cmpName(b, a);
+    if (by === 'online') return US_RANK[usState(a)] - US_RANK[usState(b)] || seen(b).localeCompare(seen(a)) || cmpName(a, b);
+    if (by === 'seen') return seen(b).localeCompare(seen(a)) || cmpName(a, b);
+    if (by === 'seen_old') return (seen(a) || '0').localeCompare(seen(b) || '0') || cmpName(a, b);
+    if (by === 'new') return String(b.created_at || '').localeCompare(String(a.created_at || '')) || cmpName(a, b);
+    if (by === 'role') return roleRank[a.role] - roleRank[b.role] || cmpName(a, b);
+    return 0;
+  });
+}
+function usLiveHtml(online) {
+  const on = online.filter((u) => usState(u) === 'online');
+  return html`<div class="row wrap" style="gap:10px;align-items:center"><span class="us-pulse"></span><b>Şu an çevrimiçi: ${online.length}</b>
+    <span class="tiny faint">${on.length} açık${online.length - on.length ? ` · ${online.length - on.length} arka planda` : ''} · 10 sn’de bir yenilenir</span></div>
+    ${online.length ? html`<div class="us-live-list">${online.sort((a, b) => US_RANK[usState(a)] - US_RANK[usState(b)] || a.name.localeCompare(b.name, 'tr')).map((u) => { const p = usP(u); return html`<span class="us-chip ${usState(u)}"><i class="us-dot ${usState(u)}"></i><b>${u.name}</b>${p && p.label ? html`<span class="tiny us-chip-l">· ${p.label}</span>` : ''}</span>`; })}</div>`
+    : html`<div class="tiny faint" style="margin-top:6px">Şu an kimse açık değil.</div>`}
+    ${AD.presPages === false ? html`<div class="tiny faint" style="margin-top:6px">Açık sayfa gösterimi kapalı (Ayarlar › Güvenlik).</div>` : ''}`;
+}
+/** Tabloyu yeniden çizmeden durum hücrelerini tazele (arama kutusundaki yazı / odak bozulmasın) */
+function usPresPaint() {
+  if (!AD.users || !$('#usLive')) return;
+  setHTML($('#usLive'), usLiveHtml(AD.users.filter((u) => usState(u) !== 'off')));
+  $$('tr[data-uid]').forEach((tr) => {
+    const u = AD.users.find((x) => x.id === +tr.dataset.uid); if (!u) return;
+    const c = $('.us-pres', tr); if (c) setHTML(c, usPresCell(u));
+    const d = $('.us-dot', tr); if (d) d.className = 'us-dot ' + usState(u);
+  });
+}
+function usPresStart() {
+  if (US.timer) return;
+  US.timer = setInterval(async () => {
+    const onPage = $('#usLive') && currentRoute()[0] === 'yonetim' && currentRoute()[1] === 'kullanicilar';
+    if (!onPage) { clearInterval(US.timer); US.timer = 0; return; }
+    if (document.visibilityState !== 'visible') return;
+    await usPresLoad();
+    // Çevrimiçi süzgeci ya da sıralaması açıksa liste değişebilir: tümüyle yeniden çiz (yazı kutusunda değilken)
+    if ((US.act === 'online' || US.sort === 'online') && !(document.activeElement && document.activeElement.matches('[data-input="u-search"]'))) drawUsers($('#adminBody'));
+    else usPresPaint();
+  }, 10000);
+}
+CHANGE['us-sort'] = (el) => { US.sort = el.value; usSave(); drawUsers($('#adminBody')); };
+CHANGE['us-act'] = (el) => { US.act = el.value; usSave(); drawUsers($('#adminBody')); };
+CHANGE['us-role'] = (el) => { US.role = el.value; usSave(); drawUsers($('#adminBody')); };
 CHANGE['u-search'] = debounce((el) => {
   AD.userQ = el.value;
   drawUsers($('#adminBody')).then(() => { const i = $('[data-input="u-search"]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } });
@@ -405,3 +492,15 @@ function bnPreview() {
 }
 CHANGE['bn-prev'] = () => bnPreview();
 CHANGE['bn-btn-pick'] = (el) => { const f = el.closest('form'); const i = f && f.querySelector('[name=banner_btn_url]'); if (i && el.value) { i.value = el.value; bnPreview(); } el.value = ''; };
+
+/* Ayarlar › Güvenlik: çevrimiçi durumda açık sayfanın gösterilmesi (4.27) */
+NM_EXT.settingsCards.push({
+  sec: 'guvenlik', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="guvenlik"><h3 style="font-size:15px">${icon('eye', 'sm')} Çevrimiçi durum</h3>
+    <p class="small muted" style="margin:0">Kullanıcılar sayfasında kimin şu an çevrimiçi olduğunu görürsünüz. Açık sayfa yalnız bölüm adıdır (ör. “Mesajlar”); hangi sohbet ya da kayıt olduğu görünmez, geçmişi tutulmaz.</p>
+    <label class="switch"><input type="checkbox" id="prPages" data-change="pr-pages" checked><span class="track"></span><span class="s-text"><b>Kişilerin şu an hangi bölümde olduğunu göster</b><span>Kapalıyken yalnız çevrimiçi / son görülme görünür.</span></span></label></div>`,
+  mount: async () => { try { const r = await api('presence.list'); const c = $('#prPages'); if (c) c.checked = !!r.pages; } catch (e) { /* */ } },
+});
+CHANGE['pr-pages'] = async (el) => {
+  try { const r = await api('presence.cfg', { pages: el.checked }); AD.presPages = r.pages; AD.pres = null; toast(r.pages ? 'Açık bölüm gösteriliyor' : 'Açık bölüm gizlendi'); } catch (e) { el.checked = !el.checked; toast(e.message, 'err'); }
+};

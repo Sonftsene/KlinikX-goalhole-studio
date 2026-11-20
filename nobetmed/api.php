@@ -853,6 +853,7 @@ function a_google(): void
 
 function a_logout(): void
 {
+    if (function_exists('pr_clear') && ($lu = current_user()) && empty($lu['sa_virtual'])) pr_clear((int)$lu['id']);
     if (function_exists('us_end')) us_end();
     $_SESSION = [];
     unset($GLOBALS['NM_T']);

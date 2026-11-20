@@ -800,3 +800,23 @@ Nöbet › Takvimim › **Telefon takvimine ekle**. Her kişinin kendine özel, 
 - Google Takvim ve Outlook yalnız **HTTPS** adresleri ekler; sitenizde SSL açık olmalı (Hostinger › SSL).
 
 Eski yöntem (tek seferlik **Dosya olarak indir**) aynı pencerede durur, ama o dosya sonradan güncellenmez.
+
+## 39. Kullanıcılar: sıralama, süzgeçler, çevrimiçi durum (4.27)
+
+Yönetim › **Kullanıcılar** sayfasında:
+- **Sıralama**: ada göre (A–Z / Z–A), çevrimiçi olanlar önce, son görülme (yeniden eskiye / eskiden yeniye), kayıt tarihi, yetkiye göre.
+- **Süzgeçler**:
+  - etkinlik: şu an çevrimiçi, bugün girenler, son 7 günde girenler, 30 günden uzun girmeyenler, hiç girmeyenler;
+  - yetki: yönetici, yayıncı, üye, birime özel roller;
+  - durum: onay bekleyen, aktif, pasif.
+- Seçimleriniz bu cihazda hatırlanır.
+
+**Şu an çevrimiçi** (sayfanın başında, 10 saniyede bir kendiliğinden yenilenir)
+- **Çevrimiçi**: portal son 1,5 dakikada açıktı. **Arka planda**: sekme ya da uygulama arkada. Diğerleri için “son görülme”. Telefon / bilgisayar bilgisi de yazar.
+- Kişinin şu an hangi **bölümde** olduğu yazar, ör. “Mesajlar”, “Nöbet › Takvimim”, “Hesabım › Güvenlik”.
+
+**KVKK**
+- Açık bölüm yalnız bölüm adıdır: hangi sohbetin, hangi gönderinin açık olduğu ya da içerik gönderilmez.
+- Yalnız birim yöneticisi görür, geçmişi tutulmaz (kişi başına yalnız son durum). Çıkış yapınca silinir, 1 günden eskiler kendiliğinden temizlenir.
+- Bölüm gösterimini **Ayarlar › Güvenlik › Çevrimiçi durum**dan kapatabilirsiniz; o zaman yalnız çevrimiçi / son görülme görünür.
+- Aydınlatma metni taslağına bu bilgi eklendi. Kendi metninizi kullanıyorsanız benzer bir cümle eklemeniz önerilir. Taslağı kullanıyorsanız kişilerden bir kez yeniden onay istenir.

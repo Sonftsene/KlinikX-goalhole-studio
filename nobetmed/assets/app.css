@@ -1853,3 +1853,22 @@ a.in-link { font-weight: 600; }
 /* Telefon takvimi aboneliği (4.25) */
 .cal-sub .btn.block { justify-content: flex-start; }
 .cal-notes { margin: 0; padding-left: 18px; }
+
+/* Kullanıcılar: çevrimiçi durum (4.27) */
+.us-av { position: relative; display: inline-flex; }
+.us-dot { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surface); background: transparent; }
+.us-dot.online { background: #1fa463; }
+.us-dot.away { background: #e0a100; }
+.us-live-list .us-dot, .us-chip .us-dot { position: static; display: inline-block; border: 0; width: 8px; height: 8px; margin-right: 6px; }
+.us-st.online b { color: #158a52; }
+.us-st.away b { color: #b37f00; }
+.us-page { color: var(--text-2, #4a5a63); margin-top: 2px; display: flex; gap: 4px; align-items: center; }
+.us-live { margin-bottom: 12px; }
+.us-live-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.us-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; }
+.us-chip.away { opacity: .75; }
+.us-pulse { width: 10px; height: 10px; border-radius: 50%; background: #1fa463; box-shadow: 0 0 0 0 rgba(31, 164, 99, .5); animation: usPulse 2s infinite; }
+@keyframes usPulse { 0% { box-shadow: 0 0 0 0 rgba(31, 164, 99, .45); } 70% { box-shadow: 0 0 0 8px rgba(31, 164, 99, 0); } 100% { box-shadow: 0 0 0 0 rgba(31, 164, 99, 0); } }
+.us-sel { height: 36px; width: auto; max-width: 100%; }
+@media (prefers-reduced-motion: reduce) { .us-pulse { animation: none; } }
+.us-chip-l { margin-left: 5px; color: var(--text-2, #4a5a63); }

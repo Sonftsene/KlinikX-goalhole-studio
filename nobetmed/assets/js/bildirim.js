@@ -22,7 +22,7 @@ async function nbTick() {
   if (on && !NB.busy) {
     NB.busy = true;
     try {
-      const r = await api('live', { since: NB.since });
+      const r = await api('live', { since: NB.since, ...nbPresence() });
       const first = !NB.since;
       NB.since = r.now;
       nbCounts(r);
@@ -33,6 +33,19 @@ async function nbTick() {
   }
   NB.timer = setTimeout(nbTick, on ? nbInterval() : 5000);
 }
+/** Çevrimiçi durum için açık bölüm (yalnız bölüm adı; içerik ve kayıt numaraları gönderilmez) */
+function nbPresence() {
+  let label = '';
+  try {
+    const h = location.hash || '#/';
+    const p = typeof sitePages === 'function' ? sitePages() : [];
+    const ex = p.find((x) => x.href === h) || p.find((x) => x.href !== '#/' && h.startsWith(x.href + '/'));
+    label = ex ? (ex.group && !['Genel', 'Bölümler'].includes(ex.group) ? ex.group + ' › ' + ex.label : ex.label) : (typeof pageTitleOf === 'function' ? pageTitleOf(h) : '');
+    if (h === '#/' || h === '') label = 'Ana sayfa';
+  } catch (e) { /* */ }
+  return { pg: location.hash || '#/', pgl: label, vis: document.visibilityState === 'hidden' ? 'hidden' : 'visible', dev: matchMedia('(max-width: 760px)').matches ? 'm' : 'd' };
+}
+window.addEventListener('hashchange', () => { if (S.me && typeof nbSoon === 'function') nbSoon(); });
 function nbSoon() { clearTimeout(NB.timer); NB.timer = setTimeout(nbTick, 300); }
 ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => {
   const idle = Date.now() - NB.active > 180000;

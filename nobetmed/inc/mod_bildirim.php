@@ -221,6 +221,7 @@ function a_live(): void
 {
     $me = need_user();
     if (!empty($me['sa_virtual'])) out(['now' => now(), 'unread' => 0, 'items' => []]);
+    if (function_exists('pr_touch')) pr_touch($me); // çevrimiçi durum ve açık bölüm (inc/mod_cevrimici.php)
     $since = s('since', 19);
     $o = ['now' => now(), 'unread' => (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL', [$me['id']]), 'items' => []];
     if (preg_match('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $since)) {

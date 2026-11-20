@@ -26,7 +26,7 @@ Birimlerin portala yüklediği nöbet listeleri, duyurular ve benzeri içerikler
 
 ## İşlenen kişisel veriler
 - **Kimlik ve iletişim:** ad soyad, unvan, birim, e-posta adresi; isteğe bağlı cep telefonu, dahili numara ve profil fotoğrafı.
-- **Hesap ve güvenlik:** şifrenin geri döndürülemez özeti, giriş ve oturum kayıtları (tarih, IP adresi, tarayıcı ve cihaz bilgisi), parmak izi / yüz tanıma ile girişte cihazın ürettiği açık anahtar (biyometrik veri cihazdan çıkmaz).
+- **Hesap ve güvenlik:** şifrenin geri döndürülemez özeti, giriş ve oturum kayıtları (tarih, IP adresi, tarayıcı ve cihaz bilgisi), portal açıkken çevrimiçi durumunuz ve açık olan bölümün adı (ör. “Mesajlar”; içerik değil, yalnız birim yöneticisi anlık görür, geçmişi tutulmaz), parmak izi / yüz tanıma ile girişte cihazın ürettiği açık anahtar (biyometrik veri cihazdan çıkmaz).
 - **Çalışma düzeni:** nöbet listelerinde adınızın geçtiği satırlar, nöbet istekleri, nöbet değişimi / devri / ilanları, eksik personel çağrılarına verdiğiniz yanıtlar, blok yerleşimi.
 - **İletişim içerikleri:** gönderdiğiniz mesajlar ve dosyalar, sesli / görüntülü arama kayıtları (yalnız zaman ve taraflar; görüşme içeriği kaydedilmez), duyuru okuma ve onay kayıtları, bildirimler.
 - **İsteğe bağlı:** yalnız sizin gördüğünüz fazla mesai ücreti bilgileri, görünüm ve bildirim tercihleri.
