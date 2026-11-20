@@ -126,7 +126,7 @@ try {
   [st, body] = await fetchText('tanitim.php');
   if (st !== 200 || !/Nöbet listeleri her an cepte/.test(body) || !body.includes('Örnek Yazılım Hizmetleri Ltd. Şti.')) fail('tanıtım sayfası içeriği eksik: ' + st);
   if (!/yasal\.php\?s=kvkk/.test(body)) fail('tanıtım sayfasında yasal bağlantılar yok');
-  if ((body.match(/class="lp-vis"/g) || []).length < 8 || !/Sık sorulanlar/.test(body) || !/Herkes için ayrı kolaylık/.test(body) || !/class="phone"/.test(body)) fail('tanıtım sayfasında görselli bölümler eksik');
+  if ((body.match(/class="lp-vis"/g) || []).length < 8 || !/Sık sorulanlar/.test(body) || !/Herkes için ayrı kolaylık/.test(body) || !/Neden dupcii\?/.test(body) || (body.match(/class="why-r"/g) || []).length < 6 || !/class="phone"/.test(body)) fail('tanıtım sayfasında görselli bölümler eksik');
   [st, body] = await fetchText('yasal.php?s=kvkk');
   if (st !== 200 || !body.includes(OWNER) || !body.includes('Örnek Barındırma A.Ş.') || !/11\. maddesi/.test(body)) fail('KVKK aydınlatma metni hatalı');
   if (/KEP adres/.test(body)) fail('girilmeyen (isteğe bağlı) KEP adresi metinde göründü');

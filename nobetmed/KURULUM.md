@@ -574,7 +574,8 @@ Hepsi kurulumda kapalıdır. Çok birimli kurulumda **Sistem yönetimi › Site 
 
 ### Tanıtım sayfası
 - Sayfa görsellidir: üstte telefon görünümü, ardından sekiz özellik bölümü. Bölümler nöbet listeleri, değişim/devir, eksik personel, çizelge, mesajlaşma, duyuru ve protokoller, yemek ve rehber, bildirimler. Her bölümde uygulamanın arayüzünü gösteren bir çizim vardır.
-- Ardından roller (personel, sorumlu, hastane idaresi), güvenlik ve KVKK, nasıl başlanır, fiyatlar ve sık sorulanlar gelir.
+- Ardından **Neden dupcii?** gelir: “alışılmış yol / dupcii ile” karşılaştırması; nöbet listesi, değişim, eksik personel, iletişim, duyuru, Türkiye’deki nöbet düzeni, hastane ölçeği ve kurulum başlıklarında. Rakip adı geçmez.
+- Sonra roller (personel, sorumlu, hastane idaresi), güvenlik ve KVKK, nasıl başlanır, fiyatlar ve sık sorulanlar gelir.
 - Görseller ekran görüntüsü değil, kodla çizilmiştir: paket küçük kalır, her ekranda net görünür. İçlerindeki adlar uydurmadır.
 - Başlık ve alt metin değiştirilebilir; özellikler hazır gelir.
 - "Biriminizi açın" düğmesi ve "Nasıl başlanır" bölümü yalnız birim başvurusu açıkken görünür.
