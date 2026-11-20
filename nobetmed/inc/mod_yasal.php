@@ -97,7 +97,7 @@ function lg_missing(): array
 
 /* ---------------- Herkese açık sayfalar ---------------- */
 
-function lg_page_head(string $title, string $desc = ''): void
+function lg_page_head(string $title, string $desc = '', string $extraCss = ''): void
 {
     header('Content-Type: text/html; charset=utf-8');
     header("Content-Security-Policy: default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
@@ -107,7 +107,7 @@ function lg_page_head(string $title, string $desc = ''): void
         . '<title>' . $e($title) . '</title>' . ($desc !== '' ? '<meta name="description" content="' . $e($desc) . '">' : '')
         . '<link rel="icon" href="assets/icon.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com">'
         . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">'
-        . '<style>' . lg_css() . '</style></head><body>';
+        . '<style>' . lg_css() . $extraCss . '</style></head><body>';
 }
 function lg_css(): string
 {
@@ -162,66 +162,7 @@ function lg_legal_page(string $slug): void
     echo lg_page_top($apply) . '<main class="doc"><h1>' . htmlspecialchars(LG_PAGES[$slug], ENT_QUOTES, 'UTF-8') . '</h1><nav>' . $nav . '</nav>' . lg_html(lg_text($slug)) . '</main>' . lg_page_foot();
 }
 
-/** tanitim.php */
-function lg_landing_page(): void
-{
-    if (!lg_on()) { header('Location: index.php'); return; }
-    $apply = function_exists('ap_open') && ap_open();
-    $brand = lg_get('brand', 'dupcii');
-    $e = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-    $ico = [
-        'cal' => '<path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/>',
-        'swap' => '<path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/>',
-        'alert' => '<path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
-        'chat' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/>',
-        'doc' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Zm0 0v6h6M9 15l2 2 4-4"/>',
-        'grid' => '<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
-        'bell' => '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
-        'food' => '<path d="M3 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3Zm0 0v7"/>',
-        'lock' => '<path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/>',
-    ];
-    $card = fn($i, $t, $p) => '<div class="card"><div class="ic"><svg viewBox="0 0 24 24">' . $ico[$i] . '</svg></div><h3>' . $e($t) . '</h3><p>' . $e($p) . '</p></div>';
-    $feat = [
-        ['cal', 'Nöbet listeleri her an cepte', 'Excel ya da Google E-Tablolar’da hazırladığınız liste portalda açılır; herkes kendi nöbetlerini “Takvimim”de görür, değişiklikler anında yansır.'],
-        ['swap', 'Değişim, devir ve ilan', 'Kurallara uyan adaylar otomatik çıkar. 24 saatin yalnız gündüzü ya da gecesi bile devredilebilir; sorumlu tek dokunuşla onaylar.'],
-        ['alert', 'Eksik personel çağrısı', 'Eksik vardiyada uygun kişilere aynı anda sorulur, gönüllüler arasından seçilir. Telefon trafiği biter.'],
-        ['grid', 'Çizelge hazırlama ve istekler', 'Excel kullanmayan birimler için portalda çizelge: kural denetimi, otomatik doldurma, boşluk ve izin istekleri.'],
-        ['chat', 'Ekip içi mesajlaşma', 'Birim grubu, birebir sohbet, sesli ve görüntülü arama, dosya paylaşımı. WhatsApp gruplarına gerek kalmaz.'],
-        ['doc', 'Duyuru ve protokoller', 'Zorunlu protokolleri kimin okuduğu görünür; hastane geneli belgeler tüm birimlerde ortak.'],
-        ['food', 'Yemek listesi ve rehber', 'Hastanenin yemek menüsü gün gün, nöbetteyken yiyeceğiniz öğün; ortak telefon rehberi.'],
-        ['bell', 'Akıllı bildirimler', 'Nöbet hatırlatması, değişim ve çağrılar telefona anında gelir; sessiz saatler ve kategori seçimi sizde.'],
-    ];
-    $plans = '';
-    try {
-        if (function_exists('bl_on') && bl_on() && bl_cfg()['visible'] === '1') {
-            $c = bl_cfg();
-            foreach (bl_plans(true) as $p) {
-                $mods = $p['modules'] ? count($p['modules']) . ' modül' : 'Tüm modüller';
-                $plans .= '<div class="card price"><h3>' . $e($p['name']) . '</h3><div class="amt">' . ($p['is_free'] ? 'Ücretsiz' : $e(number_format($p['price_m'] / 100, 0, ',', '.')) . ' ₺<span class="muted"> / ay</span>') . '</div>'
-                    . '<div class="muted">' . ($p['is_free'] ? 'Temel kullanım için' : 'KDV hariç · yıllık ' . $e(number_format($p['price_y'] / 100, 0, ',', '.')) . ' ₺') . '</div>'
-                    . '<ul><li>' . ($p['max_users'] ? (int)$p['max_users'] . ' kişiye kadar' : 'Sınırsız kişi') . '</li><li>' . $e($mods) . '</li></ul></div>';
-            }
-            if ($plans !== '') $plans = '<section><div class="wrap"><h2 class="s">Fiyatlar</h2><p class="lead">' . ($c['trial_on'] === '1' ? (int)$c['trial_days'] . ' gün ücretsiz deneyin; kart bilgisi istenmez, süre bitince kendiliğinden ücretlendirme yapılmaz.' : 'Kendiliğinden yenileme ve gizli ücret yok.') . '</p><div class="grid">' . $plans . '</div></div></section>';
-        }
-    } catch (Throwable $ex) { $plans = ''; }
-    $hero = lg_get('hero', 'Nöbet listeleri, değişimler ve ekip iletişimi tek yerde');
-    $sub = lg_get('sub', 'Hastane birimleri için hazırlanmış kapalı ekip portalı. Excel listeniz olduğu gibi kalır; ekibiniz telefondan nöbetini görür, değişim ister, eksikte gönüllü olur.');
-    lg_page_head($brand . ' · ' . $hero, $sub);
-    echo lg_page_top($apply)
-        . '<main><section class="hero"><div class="wrap"><span class="pill">Hemşire ve hekim ekipleri için</span><h1>' . $e($hero) . '</h1><p>' . $e($sub) . '</p><div class="cta">'
-        . ($apply ? '<a class="btn pri" href="index.php#/basvuru">Biriminizi açın</a>' : '') . '<a class="btn" href="index.php">Giriş yap</a></div></div></section>'
-        . '<section><div class="wrap"><h2 class="s">Birimin günlük işi, tek uygulamada</h2><p class="lead">Kurulum gerektirmez; telefona uygulama gibi eklenir.</p><div class="grid">'
-        . implode('', array_map(fn($f) => $card(...$f), $feat)) . '</div></div></section>'
-        . ($apply ? '<section><div class="wrap"><h2 class="s">Nasıl başlanır</h2><p class="lead">Birim sorumlusu birkaç dakikada başvurur.</p><div class="grid steps">'
-            . '<div class="card"><h3>Başvurun</h3><p>İş e-postanızı doğrulayın, hastanenizi ve biriminizi seçin.</p></div>'
-            . '<div class="card"><h3>Onaylanınca giriş yapın</h3><p>Başvurunuz incelenir; biriminiz açılınca giriş bilgileriniz e-postanıza gelir.</p></div>'
-            . '<div class="card"><h3>Ekibinizi davet edin</h3><p>Karekod ya da bağlantıyla ekip katılır, nöbet listenizi yükleyin. Hepsi bu.</p></div></div></div></section>' : '')
-        . $plans
-        . '<section><div class="wrap"><div class="grid">' . $card('lock', 'Güvenlik ve KVKK', 'Her birimin verisi ayrı tutulur; portal arama motorlarına kapalıdır, yalnız onaylı ekip üyeleri girer. Reklam ve izleme yoktur.')
-        . '<div class="card"><h3>Sorunuz mu var?</h3><p>' . (lg_get('email') !== '' ? 'Bize yazın: <a href="mailto:' . $e(lg_get('email')) . '">' . $e(lg_get('email')) . '</a>' : 'Birim yöneticinize ya da sistem yöneticisine ulaşın.') . (lg_get('phone') !== '' ? '<br>Telefon: ' . $e(lg_get('phone')) : '') . '</p></div></div></div></section>'
-        . ($apply ? '<section><div class="wrap"><div class="band"><h2>Biriminiz için hemen başlayın</h2><p>Başvuru birkaç dakika sürer.</p><a class="btn pri" href="index.php#/basvuru">Birim açma başvurusu</a></div></div></section>' : '')
-        . '</main>' . lg_page_foot();
-}
+/* tanitim.php: inc/landing.php (lg_landing_page) */
 
 /* ---------------- Uygulama içi ---------------- */
 

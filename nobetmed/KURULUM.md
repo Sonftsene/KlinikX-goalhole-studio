@@ -573,6 +573,9 @@ Hepsi kurulumda kapalıdır. Çok birimli kurulumda **Sistem yönetimi › Site 
 4. **PayTR / iyzico başvurusu:** Mağaza başvurusunda site adresi olarak tanıtım sayfasını, istenen sözleşme ve politika adresleri olarak yukarıdaki yasal sayfaları verin. İletişim bilgileri sayfaların altında künye olarak görünür.
 
 ### Tanıtım sayfası
+- Sayfa görsellidir: üstte telefon görünümü, ardından sekiz özellik bölümü. Bölümler nöbet listeleri, değişim/devir, eksik personel, çizelge, mesajlaşma, duyuru ve protokoller, yemek ve rehber, bildirimler. Her bölümde uygulamanın arayüzünü gösteren bir çizim vardır.
+- Ardından roller (personel, sorumlu, hastane idaresi), güvenlik ve KVKK, nasıl başlanır, fiyatlar ve sık sorulanlar gelir.
+- Görseller ekran görüntüsü değil, kodla çizilmiştir: paket küçük kalır, her ekranda net görünür. İçlerindeki adlar uydurmadır.
 - Başlık ve alt metin değiştirilebilir; özellikler hazır gelir.
 - "Biriminizi açın" düğmesi ve "Nasıl başlanır" bölümü yalnız birim başvurusu açıkken görünür.
 - Fiyatlar yalnız "Abonelik sayfası birimlere görünsün" açıkken görünür.
