@@ -144,7 +144,12 @@ if (found) {
   await P[n].p.locator('.modal [data-go]').click();
   await P[n].p.getByText('İstek gönderildi').first().waitFor();
   const GV = P[accOf(it.display)];
-  const tr = (await apiCall(GV.p, 'extra.take', { ym })).requests.find((r) => r.dir === 'in' && r.status === 'pending' && r.date === it.date);
+  // Önceki adımdan kalan bildirim beklemeyi erken bitirebilir: istek kaydını birkaç saniye yokla
+  let tr = null;
+  for (let k = 0; k < 20 && !tr; k++) {
+    tr = (await apiCall(GV.p, 'extra.take', { ym })).requests.find((r) => r.dir === 'in' && r.status === 'pending' && r.date === it.date);
+    if (!tr) await P[n].p.waitForTimeout(250);
+  }
   if (!tr || tr.part !== part) fail('devralma isteğinde parça yok: ' + JSON.stringify(tr));
   else {
     await apiCall(GV.p, 'extra.take.respond', { id: tr.id, accept: true });
