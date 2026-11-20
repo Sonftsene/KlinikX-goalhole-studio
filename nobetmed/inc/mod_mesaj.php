@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-const C_SCHEMA = 4;
+const C_SCHEMA = 5;
 const C_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const C_RETENTION = [0, 1, 7, 30, 90, 180, 365, 730];
 const C_MAX_BODY = 4000;
@@ -67,6 +67,9 @@ function cdb(): ?PDO
         $p->exec('CREATE TABLE IF NOT EXISTS c_sig (id INTEGER PRIMARY KEY AUTOINCREMENT, call_id INTEGER NOT NULL, side TEXT NOT NULL, type TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL)');
         $p->exec('CREATE INDEX IF NOT EXISTS c_sig_call ON c_sig (call_id, id)');
         $p->exec('CREATE INDEX IF NOT EXISTS c_calls_b ON c_calls (b_tk, b_uid, state)');
+        // Şema 5 (4.27): mesajın kişinin uygulamasına ulaştığı yer (çift gri tik); okunanlar zaten ulaşmıştır
+        try { $p->exec('ALTER TABLE c_members ADD COLUMN recv INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* zaten var */ }
+        $p->exec('UPDATE c_members SET recv = last_read WHERE recv < last_read');
         $p->prepare("INSERT OR REPLACE INTO h_settings (k, v) VALUES ('chat_schema', ?)")->execute([(string)C_SCHEMA]);
     }
     $ok = true;
@@ -278,7 +281,23 @@ function c_unread_total(array $me): int
         WHERE x.id > m.last_read AND x.id > m.cleared_id AND m.muted = 0 AND (m.mute_until IS NULL OR m.mute_until < ?) AND NOT (x.tkey = ? AND x.user_id = ?) AND x.deleted_at IS NULL AND (c.kind <> \'unit\' OR c.tkey = ?)', [c_tk(), (int)$me['id'], now(), c_tk(), (int)$me['id'], c_tk()]);
     $n += (int)h_val('SELECT COUNT(*) FROM c_members WHERE tkey = ? AND user_id = ? AND unread_mark = 1', [c_tk(), (int)$me['id']]);
     if (function_exists('c_pref_touch')) c_pref_touch($me);
+    // Uygulama açık: sohbetlerdeki son mesajlar bu kişiye ulaştı (gönderende çift gri tik)
+    h_q('UPDATE c_members SET recv = (SELECT c.last_id FROM c_chats c WHERE c.id = c_members.chat_id) WHERE tkey = ? AND user_id = ? AND recv < (SELECT c.last_id FROM c_chats c WHERE c.id = c_members.chat_id)', [c_tk(), (int)$me['id']]);
     return $n;
+}
+
+/**
+ * Kendi mesajlarımın durumu (her mesajda tik): d = herkese ulaşan son mesaj (çift gri), r = herkesin okuduğu son mesaj (mavi).
+ * Okundu bilgisi: benim kapalıysa kimsenin okuduğunu görmem; birebirde karşı taraf kapattıysa mavi çıkmaz (ulaştı görünür).
+ */
+function c_rcpt(array $me, array $c): array
+{
+    $o = h_one('SELECT MIN(MAX(recv, last_read)) AS d, MIN(last_read) AS r, COUNT(*) AS n FROM c_members WHERE chat_id = ? AND NOT (tkey = ? AND user_id = ?)', [(int)$c['id'], c_tk(), (int)$me['id']]);
+    if (!$o || !(int)$o['n']) return ['d' => 0, 'r' => 0];
+    $d = (int)$o['d']; $r = (int)$o['r'];
+    if (!(int)c_pref(c_tk(), (int)$me['id'])['receipts']) $r = 0;
+    elseif ($c['kind'] === 'direct' && ($p = c_other($c, $me)) && !(int)c_pref((string)$p['tkey'], (int)$p['user_id'])['receipts']) $r = 0;
+    return ['d' => max($d, $r), 'r' => $r];
 }
 
 /** Sohbeti aç: bilgi, üyeler, son mesajlar; okundu işaretlenir, bu sohbetin bildirimleri kapanır */
@@ -311,7 +330,7 @@ function a_chat_open(): void
             'joinreqs' => $grp && $adm ? c_joinreqs($c) : [], 'peer' => $peer, 'last_read' => (int)($m['last_read'] ?? 0),
             'restricted' => function_exists('c_restricted') && c_restricted((int)$c['id'], c_tk(), (int)$me['id']),
             'bans' => $adm && function_exists('c_bans_out') ? c_bans_out((int)$c['id']) : [], 'calls' => $c['kind'] === 'direct' && function_exists('c_calls_on') && c_calls_on()],
-        'members' => $members, 'msgs' => c_msgs_out($rows), 'more' => count($rows) === 60, 'pinned' => c_pinned_out($c), 'emojis' => C_EMOJIS, 'now' => now()]);
+        'members' => $members, 'msgs' => c_msgs_out($rows), 'more' => count($rows) === 60, 'pinned' => c_pinned_out($c), 'emojis' => C_EMOJIS, 'now' => now(), 'rc' => c_rcpt($me, $c)]);
 }
 
 /** Sabitlenen mesajın kısa hâli */
@@ -330,7 +349,7 @@ function c_touch(int $msgId): void
 
 function c_mark_read(array $me, array $c): void
 {
-    h_q('UPDATE c_members SET last_read = ?, notified = MAX(notified, ?) WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['last_id'], (int)$c['last_id'], (int)$c['id'], c_tk(), (int)$me['id']]);
+    h_q('UPDATE c_members SET last_read = ?, notified = MAX(notified, ?), recv = MAX(recv, ?) WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['last_id'], (int)$c['last_id'], (int)$c['last_id'], (int)$c['id'], c_tk(), (int)$me['id']]);
     q("UPDATE notifications SET read_at = ? WHERE user_id = ? AND kind = 'chat' AND url = ? AND read_at IS NULL", [now(), $me['id'], '#/mesaj/' . (int)$c['id']]);
 }
 
@@ -366,7 +385,7 @@ function a_chat_poll(): void
     $since = s('since', 19);
     $upd = $since !== '' ? h_all('SELECT * FROM c_msgs WHERE chat_id = ? AND upd >= ? AND id <= ? AND deleted_at IS NULL ORDER BY id LIMIT 100', [(int)$c['id'], $since, $after]) : [];
     $c2 = h_one('SELECT * FROM c_chats WHERE id = ?', [(int)$c['id']]);
-    out(['msgs' => c_msgs_out($rows), 'deleted' => $del, 'read' => ['id' => $mineLast, 'n' => $readBy], 'upd' => $upd ? c_msgs_out($upd) : [],
+    out(['msgs' => c_msgs_out($rows), 'deleted' => $del, 'read' => ['id' => $mineLast, 'n' => $readBy], 'rc' => c_rcpt($me, $c2), 'upd' => $upd ? c_msgs_out($upd) : [],
         'pinned' => c_pinned_out($c2), 'now' => now(), 'typing' => c_typing_names($c, $me), 'peer' => $peer]);
 }
 

@@ -1870,3 +1870,10 @@ a.in-link { font-weight: 600; }
 .us-sel { height: 36px; width: auto; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .us-pulse { animation: none; } }
 .us-chip-l { margin-left: 5px; color: var(--text-2, #4a5a63); }
+
+/* Sohbet: her mesajda tik (4.27) */
+.ch-tk { display: inline-flex; align-items: center; margin-left: 3px; color: var(--text-3, #7c8a93); }
+.ch-tk.read { color: #2a9df4; }
+.ch-tk svg.i { width: 15px; height: 15px; }
+.ch-tk-n { font-size: 11px; margin-left: 2px; }
+.ch-view { transition: none; }

@@ -96,7 +96,8 @@ function chTime(at) {
 function chatStop() { if (CH.timer) { clearInterval(CH.timer); CH.timer = null; } }
 async function chatOpen(view, id) {
   chatStop();
-  CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null;
+  CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null; CH.rc = { d: 0, r: 0 }; CH.stick = true;
+  window.scrollTo(0, 0);
   setHTML(view, html`<div class="ch-view" id="chatView">
     <div class="ch-head"><a class="btn ghost icon" href="#/mesaj" aria-label="Sohbetler">${icon('chevL')}</a>
       <button type="button" class="grow ch-headbtn" data-act="ch-info" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></button>
@@ -111,7 +112,7 @@ async function chatOpen(view, id) {
   let r;
   try { r = await api('chat.open', { id }); } catch (e) { setHTML($('#chMsgs'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   if (CH.id !== id) return;
-  CH.chat = r.chat; CH.members = r.members; CH.emojis = r.emojis || []; CH.since = r.now; CH.pinned = r.pinned;
+  CH.chat = r.chat; CH.members = r.members; CH.emojis = r.emojis || []; CH.since = r.now; CH.pinned = r.pinned; CH.rc = r.rc || { d: 0, r: 0 };
   chatPinBar();
   $('#chTitle').textContent = r.chat.name;
   // Okunmamış ayıracı: açılıştan önceki son okunan
@@ -124,8 +125,10 @@ async function chatOpen(view, id) {
   setHTML($('#chMore'), r.more ? html`<button class="btn sm ghost" data-act="ch-older" style="margin:6px auto;display:flex">Önceki mesajlar</button>` : '');
   chatComposer();
   if (typeof chatGestures === 'function') chatGestures($('#chScroll'));
-  const dv = $('#chUnreadDiv');
-  if (dv) dv.scrollIntoView({ block: 'start' }); else chatScrollEnd(true);
+  // Açılışta en yeni mesaj görünür (okunmamış ayıracı yerinde durur); görseller sonradan yüklense de en altta kalır
+  chatFit();
+  chatStickInit();
+  chatScrollEnd(true);
   chatUnreadSync();
   CH.timer = setInterval(chatPoll, 3000);
 }
@@ -241,7 +244,44 @@ ACT['ch-rec-cancel'] = () => { if (CH.rec) { CH.recCancel = true; CH.rec.stop();
 function chatScrollEnd(force) {
   const s = $('#chScroll');
   if (!s) return;
-  if (force || s.scrollHeight - s.scrollTop - s.clientHeight < 160) s.scrollTop = s.scrollHeight;
+  if (force || CH.stick || s.scrollHeight - s.scrollTop - s.clientHeight < 160) { s.scrollTop = s.scrollHeight; CH.stick = true; }
+}
+/**
+ * Sohbet ekranı görünen alana sığar: üstteki duyuru bandı / şeritler, alttaki menü ve telefon klavyesi hesaba katılır;
+ * yazma kutusu her zaman ekranda kalır.
+ */
+function chatFit() {
+  const v = $('#chatView');
+  if (!v) return;
+  const vv = window.visualViewport;
+  const vh = vv ? vv.height : window.innerHeight;
+  const top = v.getBoundingClientRect().top;
+  const bn = $('#bottomNav');
+  const bnh = bn && getComputedStyle(bn).display !== 'none' && !(vv && vv.height < window.innerHeight - 120) ? bn.getBoundingClientRect().height : 0; // klavye açıkken alt menü klavyenin altında
+  chatObserveBars();
+  const h = Math.max(300, Math.floor(vh - Math.max(0, top) - bnh - 12));
+  v.style.height = h + 'px';
+  if (CH.stick) chatScrollEnd(true);
+}
+/** Kişi yukarı kaydırmadıkça en altta kal (görsel / ses yüklenince, yeni mesaj gelince) */
+function chatStickInit() {
+  const s = $('#chScroll'); const box = $('#chMsgs');
+  if (!s || !box) return;
+  s.addEventListener('scroll', () => { CH.stick = s.scrollHeight - s.scrollTop - s.clientHeight < 80; }, { passive: true });
+  if (window.ResizeObserver) {
+    if (CH.ro) CH.ro.disconnect();
+    CH.ro = new ResizeObserver(() => { if (CH.stick && $('#chScroll') === s) s.scrollTop = s.scrollHeight; });
+    CH.ro.observe(box);
+  }
+  box.addEventListener('load', () => { if (CH.stick) s.scrollTop = s.scrollHeight; }, true);
+}
+['resize', 'orientationchange'].forEach((ev) => window.addEventListener(ev, () => { if ($('#chatView')) chatFit(); }));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if ($('#chatView')) chatFit(); });
+// Üstteki bant / şerit çıkınca ya da kapanınca sohbet ekranı yeniden sığdırılır
+const chFitRO = window.ResizeObserver ? new ResizeObserver(() => { if ($('#chatView')) chatFit(); }) : null;
+function chatObserveBars() {
+  if (!chFitRO) return;
+  ['bannerSlot', 'vwBar', 'blBar'].forEach((id) => { const el = document.getElementById(id); if (el && !el._chObs) { el._chObs = true; chFitRO.observe(el); } });
 }
 function chatAdd(list, reset) {
   const known = new Set(CH.msgs.map((m) => m.id));
@@ -278,11 +318,19 @@ function chatDraw() {
       <div class="ch-bub">${other && !cont ? html`<button type="button" class="ch-from" data-act="ch-profile" data-tk="${m.tk}" data-uid="${m.uid}">${m.name}</button>` : ''}
         ${m.reply_ref ? html`<button type="button" class="ch-quote" data-act="ch-goto" data-id="${m.reply}"><b>${m.reply_ref.name}</b><span>${m.reply_ref.body}</span></button>` : ''}
         ${typeof chatBodyHtml === 'function' ? chatBodyHtml(m) : html`<div class="ch-text">${m.body}</div>`}
-        <div class="ch-time">${m.star ? icon('star', 'sm') : ''}${m.edited ? html`<span>düzenlendi</span>` : ''}${m.at.slice(11, 16)}${m === lastMine && CH.read && CH.read.id === m.id && CH.read.n ? html` <span class="ch-read" title="Okundu">${icon('checks', 'sm')}${group ? ' ' + CH.read.n : ''}</span>` : ''}</div>
+        <div class="ch-time">${m.star ? icon('star', 'sm') : ''}${m.edited ? html`<span>düzenlendi</span>` : ''}${m.at.slice(11, 16)}${m.mine && !m.deleted ? chatTick(m, group && m === lastMine) : ''}</div>
       </div>${m.deleted || CH.sel ? '' : html`<span class="ch-acts"><button type="button" class="ch-act ch-qr" data-act="ch-qreact" data-id="${m.id}" aria-label="Tepki ver">${icon('smile', 'sm')}</button><button type="button" class="ch-act" data-act="ch-menu" data-id="${m.id}" aria-label="Mesaj işlemleri">${icon('more', 'sm')}</button></span>`}</div>`);
   });
   setHTML(box, parts.length ? html`${parts}` : html`<div class="ch-empty small muted">Henüz mesaj yok. İlk mesajı siz yazın.</div>`);
   if (typeof chatDownSync === 'function') chatDownSync();
+}
+/** Kendi mesajında tik: tek gri gönderildi, çift gri ulaştı, mavi okundu (gruplarda herkes); gruplarda son mesajda okuyan sayısı */
+function chatTick(m, showN) {
+  const rc = CH.rc || { d: 0, r: 0 };
+  const st = m.id <= rc.r ? 'read' : m.id <= rc.d ? 'dlv' : 'sent';
+  const t = st === 'read' ? 'Okundu' : st === 'dlv' ? 'Ulaştı' : 'Gönderildi';
+  const n = showN && CH.read && CH.read.id === m.id && CH.read.n ? ' ' + CH.read.n : '';
+  return html` <span class="ch-tk ${st}" title="${t}" aria-label="${t}">${icon(st === 'sent' ? 'check' : 'checks', 'sm')}${n ? html`<span class="ch-tk-n">${n}</span>` : ''}</span>`;
 }
 /** @bahsetme vurgusu: sohbet üyelerinin adları (metin güvenli parçalara bölünür) */
 function chatMentions(text) {
@@ -348,8 +396,9 @@ async function chatPoll() {
     (r.upd || []).forEach((u) => { const i = CH.msgs.findIndex((m) => m.id === u.id); if (i >= 0) { CH.msgs[i] = u; changed = true; } });
     if (JSON.stringify(r.pinned || null) !== JSON.stringify(CH.pinned || null)) { CH.pinned = r.pinned; chatPinBar(); }
     if (r.deleted.length) { CH.msgs.forEach((m) => { if (r.deleted.includes(m.id) && !m.deleted) { m.deleted = true; m.body = ''; delete m.file; changed = true; } }); }
-    const readChanged = !CH.read || CH.read.id !== r.read.id || CH.read.n !== r.read.n;
-    CH.read = r.read;
+    const rc = r.rc || { d: 0, r: 0 };
+    const readChanged = !CH.read || CH.read.id !== r.read.id || CH.read.n !== r.read.n || !CH.rc || CH.rc.d !== rc.d || CH.rc.r !== rc.r;
+    CH.read = r.read; CH.rc = rc;
     const sc = $('#chScroll');
     if (r.msgs.length && sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 300) CH.downN = (CH.downN || 0) + r.msgs.filter((x) => !x.mine).length;
     if (r.msgs.length) chatAdd(r.msgs); else if (changed || readChanged) chatDraw();

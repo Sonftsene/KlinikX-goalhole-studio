@@ -820,3 +820,14 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Yalnız birim yöneticisi görür, geçmişi tutulmaz (kişi başına yalnız son durum). Çıkış yapınca silinir, 1 günden eskiler kendiliğinden temizlenir.
 - Bölüm gösterimini **Ayarlar › Güvenlik › Çevrimiçi durum**dan kapatabilirsiniz; o zaman yalnız çevrimiçi / son görülme görünür.
 - Aydınlatma metni taslağına bu bilgi eklendi. Kendi metninizi kullanıyorsanız benzer bir cümle eklemeniz önerilir. Taslağı kullanıyorsanız kişilerden bir kez yeniden onay istenir.
+
+## 40. Mesajlar: her mesajda tik, açılışta son mesaj, yazma kutusu hep ekranda (4.27)
+
+- **Tikler** (kendi mesajlarınızda, hepsinde):
+  - tek gri ✓ gönderildi;
+  - çift gri ✓✓ karşı tarafın uygulamasına ulaştı (uygulamayı açtığında, sohbete girmese de);
+  - mavi ✓✓ okundu.
+- **Gruplarda:** çift gri herkese ulaşınca, mavi herkes okuyunca çıkar. Son mesajınızın yanında okuyan sayısı yazar; mesaja dokunup “Okuyanlar”dan kimin okuduğunu görürsünüz.
+- **Gizlilik:** okundu bilgisini kapatan kişi başkalarının okuduğunu da göremez. Birebirde karşı taraf kapattıysa mavi çıkmaz, en fazla çift gri görünür.
+- **Sohbet açılınca** en yeni mesaj görünür; okunmamış mesaj ayıracı yerinde durur. Fotoğraf ve ekler sonradan yüklense de sohbet en altta kalır; siz yukarı kaydırdıysanız yeriniz korunur.
+- **Yazma kutusu her zaman ekranda kalır:** üstte duyuru bandı varken de, duyuru paylaştıktan sonra da, telefonda klavye açıkken de. Bant açılıp kapanınca sohbet ekranı kendiliğinden yeniden sığar.
