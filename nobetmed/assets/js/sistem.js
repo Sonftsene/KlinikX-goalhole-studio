@@ -43,7 +43,7 @@ async function renderSistem() {
     <main class="sys-main">
       <div class="page-head"><div><h1>Hastaneler ve birimler</h1><p>Her birimin verisi ayrı tutulur. Birimin içini yönetmek için <b>Birime gir</b>: yönetici yetkisiyle girersiniz; giriş, çıkış ve her işlem birimin günlüğüne de yazılır.</p></div>
         <button class="btn primary" data-act="sys-h-new">${icon('plus', 'sm')}<span>Hastane ekle</span></button></div>
-      <div class="seg" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'basvuru' ? 'on' : ''}" data-act="sys-tab" data-t="basvuru">Başvurular<span class="sys-badge" id="sysApN"></span></button><button class="${SYS.tab === 'abonelik' ? 'on' : ''}" data-act="sys-tab" data-t="abonelik">Abonelik ve ödeme</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
+      <div class="seg" role="tablist" style="margin-bottom:14px"><button class="${SYS.tab === 'birimler' ? 'on' : ''}" data-act="sys-tab" data-t="birimler">Birimler</button><button class="${SYS.tab === 'basvuru' ? 'on' : ''}" data-act="sys-tab" data-t="basvuru">Başvurular<span class="sys-badge" id="sysApN"></span></button><button class="${SYS.tab === 'abonelik' ? 'on' : ''}" data-act="sys-tab" data-t="abonelik">Abonelik ve ödeme</button><button class="${SYS.tab === 'site' ? 'on' : ''}" data-act="sys-tab" data-t="site">Site ve yedek</button><button class="${SYS.tab === 'gunluk' ? 'on' : ''}" data-act="sys-tab" data-t="gunluk">İşlem günlüğü</button></div>
       <div id="sysBody"><div class="empty"><div class="spinner"></div></div></div>
     </main></div>`);
   sysLoad();
@@ -57,6 +57,7 @@ async function sysLoad() {
   if (!box) return;
   if (SYS.tab === 'abonelik' && typeof blSaRender === 'function') return blSaRender(box);
   if (SYS.tab === 'basvuru' && typeof apSaRender === 'function') return apSaRender(box);
+  if (SYS.tab === 'site' && typeof lgSaRender === 'function') return lgSaRender(box);
   try {
     if (SYS.tab === 'gunluk') {
       const r = await api('sa.audit');
@@ -86,6 +87,7 @@ const SYS_ACT = {
   'billing.bulk': 'Toplu deneme', 'billing.pay': 'Ödeme işlemi', 'billing.note': 'Abonelik bildirimi',
   'apply.cfg': 'Başvuru ayarları', 'apply.approve': 'Başvuru onaylandı', 'apply.reject': 'Başvuru reddedildi', 'apply.info': 'Başvurudan bilgi istendi', 'apply.spam': 'Başvuru geçersiz sayıldı',
   'apply.reopen': 'Başvuru yeniden açıldı', 'apply.delete': 'Başvuru silindi', 'apply.note': 'Başvuruya not',
+  'legal.save': 'Yasal metinler / künye', 'backup.cfg': 'Yedek ayarları', 'backup.send': 'Yedek gönderildi', 'backup.download': 'Yedek indirildi',
 };
 function sysTenantRow(t) {
   return html`<div class="list-row sys-t ${t.status === 'frozen' ? 'frozen' : ''}"><div class="grow">

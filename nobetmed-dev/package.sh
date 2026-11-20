@@ -18,6 +18,8 @@ if command -v php > /dev/null; then
     if php -w "$f" > "$f.min" && php -l "$f.min" > /dev/null 2>&1; then mv "$f.min" "$f"; else rm -f -- "$f.min"; fi
   done < <(find "$tmp" -name '*.php' -print0)
 fi
+# Paketteki uygulama JS dosyalarından açıklama ve girinti atılır (strip-js.cjs: ayrıştırıcıyla, jeton dizisi aynı kalır).
+if command -v node > /dev/null; then node "$here/strip-js.cjs" "$tmp"/assets/js/*.js "$tmp/sw.js" || true; fi
 [ -n "${PKGDIR:-}" ] && mkdir -p "$PKGDIR" && cp -a "$tmp/." "$PKGDIR/"
 rm -f -- "$out"
 cd "$tmp"

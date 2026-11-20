@@ -1715,3 +1715,18 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .ap-peer { flex-wrap: wrap; }
 .sys-badge:empty { display: none; }
 .sys-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; }
+
+/* Tanıtım / yasal (4.17) */
+.lg-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 16px; }
+.lg-links a { color: var(--text-3); text-decoration: none; }
+.lg-links a:hover { color: var(--text-2); text-decoration: underline; }
+.lg-doc { font-size: 14.5px; line-height: 1.6; color: var(--text-2); max-height: 60vh; overflow: auto; }
+.lg-doc h2 { font-size: 15.5px; color: var(--text); margin: 18px 0 6px; }
+.lg-doc h2:first-child { margin-top: 0; }
+.lg-doc ul { padding-left: 20px; }
+.lg-doc mark { background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 3px; }
+.lg-seg { flex-wrap: wrap; height: auto; }
+.lg-text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; min-height: 320px; }
+.lg-save { position: sticky; bottom: 12px; display: flex; justify-content: flex-end; pointer-events: none; }
+.lg-save .btn { pointer-events: auto; }
+.lg-save .btn { box-shadow: 0 6px 20px rgba(0, 0, 0, .14); }

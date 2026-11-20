@@ -555,3 +555,69 @@ Yeni bir birimin sorumlusu portala kendisi başvurur; **hiçbir birim sistem yö
 - Reddedilen ya da geçersiz sayılan başvurular 90 gün sonra silinir. Onaylanan başvuruların telefon ve not gibi iletişim ayrıntıları 1 yıl sonra temizlenir.
 - Başvuran takip bağlantısından başvurusunu istediği an geri çekip silebilir.
 - Aydınlatma metni formda gösterilir ve onaylatılır. Kendi aydınlatma metniniz varsa ona da başvuru verilerini (amaç, saklama süresi, aktarım: aynı hastanedeki birim yöneticilerine ad, unvan ve birim adı) ekleyin.
+
+## 31. Tanıtım sayfası, yasal sayfalar, KVKK ve sunucu dışı yedek (4.17)
+
+Hepsi kurulumda kapalıdır. Çok birimli kurulumda **Sistem yönetimi › Site ve yedek** sekmesinden, tek birimli (MySQL) kurulumda **Yönetim › Ayarlar › Tanıtım ve yasal metinler** kartından yönetilir.
+
+### Künye ve yasal metinler
+1. **Künye:** Hizmeti sunan kişinin ya da şirketin bilgilerini doldurun: unvan, adres, vergi dairesi ve numarası, e-posta, telefon, barındırma sağlayıcısı (sunucu konumuyla), yetkili mahkeme. MERSİS ve KEP isteğe bağlıdır.
+2. **Metinler:** Beş metin hazır taslak olarak gelir: KVKK Aydınlatma Metni, Gizlilik ve Çerez Politikası, Kullanım Koşulları, Mesafeli Hizmet Sözleşmesi, İptal ve İade Koşulları.
+   - Yer tutucular (`{UNVAN}`, `{EPOSTA}` …) künyeden doldurulur. Boş kalan zorunlu bilgi metinde sarı `[…]` olarak görünür.
+   - **Bu metinler genel taslaktır. Yayımlamadan önce bir avukata ya da KVKK danışmanına kontrol ettirin.** Özellikle iade süresi (taslakta 14 gün) bir işletme kararıdır.
+   - Biçim: `## ` başlık, `- ` madde, `**kalın**`. "Taslağa döndür" özel değişikliği siler.
+3. **Yayımla:** "Tanıtım ve yasal sayfaları yayımla" açılınca sayfalar herkese açılır:
+   - Tanıtım: `https://siteniz/tanitim.php`
+   - Yasal: `https://siteniz/yasal.php?s=kvkk`; diğerleri `s=gizlilik`, `s=kosullar`, `s=satis`, `s=iade`
+   - Giriş ve kayıt ekranının altında bu sayfaların bağlantıları görünür. Başvuru formunda aydınlatma metni bağlantısı çıkar.
+4. **PayTR / iyzico başvurusu:** Mağaza başvurusunda site adresi olarak tanıtım sayfasını, istenen sözleşme ve politika adresleri olarak yukarıdaki yasal sayfaları verin. İletişim bilgileri sayfaların altında künye olarak görünür.
+
+### Tanıtım sayfası
+- Başlık ve alt metin değiştirilebilir; özellikler hazır gelir.
+- "Biriminizi açın" düğmesi ve "Nasıl başlanır" bölümü yalnız birim başvurusu açıkken görünür.
+- Fiyatlar yalnız "Abonelik sayfası birimlere görünsün" açıkken görünür.
+- Sayfa arama motorlarına kapalıdır; bağlantı paylaşarak kullanılır.
+
+### Aydınlatma metni bildirimi (KVKK)
+- "Kullanıcılardan aydınlatma metnini okumalarını iste" açıkken her kullanıcı girişte metni görür ve "Okudum, bilgilendirildim" der. Tarih ve metnin sürümü kaydedilir.
+- Metin ya da künye değişince sürüm değişir ve herkese yeniden gösterilir.
+
+### Hesabım › Verilerim (KVKK md. 11)
+- **Verilerimi indir:** Kişi kendi verisinin kopyasını tek bir dosya (JSON) olarak indirir. İçinde hesap, oturumlar, bildirimler, nöbet satırları, istekler, değişimler, ilanlar, gönderdiği mesajlar ve okuma kayıtları vardır. Şifre özeti ve güvenlik anahtarları dosyaya girmez.
+- **Silme talebi:** Kişi hesabının silinmesini ister. Birim yöneticilerine bildirim gider ve Kullanıcılar listesinde **"Silme talebi"** rozeti çıkar. Yönetici kişiyi silerek talebi sonuçlandırır.
+  - 20 gün dolunca yöneticiye hatırlatma gider. Yasal süre 30 gündür.
+  - Kişi talebini geri alabilir.
+  - Nöbet listelerindeki ad biriminizin resmi kaydı olduğu için listelerden çıkarılmaz.
+
+### Sunucu dışı yedek (yalnız çok birimli kurulum)
+Birim içindeki haftalık yedekler aynı sunucuda durur. Hosting hesabına bir şey olursa onlar da gider. Sunucu dışı yedek bu riski kapatır.
+
+**Kurulum (Sistem yönetimi › Site ve yedek › Sunucu dışı yedek):**
+1. Yedeklerin gideceği e-postayı yazın. Kurum dışı, sizin her zaman erişeceğiniz bir adres seçin.
+2. En az 10 karakterlik bir **yedek şifresi** belirleyin. Şifreyi bir yere not edin: şifre olmadan yedek açılamaz ve e-postayla gönderilmez.
+3. Günü seçin, "Haftalık yedek gönder"i açıp kaydedin. "Şimdi gönder" ile hemen deneyin.
+4. Yedek e-postası, e-posta ayarı yapılmış bir birimin ayarıyla gider (bkz. 30. bölüm, başvuru e-postaları).
+
+**Yedeğin içeriği:**
+- Merkez, tüm birimler ve hastane ortak veritabanları tek bir AES-256 şifreli ZIP dosyasında.
+- Yüklenen belge ve fotoğraflar eklenmez; onlar için Hostinger'ın kendi yedeğini kullanın.
+- Dosya e-posta ek sınırını (varsayılan 20 MB) aşarsa gönderilmez; panelden **İndir** ile alınır.
+- Sunucuda PHP zip eklentisi şifreli ZIP desteklemiyorsa panel uyarır.
+
+**Açma:** Windows'ta 7-Zip ya da WinRAR, Mac'te Keka ya da The Unarchiver ile yedek şifresi girilerek. Windows'un kendi "Tümünü ayıkla"sı bu şifrelemeyi açamaz.
+
+**Geri yükleme:** Her veritabanı dosyası, sunucudaki karşılığının **yerine ve onun adıyla** konur. Böylece sitenin dosya adı kayıtları (`.name.php`, `.dbname.php`) değişmeden kalır.
+1. Yeni sunucuysa paketi kurup siteyi bir kez açın.
+2. **Merkez:** `data/merkez/m-….sqlite` dosyasının yerine yedekteki `merkez/` dosyasını aynı adla koyun.
+3. Merkez yerine konduktan sonra birimler sistem yönetiminde görünür. Her birimin giriş bağlantısını bir kez açın; böylece `data/b/<anahtar>/` klasörü oluşur.
+4. **Birimler:** Yedekteki `birimler/<hastane>--<birim>--<anahtar>/` dosyası şu dosyanın yerine, aynı adla konur:
+   - ilk kurulum birimi için `data/nm-….sqlite`,
+   - diğer birimler için `data/b/<anahtar>/nm-….sqlite`.
+5. **Hastaneler:** Yedekteki `hastaneler/<no>/` dosyası `data/h/<no>/h-….sqlite` dosyasının yerine, aynı adla konur.
+6. Varsa yanındaki `-wal` ve `-shm` dosyalarını silin.
+
+Emin değilseniz geri yüklemeyi destek alarak yapın.
+
+### Canlıya almadan önce sizin yapmanız gerekenler
+- **Cron:** Hostinger › Gelişmiş › Cron İşleri bölümünde 5 dakikada bir `cron.php` çalıştırın (bkz. 13. bölüm). Yoksa haftalık yedek, hatırlatmalar ve başvuru bildirimleri yalnız biri siteye girdiğinde çalışır.
+- **E-posta teslimi (SPF / DKIM / DMARC):** Hostinger › E-postalar › alan adınız › DNS kayıtlarında SPF ve DKIM'in "etkin" olduğundan emin olun. DMARC için `v=DMARC1; p=none;` kaydı ekleyin. Bunlar yoksa doğrulama kodları ve giriş bilgileri spam klasörüne düşer.

@@ -537,6 +537,7 @@ function a_boot(): void
         ],
         'tenant' => nm_boot_tenant($me),
         'apply' => !$me && function_exists('ap_open') && ap_open(),
+        'legal' => !$me && function_exists('lg_on') && lg_on() ? ['on' => true] : null,
         'mods' => function_exists('nm_mods') ? nm_mods() : null,
         'perm' => $me && function_exists('user_perms') ? user_perms($me) : null,
         'sa' => function_exists('sa_boot') ? sa_boot() : null,
@@ -1552,7 +1553,7 @@ function a_admin_users(): void
 {
     need_admin();
     $rows = all('SELECT u.*, (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) AS post_count FROM users u ORDER BY CASE WHEN u.status = \'pending\' THEN 0 ELSE 1 END, u.name');
-    out(['users' => array_map(fn($r) => user_out($r) + ['post_count' => (int)$r['post_count']], $rows)]);
+    out(['users' => array_map(fn($r) => user_out($r) + ['post_count' => (int)$r['post_count'], 'del_req' => $r['del_req'] ?? null], $rows)]);
 }
 
 function admin_count(): int

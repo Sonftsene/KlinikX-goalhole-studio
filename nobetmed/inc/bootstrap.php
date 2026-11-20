@@ -12,9 +12,9 @@ foreach (['DB_DRIVER' => 'sqlite', 'DB_HOST' => 'localhost', 'DB_NAME' => '', 'D
 date_default_timezone_set(APP_TIMEZONE);
 mb_internal_encoding('UTF-8');
 
-const NM_VERSION = '4.16.0';
+const NM_VERSION = '4.17.0';
 // Veritabanı şema sürümü: tabloya/sütuna her eklemede ARTIRIN (yoksa güncellenen sitelerde nm_migrate çalışmaz)
-const NM_SCHEMA = 20;
+const NM_SCHEMA = 21;
 const NM_ROOT = __DIR__ . '/..';
 require_once __DIR__ . '/tenant.php';
 
@@ -400,7 +400,9 @@ function nm_migrate(PDO $pdo): void
             // Sürüm 13: birime özel rol (boşsa temel yetkiye göre)
             'role_id INT NULL',
             // Sürüm 15: bildirim tercihleri (kategori, sessiz saatler, önizleme, duraklatma)
-            'notif_prefs TEXT NULL'],
+            'notif_prefs TEXT NULL',
+            // Sürüm 21: aydınlatma metni okundu kaydı (sürüm|tarih) ve KVKK hesap silme talebi
+            'kvkk_ack VARCHAR(40) NULL', 'del_req VARCHAR(19) NULL'],
         'push_subscriptions' => ['label VARCHAR(80) NULL'],
         'posts' => ['review_at VARCHAR(10) NULL', 'review_notified VARCHAR(20) NULL', 'auto_reminded INT NOT NULL DEFAULT 0'],
         'attachments' => [($my ? 'text_content MEDIUMTEXT NULL' : 'text_content TEXT NULL'), 'text_done INT NOT NULL DEFAULT 0'],

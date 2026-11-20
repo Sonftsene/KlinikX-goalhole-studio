@@ -21,7 +21,7 @@ const NB_CATS = [
     'sistem' => ['Sistem', 'Deneme bildirimleri ve diğerleri'],
 ];
 const NB_KIND_CAT = ['chat' => 'mesaj', 'post' => 'duyuru', 'remind' => 'duyuru', 'digest' => 'duyuru', 'hdoc' => 'belge', 'roster' => 'nobet', 'shift' => 'nobet',
-    'side' => 'nobet', 'callout' => 'eksik', 'swap' => 'degisim', 'listing' => 'degisim', 'request' => 'istek', 'review' => 'yonetim', 'pending_post' => 'yonetim', 'pending_user' => 'yonetim', 'call' => 'mesaj', 'extra' => 'yonetim', 'billing' => 'yonetim', 'apply' => 'yonetim'];
+    'side' => 'nobet', 'callout' => 'eksik', 'swap' => 'degisim', 'listing' => 'degisim', 'request' => 'istek', 'review' => 'yonetim', 'pending_post' => 'yonetim', 'pending_user' => 'yonetim', 'call' => 'mesaj', 'extra' => 'yonetim', 'billing' => 'yonetim', 'apply' => 'yonetim', 'privacy' => 'yonetim'];
 /** İçerik gizlendiğinde telefonda görünen genel metin */
 const NB_GENERIC = ['mesaj' => 'Yeni mesaj', 'eksik' => 'Eksik personel çağrısı', 'duyuru' => 'Yeni duyuru', 'belge' => 'Yeni hastane belgesi', 'nobet' => 'Nöbet bildirimi',
     'degisim' => 'Değişim / ilan bildirimi', 'istek' => 'Nöbet isteği bildirimi', 'yonetim' => 'Onay bekleyen iş', 'sistem' => 'Yeni bildirim'];

@@ -49,6 +49,8 @@ async function start() {
     const bs = $('#bannerSlot');
     if (bs) setHTML(bs, html`<div class="banner warn sys-in">${icon('shield', 'sm')}<span class="grow">Sistem yöneticisi olarak <b>${S.settings.org_name}</b> birimindesiniz. Yaptığınız her işlem birimin işlem günlüğüne yazılır.</span><button class="btn sm" data-act="sys-exit">Sistem paneline dön</button></div>`);
   }
+  // Aydınlatma metni güncellendiyse bir kez göster
+  if (S.legal && S.legal.ack && !(S.sa && S.sa.in) && typeof lgAckPrompt === 'function') setTimeout(() => lgAckPrompt(), 600);
   if (!window.NM_DEMO_API && typeof registerSW === 'function' && !(S.sa && S.sa.in)) {
     registerSW();
     if (S.settings.push_ready && S.me.push_on !== false) setTimeout(() => pushSync().catch(() => {}), 3000);

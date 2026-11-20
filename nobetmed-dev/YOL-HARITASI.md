@@ -79,6 +79,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.16 — Birim açma başvurusu ve doğrulama ✓ (4.16.0)
 - Herkese açık başvuru (e-posta kodu, hastane arama ve o hastanedeki birimler, belge), elle onay; doğrulama işaretleri (kurumsal e-posta, aynı hastanedeki birim yöneticilerinin teyidi, kopya birim, aynı bağlantı), bilgi iste / ret / geçersiz + engel; onayda hastane + birim + yönetici tek adımda; KVKK saklama süreleri.
 
+### 4.17 — Tanıtım, yasal sayfalar, KVKK kişi hakları, sunucu dışı yedek ✓ (4.17.0)
+- Herkese açık tanıtım sayfası ve 5 yasal metin (künyeden doldurulan taslaklar), aydınlatma metni okundu kaydı, Verilerim (JSON kopya, silme talebi), şifreli sunucu dışı haftalık yedek (e-posta + indir).
+- Kullanıcı tarafı: Hostinger cron, SPF/DKIM/DMARC, metinlerin hukukçuya kontrolü.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
 1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).

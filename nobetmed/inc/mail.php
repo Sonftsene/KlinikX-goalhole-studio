@@ -155,6 +155,19 @@ function mail_build(array $m): array
         . "--$boundary\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
         . chunk_split(base64_encode((string)$m['html']))
         . "--$boundary--\r\n";
+    // Ek dosya (ör. şifreli yedek): multipart/mixed içine sarılır
+    if (!empty($m['attach']) && is_array($m['attach'])) {
+        $mixed = 'nm_' . bin2hex(random_bytes(8));
+        foreach ($headers as $i => $h) if (str_starts_with($h, 'Content-Type: multipart/alternative')) $headers[$i] = 'Content-Type: multipart/mixed; boundary="' . $mixed . '"';
+        $out = "--$mixed\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\n" . $body;
+        foreach ($m['attach'] as $a) {
+            $data = isset($a['path']) ? (string)@file_get_contents((string)$a['path']) : (string)($a['data'] ?? '');
+            $fn = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)($a['name'] ?? 'ek.bin'));
+            $out .= "--$mixed\r\nContent-Type: " . ($a['mime'] ?? 'application/octet-stream') . "; name=\"$fn\"\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"$fn\"\r\n\r\n"
+                . chunk_split(base64_encode($data));
+        }
+        $body = $out . "--$mixed--\r\n";
+    }
     return [$headers, $body];
 }
 

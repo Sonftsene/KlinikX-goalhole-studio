@@ -65,7 +65,7 @@ async function drawUsers(body) {
         <td><div class="row">${avatar(u.name)}<div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
         <td><div class="small">${titleName(u.title_id) || html`<span class="faint">—</span>`}</div><div class="tiny faint">${unitName(u.unit_id)}</div></td>
         <td><span class="badge ${u.role === 'admin' ? 'brand' : u.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[u.role]}</span>${u.role_id && u.role !== 'admin' && (S.roles || []).some((ro) => ro.id === u.role_id) ? html` <span class="badge tone-violet">${S.roles.find((ro) => ro.id === u.role_id).name}</span>` : ''}</td>
-        <td>${u.status === 'pending' ? html`<span class="badge warn">Onay bekliyor</span>` : u.status === 'active' ? html`<span class="badge success">Aktif</span>` : html`<span class="badge">Pasif</span>`}</td>
+        <td>${u.status === 'pending' ? html`<span class="badge warn">Onay bekliyor</span>` : u.status === 'active' ? html`<span class="badge success">Aktif</span>` : html`<span class="badge">Pasif</span>`}${u.del_req ? html` <span class="badge danger" title="KVKK: en geç 30 gün içinde silinmeli">Silme talebi · ${fmtDate(u.del_req)}</span>` : ''}</td>
         <td class="small muted nowrap">${u.last_seen_at ? fmtRel(u.last_seen_at) : 'Hiç'}</td>
         <td style="text-align:right" class="nowrap">
           ${u.status === 'pending' ? html`<button class="btn sm primary" data-act="u-approve" data-id="${u.id}">${icon('check', 'sm')}Onayla</button>` : ''}

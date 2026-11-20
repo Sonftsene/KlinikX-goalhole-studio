@@ -112,6 +112,7 @@ function renderAuth(mode = 'login') {
         <div class="form-error hidden" data-err></div>
         <button class="btn primary block" type="submit">Kayıt ol</button>
       </form>
+      ${S.legal && S.legal.on ? html`<p class="tiny faint" style="margin-top:10px;text-align:center">Kayıt olarak <a href="yasal.php?s=kvkk" target="_blank" rel="noopener">aydınlatma metnini</a> ve <a href="yasal.php?s=kosullar" target="_blank" rel="noopener">kullanım koşullarını</a> okuduğunuzu kabul edersiniz.</p>` : ''}
       <p class="small muted" style="margin-top:18px;text-align:center">Zaten hesabınız var mı? <a href="#" data-act="auth-mode" data-mode="login">Giriş yapın</a></p>`;
   } else {
     inner = html`
@@ -132,6 +133,7 @@ function renderAuth(mode = 'login') {
       </p>
       <p class="tiny faint" style="text-align:center;margin-top:8px">${S.mail_ready ? html`<a href="#" data-act="auth-mode" data-mode="forgot">Şifremi unuttum</a>` : 'Şifrenizi unuttuysanız yöneticiniz geçici şifre oluşturabilir.'}</p>
       ${S.apply ? html`<div class="ap-cta"><span>${icon('building', 'sm')} Biriminiz portalda yok mu?</span><a href="#/basvuru" data-act="ap-open">Birim açma başvurusu</a></div>` : ''}
+      ${typeof legalLinks === 'function' ? legalLinks() : ''}
       ${S.tenant && S.tenant.sys ? html`<p class="tiny faint" style="text-align:center;margin-top:14px"><a href="#" data-act="sys-login">${icon('shield', 'sm')} Sistem yönetimi</a></p>` : ''}`;
   }
   setHTML(APP(), authLayout(inner));
