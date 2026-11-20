@@ -20,6 +20,14 @@ if command -v php > /dev/null; then
 fi
 # Paketteki uygulama JS dosyalarından açıklama ve girinti atılır (strip-js.cjs: ayrıştırıcıyla, jeton dizisi aynı kalır).
 if command -v node > /dev/null; then node "$here/strip-js.cjs" "$tmp"/assets/js/*.js "$tmp/sw.js" || true; fi
+# CSS: açıklama ve girinti atılır (içinde tırnak arasında "/*" geçen dosyaya dokunulmaz)
+if command -v php > /dev/null; then
+  for f in "$tmp"/assets/app.css "$tmp"/assets/css/*.css; do
+    [ -f "$f" ] || continue
+    grep -qE "[\"'][^\"']*/\*" "$f" && continue
+    php -r '$s = file_get_contents($argv[1]); $s = preg_replace("#/\*.*?\*/#s", "", $s); $s = preg_replace("/^[ \t]+|[ \t]+$/m", "", $s); $s = preg_replace("/\n{2,}/", "\n", $s); file_put_contents($argv[1], $s);' "$f"
+  done
+fi
 [ -n "${PKGDIR:-}" ] && mkdir -p "$PKGDIR" && cp -a "$tmp/." "$PKGDIR/"
 rm -f -- "$out"
 cd "$tmp"

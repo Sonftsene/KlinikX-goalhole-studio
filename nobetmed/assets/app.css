@@ -1730,3 +1730,29 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .lg-save { position: sticky; bottom: 12px; display: flex; justify-content: flex-end; pointer-events: none; }
 .lg-save .btn { pointer-events: auto; }
 .lg-save .btn { box-shadow: 0 6px 20px rgba(0, 0, 0, .14); }
+
+/* Sistem sağlığı (4.18) */
+.sh-sum { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.sh-sum h3 { margin: 0 0 2px; font-size: 17px; }
+.sh-sum p { margin: 0 0 8px; color: var(--text-2); }
+.sh-big { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; }
+.sh-big svg.i { width: 24px; height: 24px; }
+.sh-ok .sh-big { background: var(--success-soft); color: var(--success); }
+.sh-warn .sh-big { background: var(--warn-soft); color: var(--warn); }
+.sh-err .sh-big { background: var(--danger-soft); color: var(--danger); }
+.sh-sum.sh-err { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.sh-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sh-row { align-items: flex-start; }
+.sh-row .lr-s { overflow-wrap: anywhere; }
+.sh-dot { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; margin-top: 1px; }
+.sh-dot svg.i { width: 15px; height: 15px; }
+.sh-row.sh-ok .sh-dot { background: var(--success-soft); color: var(--success); }
+.sh-row.sh-warn .sh-dot { background: var(--warn-soft); color: var(--warn); }
+.sh-row.sh-err .sh-dot { background: var(--danger-soft); color: var(--danger); }
+.sh-row.sh-info .sh-dot { background: var(--surface-2); color: var(--text-3); }
+.sh-fix { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 7px 10px; border-radius: 9px; background: var(--surface-2); font-size: 12.5px; color: var(--text-2); line-height: 1.45; overflow-wrap: anywhere; }
+.sh-fix svg.i { flex: none; width: 13px; height: 13px; margin-top: 2px; }
+.sh-log { margin-top: 6px; }
+.sh-log summary { cursor: pointer; font-size: 12.5px; color: var(--text-3); }
+.sh-log pre { margin: 6px 0 0; padding: 10px; border-radius: 9px; background: var(--surface-2); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+.sys-tabs { flex-wrap: wrap; height: auto; }

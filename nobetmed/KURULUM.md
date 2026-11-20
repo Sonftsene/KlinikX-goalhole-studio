@@ -621,3 +621,28 @@ Emin değilseniz geri yüklemeyi destek alarak yapın.
 ### Canlıya almadan önce sizin yapmanız gerekenler
 - **Cron:** Hostinger › Gelişmiş › Cron İşleri bölümünde 5 dakikada bir `cron.php` çalıştırın (bkz. 13. bölüm). Yoksa haftalık yedek, hatırlatmalar ve başvuru bildirimleri yalnız biri siteye girdiğinde çalışır.
 - **E-posta teslimi (SPF / DKIM / DMARC):** Hostinger › E-postalar › alan adınız › DNS kayıtlarında SPF ve DKIM'in "etkin" olduğundan emin olun. DMARC için `v=DMARC1; p=none;` kaydı ekleyin. Bunlar yoksa doğrulama kodları ve giriş bilgileri spam klasörüne düşer.
+
+## 32. Sistem sağlığı (4.18)
+
+Canlıya geçmeden önce ve sorun çıktığında ilk bakılacak yer. Çok birimli kurulumda **Sistem yönetimi › Sistem sağlığı**, tek birimli kurulumda **Yönetim › Ayarlar › Sistem sağlığı › Denetle**.
+
+Her madde **yeşil** (tamam), **sarı** (öneri), **kırmızı** (düzeltilmeli) ya da **gri** (bilgi) görünür; sarı ve kırmızıların altında nasıl düzeltileceği yazar. Panel hiçbir ayarı değiştirmez, yalnız okur.
+
+- **Sunucu:**
+  - PHP sürümü ve eklentileri, HTTPS
+  - Dosya yükleme ve bellek sınırları, disk kullanımı
+  - Klasör yazma izinleri, korumalı klasörler (.htaccess)
+  - Veritabanı sürümü, saat dilimi
+- **Zamanlanmış görevler:** Cron'un ve arka plan görevlerinin son çalışma zamanı. Cron 20 dakikadır çalışmadıysa kırmızı olur.
+- **E-posta:**
+  - Ayar var mı, son gönderim ne zaman, son 7 günde gönderilemeyenler.
+  - Gönderen alan adının **SPF**, **DKIM** ve **DMARC** kayıtları, sunucunun DNS sorgusuyla.
+  - **Deneme e-postası** düğmesi sistem yöneticisinin adresine e-posta gönderir. Gelen kutusuna mı, spam'e mi düştüğüne bakın.
+- **Yedek:** Sunucu dışı yedeğin durumu ve son başarılı yedek; haftalık iç yedek.
+- **Güvenlik:** config.php'de ilk yönetici bilgileri kalmış mı, hatalar ziyaretçiye gösteriliyor mu, sistem yönetimi hesabında iki adımlı doğrulama.
+- **Yayın ve satış:**
+  - Yasal sayfalar yayında mı, künye eksik mi.
+  - Başvuru formu açıksa e-posta kodu gidebiliyor mu.
+  - Ödeme yöntemleri açık mı, test modunda mı, cURL var mı.
+- **Birimler:** Yöneticisi olmayan birimler; 30 gündür kimsenin girmediği birimler.
+- **Sunucu hataları:** PHP hata günlüğünden (Hostinger'da genelde `public_html/error_log`) son 7 günün satırları. Sunucu yolları gizlenir. Sorun bildirirken bu satırları iletin.
