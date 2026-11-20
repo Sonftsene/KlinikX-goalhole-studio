@@ -62,6 +62,7 @@ async function start() {
     ['exceljs', 'pdf'].forEach((k) => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = VENDOR[k]; document.head.appendChild(l); });
   }, 2500);
   route();
+  if (typeof restoreResume === 'function') restoreResume();
 }
 
 // Sekmeye geri dönüldüğünde sayıları tazele

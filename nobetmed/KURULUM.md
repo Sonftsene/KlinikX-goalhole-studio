@@ -20,6 +20,12 @@ Ayarları değiştirmek isterseniz (MySQL, Google ile giriş, ilk yönetici) `co
 
 ### Yeni sürüme güncelleme
 
+**Önerilen yol (4.24 ve sonrası):** Sistem yönetimi › **Site ve yedek** › **Güncelleme** bölümünden yeni `dupcii-hostinger.zip` dosyasını seçip **Güncellemeyi uygula**. Tek birimli kurulumda bu bölüm Ayarlar › Genel'dedir.
+- Dosyalar birkaç saniyede değişir. O sırada yapılan işlemler bekletilir ve kendiliğinden tamamlanır, kimsenin işi yarıda kalmaz.
+- Açık sayfalarda yazılanlar silinmez. Ayrıntılar §37'de.
+
+Dosya yöneticisiyle güncelleyecekseniz önce aynı bölümden **Bakım modu**nu açın, bitince kapatın.
+
 Verileriniz `data/` (veritabanı) ve `uploads/` (dosyalar) klasörlerindedir; ayarlarınız `config.php` dosyasındadır. Güncellemede bunlara dokunmayın.
 
 1. hPanel → **Dosya Yöneticisi** → `public_html`. Paket `data`, `uploads` ve `config.php` içermez; bunlar yerinde kalır. İsterseniz önce `data` ve `uploads` klasörleriyle `config.php` dosyasını bilgisayarınıza indirin (yedek).
@@ -736,3 +742,32 @@ Herkes uygulamanın içinden destek talebi açabilir. Talep, konusuna göre doğ
 - Ekran görüntüleri şifreli saklanır; yalnız talebin sahibi, ilgili sorumlu ve sistem yöneticisi açabilir.
 - Kapanan talepler 1 yıl, giriş yapamayanların talepleri 6 ay sonra kendiliğinden silinir. Talepler **Verilerim › indir** dosyasında da yer alır.
 - Aydınlatma metni taslağına destek talepleri eklendi. Metni kendi metninizle değiştirmediyseniz kişilerden yeniden onay istenir.
+
+## 37. Güncelleme sırasında işler yarıda kalmasın (4.24)
+
+**Uygulama içinden güncelleme** (önerilen). Çok birimli kurulumda Sistem yönetimi › Site ve yedek › **Güncelleme**; tek birimli kurulumda Ayarlar › Genel › **Güncelleme**.
+1. **Güncelleme paketini seç**: yeni `dupcii-hostinger.zip`. Paket önce denetlenir:
+   - dupcii paketi mi, sürümü ne;
+   - kaç dosya değişecek, kaç dosya yeni;
+   - PHP dosyalarında bozukluk var mı.
+   Bozuk ya da eksik paket siteye hiç dokunmaz.
+2. **Güncellemeyi uygula**: dosyalar ara klasörden birkaç saniyede yerine konur.
+   - Bu kısa sürede gelen istekler işlenmez. Kişinin ekranında “Site güncelleniyor… işleminiz birkaç saniye içinde kendiliğinden tamamlanacak” şeridi çıkar ve aynı istek kendiliğinden yeniden gönderilir.
+   - Kayıt kaybolmaz, iki kez de yazılmaz. Dosya yüklemeleri de kaldığı yerden devam eder.
+   - `data/`, `uploads/` ve `config.php` hiç değişmez.
+3. **Geri al**: sorun çıkarsa son güncellemede değişen dosyalar eski hâline döner. Son iki güncellemenin geri alması saklanır.
+
+**Açık sayfalar ve yarım kalan işler**
+- Yeni sürüm kişi bir şey yazarken yüklenmez. Ekranda “Yeni sürüm hazır” notu çıkar.
+- Sayfa yeni sürüme, kişi başka sayfaya geçerken ya da uygulama arka plandayken geçer. Bu da yalnız kaydedilmemiş yazı ya da açık pencere yoksa olur.
+- Kişi **Şimdi yükle**'ye basarsa açık sayfa, açık pencere (ör. duyuru yazma) ve formlara yazılanlar saklanır; yenilenince geri konur.
+- Duyuru taslakları ve sohbet taslakları zaten ayrıca saklanır.
+
+**Dosya yöneticisiyle (elle) güncelleme.** PHP'de “zip” eklentisi yoksa ya da dosyalar PHP tarafından yazılamıyorsa bu yol kullanılır.
+1. Önce Güncelleme bölümünden **Bakım modu**nu açın (5–60 dakika).
+2. Bakım modunda kişilerin işlemleri bekletilir; ekranlarında “Site kısa bir bakımda… sayfayı kapatmayın” yazar.
+3. Zip'i üzerine yazarak çıkartın (bkz. §1).
+4. Bitince **Bakım modunu kapat**. Bekleyen işlemler kendiliğinden tamamlanır. Süre dolunca bakım modu kendiliğinden kapanır.
+- Bakım modu açıkken yönetim paneli çalışır.
+- Bakım modunu açmadan elle güncellerseniz de, dosyalar karışık olduğu için işlem başlamadan oluşan hatalarda istekler kendiliğinden yeniden denenir. Yine de bakım modu daha güvenlidir.
+- Zamanlanmış görevler (cron) bakım ve güncelleme sırasında bekler, bir sonraki çalıştırmada yapılır.

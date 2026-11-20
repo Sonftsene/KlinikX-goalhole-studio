@@ -1,5 +1,17 @@
 <?php
 declare(strict_types=1);
+// Uygulama içi güncellemenin birkaç saniyesinde (dosyalar değişirken) sayfa kendiliğinden yeniden dener
+$nmUp = @file_get_contents(__DIR__ . '/data/.guncelleniyor');
+if ($nmUp !== false && ($nmUpD = json_decode($nmUp, true)) && (int)($nmUpD['until'] ?? 0) > time() && ($nmUpD['kind'] ?? '') === 'auto') {
+    http_response_code(503);
+    header('Retry-After: 3');
+    header('Cache-Control: no-store');
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="3"><title>dupcii</title>'
+        . '<style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:system-ui,sans-serif;background:#f6f8f9;color:#0f1b21}div{text-align:center;padding:24px}p{color:#5c6b73}</style></head>'
+        . '<body><div><h2>Site güncelleniyor</h2><p>Birkaç saniye içinde kendiliğinden açılacak.</p></div></body></html>';
+    exit;
+}
 require __DIR__ . '/inc/bootstrap.php';
 nm_session();
 header('Content-Type: text/html; charset=utf-8');
@@ -44,7 +56,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
 <body>
   <div id="app"><div class="boot-splash"><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
-<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'] as $js): ?>
+<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>
 <?php endforeach; ?>
 </body>

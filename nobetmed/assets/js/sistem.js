@@ -93,6 +93,7 @@ const SYS_ACT = {
   'apply.cfg': 'Başvuru ayarları', 'apply.approve': 'Başvuru onaylandı', 'apply.reject': 'Başvuru reddedildi', 'apply.info': 'Başvurudan bilgi istendi', 'apply.spam': 'Başvuru geçersiz sayıldı',
   'apply.reopen': 'Başvuru yeniden açıldı', 'apply.delete': 'Başvuru silindi', 'apply.note': 'Başvuruya not',
   'support.reply': 'Destek yanıtı', 'support.close': 'Destek talebi kapandı', 'support.reopen': 'Destek talebi yeniden açıldı', 'support.unit': 'Destek talebi birime aktarıldı',
+  'update.apply': 'Güncelleme kuruldu', 'update.rollback': 'Güncelleme geri alındı', 'update.maint': 'Bakım modu',
   'support.delete': 'Destek talebi silindi', 'support.canned': 'Hazır yanıtlar',
   'legal.save': 'Yasal metinler / künye', 'health.mail': 'Deneme e-postası', 'backup.cfg': 'Yedek ayarları', 'backup.send': 'Yedek gönderildi', 'backup.download': 'Yedek indirildi',
 };

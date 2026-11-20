@@ -43,23 +43,36 @@ async function api(action, data = {}) {
     try { return await window.NM_DEMO_API.call(action, data); } catch (e) { throw new ApiError(e.message, e.status || 400); }
   }
   let res;
+  let json = null;
   // Çevrimdışı önbellek kişiye özeldir (boot hariç: çevrimdışı açılışta hangi hesabın açık olduğunu o söyler)
   const ck = OFFLINE_READ.has(action) ? 'nm-off:' + action + ':' + (action === 'boot' ? '' : (S.me ? S.me.id : 0) + ':') + JSON.stringify(data) : null;
-  try {
-    res = await fetch('api.php?action=' + encodeURIComponent(action), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF': S.csrf },
-      body: JSON.stringify(data),
-    });
-  } catch (e) {
-    const cached = ck && offlineGet(ck);
-    if (cached) { setOffline(true); return cached; }
-    throw new ApiError('Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.', 0);
+  const t0 = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch('api.php?action=' + encodeURIComponent(action), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF': S.csrf },
+        body: JSON.stringify(data),
+      });
+    } catch (e) {
+      const cached = ck && offlineGet(ck);
+      if (cached) { setOffline(true); return cached; }
+      throw new ApiError('Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.', 0);
+    }
+    if (OFFLINE.on) setOffline(false);
+    json = null;
+    try { json = await res.json(); } catch (e) { /* geçersiz yanıt */ }
+    // Site güncelleniyor: istek işlenmedi → bekle, aynı isteği yeniden gönder (yazılan iş kaybolmaz)
+    const limit = json && json.manual ? 30 * 60e3 : 3 * 60e3;
+    if (res.status === 503 && json && json.updating && Date.now() - t0 < limit) {
+      updatingNotice(true, json);
+      await new Promise((r) => setTimeout(r, Math.min(5000, 1000 + attempt * 700)));
+      continue;
+    }
+    break;
   }
-  if (OFFLINE.on) setOffline(false);
-  let json = null;
-  try { json = await res.json(); } catch (e) { /* geçersiz yanıt */ }
+  updatingNotice(false);
   if (!json) throw new ApiError('Sunucudan geçersiz yanıt alındı (' + res.status + ').', res.status);
   if (!json.ok) {
     if ((res.status === 401 || res.status === 419) && S.me && action !== 'auth.login') {
@@ -74,17 +87,102 @@ async function api(action, data = {}) {
   if (json.v && typeof BOOT !== 'undefined' && BOOT.v && json.v !== BOOT.v) newVersionNotice(json.v);
   return json;
 }
-/** Uzun açık kalan sekme: sunucuda yeni sürüm varsa bir kez "Yenile" uyarısı (yazılan iş kaybolmasın diye kendiliğinden yenilemez) */
+/** Güncelleme sürerken bekleyen istek varsa küçük bir şerit */
+function updatingNotice(on, j) {
+  let el = document.getElementById('nmUpd');
+  if (!on) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'nmUpd'; el.className = 'upd-bar'; el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = fmtVal(html`<span class="spinner sm"></span><span>${j && j.manual ? 'Site kısa bir bakımda. İşleminiz bekletiliyor; bakım bitince kendiliğinden tamamlanacak, sayfayı kapatmayın.' : 'Site güncelleniyor… İşleminiz birkaç saniye içinde kendiliğinden tamamlanacak.'}</span>`);
+}
+
+/* ---------------- Yeni sürüm: yarım kalan iş kaybolmasın ----------------
+   Yeni sürüm gelince sayfa, kişi bir şey yazarken DEĞİL; başka sayfaya geçerken ya da uygulama arka plandayken (ve yazılmış
+   kaydedilmemiş bir şey yokken) kendiliğinden yenilenir. "Yenile"ye basılırsa ya da yenilemek gerekirse açık sayfa, açık pencere
+   ve formlara yazılanlar saklanır; yenilenince geri konur. */
+const UPD = { pending: false, v: '', restoring: false };
+/** Kaydedilmemiş iş var mı: açık pencere, değiştirilmiş form alanı, modüllerin "kaydedilmedi" işaretleri */
+function appDirty() {
+  if (UPD.restoring) return true; // yenilemeden sonra yarım iş geri konurken ikinci kez yenileme olmasın
+  if (typeof modalStack !== 'undefined' && modalStack.length) return true;
+  if (typeof PL !== 'undefined' && PL && PL.dirty) return true;
+  return dirtyFields().length > 0;
+}
+function dirtyFields() {
+  const out = [];
+  document.querySelectorAll('#view form input, #view form textarea, #view form select, .overlay input, .overlay textarea, .overlay select').forEach((el) => {
+    if (!el.name || el.disabled || ['hidden', 'file', 'search', 'password', 'submit', 'button'].includes(el.type) || el.closest('[data-nodirty]')) return;
+    const changed = el.type === 'checkbox' || el.type === 'radio' ? el.checked !== el.defaultChecked
+      : el.tagName === 'SELECT' ? [...el.options].some((o) => o.selected !== o.defaultSelected) : el.value !== el.defaultValue;
+    if (changed) out.push(el);
+  });
+  return out;
+}
+/** Alanın yeniden bulunabilmesi için yeri: form kimliği (data-form / id) + alan adı */
+function fieldKey(el) {
+  const f = el.form || el.closest('form');
+  return { f: f ? (f.dataset.form ? '[data-form="' + f.dataset.form + '"]' : f.id ? '#' + f.id : '') : '', n: el.name, t: el.type, m: !!el.closest('.overlay') };
+}
+function saveResume() {
+  try {
+    const top = typeof modalStack !== 'undefined' && modalStack.length ? modalStack[modalStack.length - 1] : null;
+    const fields = dirtyFields().map((el) => ({ ...fieldKey(el), v: el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value }));
+    sessionStorage.setItem('nm-resume', JSON.stringify({ at: Date.now(), hash: location.hash, y: window.scrollY, fields, opener: top && top.opener ? top.opener : null, title: top ? top.head.textContent : '' }));
+  } catch (e) { /* */ }
+}
+/** Açılıştan sonra: saklanan iş varsa geri koy */
+async function restoreResume() {
+  let r = null;
+  try { r = JSON.parse(sessionStorage.getItem('nm-resume') || 'null'); } catch (e) { return; }
+  if (!r || Date.now() - r.at > 30 * 60e3) { try { sessionStorage.removeItem('nm-resume'); } catch (e) { /* */ } return; }
+  UPD.restoring = true;
+  try { await restoreResumeRun(r); } finally { UPD.restoring = false; try { sessionStorage.removeItem('nm-resume'); } catch (e) { /* */ } }
+}
+async function restoreResumeRun(r) {
+  const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+  await wait(400);
+  // Açık pencereyi aynı düğmeyle yeniden aç
+  if (r.opener && ACT[r.opener.act]) {
+    const sel = '[data-act="' + r.opener.act + '"]' + Object.entries(r.opener.data || {}).filter(([k]) => k !== 'act').map(([k, v]) => '[data-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) + '="' + String(v).replace(/"/g, '\\"') + '"]').join('');
+    let el = null;
+    try { el = document.querySelector(sel); } catch (e) { /* */ }
+    if (!el) { el = document.createElement('button'); Object.entries(r.opener.data || {}).forEach(([k, v]) => { el.dataset[k] = v; }); }
+    try { await ACT[r.opener.act](el, new Event('click')); } catch (e) { /* açılamadıysa alanlar sayfada aranır */ }
+    await wait(500);
+  }
+  let n = 0;
+  (r.fields || []).forEach((x) => {
+    const scope = x.m ? (document.querySelector('.overlay:last-of-type') || document) : (document.getElementById('view') || document);
+    let el = null;
+    try { el = scope.querySelector((x.f ? x.f + ' ' : '') + '[name="' + x.n + '"]'); } catch (e) { /* */ }
+    if (!el) return;
+    if (x.t === 'checkbox' || x.t === 'radio') { if (el.checked !== x.v) { el.checked = x.v; el.dispatchEvent(new Event('change', { bubbles: true })); } } else { el.value = x.v; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    n++;
+  });
+  if (r.y) window.scrollTo(0, r.y);
+  if (n || r.opener) toast(n ? 'Yeni sürüm yüklendi; yarım kalan işiniz geri kondu.' : 'Yeni sürüm yüklendi.');
+}
+/** Yeni sürümü yükle: yarım iş saklanır */
+function reloadKeepingWork() { saveResume(); location.reload(); }
+/** Yeni sürüm hazır: uygun anı bekle (sayfa geçişi, arka plan, boşta) */
 function newVersionNotice(v) {
+  UPD.pending = true; UPD.v = v || UPD.v;
+  if (!appDirty() && document.visibilityState === 'hidden') return reloadKeepingWork();
   if (newVersionNotice.shown) return;
   newVersionNotice.shown = true;
   const el = document.createElement('div');
   el.className = 'toast ok newver';
-  el.innerHTML = fmtVal(html`${icon('info')}<span>Uygulamanın yeni sürümü (${v}) hazır.</span><button class="btn sm primary" data-act="reload-app">Yenile</button>`);
+  el.innerHTML = fmtVal(html`${icon('info')}<span>Yeni sürüm hazır. Yarım kalan işiniz silinmez; sayfa değiştirirken kendiliğinden yüklenir.</span><button class="btn sm primary" data-act="reload-app">Şimdi yükle</button>`);
   let box = $('.toasts');
   if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
   box.appendChild(el);
 }
+// Sayfa geçişinde (yazılı iş yoksa) ya da uygulama arka plana geçince yeni sürümü yükle
+window.addEventListener('hashchange', () => { if (UPD.pending && !appDirty()) reloadKeepingWork(); });
+document.addEventListener('visibilitychange', () => { if (UPD.pending && document.visibilityState === 'hidden' && !appDirty()) reloadKeepingWork(); });
 
 /* ---------------- Çevrimdışı görüntüleme ----------------
    Okuma isteklerinin son yanıtı bu cihazda saklanır; internet yokken bunlar gösterilir.
@@ -157,7 +255,7 @@ async function uploadFile(file, onProgress) {
     const blob = file.slice(offset, offset + size);
     for (let attempt = 1; ; attempt++) {
       try { await sendChunk(blob, offset); break; } catch (e) {
-        if (!e.retry || attempt >= 5) throw e;
+        if (!e.retry || attempt >= (e.status === 503 ? 60 : 5)) throw e;
         await new Promise((r) => setTimeout(r, 1000 * attempt));
       }
     }
@@ -420,13 +518,14 @@ function catIcon(cat, size = '') {
 /* ---------------- Olay yönetimi ---------------- */
 const ACT = {};
 const FORMS = {};
-ACT['reload-app'] = () => location.reload();
+ACT['reload-app'] = () => reloadKeepingWork();
+let LAST_ACT = null;
 const CHANGE = {};
 document.addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-act]');
   if (!t || t.disabled) return;
   const fn = ACT[t.dataset.act];
-  if (fn) { ev.preventDefault(); fn(t, ev); }
+  if (fn) { ev.preventDefault(); LAST_ACT = { act: t.dataset.act, data: { ...t.dataset }, at: Date.now() }; fn(t, ev); }
 });
 document.addEventListener('submit', (ev) => {
   const f = ev.target.closest('form[data-form]');
@@ -536,6 +635,7 @@ function openModal({ title, body = '', foot = '', size = '', drawer = false, onC
     const c = e.target.closest('[data-close]');
     if (c && ov.contains(c) && !c.disabled) { e.preventDefault(); m.requestClose(); }
   });
+  if (LAST_ACT && Date.now() - LAST_ACT.at < 4000 && !['close-modal', 'reload-app'].includes(LAST_ACT.act)) m.opener = { act: LAST_ACT.act, data: LAST_ACT.data };
   modalStack.push(m);
   // Klavye odağı pencerede kalsın; kapanınca açan öğeye dönsün
   const opener = document.activeElement;

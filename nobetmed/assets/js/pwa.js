@@ -14,11 +14,10 @@ function registerSW() {
   sw.addEventListener('controllerchange', () => {
     if (!hadController) { hadController = true; return; }
     if (reloading) return;
-    // Bu sekmede kaydedilmemiş iş varsa (açık pencere, kaydedilmemiş blok yerleşimi/istek) kendiliğinden yenileme
-    const dirty = (typeof modalStack !== 'undefined' && modalStack.length) || (typeof PL !== 'undefined' && PL && PL.dirty);
-    if (dirty) { if (typeof newVersionNotice === 'function') newVersionNotice('yeni'); return; }
+    // Yazılmış kaydedilmemiş bir şey varsa kendiliğinden yenileme: sayfa değişirken / arka plandayken yüklenir (core.js newVersionNotice)
+    if (typeof appDirty === 'function' && appDirty()) { newVersionNotice('yeni'); return; }
     reloading = true;
-    location.reload();
+    if (typeof reloadKeepingWork === 'function') reloadKeepingWork(); else location.reload();
   });
 
   // Bildirime tıklanınca SW buraya adres gönderir
@@ -39,8 +38,8 @@ function registerSW() {
 
   const activate = (worker) => {
     if (!worker || !sw.controller) return;
-    // Açık bir pencere/editör varsa (yazılan metin kaybolmasın) kapanana kadar bekle
-    if (typeof modalStack !== 'undefined' && modalStack.length) { setTimeout(() => activate(worker), 5000); return; }
+    // Yazılmış kaydedilmemiş iş varsa (açık pencere, değiştirilmiş form) bitene kadar bekle
+    if (typeof appDirty === 'function' ? appDirty() : (typeof modalStack !== 'undefined' && modalStack.length)) { setTimeout(() => activate(worker), 5000); return; }
     try { toast('Yeni sürüm hazır, sayfa yenileniyor…'); } catch (e) { /* */ }
     worker.postMessage({ type: 'SKIP_WAITING' });
   };

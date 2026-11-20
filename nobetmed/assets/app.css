@@ -1835,3 +1835,9 @@ a.in-link { font-weight: 600; }
 .sp-h1 { overflow-wrap: anywhere; }
 .sp-sa-f .select { width: auto; min-width: 160px; }
 @media (max-width: 640px) { .sp-msg { max-width: 100%; } .sp-sa-f .select { flex: 1 1 140px; } }
+
+/* Güncelleme sırasında bekleyen istek (4.24) */
+.upd-bar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3000; display: flex; align-items: center; gap: 10px; max-width: min(560px, calc(100vw - 24px)); padding: 10px 16px; border-radius: 14px; background: #1a1f3d; color: #fff; font-size: 13.5px; box-shadow: 0 12px 30px rgba(0, 0, 0, .25); }
+.upd-bar .spinner.sm { width: 16px; height: 16px; border-width: 2px; flex: none; }
+.up-card .up-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.up-steps { margin: 0; padding-left: 18px; color: var(--text-2, #4a5a63); font-size: 13.5px; }

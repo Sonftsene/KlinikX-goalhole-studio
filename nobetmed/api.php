@@ -1,6 +1,52 @@
 <?php
 declare(strict_types=1);
 
+/*
+ * Güncelleme sırasında işler yarıda kalmasın (4.24):
+ *  - data/.guncelleniyor kilidi varken (uygulama içi güncellemede birkaç saniye, elle güncellemede "Bakım modu") istek işlenmez;
+ *    503 + "updating" yanıtı döner ve istemci (assets/js/core.js api()) bekleyip AYNI isteği yeniden gönderir.
+ *  - Dosyalar o an karışıksa (eski + yeni) ve hata işlem başlamadan önce oluştuysa yine 503 "updating" döner (hiçbir şey yazılmadı,
+ *    yeniden göndermek güvenli). İşlem başladıktan sonraki hatalar normal 500'dür (yeniden gönderilmez).
+ */
+$nmUp = @file_get_contents(__DIR__ . '/data/.guncelleniyor');
+if ($nmUp !== false) {
+    $nmUpD = json_decode($nmUp, true) ?: [];
+    $nmA = (string)($_GET['action'] ?? '');
+    // Elle güncellemede (bakım modu) yönetim uçları ve açılış serbest: bakım modunu kapatabilmek için
+    if ((int)($nmUpD['until'] ?? 0) > time() && !(($nmUpD['kind'] ?? '') === 'manual' && preg_match('/^(boot$|auth\.|sa\.|update\.)/', $nmA))) {
+        http_response_code(503);
+        header('Retry-After: 3');
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode(['ok' => false, 'updating' => true, 'manual' => ($nmUpD['kind'] ?? '') === 'manual', 'until' => (int)$nmUpD['until'],
+            'error' => 'Site güncelleniyor. İşleminiz kaybolmadı; güncelleme bitince kendiliğinden tamamlanacak.'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+$GLOBALS['NM_RUN'] = false;
+/** İşlem başlamadan oluşan hata: dosyalar güncelleniyor olabilir → istemci yeniden denesin */
+function nm_not_started_reply(): void
+{
+    if (!headers_sent()) { http_response_code(503); header('Retry-After: 3'); header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store'); }
+    echo json_encode(['ok' => false, 'updating' => true, 'error' => 'Sunucu şu an yanıt veremedi (güncelleniyor olabilir). İşleminiz kendiliğinden yeniden denenecek.'], JSON_UNESCAPED_UNICODE);
+}
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if (!$e || !in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true) || !empty($GLOBALS['NM_RUN'])) return;
+    nm_not_started_reply();
+});
+set_exception_handler(function (Throwable $e) {
+    error_log('[dupcii] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (empty($GLOBALS['NM_RUN'])) { nm_not_started_reply(); return; }
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['ok' => false, 'error' => 'Sunucu hatası oluştu. Lütfen tekrar deneyin.']);
+});
+
 require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/mail.php';
 require __DIR__ . '/inc/notify.php';
@@ -16,15 +62,6 @@ $NM_MOD_ROUTES = [];
 foreach (glob(__DIR__ . '/inc/mod_*.php') ?: [] as $nmMod) { $nmR = require $nmMod; if (is_array($nmR)) $NM_MOD_ROUTES += $nmR; }
 
 nm_session();
-
-set_exception_handler(function (Throwable $e) {
-    error_log('[dupcii] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
-    if (!headers_sent()) {
-        http_response_code(500);
-        header('Content-Type: application/json; charset=utf-8');
-    }
-    echo json_encode(['ok' => false, 'error' => 'Sunucu hatası oluştu. Lütfen tekrar deneyin.']);
-});
 
 /** Bilinen uzantılar için MIME türü. Listede olmayan her dosya da yüklenebilir (application/octet-stream). */
 const MIME_MAP = [
@@ -83,7 +120,7 @@ if ($action === 'backup.download') { a_backup_download_get(); exit; }
 if ($action === 'gsync.push') { a_gsync_push(); exit; }
 if ($action === 'gsync.tables') { a_gsync_tables(); exit; }
 // Modüllerin oturumsuz/GET uçları: $GLOBALS['NM_GET'][eylem] = işlev
-if (isset($GLOBALS['NM_GET'][$action])) { ($GLOBALS['NM_GET'][$action])(); exit; }
+if (isset($GLOBALS['NM_GET'][$action])) { $GLOBALS['NM_RUN'] = true; ($GLOBALS['NM_GET'][$action])(); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -222,11 +259,11 @@ $routes = [
 $routes += $NM_MOD_ROUTES;
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 // Süper yönetici uçları birim veritabanı açmaz
-if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
+if (strncmp($action, 'sa.', 3) === 0) { $GLOBALS['NM_RUN'] = true; $routes[$action](); exit; }
 // Birim açma başvurusu: giriş gerektirmez, birim veritabanı açmaz (e-posta için yalnız e-posta ayarı olan birim)
-if (strncmp($action, 'apply.', 6) === 0) { $routes[$action](); exit; }
+if (strncmp($action, 'apply.', 6) === 0) { $GLOBALS['NM_RUN'] = true; $routes[$action](); exit; }
 // Giriş yapamayanın destek talebi: oturum gerektirmez (çok birimlide talep merkeze yazılır)
-if (strncmp($action, 'help.', 5) === 0) { $routes[$action](); exit; }
+if (strncmp($action, 'help.', 5) === 0) { $GLOBALS['NM_RUN'] = true; $routes[$action](); exit; }
 // Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
 nm_route_tenant($action);
 // Birimdeki sistem yöneticisi kişi değildir: kişisel hesap işlemleri ve birim adına mesaj kapalı
@@ -243,6 +280,7 @@ if (function_exists('vw_gate')) vw_gate($action);
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 jobs_after_response();
+$GLOBALS['NM_RUN'] = true;
 $routes[$action]();
 
 /* ------------------------------------------------------------------ */

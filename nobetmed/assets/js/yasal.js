@@ -126,7 +126,8 @@ ACT['lg-save'] = (el) => busy(el, async () => {
 /* ---------------- Sistem yöneticisi: Site ve yedek ---------------- */
 async function lgSaRender(box) {
   box = box || $('#sysBody'); if (!box) return;
-  setHTML(box, html`<div class="stack"><div id="obkBox"><div class="card card-pad"><div class="skel" style="height:14px;width:40%"></div></div></div><div id="lgBox"></div></div>`);
+  setHTML(box, html`<div class="stack"><div id="upBox"></div><div id="obkBox"><div class="card card-pad"><div class="skel" style="height:14px;width:40%"></div></div></div><div id="lgBox"></div></div>`);
+  if (typeof upDraw === 'function') { UPC.info = null; upDraw($('#upBox'), 'sa.update'); }
   obkDraw();
   lgEditor($('#lgBox'), 'sa.legal');
 }

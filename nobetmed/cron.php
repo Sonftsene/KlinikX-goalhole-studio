@@ -11,6 +11,9 @@
  */
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+// Güncelleme / bakım sırasında görevler bekler (bir sonraki çalıştırmada yapılır)
+$nmUp = @file_get_contents(__DIR__ . '/data/.guncelleniyor');
+if ($nmUp !== false && ($nmUpD = json_decode($nmUp, true)) && (int)($nmUpD['until'] ?? 0) > time()) exit(0);
 require __DIR__ . '/inc/bootstrap.php';
 
 $force = in_array('--force', $argv ?? [], true);
