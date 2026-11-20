@@ -56,7 +56,11 @@ await m.goto(BASE + '#/nobetim');
 await m.locator('.next-shift').waitFor();
 const stat = await m.locator('#calCard .cal-stats').first().innerText();
 const days = await m.locator('#calCard .cal-d.has').count();
-const [dl] = await Promise.all([m.waitForEvent('download'), m.click('#icsBtn')]);
+// 4.26: düğme takvim aboneliği penceresini açar; tek seferlik dosya pencerede ikincil seçenek
+await m.click('#icsBtn');
+await m.locator('.cal-sub [data-act=ics-file]').waitFor();
+const [dl] = await Promise.all([m.waitForEvent('download'), m.click('.cal-sub [data-act=ics-file]')]);
+await m.keyboard.press('Escape');
 const ics = fs.readFileSync(await dl.path(), 'utf8');
 const nEv = (ics.match(/BEGIN:VEVENT/g) || []).length;
 if (!ics.startsWith('BEGIN:VCALENDAR') || nEv < 3) fail('ICS hatalı: ' + nEv);
