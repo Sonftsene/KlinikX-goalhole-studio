@@ -653,8 +653,6 @@ Her madde **yeşil** (tamam), **sarı** (öneri), **kırmızı** (düzeltilmeli)
 
 ## 33. Duyuru bandı, bağlantı paylaşma ve sohbette paylaşma (4.20)
 
-> **Not:** 4.20'den itibaren bu kurulum belgesi (KURULUM.md) zip'in içinde değil; her sürümle birlikte ayrı dosya olarak gelir. Sunucu `.md` dosyalarını zaten kimseye göstermez. Zip küçük kalsın diye dışarı alındı.
-
 ### Duyuru bandı (Ayarlar › Genel › Duyuru bandı)
 - **Metin:** En fazla 600 karakter. **Bağlantı ekle** düğmesi metindeki seçili kelimeye site içi bir sayfa (menüdeki sayfalardan seçilir) ya da bir web adresi verir. Metinde `[yazı](adres)` olarak görünür; okuyana yalnız yazı bağlantı olarak çıkar.
 - **Renk:** Kırmızı (acil), turuncu (uyarı), mavi (bilgi), yeşil (olumlu), mor (duyuru).

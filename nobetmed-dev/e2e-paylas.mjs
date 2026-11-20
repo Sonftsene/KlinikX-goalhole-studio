@@ -155,8 +155,13 @@ try {
     await E.p.locator('.modal .sh-prev').waitFor();
     if ((await E.p.inputValue('#shNote')) !== 'Blok yerleşimi · test') fail('görsel notu gelmedi');
     await E.p.click(`.sh-list [data-c="${grp.id}"]`);
-    await E.p.getByText('sohbetine gönderildi').first().waitFor();
-    const msgs = php(`$t = nm_tenant_default(); $o = []; foreach (glob(NM_ROOT . '/data/h/' . $t['hospital_id'] . '/h-*.sqlite') as $f) { $p = new PDO('sqlite:' . $f); $o = $p->query('SELECT m.body, f.mime FROM c_msgs m LEFT JOIN c_files f ON f.id = m.file_id WHERE m.chat_id = ${grp.id} ORDER BY m.id DESC LIMIT 2')->fetchAll(PDO::FETCH_ASSOC); } echo json_encode($o);`);
+    await E.p.locator('.modal .sh-prev').waitFor({ state: 'detached', timeout: 20000 });
+    let msgs = '[]';
+    for (let i = 0; i < 40; i++) {
+      msgs = php(`$t = nm_tenant_default(); $o = []; foreach (glob(NM_ROOT . '/data/h/' . $t['hospital_id'] . '/h-*.sqlite') as $f) { $p = new PDO('sqlite:' . $f); $o = $p->query('SELECT m.body, f.mime FROM c_msgs m LEFT JOIN c_files f ON f.id = m.file_id WHERE m.chat_id = ${grp.id} ORDER BY m.id DESC LIMIT 2')->fetchAll(PDO::FETCH_ASSOC); } echo json_encode($o);`);
+      if (/image\\\//.test(msgs) || /"mime":"image/.test(msgs)) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
     const ms = JSON.parse(msgs);
     if (!ms[0] || !/^image\//.test(ms[0].mime || '') || ms[0].body !== 'Blok yerleşimi · test') fail('görsel sohbete resim olarak gitmedi: ' + msgs.slice(0, 200));
     // Taraf paylaş penceresinde düğme
