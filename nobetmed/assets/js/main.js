@@ -7,7 +7,13 @@ async function start() {
     start.guestShown = true;
     return renderGuest(BOOT.share);
   }
-  const r = await api('boot');
+  // theme.js açılış verisini erkenden istediyse onu kullan (yoksa / hatalıysa olağan istek)
+  let r = null;
+  const early = window.NM_BOOT_P; window.NM_BOOT_P = null;
+  if (early) {
+    try { const x = await early; if (x && x.status === 200 && x.json && x.json.ok) { r = x.json; if (r.csrf) S.csrf = r.csrf; if (typeof offlinePut === 'function') offlinePut('nm-off:boot:{}', r, 'boot'); } } catch (e) { r = null; }
+  }
+  if (!r) r = await api('boot');
   // Sunucu oturum yok diyorsa (çıkış, süre dolması) bu cihazdaki eski kişisel önbelleği temizle
   if (!r.me && !OFFLINE.on) {
     offlineCacheClear();

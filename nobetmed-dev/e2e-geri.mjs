@@ -117,7 +117,10 @@ try {
 
   // ---- 7) Destek sihirbazı ----
   await go(p, '#/destek');
-  await p.locator('[data-act=sp-new]').first().waitFor();
+  await p.locator('.sp-sec-h').first().waitFor();
+  // Tek birimli kurulumda yöneticinin talebi gidecek sistem yöneticisi yok: “Yeni talep” görünmez
+  const canNew = await p.locator('[data-act=sp-new]').count();
+  if (canNew) {
   await p.click('[data-act=sp-new]');
   await p.locator('.sp-topic').first().waitFor();
   const k = await p.locator('.sp-topic').first().getAttribute('data-k');
@@ -137,6 +140,7 @@ try {
   await back(p);
   if ((await hash(p)) !== '#/destek') fail('konu seçiminden geri, destek ana sayfasına dönmedi: ' + await hash(p));
   step(`Destek: Yeni talep → konu → ${hasWrite ? 'yaz → ' : ''}geri tuşu her seferinde bir önceki adım`);
+  } else step('Destek: bu kurulumda yöneticinin yeni talep açması yok (atlandı)');
 
   // ---- 8) Çok hızlı ardışık açma-kapama: geçmiş tutarlı kalır ----
   await go(p, '#/nobetim');

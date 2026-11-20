@@ -119,7 +119,8 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.28 — Sohbet görünümü ✓ (4.28.0)
 - İlet / paylaşta tüm kişiler (arama, çoklu), modern liste, 7 tema, 4 balon biçimi, 8 duvar kağıdı, efektler, sağa kaydırmada ekran kaymaz.
 
-### 4.29 — Geri tuşu + güvenlik taraması ✓ (4.29.0)
+### 4.29 — Geri tuşu + hız + güvenlik taraması ✓ (4.29.0)
+- Hız: sohbet animasyonları ve bulanık arka planlar kaldırıldı, okuma isteklerinde oturum kilidi erken bırakılır, açılış verisi paralel, yazı tipi beklemez.
 - Geri tuşu tek adım: pencere/menü/yan menü/bildirim kutusu/emoji/seçim katmanları, sekmeler ve sihirbaz adımları geçmişte; güvenlik taramasındaki bulgular kapatıldı (Excel önizleme HTML sızması, kayıtta ad sahiplenme, sıfırlama bağlantısı, salt okunur listede yazma uçları, SMTP iç ağ, yükleme kotası, SA giriş kilidi, yarış durumları).
 
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler

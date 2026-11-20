@@ -15,4 +15,19 @@
   if (get('nm-shape') === 'sharp') d.setAttribute('data-shape', 'sharp');
   if (get('nm-density') === 'compact') d.setAttribute('data-density', 'compact');
   if (get('nm-oled') === '1') d.setAttribute('data-oled', '1');
+  // Hız: yazı tipi sayfa çizimini bekletmesin (sonradan yüklenir, o ana dek sistem yazı tipi)
+  try {
+    var fl = document.createElement('link'); fl.rel = 'stylesheet';
+    fl.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+    document.head.appendChild(fl);
+  } catch (e) { /* */ }
+  // Hız: açılış verisi (boot) uygulama dosyaları yüklenirken paralel istenir; main.js start() bunu kullanır
+  try {
+    var bj = document.getElementById('nm-boot'); var bt = bj ? JSON.parse(bj.textContent) : null;
+    if (bt && bt.csrf && !bt.share && window.fetch && !window.NM_DEMO_API) {
+      window.NM_BOOT_P = fetch('api.php?action=boot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF': bt.csrf }, body: '{}' })
+        .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+        .catch(function () { return null; });
+    }
+  } catch (e) { /* */ }
 })();

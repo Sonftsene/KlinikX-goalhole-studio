@@ -84,14 +84,14 @@ function chatListDraw() {
   const home = $('.ch-home'); if (home && typeof chatHomeClass === 'function') home.className = chatHomeClass();
   setHTML(box, html`<div class="search ch-search">${icon('search')}<input class="input" type="search" id="chQ" placeholder="Sohbet ya da kişi ara" value="${CH.q || ''}" data-input="ch-q" autocomplete="off"></div>
     ${tabs}
-    ${shown.length ? html`<div class="ch-cards ${CH.listAnim ? '' : 'anim'}">${shown.map((c, i) => html`<a class="ch-card ch-row ${c.unread || c.unread_mark ? 'unread' : ''} k-${c.kind}" href="#/mesaj/${c.id}" style="--i:${Math.min(i, 14)}">
+    ${shown.length ? html`<div class="ch-cards">${shown.map((c) => html`<a class="ch-card ch-row ${c.unread || c.unread_mark ? 'unread' : ''} k-${c.kind}" href="#/mesaj/${c.id}">
       <span class="ch-ava2">${c.photo ? html`<img src="${c.photo}" alt="">` : c.kind === 'direct' ? avatar(c.name) : html`<span class="ch-ava2-i">${icon(c.kind === 'unit' ? 'users' : 'chat')}</span>`}</span>
       <div class="ch-card-b"><div class="ch-card-t"><b class="ellipsis">${c.name}</b>${c.kind === 'unit' ? html`<span class="ch-tag">birim grubu</span>` : ''}${c.sub ? html`<span class="tiny faint ellipsis">${c.sub}</span>` : ''}<span class="grow"></span><span class="ch-card-time">${c.last_at ? chTime(c.last_at) : ''}</span></div>
         <div class="ch-card-s"><span class="ellipsis grow">${typeof chatDraftLoad === 'function' && chatDraftLoad(c.id) ? html`<span class="ch-draft">Taslak:</span> ${chatDraftLoad(c.id)}` : c.last || 'Henüz mesaj yok'}</span>
           ${c.pinned ? icon('pin', 'sm') : ''}${c.muted ? icon('bellOff', 'sm') : ''}${c.unread ? html`<span class="ch-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : c.unread_mark ? html`<span class="ch-badge dot"></span>` : ''}</div></div>
       <button type="button" class="ch-act" data-act="ch-rowmenu" data-id="${c.id}" aria-label="Sohbet işlemleri">${icon('more', 'sm')}</button></a>`)}</div>`
       : !ppl.length ? html`<div class="card empty"><p class="small">${q ? 'Bulunamadı.' : f === 'arch' ? 'Arşivde sohbet yok.' : f === 'unread' ? 'Okunmamış sohbet yok.' : 'Sohbet yok.'}</p></div>` : ''}
-    ${ppl.length ? html`<div class="ch-pick-h" style="margin-top:12px">Kişiler · yeni sohbet</div><div class="ch-cards">${ppl.map((p, i) => html`<button type="button" class="ch-card k-person" data-act="ch-start" data-tk="${p.tk}" data-uid="${p.uid}" style="--i:${Math.min(i, 14)}">
+    ${ppl.length ? html`<div class="ch-pick-h" style="margin-top:12px">Kişiler · yeni sohbet</div><div class="ch-cards">${ppl.map((p) => html`<button type="button" class="ch-card k-person" data-act="ch-start" data-tk="${p.tk}" data-uid="${p.uid}">
       <span class="ch-ava2">${avatar(p.name)}</span><div class="ch-card-b"><div class="ch-card-t"><b class="ellipsis">${p.name}</b>${p.unit ? html`<span class="tiny faint ellipsis">${p.unit}</span>` : ''}</div><div class="ch-card-s"><span class="ellipsis grow">Yeni sohbet başlat</span>${icon('chat', 'sm')}</div></div></button>`)}</div>` : ''}
     <p class="tiny faint" style="margin-top:12px">${icon('lock', 'sm')} Mesajlar yalnız hastanenizin sunucusunda tutulur. Hasta adı, T.C. kimlik numarası gibi hasta bilgisi paylaşmayın.</p>`);
   CH.listAnim = true;

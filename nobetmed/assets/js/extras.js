@@ -119,11 +119,16 @@ function codeChip(s, big) { return html`<span class="code-chip tone-${shiftTone(
 const MY = { entries: null, at: 0 };
 async function loadMyShifts(force) {
   if (!force && MY.entries && Date.now() - MY.at < 60000) return MY;
-  try {
-    const r = await api('shifts.my');
-    Object.assign(MY, r, { at: Date.now() });
-  } catch (e) { if (!MY.entries) MY.entries = []; }
-  return MY;
+  // Aynı anda iki kart isterse tek istek gider
+  if (MY.pending) return MY.pending;
+  MY.pending = (async () => {
+    try {
+      const r = await api('shifts.my');
+      Object.assign(MY, r, { at: Date.now() });
+    } catch (e) { if (!MY.entries) MY.entries = []; }
+    return MY;
+  })();
+  try { return await MY.pending; } finally { MY.pending = null; }
 }
 function nextShift(entries) {
   const now = new Date();

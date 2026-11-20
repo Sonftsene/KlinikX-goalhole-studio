@@ -855,7 +855,16 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Telefonda “hareketi azalt” açıksa efektler kapanır.
 - Mesajı sağa kaydırarak yanıtlarken ekran artık yana kaymaz.
 
-## 42. Geri tuşu ve güvenlik düzeltmeleri (4.29)
+## 42. Geri tuşu, hız ve güvenlik düzeltmeleri (4.29)
+
+**Hız**
+- Sohbetteki animasyonlar ve efektler kaldırıldı (kartların sırayla belirmesi, mesaj balonu açılma efekti, rozet büyümesi, gölgeler, geçişler). Liste ve mesajlar beklemeden görünür.
+- Üst çubuk, alt menü, pencere arka planı, bildirim kartı ve sohbet kartlarındaki “buzlu cam” bulanıklığı kaldırıldı: telefonda kaydırma akıcı.
+- Sunucu: yalnız okuyan isteklerde oturum kilidi hemen bırakılır. Önceden aynı kişinin aynı anda giden istekleri (ana sayfada ~10, sohbet açılışında 3) sunucuda tek tek sırayla bekliyordu; artık paralel işlenir.
+- Açılış verisi, uygulama dosyaları yüklenirken paralel istenir (bir gidiş-dönüş kazanılır); Google yazı tipi sayfanın çizilmesini bekletmez.
+- Ana sayfada aynı nöbet bilgisi iki kez istenmez.
+- Ölçüm (yavaş telefon benzetimi): ana sayfa ~%25, Nöbetim ~%20, Mesajlar ~%20, sohbet açılışı ~%55 daha hızlı; gerçek sunucuda ağ gecikmesi olduğundan kazanç daha büyüktür.
+
 
 **Telefonun geri tuşu her zaman bir önceki adıma gider, atlamaz**
 - Açık bir pencere, açılır menü, yan menü (☰), bildirim kutusu, sohbette emoji paneli ya da mesaj seçimi varsa geri tuşu **yalnız onu kapatır**; sayfa yerinde kalır. İç içe pencerelerde her basış bir pencere kapatır.
@@ -873,7 +882,7 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Şifre sıfırlama: sitenin adresi henüz bilinmiyorsa bağlantı sahte alan adına gönderilemez; kurulumda adres kaydedilir. Sıfırlama bağlantısı aynı anda iki istekle iki kez kullanılamaz.
 - Gönderilen geçici şifre / sıfırlama / davet e-postalarının içeriği gönderildikten sonra veritabanından (ve yedeklerden) silinir.
 - Abonelik süresi bittiğinde ya da “rol gözünden görme”de salt okunur kipte sohbet üyeliği, bildirim politikası, güncelleme yükleme ve nöbet tablosu yazma artık engellenir.
-- Çok birimli kurulumda e-posta (SMTP) ayarı sunucunun iç ağına bağlanmak için kullanılamaz (yalnız 25 / 465 / 587 / 2525 ve genel adresler; hata metni gizlenir).
+- Çok birimli kurulumda e-posta (SMTP) ayarı sunucunun iç ağına bağlanmak için kullanılamaz (yalnız 25 / 465 / 587 / 2525 ve genel adresler; hata metni gizlenir). Site sahibi sunucu içi bir SMTP rölesi (127.0.0.1 vb.) kullanacaksa `data` klasörüne `.smtp-yerel` adlı boş bir dosya koyar.
 - Bir kişi bir günde, bir yere eklenmemiş en çok 2 GB dosya yükleyebilir (tek kişi diski dolduramasın).
 - Sistem yöneticisi girişi başkası tarafından e-posta yazılarak kilitlenemez (kilit kişi + cihaz bazında).
 - İlan / çağrı seçiminde aynı anda iki kişi işlem yapınca “database is locked” yerine anlaşılır uyarı; nöbet değişimi kabul / ret / iptal aynı anda iki kez sonuçlanamaz.

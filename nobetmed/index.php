@@ -45,7 +45,6 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
   <link rel="apple-touch-icon" href="<?= htmlspecialchars($touch) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
 <?php foreach (['placement', 'requests', 'market', 'prefs', 'sohbet'] as $css): ?>
   <link rel="stylesheet" href="assets/css/<?= $css ?>.css?v=<?= $v ?>">

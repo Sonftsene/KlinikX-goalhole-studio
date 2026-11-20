@@ -280,6 +280,13 @@ if (function_exists('vw_gate')) vw_gate($action);
 if (function_exists('nm_perm_gate')) nm_perm_gate($action);
 if (mail_ready() && (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3') > 0) mail_flush_after_response();
 jobs_after_response();
+// Hız: yalnız okuyan istekte oturum dosyasının kilidi hemen bırakılır. PHP oturum kilidi yüzünden aynı kişinin
+// paralel istekleri (ana sayfa ~10 istek, sohbet açılışı 3 istek) sunucuda tek tek sırayla bekliyordu.
+// Oturuma yazan uçlar (giriş, QR, parmak izi, canlı yoklama, hesap) kilidi tutmaya devam eder.
+if (nm_read_action($action) && $action !== 'live' && !preg_match('/^(auth\.|me\.|qr\.|passkey\.|push\.|billing\.|sa\.)/', $action)) {
+    current_user(); // oturum düzeltmeleri (geçersiz hesap, birim) kilit bırakılmadan yazılsın
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+}
 $GLOBALS['NM_RUN'] = true;
 $routes[$action]();
 

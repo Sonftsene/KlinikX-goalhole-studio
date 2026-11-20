@@ -235,7 +235,8 @@ function smtp_open()
     $host = trim(setting('mail_host'));
     $port = (int)setting('mail_port', '465');
     $secure = setting('mail_secure', 'ssl');
-    $multi = function_exists('nm_multi') && nm_multi();
+    // Çok birimlide denetim; site sahibi sunucu içi SMTP rölesi kullanacaksa data/.smtp-yerel dosyasını koyar (yalnız dosya erişimiyle)
+    $multi = function_exists('nm_multi') && nm_multi() && !is_file(NM_ROOT . '/data/.smtp-yerel');
     $target = $host;
     if ($multi) {
         // Birim yöneticisi sunucunun iç ağını (127.0.0.1, 10.x, 169.254.x …) tarayamasın: yalnız SMTP portları ve genel adresler

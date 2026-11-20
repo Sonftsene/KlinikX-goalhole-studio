@@ -242,8 +242,6 @@ svg.i.lg { width: 22px; height: 22px; }
   position: sticky; top: 0; z-index: 20; height: var(--topbar);
   display: flex; align-items: center; gap: 10px; padding: 0 24px;
   background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(1.6) blur(12px); -webkit-backdrop-filter: saturate(1.6) blur(12px);
   border-bottom: 1px solid var(--border);
 }
 .search { position: relative; flex: 1; max-width: 460px; }
@@ -344,7 +342,7 @@ button.list-row:hover { background: var(--surface-2); }
 .shift-next .btn:hover { background: rgba(255,255,255,.22); }
 
 /* Modal & panel */
-.overlay { position: fixed; inset: 0; z-index: 60; background: rgba(8, 15, 18, .48); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fade .15s ease; }
+.overlay { position: fixed; inset: 0; z-index: 60; background: rgba(8, 15, 18, .5); display: flex; align-items: center; justify-content: center; padding: 20px; animation: fade .15s ease; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.985); } }
 @keyframes slide { from { transform: translateX(40px); opacity: 0; } }
@@ -560,8 +558,7 @@ label.btn { cursor: pointer; }
   .banner { padding: 10px 14px; }
   .bottom-nav {
     display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); background: color-mix(in srgb, var(--surface) 92%, transparent);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border);
   }
   .bottom-nav button { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; color: var(--text-3); font-size: 10.5px; font-weight: 600; position: relative; border-radius: 10px; }
   .bottom-nav button.on { color: var(--brand-text); }
@@ -607,7 +604,7 @@ label.btn { cursor: pointer; }
 }
 .print-only { display: none; }
 
-.settings-save { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 10px; border-radius: 14px; background: var(--surface); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.settings-save { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
 @media (max-width: 900px) { .settings-save { bottom: calc(84px + env(safe-area-inset-bottom)); } }
 
 /* ================= Ek özellikler ================= */
@@ -1395,7 +1392,7 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .ch-bg-dark { background: color-mix(in srgb, #000 22%, var(--bg)); }
 /* 4.7 bildirim sistemi: ekranda açılır kartlar */
 .nbx { position: fixed; z-index: 95; top: calc(var(--topbar) + 10px); right: 14px; width: 370px; max-width: calc(100vw - 20px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.nbc { pointer-events: auto; position: relative; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+.nbc { pointer-events: auto; position: relative; background: var(--surface);
   border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); overflow: hidden; opacity: 0; transform: translateY(-10px) scale(.98); transition: opacity .2s ease, transform .22s cubic-bezier(.2,.9,.3,1.2); touch-action: pan-y; }
 .nbc.in { opacity: 1; transform: none; }
 .nbc.out { opacity: 0; transform: translateX(30px); transition: opacity .18s, transform .2s; }
@@ -1474,7 +1471,7 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .emo-row button { border: 0; background: none; font-size: 24px; height: 40px; border-radius: 8px; cursor: pointer; line-height: 1; }
 .emo-row button:hover { background: var(--surface-2); }
 /* Mesaj satırı: profil fotoğrafı, gönderen adı, işlemler */
-.ch-msg { position: relative; transition: transform .12s; }
+.ch-msg { position: relative; }
 .ch-avb { border: 0; background: none; padding: 0; cursor: pointer; flex: none; align-self: flex-start; margin-right: 4px; }
 .ch-avs { width: 26px; flex: none; margin-right: 4px; }
 .ch-from { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--brand-text); cursor: pointer; margin-bottom: 2px; display: block; text-align: left; }
@@ -1482,12 +1479,12 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .ch-quote { width: 100%; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
 .ch-acts { display: inline-flex; flex-direction: column; align-self: center; }
 .ch-qr { display: none; }
-@media (hover: hover) { .ch-msg .ch-acts { opacity: 0; transition: opacity .12s; } .ch-msg:hover .ch-acts { opacity: 1; } .ch-qr { display: block; } }
+@media (hover: hover) { .ch-msg .ch-acts { opacity: 0; } .ch-msg:hover .ch-acts { opacity: 1; } .ch-qr { display: block; } }
 .ch-msg.swipe-ok .ch-bub { box-shadow: 0 0 0 2px var(--brand); }
 .ch-msg.swipe-ok::before { content: '↩'; position: absolute; left: -26px; top: 50%; transform: translateY(-50%); color: var(--brand); font-size: 18px; }
 .ch-text.big { font-size: 34px; line-height: 1.15; }
 .ch-link { color: var(--brand-text); text-decoration: underline; overflow-wrap: anywhere; }
-.ch-rxpop { position: fixed; z-index: 90; display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-lg); animation: pop-in .12s ease-out; }
+.ch-rxpop { position: fixed; z-index: 90; display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-lg); }
 .ch-rxpop button { border: 0; background: none; font-size: 22px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; color: var(--text-2); }
 .ch-rxpop button:hover, .ch-rxpop button.on { background: var(--surface-2); }
 .ch-emo-more { display: grid; place-items: center; color: var(--text-2); }
