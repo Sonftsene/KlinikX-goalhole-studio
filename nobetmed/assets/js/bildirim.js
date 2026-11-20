@@ -45,7 +45,7 @@ function nbPresence() {
   } catch (e) { /* */ }
   return { pg: location.hash || '#/', pgl: label, vis: document.visibilityState === 'hidden' ? 'hidden' : 'visible', dev: matchMedia('(max-width: 760px)').matches ? 'm' : 'd' };
 }
-window.addEventListener('hashchange', () => { if (S.me && typeof nbSoon === 'function') nbSoon(); });
+// Bölüm bilgisi bir sonraki olağan yoklamada gider (sayfa geçişinde yoklamayı öne çekmek bildirim kartlarını açılan sayfanın üstüne düşürüyordu)
 function nbSoon() { clearTimeout(NB.timer); NB.timer = setTimeout(nbTick, 300); }
 ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => {
   const idle = Date.now() - NB.active > 180000;
