@@ -76,8 +76,11 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 - Paketler, birim aboneliği, deneme, ek süre, ücretsiz paket / salt okunur, kişi sınırı; PayTR, iyzico, havale; sistem yöneticisi tam kontrol (görünürlük ve zorunluluk ayrı anahtarlar, varsayılan kapalı); hatırlatmalar; sözleşme onayı.
 - Sonra: kayıtlı kartla otomatik yenileme (PayTR kart saklama / iyzico abonelik API), e-Fatura entegrasyonu, kupon/indirim, kendi kendine birim açma (tanıtım sayfası).
 
+### 4.16 — Birim açma başvurusu ve doğrulama ✓ (4.16.0)
+- Herkese açık başvuru (e-posta kodu, hastane arama ve o hastanedeki birimler, belge), elle onay; doğrulama işaretleri (kurumsal e-posta, aynı hastanedeki birim yöneticilerinin teyidi, kopya birim, aynı bağlantı), bilgi iste / ret / geçersiz + engel; onayda hastane + birim + yönetici tek adımda; KVKK saklama süreleri.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
-1. **Davet et, kazan + kendi kendine birim açma:** birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
+1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).
 
 ### 5.0+ — Ek modüller (her biri aç/kapat)

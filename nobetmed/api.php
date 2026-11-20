@@ -223,6 +223,8 @@ $routes += $NM_MOD_ROUTES;
 if (!isset($routes[$action])) fail('Bilinmeyen işlem.', 404);
 // Süper yönetici uçları birim veritabanı açmaz
 if (strncmp($action, 'sa.', 3) === 0) { $routes[$action](); exit; }
+// Birim açma başvurusu: giriş gerektirmez, birim veritabanı açmaz (e-posta için yalnız e-posta ayarı olan birim)
+if (strncmp($action, 'apply.', 6) === 0) { $routes[$action](); exit; }
 // Giriş: e-postanın / parmak izinin birimi bulunur ve bu istek yalnız o birimin veritabanını açar
 nm_route_tenant($action);
 // Birimdeki sistem yöneticisi kişi değildir: kişisel hesap işlemleri ve birim adına mesaj kapalı
@@ -534,6 +536,7 @@ function a_boot(): void
             'brand' => brand_out(),
         ],
         'tenant' => nm_boot_tenant($me),
+        'apply' => !$me && function_exists('ap_open') && ap_open(),
         'mods' => function_exists('nm_mods') ? nm_mods() : null,
         'perm' => $me && function_exists('user_perms') ? user_perms($me) : null,
         'sa' => function_exists('sa_boot') ? sa_boot() : null,

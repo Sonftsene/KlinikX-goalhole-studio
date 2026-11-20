@@ -1683,3 +1683,35 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .bl-mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 12px; margin-top: 6px; }
 @media (max-width: 700px) { .bl-g3 { grid-template-columns: 1fr; } .bl-status .bl-kv { align-items: flex-start; } }
 .bl-terms { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; max-height: 60vh; overflow: auto; }
+
+/* Birim başvurusu (4.16) */
+.ap-hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.ap-steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 4px 0 18px; counter-reset: s; }
+.ap-steps li { flex: 1; display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-3); padding-top: 8px; border-top: 3px solid var(--border); min-width: 0; }
+.ap-steps li span { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; background: var(--surface-2); }
+.ap-steps li span svg.i { width: 12px; height: 12px; }
+.ap-steps li.on { color: var(--text); font-weight: 600; border-color: var(--brand); }
+.ap-steps li.on span { background: var(--brand); color: #fff; }
+.ap-steps li.done { color: var(--success); border-color: var(--success); }
+.ap-steps li.done span { background: var(--success-soft); color: var(--success); }
+.ap-sec { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-top: 6px; }
+.ap-hlist:empty { display: none; }
+.ap-hlist { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.ap-hlist .list-row { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; }
+.ap-hlist .list-row:hover { background: var(--surface-2); }
+.ap-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; margin-top: 18px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px; font-size: 13px; color: var(--text-2); }
+.ap-cta span { display: inline-flex; align-items: center; gap: 6px; }
+.ap-card .card-head { gap: 10px; }
+.ap-body { display: grid; gap: 10px; padding-top: 0; }
+.ap-who { font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.ap-sig { list-style: none; margin: 0; padding: 10px 12px; display: grid; gap: 6px; background: var(--surface-2); border-radius: 10px; font-size: 13px; }
+.ap-sig li { display: flex; gap: 8px; align-items: flex-start; color: var(--text-2); overflow-wrap: anywhere; }
+.ap-sig li svg.i { flex: none; margin-top: 2px; width: 15px; height: 15px; }
+.ap-sig li.ok { color: var(--success); }
+.ap-sig li.bad { color: var(--warn); }
+.ap-sig li.sub { padding-left: 23px; font-size: 12.5px; color: var(--text-3); }
+.ap-acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+.ap-acts .btn.icon { margin-left: auto; }
+.ap-peer { flex-wrap: wrap; }
+.sys-badge:empty { display: none; }
+.sys-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; }

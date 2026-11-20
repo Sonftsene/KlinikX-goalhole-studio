@@ -28,6 +28,7 @@ Ortak dosyalara (api.php, bootstrap.php, core.js, posts.js, extras.js, taraf.js,
 - Taraflar: `sides_cfg()` -> [['key' => 's3', 'name' => '3. Basamak', 'roster_id' => 3, 'units' => ['B blok']], ['key' => 's2', ..., 'units' => ['A blok', 'C blok']]]. Mevcut eski taraf kayıtları: tablo `side_moves`.
 - Değişim akışı (hazır): `swap_requests` tablosu (status pending|accepted|declined|cancelled|applied|expired). Kabul edilen bir değişim/devir için kayıt eklemek, sorumluya bildirim ve "Excel güncellenince uygulandı" otomatik (`swap_check_applied`). Var olan işlevleri okuyun: `nobetmed/inc/swaps.php`, `nobetmed/inc/api_sync.php` (a_swap_*).
 - Kancalar: `$GLOBALS['NM_JOBS']['ad'] = fn(bool $force) => ...` (5 dakikada bir/cron), `$GLOBALS['NM_BOOT'][] = fn(array $me): array` (açılış verisine ekler; dönen anahtarlar istemcide doğrudan `S.<anahtar>` olur, hesap değişince silinir), `$GLOBALS['NM_GET']['eylem'] = fn()` (oturumsuz GET).
+- Birim veritabanı açmadan çalışan uçlar: `sa.` (sistem yöneticisi) ve `apply.` (birim başvurusu, giriş gerektirmez) önekleri `api.php` dağıtıcısında birim seçiminden önce çağrılır; bu uçlar gerekirse `nm_tenant_use()` ile tek bir birime geçebilir (ör. `ap_mail` e-posta ayarı olan birime).
 
 ## Veritabanı (hazır, sürüm 11 — şemayı değiştirmeyin; ek alan gerekirse `meta` TEXT sütununa JSON yazın)
 - `req_periods` (id, ym 'YYYY-MM', roster_id NULL=hepsi, deadline 'Y-m-d', status open|closed, note, created_by, created_at, meta)

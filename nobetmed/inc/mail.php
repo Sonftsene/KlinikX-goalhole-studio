@@ -34,7 +34,7 @@ function event_on(string $event): bool
 
 function mail_template(string $title, array $lines, ?string $button = null, ?string $url = null): array
 {
-    $org = setting('org_name', 'Klinik Portalı');
+    $org = (string)($GLOBALS['NM_MAIL_ORG'] ?? setting('org_name', 'Klinik Portalı'));
     $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     $body = '';
     foreach ($lines as $l) $body .= '<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#24343b">' . nl2br($e($l)) . '</p>';

@@ -214,7 +214,7 @@ function a_sa_overview(): void
         }
     }
     $hs = m_all('SELECT * FROM hospitals ORDER BY name, id');
-    out(['hospitals' => array_map(fn($h) => ['id' => (int)$h['id'], 'name' => $h['name'], 'status' => $h['status'],
+    out(['apply_open' => function_exists('ap_sa_count') ? ap_sa_count() : 0, 'hospitals' => array_map(fn($h) => ['id' => (int)$h['id'], 'name' => $h['name'], 'status' => $h['status'],
         'tenants' => array_values(array_map('sa_tenant_out', array_filter($ts, fn($t) => (int)$t['hospital_id'] === (int)$h['id'])))], $hs)]);
 }
 
@@ -289,7 +289,15 @@ function a_sa_tenant_admin(): void
     if (mb_strlen($name) < 3) fail('Ad soyad girin.');
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Geçerli bir e-posta adresi girin.');
     if (nm_dir_find($email)) fail('Bu e-posta zaten bir birimde kayıtlı. Bir kişi yalnız bir birimde olabilir.', 409);
-    $copyMail = s('copy_mail', 16);
+    out(sa_make_admin($sa, $t, $name, $email, s('copy_mail', 16), b('send_email')));
+}
+
+/**
+ * Birime yönetici hesabı açar (birim yöneticisi ekleme ve onaylanan birim başvurusu ortak yolu).
+ * Bu istekte veritabanı henüz açılmamış olmalı: yalnız hedef birimin veritabanı açılır.
+ */
+function sa_make_admin(array $sa, array $t, string $name, string $email, string $copyMail, bool $sendEmail): array
+{
     $mailCfg = [];
     if ($copyMail !== '' && ($src = nm_tenant_by_key($copyMail)) && ($p = nm_tenant_peek($src))) {
         try { foreach ($p->query("SELECT k, v FROM settings WHERE k LIKE 'mail\\_%' ESCAPE '\\'")->fetchAll() as $r) $mailCfg[$r['k']] = (string)$r['v']; } catch (Throwable $e) { $mailCfg = []; }
@@ -310,8 +318,8 @@ function a_sa_tenant_admin(): void
     audit(['id' => null, 'name' => 'Sistem yöneticisi'], 'user.create', $name, 'Birim yöneticisi (sistem yönetiminden)');
     sa_audit($sa, 'tenant.admin', $t['name'], $email);
     $mailed = 0;
-    if (b('send_email') && function_exists('send_credentials')) $mailed = send_credentials(['name' => $name, 'email' => $email], $pw, true);
-    out(['password' => $pw, 'mailed' => $mailed, 'link' => sa_tenant_out(m_one('SELECT t.*, h.name AS hospital_name, h.status AS hospital_status FROM tenants t JOIN hospitals h ON h.id = t.hospital_id WHERE t.id = ?', [(int)$t['id']]))['link']]);
+    if ($sendEmail && function_exists('send_credentials')) $mailed = send_credentials(['name' => $name, 'email' => $email], $pw, true);
+    return ['password' => $pw, 'mailed' => $mailed, 'link' => sa_tenant_out(m_one('SELECT t.*, h.name AS hospital_name, h.status AS hospital_status FROM tenants t JOIN hospitals h ON h.id = t.hospital_id WHERE t.id = ?', [(int)$t['id']]))['link']];
 }
 
 /**

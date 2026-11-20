@@ -507,3 +507,51 @@ Paneldeki Ödemeler bölümünden fatura numarası girilir ve iade edilen ödeme
 - **Sunucu:** Hostinger'da PHP **cURL** eklentisi açık olmalı; kapalıysa panel uyarır. Site **HTTPS** üzerinden yayında olmalı.
 - **KVKK:** Sağlık personeli verisi için sunucunun Türkiye'de olması, VERBİS kaydı ve hastanelerle veri işleme sözleşmesi önerilir.
 - **Gizli anahtarlar:** Veritabanında şifreli saklanır ve panele geri gönderilmez. Değiştirmek için yeniden yazmanız yeterli.
+
+## 30. Birim açma başvurusu ve doğrulama (4.16)
+
+Yeni bir birimin sorumlusu portala kendisi başvurur; **hiçbir birim sistem yöneticisi onaylamadan açılmaz.** Yalnız çok birimli (SQLite) kurulumda çalışır. Kurulumda kapalıdır.
+
+### Açmak
+1. Sistem yönetimi › **Başvurular** › **Ayarlar** › "Birim başvurularını kabul et".
+2. Giriş ekranında "Biriminiz portalda yok mu? **Birim açma başvurusu**" bağlantısı görünür. Doğrudan bağlantı: `https://siteniz/#/basvuru` (Ayarlar'daki "Bağlantıyı kopyala").
+3. Doğrulama kodları ve sonuç e-postaları, e-posta ayarı yapılmış bir birimin (Ayarlar › E-posta) ayarıyla gider. Hangi birimin kullanılacağını Başvurular › Ayarlar'dan seçebilirsiniz. Hiçbir birimde e-posta ayarı yoksa kod gönderilemez ve başvurular "e-posta doğrulanmadı" işaretiyle gelir. O durumda başvuranı telefonla doğrulayın.
+
+### Sorumlu ne yapar (başvuru adımları)
+1. **E-posta:** İş e-postasını yazar ve gelen 6 haneli kodu girer. Kod 10 dakika geçerlidir ve 5 hatalı denemede kilitlenir. Bu e-posta biriminin yönetici hesabı olur. Kurum e-postası (saglik.gov.tr gibi) güven işaretidir.
+2. **Hastane:** Hastanesini arayıp seçer ve o hastanede portalı kullanan birimleri görür. Birimi zaten varsa yeni başvuru yerine o birimin yöneticisinden davet ister. Hastanesi listede yoksa "Hastanem listede yok" deyip hastanenin adını ve ilini yazar.
+3. **Birim ve kendisi:** Birim adı, yaklaşık kişi sayısı, ad soyad, unvan, birimdeki görevi ve cep telefonu.
+4. **Belge (isteğe bağlı ya da zorunlu):** Görevlendirme yazısı ya da kurum kimlik kartı (PDF, JPG ya da PNG, en fazla 3 MB). Fotoğraf telefonda küçültülür.
+5. **Onaylar ve gönderim:** Beyan ve aydınlatma metni onaylanır, başvuru gönderilir. Sorumluya bir **takip bağlantısı** e-postayla gelir. Bu bağlantıdan durumu görür, istenen bilgiyi ya da belgeyi gönderir ya da başvurusunu geri çekip siler.
+
+### Sahte birim açılmasını önleyen katmanlar
+- **Elle onay:** Sistem yöneticisi onaylamadan birim açılmaz.
+- **E-posta doğrulama:** Kod olmadan form açılmaz. Bir kişi yalnız bir birimde hesap açabildiği için başka birimde kayıtlı e-postayla başvuru yapılamaz. Aynı e-postayla ikinci bir bekleyen başvuru açılamaz.
+- **Hastaneden teyit:** Başvurulan hastanede portalı kullanan birimlerin yöneticilerine bildirim gider. Ana sayfalarında "Bu kişiyi tanıyor musunuz?" kartı çıkar ve **Tanıyorum / Tanımıyorum** derler. Bu kartta başvuranın telefonu ve e-postası gösterilmez. Yanıtı yalnız sistem yöneticisi görür. Ayarlardan kapatılabilir.
+- **Kopya birim uyarısı:** Aynı hastanede benzer adlı birim varsa başvurana uyarı çıkar ve sistem yöneticisi bunu kartta görür. Onay sırasında da ayrıca onay istenir.
+- **Kötüye kullanım sınırları:**
+  - Aynı internet bağlantısından saatte 12 kod ve günde 10 başvuru.
+  - Aynı e-postaya saatte 4 kod.
+  - Botlara görünmeyen bir tuzak alanı.
+  - Geçersiz sayılan başvurunun e-postası istenirse engellenir.
+- **Doğrulama düzeyi:** Her başvuru kartında bir özet görünür:
+  - **Güçlü:** Doğrulanmış kurumsal e-posta ya da hastaneden "tanıyorum" yanıtı var, olumsuz işaret yok.
+  - **Dikkat:** E-posta doğrulanmamış, "tanımıyorum" yanıtı var, kopya birim var ya da aynı bağlantıdan çok başvuru gelmiş.
+  - **Olağan:** Diğer durumlar.
+  - Zayıf başvurularda onaydan önce başvuranı ya da hastaneyi telefonla arayın.
+
+### Sistem yöneticisi işlemleri (Başvurular sekmesi)
+- **Onayla ve birimi aç:**
+  - Hastane seçilir; yeni hastane gerekiyorsa açılır. Birim adı düzeltilebilir.
+  - Birim açılır ve başvuran o birimin yöneticisi olur. Geçici şifre e-postayla gider (e-posta yoksa size bir kez gösterilir). İlk girişte kendi şifresini belirler.
+  - Abonelikte "yeni birimlere otomatik deneme" açıksa deneme kendiliğinden başlar.
+- **Bilgi iste:** Mesajınız başvurana e-postayla gider. Başvuran takip bağlantısından yanıt ve belge gönderir, başvuru yeniden "incelemede" olur. 60 gün yanıt gelmezse başvuru kapanır.
+- **Reddet:** Gerekçe başvurana e-postayla gider ve durum sayfasında görünür.
+- **Geçersiz:** Sahte ya da anlamsız başvurular için. E-posta gitmez; istenirse o adres bir daha başvuramaz.
+- **Diğer:** Yeniden aç, iç not, kalıcı sil. Her işlem sistem günlüğüne yazılır.
+
+### KVKK
+- Belge sunucuda **şifreli** saklanır. Yalnız sistem yöneticisi açabilir. Karar verilince silinir.
+- Reddedilen ya da geçersiz sayılan başvurular 90 gün sonra silinir. Onaylanan başvuruların telefon ve not gibi iletişim ayrıntıları 1 yıl sonra temizlenir.
+- Başvuran takip bağlantısından başvurusunu istediği an geri çekip silebilir.
+- Aydınlatma metni formda gösterilir ve onaylatılır. Kendi aydınlatma metniniz varsa ona da başvuru verilerini (amaç, saklama süresi, aktarım: aynı hastanedeki birim yöneticilerine ad, unvan ve birim adı) ekleyin.
