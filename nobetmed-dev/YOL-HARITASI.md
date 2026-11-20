@@ -107,6 +107,9 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.25 — Yetkiye göre hazır çözümler ve sık sorulanlar ✓ (4.25.0)
 - inc/destek_kb.php bilgi bankası (rol / modül yetkisi / kurulum türü koşullu); Destek sayfasında aranabilir “Sık sorulanlar · Ne nereden yapılır”; konular da yetkiye göre.
 
+### 4.26 — Telefon takvimine abonelik ✓ (4.26.0)
+- Kişiye özel gizli iCalendar bağlantısı (iPhone webcal, Google, Outlook); liste güncellendikçe takvim de güncellenir; yenile / kapat.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
 1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).

@@ -348,7 +348,37 @@ async function loadDayPanel() {
   const dd = $('#dayDuty');
   if (dd && CAL.sel === want) setHTML(dd, day ? dutyListHtml(day, false) : html`<div class="list-row small muted">Yüklenemedi.</div>`);
 }
-ACT.ics = () => {
+/* Telefon takvimi: kişiye özel abonelik bağlantısı (liste güncellendikçe takvim de güncellenir; inc/mod_takvim.php).
+   Tek seferlik dosya indirme ikincil seçenek olarak durur. */
+ACT.ics = async () => {
+  const m = openModal({ title: 'Telefon takvimine ekle', size: 'narrow', body: html`<div class="empty"><div class="spinner"></div></div>` });
+  let d;
+  try { d = await api('cal.link', { act: 'make' }); } catch (e) { m.setBody(html`<p class="small">${e.message}</p>`); return; }
+  const draw = () => m.setBody(html`<div class="stack cal-sub">
+    <p class="small muted" style="margin:0">Nöbetleriniz telefonunuzun takvimine <b>abone</b> olarak eklenir: liste güncellendikçe, değişim ve devirler işlendikçe takviminiz de kendiliğinden güncellenir.</p>
+    <a class="btn block primary" href="${d.webcal}" data-cal="ios">${icon('calendar', 'sm')}iPhone / iPad / Mac Takvim’e ekle</a>
+    <a class="btn block" href="${d.google}" target="_blank" rel="noopener" data-cal="google">${icon('calendar', 'sm')}Google Takvim’e ekle (Android)</a>
+    <a class="btn block" href="${d.outlook}" target="_blank" rel="noopener" data-cal="outlook">${icon('calendar', 'sm')}Outlook’a ekle</a>
+    <div class="field"><label>Başka bir takvim uygulaması için bağlantı</label><div class="row" style="gap:6px"><input class="input" readonly value="${d.url}" id="calUrl" data-nodirty><button type="button" class="btn" data-act="cal-copy">${icon('copy', 'sm')}Kopyala</button></div></div>
+    ${d.https ? '' : html`<p class="tiny sp-kvkk">${icon('alert', 'sm')} Site HTTPS ile açılmıyor; Google Takvim ve Outlook yalnız HTTPS adresleri ekler (Hostinger › SSL).</p>`}
+    <ul class="tiny faint cal-notes"><li>iPhone takvimi genellikle 15 dakika–1 saatte, Google Takvim birkaç saatte bir yeniler.</li>
+      <li>Bu bağlantı size özeldir; kimseyle paylaşmayın. Paylaştıysanız “Bağlantıyı yenile”: eskisi çalışmaz, takvime yeniden ekleyin.</li>
+      ${d.seen ? html`<li>Takviminiz en son ${fmtRel(new Date(d.seen * 1000).toISOString())} güncellendi.</li>` : ''}</ul>
+    <div class="row wrap" style="gap:6px"><button type="button" class="btn sm" data-act="cal-reset">${icon('history', 'sm')}Bağlantıyı yenile</button><button type="button" class="btn sm ghost" data-act="cal-off">Aboneliği kapat</button>
+      <span class="grow"></span><button type="button" class="btn sm ghost" data-act="ics-file">${icon('download', 'sm')}Dosya olarak indir (güncellenmez)</button></div></div>`);
+  draw();
+  CAL.subM = { m, set: (x) => { d = x; draw(); } };
+};
+ACT['cal-copy'] = () => { const i = $('#calUrl'); if (i && typeof copyText === 'function') copyText(i.value); else if (i) { i.select(); document.execCommand('copy'); toast('Kopyalandı'); } };
+ACT['cal-reset'] = async () => {
+  if (!(await confirmDialog({ title: 'Bağlantı yenilensin mi?', text: 'Eski bağlantı çalışmaz; telefonunuzdaki takvim aboneliğini silip yenisini ekleyin.', ok: 'Yenile' }))) return;
+  try { CAL.subM.set(await api('cal.link', { act: 'reset' })); toast('Yeni bağlantı hazır; takvime yeniden ekleyin'); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['cal-off'] = async () => {
+  if (!(await confirmDialog({ title: 'Takvim aboneliği kapatılsın mı?', text: 'Telefonunuzdaki takvim artık güncellenmez. Takvim uygulamasından aboneliği de silebilirsiniz.', ok: 'Kapat', danger: true }))) return;
+  try { await api('cal.link', { act: 'off' }); CAL.subM.m.close(); toast('Takvim aboneliği kapatıldı'); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['ics-file'] = () => {
   const today = ymd(new Date());
   const list = (MY.entries || []).filter((s) => s.date >= today && s.kind === 'shift');
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');

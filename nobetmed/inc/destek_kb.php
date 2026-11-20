@@ -38,7 +38,7 @@ function sp_kb(): array
 
         // ---- Nöbet ve takvim ----
         ['k' => $N, 'q' => 'Takvimim boş / nöbetlerim görünmüyor', 'a' => 'Nöbet listesindeki adınız portaldaki adınızla aynı olmalı (büyük-küçük harf önemsiz). Hesabım › Profil’den adınızı kontrol edin; Excel liste sayfasında “Sadece ben” ile de bakabilirsiniz. Liste henüz yüklenmediyse sorumlunuza yazın.', 'l' => '#/nobetim', 't' => ['nobet'], 'c' => ['mod' => 'nobet']],
-        ['k' => $N, 'q' => 'Nöbetleri telefonun takvimine eklemek', 'a' => 'Nöbet › Takvimim › “Telefon takvimine ekle”.', 'l' => '#/nobetim', 't' => ['nobet'], 'c' => ['mod' => 'nobet']],
+        ['k' => $N, 'q' => 'Nöbetleri telefonun takvimine eklemek', 'a' => 'Nöbet › Takvimim › “Telefon takvimine ekle” › iPhone, Google Takvim ya da Outlook: takvime abone olursunuz; liste güncellendikçe telefonunuzdaki takvim de kendiliğinden güncellenir.', 'l' => '#/nobetim', 't' => ['nobet'], 'c' => ['mod' => 'nobet']],
         ['k' => $N, 'q' => 'Bugün kim nöbette?', 'a' => 'Nöbet › Kim nöbette: günü seçin; kişiye dokunup arayabilir ya da yazabilirsiniz.', 'l' => '#/rehber', 't' => ['nobet'], 'c' => ['mod' => 'nobet']],
         ['k' => $N, 'q' => 'Excel listenin aslını görmek', 'a' => 'Nöbet › Excel liste. “Sadece ben” kendi satırınızı işaretler.', 'l' => '#/nobet', 't' => ['nobet'], 'c' => ['mod' => 'nobet']],
         ['k' => $N, 'q' => 'Blok / taraf yerleşimimi görmek', 'a' => 'Nöbet › Taraf listesi: o gün hangi blokta olduğunuz.', 'l' => '#/taraf', 't' => ['nobet'], 'c' => ['mod' => 'taraf']],

@@ -1849,3 +1849,7 @@ a.in-link { font-weight: 600; }
 .sp-cat > summary { cursor: pointer; font-size: 14.5px; }
 .sp-cat-b { padding: 4px 0 0 14px; }
 .sp-faq .input[type=search] { flex: 1 1 200px; }
+
+/* Telefon takvimi aboneliği (4.25) */
+.cal-sub .btn.block { justify-content: flex-start; }
+.cal-notes { margin: 0; padding-left: 18px; }

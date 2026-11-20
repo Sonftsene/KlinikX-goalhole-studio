@@ -780,3 +780,23 @@ Herkes uygulamanın içinden destek talebi açabilir. Talep, konusuna göre doğ
 - Bakım modu açıkken yönetim paneli çalışır.
 - Bakım modunu açmadan elle güncellerseniz de, dosyalar karışık olduğu için işlem başlamadan oluşan hatalarda istekler kendiliğinden yeniden denenir. Yine de bakım modu daha güvenlidir.
 - Zamanlanmış görevler (cron) bakım ve güncelleme sırasında bekler, bir sonraki çalıştırmada yapılır.
+
+## 38. Nöbetler telefon takviminde, liste güncellendikçe kendiliğinden (4.26)
+
+Nöbet › Takvimim › **Telefon takvimine ekle**. Her kişinin kendine özel, gizli bir takvim bağlantısı vardır. Takvim uygulaması bu bağlantıyı düzenli olarak yeniden okur.
+- **iPhone / iPad / Mac Takvim’e ekle**: takvim uygulaması “Abone ol” diye sorar, onaylayın.
+- **Google Takvim’e ekle (Android)**: Google Takvim açılır, “Ekle” deyin. Telefonda görünmesi için Google Takvim uygulamasında bu takvimin eşitlemesi açık olmalı (Ayarlar › takvimin adı › Eşitle).
+- **Outlook’a ekle**, ya da bağlantıyı kopyalayıp başka bir takvim uygulamasına “internetten takvim ekle / abone ol” ile ekleyin.
+
+**Kendiliğinden güncellenir**
+- Yeni ayın listesi yüklenince, liste değişince, değişim ve devirler Excel’e işlenince telefondaki nöbetler de değişir; listeden çıkan nöbet takvimden düşer.
+- iPhone genellikle 15 dakika–1 saatte, Google Takvim birkaç saatte bir yeniler. Bu sıklığı takvim uygulaması belirler.
+- Takvimde geçen ayın başından 4 ay ilerisine kadar nöbetler bulunur (Takvimim ile aynı).
+
+**Gizlilik**
+- Bağlantı kişiye özeldir ve giriş istemez; kimseyle paylaşılmamalıdır. Paylaşıldıysa **Bağlantıyı yenile**: eskisi hemen çalışmaz, takvime yeni bağlantı eklenir.
+- **Aboneliği kapat** ile bağlantı iptal edilir.
+- Hesap devre dışı bırakılırsa ya da nöbet modülü kapatılırsa takvim de güncellenmez.
+- Google Takvim ve Outlook yalnız **HTTPS** adresleri ekler; sitenizde SSL açık olmalı (Hostinger › SSL).
+
+Eski yöntem (tek seferlik **Dosya olarak indir**) aynı pencerede durur, ama o dosya sonradan güncellenmez.
