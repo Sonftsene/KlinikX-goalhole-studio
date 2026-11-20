@@ -723,6 +723,15 @@ Herkes uygulamanın içinden destek talebi açabilir. Talep, konusuna göre doğ
   - Birim konuları (“Nöbetim görünmüyor”, “İzin, istek, ilan ve değişimler”, “Diğer”) önce **birim sorumlusuna** gider. Sorumlu çözemezse **Destek ekibine ilet** ile tek tuşla sistem yöneticisine geçirir.
   - Teknik konular (giriş ve şifre, bildirim / e-posta, uygulama hatası, öneri) doğrudan **sistem yöneticisine** gider.
 - Konu seçilince önce kısa hazır çözümler gösterilir. Çoğu soru form gönderilmeden çözülür; çözülmezse “Yine de yazmak istiyorum”.
+- **Sık sorulanlar · Ne nereden yapılır** (Destek sayfasının başında, aranabilir): hesap, uygulama, nöbet, değişim, istek, mesaj, sorumlu işleri, birim yönetimi.
+- **Herkes yalnız kendi yetkisiyle (ve altındaki yetkilerle) yapabileceklerini görür (4.25):**
+  - Üye kendi hesabını, nöbetini ve değişimlerini görür.
+  - Yayıncı ya da birime özel rolü olan kişi, bunlara ek olarak yalnız **yönettiği modüllerin** işlerini görür (ör. yalnız “İstekler: yönetir” ise istek dönemi açma).
+  - Birim yöneticisi bunlara ek olarak birim yönetimini görür.
+  - Sunucu işleri (cron, güncelleme, sistem sağlığı) çok birimli kurulumda yalnız sistem yöneticisinindir; birimlere gösterilmez. Tek birimli kurulumda birim yöneticisi görür.
+  - Kapalı modüllerin maddeleri hiç görünmez.
+  - Konular da aynı kurala uyar: “Birim ayarları” ve “Kullanıcılar” yalnız yöneticide, “Excel / nöbet listesi yükleme” yalnız listeyi yönetende, “Abonelik” yalnız abonelik açıksa görünür.
+  - “Başka rolün gözünden gör” ile o rolün gördüğü maddeleri görebilirsiniz.
 
 **Talebe kendiliğinden eklenenler** (kişi formda görebilir): hastane › birim, ad ve e-posta, rol (Yönetici / Yayıncı / Üye), birime özel rolün adı ve yönettiği modüller, talebin açıldığı sayfa, uygulama sürümü, cihaz / tarayıcı, varsa son hata.
 

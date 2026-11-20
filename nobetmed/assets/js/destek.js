@@ -99,9 +99,11 @@ async function spList(view) {
   const C = SP.cfg;
   const tabs = C.handler ? html`<div class="seg" style="margin-bottom:14px"><button class="${SP.tab === 'mine' ? 'on' : ''}" data-act="sp-tab" data-t="mine">Taleplerim${S.support.mine ? html` <span class="count">${S.support.mine}</span>` : ''}</button>
     <button class="${SP.tab === 'unit' ? 'on' : ''}" data-act="sp-tab" data-t="unit">Birim talepleri${S.support.inbox ? html` <span class="count">${S.support.inbox}</span>` : ''}</button></div>` : '';
-  setHTML(view, html`${spHead(C.track === 'lead' ? 'Sorumlu desteği: kurulum, listeler, kullanıcılar, abonelik ve hatalar için dupcii destek ekibine yazın.' : 'Sorununuzu yazın; birim konuları birim sorumlunuza, teknik konular dupcii destek ekibine gider.',
+  setHTML(view, html`${spHead('Aradığınızı önce sık sorulanlarda bulun; bulamazsanız talep açın.',
     C.cant ? '' : html`<button class="btn primary" data-act="sp-new">${icon('plus', 'sm')}<span>Yeni talep</span></button>`)}
+    ${spFaqHtml()}
     ${C.cant ? html`<div class="card card-pad small muted" style="margin-bottom:12px">${icon('info', 'sm')} ${C.cant}</div>` : ''}
+    <h3 class="sp-sec-h">${C.handler ? 'Talepler' : 'Taleplerim'}</h3>
     ${tabs}<div id="spBox"><div class="card card-pad"><div class="skel" style="height:16px"></div></div></div>`);
   const box = $('#spBox');
   try {
@@ -131,6 +133,32 @@ function spRows(items, unit, empty) {
 }
 function spRouteText(t) { return t.route === 'unit' ? 'birim sorumlusu' : t.forwarded ? 'destek ekibine iletildi' : 'dupcii destek'; }
 
+/* ---------------- Sık sorulanlar · Ne nereden yapılır ----------------
+   Maddeler sunucuda kişinin yetkisine göre süzülür (inc/destek_kb.php): herkes yalnız kendi yapabileceklerini görür. */
+function spTips(tp) { const by = new Map((SP.cfg.faq || []).map((x) => [x.id, x])); return (tp.tips || []).map((id) => by.get(id)).filter(Boolean); }
+function spTipHtml(x, open) {
+  return html`<details class="sp-tip" ${open ? raw('open') : ''}><summary>${x.q}</summary><p class="small">${x.a}</p>${x.link ? html`<a class="btn sm" href="${x.link}">${icon('chevR', 'sm')}Sayfaya git</a>` : ''}</details>`;
+}
+function spFaqHtml() {
+  const F = SP.cfg.faq || [];
+  if (!F.length) return '';
+  return html`<div class="card card-pad stack sp-faq" style="margin-bottom:16px">
+    <div class="row wrap" style="gap:10px;align-items:center"><h3 class="ph" style="margin:0">${icon('help', 'sm')} Sık sorulanlar · Ne nereden yapılır</h3><span class="grow"></span>
+      <input class="input" type="search" id="spFaqQ" data-input="sp-faq-q" placeholder="Ara: şifre, bildirim, devret, liste…" value="${SP.faqQ || ''}" style="max-width:320px"></div>
+    <div id="spFaqBody">${spFaqBody()}</div></div>`;
+}
+function spFold(s) { return String(s || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i'); }
+function spFaqBody() {
+  const q = spFold(SP.faqQ).trim();
+  const F = (SP.cfg.faq || []).filter((x) => !q || q.split(/\s+/).every((w) => spFold(x.q + ' ' + x.a + ' ' + x.cat).includes(w)));
+  if (!F.length) return html`<p class="small muted">Bulunamadı. “Yeni talep” ile yazın.</p>`;
+  const cats = [];
+  F.forEach((x) => { if (!cats.includes(x.cat)) cats.push(x.cat); });
+  return html`${cats.map((c) => html`<details class="sp-cat" ${q ? raw('open') : ''}><summary><b>${c}</b> <span class="tiny faint">${F.filter((x) => x.cat === c).length}</span></summary>
+    <div class="sp-cat-b">${F.filter((x) => x.cat === c).map((x) => spTipHtml(x, !!q && F.length <= 3))}</div></details>`)}`;
+}
+CHANGE['sp-faq-q'] = (el) => { SP.faqQ = el.value; const b = $('#spFaqBody'); if (b) setHTML(b, spFaqBody()); };
+
 /* ---------------- Yeni talep ---------------- */
 
 function spNew(view) {
@@ -146,11 +174,12 @@ function spNew(view) {
         <span class="grow"><b>${x.name}</b><span class="tiny faint">${x.route === 'unit' ? 'Birim sorumlunuza gider' : 'dupcii destek ekibine gider'}</span></span>${icon('chevR', 'sm')}</button>`)}</div></div>`);
     return;
   }
-  const showForm = SP.write || !tp.tips.length;
+  const tips = spTips(tp);
+  const showForm = SP.write || !tips.length;
   setHTML(view, html`${head}<div class="card card-pad stack sp-new">
     <div class="row" style="gap:10px"><span class="sp-ic">${icon(SP_TOPIC_IC[tp.key] || 'help')}</span><div class="grow"><b>${tp.name}</b><div class="tiny faint">${tp.route === 'unit' ? 'Bu talep birim sorumlunuza gider; çözemezse dupcii destek ekibine iletir.' : 'Bu talep dupcii destek ekibine (sistem yöneticisi) gider.'}</div></div>
       <button class="btn sm ghost" data-act="sp-topic" data-k="">Konuyu değiştir</button></div>
-    ${tp.tips.length ? html`<div class="sp-tips"><div class="tiny faint" style="margin-bottom:6px">Önce bunlara bakın, belki hemen çözülür:</div>${tp.tips.map((x) => html`<details class="sp-tip"><summary>${x.q}</summary><p class="small">${x.a}</p>${x.link ? html`<a class="btn sm" href="${x.link}">${icon('chevR', 'sm')}Sayfaya git</a>` : ''}</details>`)}
+    ${tips.length ? html`<div class="sp-tips"><div class="tiny faint" style="margin-bottom:6px">Önce bunlara bakın, belki hemen çözülür:</div>${tips.map((x) => spTipHtml(x))}
       ${showForm ? '' : html`<div class="row wrap" style="gap:8px;margin-top:10px"><button class="btn" data-act="sp-solved">${icon('check', 'sm')}Sorunum çözüldü</button><button class="btn primary" data-act="sp-write">${icon('chat', 'sm')}Yine de yazmak istiyorum</button></div>`}</div>` : ''}
     ${showForm ? html`<form class="stack" data-form="sp-create" id="spF">
       <div class="field"><label>Başlık</label><input class="input" name="subject" maxlength="160" required placeholder="${C.track === 'lead' ? 'Örn: Aralık listesi yüklenince 3 kişi görünmüyor' : 'Örn: Takvimimde aralık nöbetlerim yok'}"></div>

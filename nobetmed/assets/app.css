@@ -1841,3 +1841,11 @@ a.in-link { font-weight: 600; }
 .upd-bar .spinner.sm { width: 16px; height: 16px; border-width: 2px; flex: none; }
 .up-card .up-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .up-steps { margin: 0; padding-left: 18px; color: var(--text-2, #4a5a63); font-size: 13.5px; }
+
+/* Sık sorulanlar (4.25) */
+.sp-sec-h { font-size: 15px; margin: 4px 0 10px; }
+.sp-cat { border-top: 1px solid var(--border); padding: 8px 0; }
+.sp-cat:first-child { border-top: 0; }
+.sp-cat > summary { cursor: pointer; font-size: 14.5px; }
+.sp-cat-b { padding: 4px 0 0 14px; }
+.sp-faq .input[type=search] { flex: 1 1 200px; }

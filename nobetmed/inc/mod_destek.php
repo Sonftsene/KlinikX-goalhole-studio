@@ -17,51 +17,33 @@ const SP_TRACKS = ['lead' => 'Sorumlu', 'user' => 'Kullanıcı', 'public' => 'Gi
 const SP_STATUS = ['open' => 'Yanıt bekliyor', 'answered' => 'Yanıtlandı', 'closed' => 'Kapandı'];
 const SP_FILE_MAX = 4 * 1024 * 1024;
 
-/** Konular: [ad, yönlendirme sa|unit, hazır çözümler [[soru, yanıt, bağlantı?]]] */
+require_once __DIR__ . '/destek_kb.php';
+
+/**
+ * Konular: [ad, yönlendirme sa|unit, görünme koşulu (destek_kb.php sp_kb_ok ile aynı)].
+ * Hazır çözümler konuya göre bilgi bankasından (sp_kb) gelir ve kişinin yetkisine göre süzülür.
+ */
 function sp_topics(): array
 {
     return [
         'lead' => [
-            'kurulum' => ['Kurulum ve ayarlar', 'sa', [
-                ['E-posta bildirimleri gitmiyor', 'Ayarlar › Bildirimler’de e-posta (SMTP) bilgilerini girip “Deneme e-postası” gönderin. Hostinger’da e-posta hesabı açılmış olmalı.', '#/yonetim/ayarlar'],
-                ['Hatırlatmalar zamanında gelmiyor', 'Zamanlanmış görev (cron) kurulmalı: Hostinger › Gelişmiş › Cron Jobs; kurulum rehberinin 13. bölümü.', null],
-            ]],
-            'liste' => ['Excel / nöbet listesi yükleme', 'sa', [
-                ['Liste yüklendi ama kişiler nöbetini göremiyor', 'Listedeki ad, kişinin portaldaki adıyla aynı olmalı (büyük-küçük harf önemsiz). Kişi Hesabım › Profil’den adını düzeltebilir.', '#/nobet'],
-                ['Yeni ayın listesini nasıl yüklerim?', 'Nöbet listesini açın › “Yeni sürüm yükle”. Eski sürümler saklanır, istediğinizde geri dönebilirsiniz.', '#/nobet'],
-            ]],
-            'kullanici' => ['Kullanıcılar, roller ve yetkiler', 'sa', [
-                ['Ekibi nasıl davet ederim?', 'Yönetim › Kullanıcılar › Davet et: QR kod ya da kişiye özel bağlantı gönderin.', '#/yonetim/kullanicilar'],
-                ['Birine sadece bazı modülleri yönetme yetkisi vermek', 'Ayarlar › Güvenlik › Roller’den birime özel rol tanımlayıp kişiye verin.', '#/yonetim/ayarlar'],
-            ]],
-            'abonelik' => ['Abonelik ve ödeme', 'sa', [
-                ['Paketimi ve ödeme durumunu görmek', 'Ayarlar › Abonelik sayfasında paket, bitiş tarihi ve ödemeler görünür.', '#/abonelik'],
-            ]],
-            'hata' => ['Hata bildirimi', 'sa', [
-                ['Sayfa açılmıyor ya da eski görünüyor', 'Sayfayı yenileyin; telefonda uygulamayı tamamen kapatıp açın. Sorun sürerse ekran görüntüsüyle yazın.', null],
-            ]],
+            'kurulum' => ['Birim ayarları', 'sa', ['role' => 'admin']],
+            'kullanici' => ['Kullanıcılar, roller ve yetkiler', 'sa', ['role' => 'admin']],
+            'liste' => ['Excel / nöbet listesi yükleme', 'sa', ['manage' => 'nobet']],
+            'yonetim' => ['Yönettiğim modüller (istek dönemi, çağrı, taraf, rehber…)', 'sa', []],
+            'abonelik' => ['Abonelik ve ödeme', 'sa', ['role' => 'admin', 'billing' => true]],
+            'giris' => ['Kendi hesabım ve girişim', 'sa', []],
+            'bildirim' => ['Bildirim ya da e-posta gelmiyor', 'sa', []],
+            'hata' => ['Hata bildirimi', 'sa', []],
             'oneri' => ['Öneri / yeni özellik isteği', 'sa', []],
             'diger' => ['Diğer', 'sa', []],
         ],
         'user' => [
-            'giris' => ['Giriş, şifre ve hesap', 'sa', [
-                ['Şifremi unuttum', 'Çıkış yapıp giriş ekranındaki “Şifremi unuttum” bağlantısıyla e-postanıza yeni şifre bağlantısı gelir. E-posta gelmezse birim yöneticiniz geçici şifre verebilir.', null],
-                ['Parmak iziyle / yüz tanımayla giriş', 'Hesabım › Güvenlik › “Parmak izi / yüz tanıma ekle”.', '#/profil/guvenlik'],
-            ]],
-            'nobet' => ['Nöbetim görünmüyor ya da yanlış', 'unit', [
-                ['Takvimim boş görünüyor', 'Nöbet listesindeki adınız portaldaki adınızla aynı olmalı. Hesabım › Profil’den adınızı kontrol edin; Excel liste sayfasında “Sadece ben” ile de bakabilirsiniz.', '#/profil/profil'],
-                ['Değişim yaptım ama listede eski hali duruyor', 'Kabul edilen değişimler sorumlu Excel’e işleyene kadar takviminizde “değişim” olarak görünür.', '#/nobetim'],
-            ]],
-            'birim' => ['İzin, istek, ilan ve değişimler', 'unit', [
-                ['Nöbet isteğimi nereye yazarım?', 'Nöbet › İstekler sayfasında açık dönem varsa günleri seçip kaydedin; son gün dönemin üstünde yazar.', '#/istekler'],
-            ]],
-            'bildirim' => ['Bildirim ya da e-posta gelmiyor', 'sa', [
-                ['Telefona bildirim gelmiyor', 'Hesabım › Bildirimler’den telefon bildirimini açın. iPhone’da önce Safari’de “Paylaş › Ana Ekrana Ekle” ile uygulamayı ekleyin.', '#/profil/bildirim'],
-                ['E-posta gelmiyor', 'Gereksiz (spam) klasörüne bakın; Hesabım › Bildirimler’de e-posta tercihlerinizi kontrol edin.', '#/profil/bildirim'],
-            ]],
-            'hata' => ['Uygulama hatası', 'sa', [
-                ['Sayfa açılmıyor ya da eski görünüyor', 'Sayfayı yenileyin; telefonda uygulamayı tamamen kapatıp açın. Sorun sürerse ekran görüntüsüyle yazın.', null],
-            ]],
+            'giris' => ['Giriş, şifre ve hesap', 'sa', []],
+            'nobet' => ['Nöbetim görünmüyor ya da yanlış', 'unit', ['mod' => 'nobet']],
+            'birim' => ['İzin, istek, ilan ve değişimler', 'unit', ['mod' => 'nobet']],
+            'bildirim' => ['Bildirim ya da e-posta gelmiyor', 'sa', []],
+            'hata' => ['Uygulama hatası', 'sa', []],
             'oneri' => ['Öneri / yeni özellik isteği', 'sa', []],
             'diger' => ['Diğer (birim sorumlusuna)', 'unit', []],
         ],
@@ -306,14 +288,16 @@ function a_sp_cfg(): void
 {
     $me = need_user();
     [$role, $track] = sp_real($me);
-    $tp = sp_topics()[$track];
     [, , $hosp, $unit] = sp_here();
+    // Hazır çözümler ve "Sık sorulanlar": kişinin şu anki (rol önizlemesinde önizlenen) yetkisine göre
+    $faq = sp_kb_for($me);
     $topics = [];
-    foreach ($tp as $k => [$name, $route, $tips]) {
-        $r = sp_m() ? $route : 'unit';
-        $topics[] = ['key' => $k, 'name' => $name, 'route' => $r, 'tips' => array_map(fn($x) => ['q' => $x[0], 'a' => $x[1], 'link' => $x[2]], $tips)];
+    foreach (sp_topics()[$track] as $k => [$name, $route, $cond]) {
+        if (!sp_kb_ok($me, $cond)) continue;
+        $topics[] = ['key' => $k, 'name' => $name, 'route' => sp_m() ? $route : 'unit',
+            'tips' => array_values(array_map(fn($x) => $x['id'], array_filter($faq, fn($x) => in_array($k, $x['topics'], true))))];
     }
-    out(['track' => $track, 'topics' => $topics, 'cant' => sp_cant($me), 'handler' => sp_unit_handler($me), 'multi' => sp_m(),
+    out(['track' => $track, 'topics' => $topics, 'faq' => $faq, 'cant' => sp_cant($me), 'handler' => sp_unit_handler($me), 'multi' => sp_m(),
         'who' => ['hospital' => $hosp, 'unit' => $unit, 'role' => sp_role_label($role), 'name' => $me['name']]]);
 }
 
@@ -362,6 +346,7 @@ function a_sp_create(): void
     [$role, $track] = sp_real($me);
     $topic = s('topic', 20);
     $tp = sp_topics()[$track][$topic] ?? fail('Konu seçin.');
+    if (!sp_kb_ok(array_merge($me, ['role' => $role]), $tp[2])) fail('Konu seçin.');
     $subject = trim(s('subject', 160));
     if (mb_strlen($subject) < 3) fail('Kısa bir başlık yazın.');
     $body = sp_text(s('body', 4000));

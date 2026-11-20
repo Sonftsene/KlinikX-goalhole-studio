@@ -69,6 +69,10 @@ try {
     if (!pg.msgs.length) fail('giriş yapamayanın talebi okunamadı');
     const in2 = await apiCall(A.p, 'sp.inbox');
     if (!in2.items.some((x) => x.track === 'public')) fail('giriş yapamayanın talebi yöneticiye düşmedi');
+    const kb = await apiCall(A.p, 'sp.cfg');
+    if (!kb.faq.some((x) => /cron|Cron Jobs/i.test(x.a)) || !kb.faq.some((x) => /Güncelleme/.test(x.a))) fail('tek birimde yöneticiye sunucu / güncelleme çözümleri gelmedi');
+    const ek = await apiCall(E.p, 'sp.cfg');
+    if (ek.faq.some((x) => /cron|Cron Jobs|Güncelleme:/i.test(x.a))) fail('tek birimde üyeye sunucu çözümü gösteriliyor');
     step('tek birimli kurulum: üye ve yayıncı talepleri birim yöneticisine gitti; yönetici kendine talep açamıyor; yanıtla-kapat; giriş yapamayanın talebi yöneticide');
   }
 } catch (e) {

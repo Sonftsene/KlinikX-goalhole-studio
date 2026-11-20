@@ -165,7 +165,7 @@ try {
   const bc = await apiCall(B.p, 'sp.cfg');
   if (bc.track !== 'lead' || !bc.topics.some((x) => x.key === 'liste') || bc.topics.some((x) => x.route !== 'sa')) fail('yayıncıya sorumlu konuları gelmedi: ' + JSON.stringify(bc.topics.map((x) => x.key + ':' + x.route)));
   const t3 = await apiCall(B.p, 'sp.create', { topic: 'liste', subject: 'Excel yüklenince iki kişi eksik', body: 'Aralık listesini yükledim, iki kişinin satırı okunmadı.', ctx: { page: '#/nobet', title: 'Excel liste' } });
-  const t4 = await apiCall(A.p, 'sp.create', { topic: 'abonelik', subject: 'Fatura bilgisi', body: 'Faturayı kurum adına nasıl alırım?' });
+  const t4 = await apiCall(A.p, 'sp.create', { topic: 'kurulum', subject: 'Duyuru bandı rengi', body: 'Duyuru bandının rengini nasıl değiştiririm?' });
   if (t3.route !== 'sa' || t4.route !== 'sa') fail('sorumlu talepleri sistem yöneticisine gitmedi');
   const inbox = await apiCall(A.p, 'sp.inbox');
   if (inbox.items.some((x) => x.id === t3.ticket.id)) fail('yayıncının sorumlu talebi birim yöneticisinin kutusuna düştü');
@@ -175,7 +175,46 @@ try {
   if ((await getStatus(B.p, BASE + 'api.php?action=sp.file&id=' + own.file)) !== 404) fail('başka kişi ekran görüntüsünü indirebildi');
   if ((await getStatus(E.p, BASE + 'api.php?action=sp.file&id=' + own.file)) !== 200) fail('kişi kendi ekran görüntüsünü açamadı');
   void st;
-  step('sorumlu yolu: yayıncı ve yönetici kurulum / liste / abonelik konularında sistem yöneticisine yazdı; başkasının talebi ve ekran görüntüsü açılmıyor');
+  step('sorumlu yolu: yayıncı ve yönetici liste ve birim ayarları konularında sistem yöneticisine yazdı; başkasının talebi ve ekran görüntüsü açılmıyor');
+
+  // ---- 3b) Hazır çözümler ve sık sorulanlar yetkiye göre ----
+  const cats = (c) => [...new Set(c.faq.map((x) => x.cat))];
+  const has = (c, re) => c.faq.some((x) => re.test(x.q + ' ' + x.a));
+  const ec = await apiCall(E.p, 'sp.cfg');
+  if (cats(ec).some((k) => /Birim yönetimi|Sunucu|Sorumlu işleri/.test(k))) fail('üyeye yönetici / sorumlu / sunucu çözümleri gösteriliyor: ' + cats(ec).join(', '));
+  if (has(ec, /cron|Cron Jobs|Hostinger|SMTP/i)) fail('üyeye sunucu çözümü gösteriliyor');
+  if (!has(ec, /Şifremi unuttum/) || !has(ec, /Devret/)) fail('üyenin kendi yapabileceği çözümler eksik');
+  if (ec.topics.some((t) => ['kurulum', 'kullanici', 'abonelik', 'liste'].includes(t.key))) fail('üyeye sorumlu konuları açıldı');
+  const bc2 = await apiCall(B.p, 'sp.cfg');
+  if (!has(bc2, /Yeni ayın nöbet listesini yüklemek/) || !has(bc2, /Nöbet isteği dönemi açmak/)) fail('yayıncıya yönettiği modüllerin çözümleri gelmedi');
+  if (cats(bc2).some((k) => /Birim yönetimi|Sunucu/.test(k))) fail('yayıncıya yönetici / sunucu çözümleri gösteriliyor: ' + cats(bc2).join(', '));
+  if (bc2.topics.some((t) => ['kurulum', 'kullanici', 'abonelik'].includes(t.key)) || !bc2.topics.some((t) => t.key === 'liste')) fail('yayıncı konuları yanlış: ' + bc2.topics.map((t) => t.key).join(','));
+  if (!has(bc2, /Şifremi değiştirmek/)) fail('yayıncı kendi (alt) yetkisindeki çözümleri görmüyor');
+  const ac = await apiCall(A.p, 'sp.cfg');
+  if (!has(ac, /Ekibi davet etmek/) || !has(ac, /modül .*görünmüyor/)) fail('yöneticiye birim yönetimi çözümleri gelmedi');
+  if (has(ac, /cron|Cron Jobs/i) || cats(ac).includes('Sunucu ve güncelleme')) fail('çok birimli kurulumda birim yöneticisine sunucu (cron) çözümü gösteriliyor');
+  // Birime özel rol: üye + "İstekler: yönetir" → yalnız o modülün sorumlu çözümü
+  php(`nm_tenant_use(nm_tenant_default()); q("INSERT INTO roles (name, perms, sort, created_at) VALUES ('İstek sorumlusu (test)', ?, 0, ?)", [json_encode(['istekler' => 'manage']), now()]); $id = (int)insert_id(); q('UPDATE users SET role_id = ? WHERE email = ?', [$id, 'elif@test.com']);`);
+  const er = await apiCall(E.p, 'sp.cfg');
+  if (!has(er, /Nöbet isteği dönemi açmak/) || has(er, /Yeni ayın nöbet listesini yüklemek/)) fail('özel rolde yalnız yönettiği modülün çözümü gelmedi');
+  php(`nm_tenant_use(nm_tenant_default()); $id = (int)val("SELECT id FROM roles WHERE name = 'İstek sorumlusu (test)'"); q('UPDATE users SET role_id = NULL WHERE role_id = ?', [$id]); q('DELETE FROM roles WHERE id = ?', [$id]);`);
+  // Rol önizlemesinde yönetici üyenin gördüğünü görür
+  await apiCall(A.p, 'me.viewas', { role: 'member' });
+  const av = await apiCall(A.p, 'sp.cfg');
+  await apiCall(A.p, 'me.viewas', { role: '' });
+  if (cats(av).some((k) => /Birim yönetimi|Sorumlu işleri/.test(k))) fail('üye önizlemesinde yönetici çözümleri görünüyor');
+  // Arayüz: sık sorulanlarda arama
+  await E.p.goto(BASE + '#/destek');
+  await E.p.locator('#spFaqQ').waitFor();
+  await E.p.fill('#spFaqQ', 'bildirim gelmiyor');
+  await E.p.waitForTimeout(300);
+  const fq = await E.p.locator('#spFaqBody').innerText();
+  if (!/Telefona bildirim gelmiyor/.test(fq) || /Şifremi unuttum/.test(fq)) fail('sık sorulanlarda arama çalışmıyor: ' + fq.slice(0, 200));
+  await E.p.screenshot({ path: path.join(OUT, 'sp-sss-uye.png'), fullPage: true });
+  await A.p.goto(BASE + '#/destek');
+  await A.p.locator('#spFaqBody').waitFor();
+  await A.p.screenshot({ path: path.join(OUT, 'sp-sss-yonetici.png'), fullPage: true });
+  step(`hazır çözümler yetkiye göre: üye ${ec.faq.length} madde (yönetim / sunucu yok), yayıncı ${bc2.faq.length} (yönettiği modüller + kendi hesabı), yönetici ${ac.faq.length} (cron yok: çok birimlide sistem yöneticisinin işi); özel rol yalnız yönettiği modülü görüyor; önizlemede üyenin gördüğü; arama çalışıyor`);
 
   // ---- 4) Sistem yöneticisi ----
   const SA = await ctx('sistem');
