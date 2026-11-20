@@ -1759,3 +1759,28 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .sh-log summary { cursor: pointer; font-size: 12.5px; color: var(--text-3); }
 .sh-log pre { margin: 6px 0 0; padding: 10px; border-radius: 9px; background: var(--surface-2); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
 .sys-tabs { flex-wrap: wrap; height: auto; }
+
+/* Duyuru bandı ve paylaşma (4.20) */
+.banner { align-items: center; flex-wrap: wrap; row-gap: 6px; }
+.banner.amber { background: #b45d0a; color: #fff; }
+.banner.violet { background: linear-gradient(90deg, #4b3fb8, #7c4fd6); color: #fff; }
+.banner .bn-t { min-width: 0; overflow-wrap: anywhere; }
+.banner .bn-t a { color: inherit; text-decoration: underline; text-underline-offset: 2px; font-weight: 700; }
+.banner .bn-btn { flex: none; padding: 5px 12px; border-radius: 8px; background: rgba(255, 255, 255, .2); color: inherit; font-weight: 700; font-size: 12.5px; text-decoration: none; white-space: nowrap; }
+.banner .bn-btn:hover { background: rgba(255, 255, 255, .3); }
+.bn-prev .banner { border-radius: 10px; padding: 10px 14px; }
+.bn-tones { display: flex; flex-wrap: wrap; gap: 6px; }
+.bn-tone { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 9px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #fff; }
+.bn-tone input { accent-color: #fff; }
+.bn-tone.danger { background: #c9354f; } .bn-tone.amber { background: #b45d0a; } .bn-tone.info { background: #2560b8; } .bn-tone.success { background: #157a45; } .bn-tone.violet { background: #5b45c4; }
+.bn-tone:has(input:checked) { outline: 3px solid color-mix(in srgb, var(--text) 25%, transparent); outline-offset: 1px; }
+.lnk-row { display: flex; justify-content: flex-end; margin-top: 4px; }
+.pg-h1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pg-share { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.sh-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sh-acts .btn { justify-content: center; }
+.sh-prev { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; border: 1px solid var(--border); margin: 0 auto; }
+.sh-list { max-height: 300px; overflow: auto; }
+.ch-int { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-text); font-weight: 600; text-decoration: none; }
+.ch-int svg.i { width: 13px; height: 13px; }
+a.in-link { font-weight: 600; }

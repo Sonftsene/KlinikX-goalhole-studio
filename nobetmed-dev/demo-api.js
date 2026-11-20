@@ -136,6 +136,8 @@
   if (!db || !db.users) db = seed();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db, (k, v) => (k === 'blobUrl' ? undefined : v))); } catch (e) { /* kota */ } };
   save();
+  function demoBannerCfg() { const st = db.settings; return { on: !!st.banner_on, text: st.banner_text || '', tone: st.banner_tone || 'danger', from: st.banner_from || '', until: st.banner_until || '', aud: st.banner_aud || 'all', close: st.banner_close || 'session', btn_text: st.banner_btn_text || '', btn_url: st.banner_btn_url || '' }; }
+  function demoBanner() { const c = demoBannerCfg(); return c.on && c.text ? { text: c.text, tone: c.tone, close: c.close, btn_text: c.btn_text, btn_url: c.btn_url, ver: 'demo' } : null; }
 
   const me = () => { const u = db.users.find((x) => x.id === db.me); return u && u.status === 'active' ? u : null; };
   const needUser = () => me() || err('Bu işlem için giriş yapmalısınız.', 401);
@@ -216,7 +218,7 @@
       const u = me();
       const out = { csrf: 'demo', setup_needed: false, me: u ? userOut(u) : null, settings: { org_name: db.settings.org_name, registration: db.settings.registration, brand: brandOut() }, google_client_id: '', upload_max_mb: 0, mail_ready: mailReady(), ...lists() };
       if (u) {
-        Object.assign(out.settings, { push_ready: false, shift_codes: db.settings.shift_codes || null, banner_on: db.settings.banner_on, banner_text: db.settings.banner_text, banner_tone: db.settings.banner_tone, allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
+        Object.assign(out.settings, { push_ready: false, shift_codes: db.settings.shift_codes || null, banner: demoBanner(), banner_cfg: demoBannerCfg(), allow_guest: !!db.settings.allow_guest, mail_ready: mailReady(), notify_post: evOn('notify_post') });
         out.counts = counts(u);
         out.rosters = rosterList();
         out.people = db.users.filter((x) => x.status === 'active').map((x) => ({ id: x.id, name: x.name, avatar: x.avatar || null, title_id: x.title_id, unit_id: x.unit_id })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -449,11 +451,11 @@
       ['digest_hour', 'shift_remind_hour', 'auto_remind_days', 'review_warn_days'].forEach((k) => { if (k in d) st[k] = +d[k] || 0; });
       if (d.default_notify_mode) st.default_notify_mode = d.default_notify_mode;
       audit('settings.save', 'Ayarlar');
-      ['banner_text', 'banner_tone', 'mail_host', 'mail_secure', 'mail_user', 'mail_from', 'mail_from_name'].forEach((k) => { if (k in d) st[k] = d[k]; });
+      ['banner_text', 'banner_tone', 'banner_close', 'banner_btn_text', 'banner_btn_url', 'banner_from', 'banner_until', 'banner_aud', 'mail_host', 'mail_secure', 'mail_user', 'mail_from', 'mail_from_name'].forEach((k) => { if (k in d) st[k] = d[k]; });
       if ('mail_port' in d) st.mail_port = +d.mail_port || 465;
       EVENTS.forEach(([k]) => { if (k in d) st.events[k] = !!d[k]; });
       if (st.mail_on && !st.mail_from) err('E-posta bildirimleri için gönderen e-posta adresini girin.');
-      return { admin: adminSettings() };
+      return { admin: adminSettings(), banner: demoBanner(), banner_cfg: demoBannerCfg() };
     },
     'settings.get'() { needAdmin(); return { admin: adminSettings() }; },
     'mail.test'() { needAdmin(); logMail('dupcii test e-postası', 1); return { message: 'Önizlemede gerçek e-posta gönderilmez. Sitenizde test e-postası ' + me().email + ' adresine gider.' }; },

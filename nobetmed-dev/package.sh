@@ -6,8 +6,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$(realpath -m "${1:-$here/dupcii-hostinger.zip}")"
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
-# data/, uploads/ ve config.php pakette yok: güncellemede dosya yöneticisi çakışma yaşamaz, veriler ve ayarlar ezilmez
-(cd "$here/../nobetmed" && tar cf - --exclude=./data --exclude=./uploads --exclude=./config.php --exclude=./.gitignore .) | (cd "$tmp" && tar xf -)
+# KURULUM.md zip dışında (sunucuda .md zaten kapalı; zip yanına ayrı kopyalanır). data/, uploads/ ve config.php pakette yok: güncellemede dosya yöneticisi çakışma yaşamaz, veriler ve ayarlar ezilmez
+(cd "$here/../nobetmed" && tar cf - --exclude=./data --exclude=./uploads --exclude=./config.php --exclude=./.gitignore --exclude=./KURULUM.md .) | (cd "$tmp" && tar xf -)
 # Paketteki PHP dosyalarından açıklama ve boşluklar atılır (php -w, PHP'nin kendi ayrıştırıcısıyla; kod aynen kalır).
 # Kaynak klasörde açıklamalar durur. İçinde "?>" geçen (HTML karışık) dosyalara ve kullanıcının okuyup düzenlediği
 # config.sample.php'ye dokunulmaz.
@@ -39,4 +39,5 @@ if [ "${PARTS:-}" = 1 ]; then
   zip -9 -r -q "$base-uygulama.zip" . -x 'assets/vendor/*'
   zip -9 -r -q "$base-kutuphaneler.zip" assets/vendor
 fi
+cp "$here/../nobetmed/KURULUM.md" "$(dirname "$out")/KURULUM.md"
 echo "$out"

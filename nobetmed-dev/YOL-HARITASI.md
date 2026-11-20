@@ -89,6 +89,9 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.19 — Görselli ayrıntılı tanıtım ✓ (4.19.0)
 - Tanıtım sayfası baştan: telefon görünümü, 8 özellik bölümü (kodla çizilmiş arayüz görselleri), roller, güvenlik, nasıl başlanır, fiyatlar, SSS.
 
+### 4.20 — Duyuru bandı ayarları, bağlantı paylaşma ✓ (4.20.0)
+- Band: 5 renk, zaman aralığı, hedef kitle, kapatma seçenekleri, düğme, metinde bağlantı, önizleme. Sayfa başlığında Paylaş (kopyala / paylaş / WhatsApp / sohbet); metinde [yazı](adres); site içi bağlantılar aynı sekmede ve sohbette sayfa adıyla; Taraf görseli sohbette.
+
 ### Sırada — kullanıcının aklında tutulmasını istediği fikirler
 1. **Davet et, kazan** (kendi kendine birim açma 4.16'da başvuru olarak geldi): birim sorumlusu başka birim/hastane davet eder; davet edilen birim kurulunca iki taraf da 1 ay ücretsiz (bl_extend). Davet kodu, kim kimi getirdi raporu (sistem yöneticisi), tanıtım sayfasından "biriminizi açın" (deneme kendiliğinden başlar, sistem yöneticisi onayı ayarlanabilir).
 2. **Gerçekleşen saat (puantaj) — küçültülmüş:** Excel listesinde aylık toplam zaten yazıyor; tam puantaj modülü gerekmiyor. Yalnız Excel'in bilmediği fark: değişim, devir, parça (gündüz/gece) ve ekstra nöbetlerden sonra kişinin **gerçekleşen** saati ve listedeki toplamdan farkı (kişi kendi görür, sorumlu tek tabloda görür, Excel'e aktarır).

@@ -35,14 +35,27 @@ function renderShell() {
   updateNotifBadge();
 }
 
+const BANNER_ICON = { danger: 'alert', amber: 'alert', info: 'info', success: 'checkCircle', violet: 'megaphone' };
+function bannerHtml(b) {
+  return html`<div class="banner ${b.tone || 'danger'}">${icon(BANNER_ICON[b.tone] || 'alert')}<span class="grow bn-t">${raw(typeof richText === 'function' ? richText(b.text) : esc(b.text))}</span>
+    ${b.btn_text && b.btn_url ? html`<a class="bn-btn" href="${b.btn_url}" ${/^#\//.test(b.btn_url) ? '' : raw('target="_blank" rel="noopener noreferrer"')}>${b.btn_text}</a>` : ''}
+    ${b.close !== 'none' ? html`<button class="x" data-act="hide-banner" aria-label="Gizle">${icon('x', 'sm')}</button>` : ''}</div>`;
+}
 function renderBanner() {
   const slot = $('#bannerSlot');
   if (!slot) return;
-  const st = S.settings;
-  if (!st.banner_on || !st.banner_text || S.bannerHidden) return setHTML(slot, '');
-  setHTML(slot, html`<div class="banner ${st.banner_tone || 'danger'}">${icon(st.banner_tone === 'success' ? 'checkCircle' : st.banner_tone === 'info' ? 'info' : 'alert')}<span>${st.banner_text}</span><button class="x" data-act="hide-banner" aria-label="Gizle">${icon('x', 'sm')}</button></div>`);
+  const b = S.settings.banner;
+  let hid = S.bannerHidden;
+  if (b && b.close === 'until') { try { hid = hid || localStorage.getItem('nm-bn') === b.ver; } catch (e) { /* */ } }
+  if (!b || (hid && b.close !== 'none')) return setHTML(slot, '');
+  setHTML(slot, bannerHtml(b));
 }
-ACT['hide-banner'] = () => { S.bannerHidden = true; renderBanner(); };
+ACT['hide-banner'] = () => {
+  S.bannerHidden = true;
+  const b = S.settings.banner;
+  if (b && b.close === 'until') { try { localStorage.setItem('nm-bn', b.ver); } catch (e) { /* */ } }
+  renderBanner();
+};
 
 function currentRoute() {
   const h = location.hash.replace(/^#\/?/, '');
@@ -697,7 +710,7 @@ function openComposer(post) {
           <div class="field"><label>Bölüm</label><select class="select" name="category_id" required>${options(S.categories, defaultCat)}</select></div>
           <div class="field"><label>Kimler görsün?</label><select class="select" name="unit_id">${options(S.units, post ? post.unit_id : null, 'Tüm birimler')}</select></div>
         </div>
-        <div class="field"><label>İçerik</label><textarea class="textarea" name="body" required maxlength="20000" placeholder="Açıklama, talimat veya duyuru metni…">${post ? post.body : ''}</textarea></div>
+        <div class="field"><label>İçerik</label><textarea class="textarea" name="body" required maxlength="20000" placeholder="Açıklama, talimat veya duyuru metni…">${post ? post.body : ''}</textarea>${typeof linkTool === 'function' ? html`<div class="lnk-row">${linkTool('body')}</div>` : ''}</div>
         <div class="field">
           <label>Ekler</label>
           <label class="dropzone" id="dropzone">

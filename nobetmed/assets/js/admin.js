@@ -335,15 +335,25 @@ async function drawSettings(body) {
     </div>
 
     <div class="card card-pad stack" data-sec="genel">
-      <div><h3 style="font-size:15px">Duyuru bandı</h3><p class="small muted">Tüm üyelerin ekranının en üstünde görünen kısa uyarı.</p></div>
-      ${SW('banner_on', st.banner_on, 'Bandı göster', '')}
-      <div class="field"><label>Metin</label><input class="input" name="banner_text" maxlength="300" value="${st.banner_text || ''}" placeholder="Örn: 6 Kasım Cuma 09:30'da kalite denetimi yapılacaktır."></div>
-      <div class="field"><label>Renk</label><select class="select" name="banner_tone">${[['danger', 'Kırmızı — acil'], ['info', 'Mavi — bilgi'], ['success', 'Yeşil — olumlu']].map(([k, l]) => html`<option value="${k}" ${st.banner_tone === k ? raw('selected') : ''}>${l}</option>`)}</select></div>
+      <div><h3 style="font-size:15px">Duyuru bandı</h3><p class="small muted">Ekranın en üstünde görünen kısa uyarı. Metindeki bir kelimeye sayfa ya da web bağlantısı verebilirsiniz.</p></div>
+      ${(() => { const bc = st.banner_cfg || {}; return html`
+      ${SW('banner_on', bc.on, 'Bandı göster', 'Kapalıyken kimse görmez; aşağıdaki zaman aralığı da uygulanır.')}
+      <div class="field"><label>Metin</label><textarea class="textarea" name="banner_text" maxlength="600" rows="2" data-input="bn-prev" placeholder="Örn: 6 Kasım Cuma 09:30'da kalite denetimi var. [Ayrıntılar](#/b/1)">${bc.text || ''}</textarea><div class="lnk-row">${typeof linkTool === 'function' ? linkTool('banner_text') : ''}</div></div>
+      <div class="field"><label>Renk</label><div class="bn-tones">${[['danger', 'Kırmızı — acil'], ['amber', 'Turuncu — uyarı'], ['info', 'Mavi — bilgi'], ['success', 'Yeşil — olumlu'], ['violet', 'Mor — duyuru']].map(([k, l]) => html`<label class="bn-tone ${k}"><input type="radio" name="banner_tone" value="${k}" data-change="bn-prev" ${(bc.tone || 'danger') === k ? raw('checked') : ''}><span>${l}</span></label>`)}</div></div>
+      <div class="grid2"><div class="field"><label>Düğme yazısı <span class="faint">(isteğe bağlı)</span></label><input class="input" name="banner_btn_text" maxlength="40" value="${bc.btn_text || ''}" data-input="bn-prev" placeholder="Örn: Ayrıntılar"></div>
+        <div class="field"><label>Düğme bağlantısı</label><select class="select" id="bnBtnPick" data-change="bn-btn-pick"><option value="">Seçin ya da aşağıya yazın</option>${(typeof sitePages === 'function' ? sitePages() : []).map((p) => html`<option value="${p.href}">${p.label}</option>`)}</select>
+          <input class="input" name="banner_btn_url" value="${bc.btn_url || ''}" data-input="bn-prev" placeholder="#/sayfa ya da https://…" style="margin-top:6px"></div></div>
+      <div class="grid2"><div class="field"><label>Başlangıç <span class="faint">(boşsa hemen)</span></label><input class="input" type="datetime-local" name="banner_from" value="${(bc.from || '').replace(' ', 'T')}"></div>
+        <div class="field"><label>Bitiş <span class="faint">(boşsa kapatana kadar)</span></label><input class="input" type="datetime-local" name="banner_until" value="${(bc.until || '').replace(' ', 'T')}"></div></div>
+      <div class="grid2"><div class="field"><label>Kimler görsün</label><select class="select" name="banner_aud"><option value="all" ${bc.aud !== 'staff' ? raw('selected') : ''}>Herkes</option><option value="staff" ${bc.aud === 'staff' ? raw('selected') : ''}>Yalnız yöneticiler ve yayıncılar</option></select></div>
+        <div class="field"><label>Kapatma</label><select class="select" name="banner_close" data-change="bn-prev">${[['session', 'Kapatılabilir, sayfa yenilenince yine görünür'], ['until', 'Kapatılabilir, duyuru değişene kadar görünmez'], ['none', 'Kapatılamaz (sabit)']].map(([k, l]) => html`<option value="${k}" ${(bc.close || 'session') === k ? raw('selected') : ''}>${l}</option>`)}</select></div></div>
+      <div class="field"><label>Önizleme</label><div id="bnPrev" class="bn-prev"></div></div>`; })()}
     </div>
     <div class="form-error hidden" data-err></div>
     <div class="settings-save"><button class="btn primary" type="submit">Ayarları kaydet</button></div>
   </form>`);
   applySettingsSec(sec);
+  bnPreview();
   mountBackupBox();
   mountCodesBox();
   if (typeof mountGsync === 'function') mountGsync();
@@ -353,7 +363,7 @@ FORMS.settings = (f) => submitForm(f, async (d) => {
   const r = await api('settings.save', d);
   if (typeof saveCodesIfDirty === 'function') await saveCodesIfDirty();
   const A = r.admin;
-  Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner_on: !!d.banner_on, banner_text: d.banner_text, banner_tone: d.banner_tone, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
+  Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner: r.banner, banner_cfg: r.banner_cfg, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
   S.mail_ready = A.mail_ready;
   S.settings.push_ready = !!(A.push_enabled && A.push_ready);
   S.bannerHidden = false;
@@ -384,3 +394,14 @@ FORMS['me-pw'] = (f) => submitForm(f, async (d) => {
   f.reset();
   toast('Şifreniz değiştirildi');
 });
+
+/* Duyuru bandı önizlemesi */
+function bnPreview() {
+  const box = $('#bnPrev'); const f = box && box.closest('form'); if (!box || !f) return;
+  const v = (n) => { const el = f.querySelector(`[name="${n}"]`); return el ? el.value : ''; };
+  const tone = (f.querySelector('[name=banner_tone]:checked') || {}).value || 'danger';
+  const text = v('banner_text').trim();
+  setHTML(box, text ? bannerHtml({ text, tone, close: v('banner_close'), btn_text: v('banner_btn_text').trim(), btn_url: v('banner_btn_url').trim() }) : html`<div class="tiny faint">Metin yazınca burada görünür.</div>`);
+}
+CHANGE['bn-prev'] = () => bnPreview();
+CHANGE['bn-btn-pick'] = (el) => { const f = el.closest('form'); const i = f && f.querySelector('[name=banner_btn_url]'); if (i && el.value) { i.value = el.value; bnPreview(); } el.value = ''; };

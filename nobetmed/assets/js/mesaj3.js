@@ -24,7 +24,9 @@ function chatRich(text) {
     if (mm[1]) {
       let u = mm[1].replace(/[),.;:!?]+$/, '');
       const href = /^www\./.test(u) ? 'https://' + u : u;
-      parts.push(html`<a href="${href}" target="_blank" rel="noopener noreferrer nofollow" class="ch-link">${u}</a>`);
+      const ih = typeof internalHash === 'function' ? internalHash(href) : null;
+      parts.push(ih ? html`<a href="${ih}" class="ch-link ch-int">${icon('link', 'sm')}<span>${pageTitleOf(ih)}</span></a>`
+        : html`<a href="${href}" target="_blank" rel="noopener noreferrer nofollow" class="ch-link">${u}</a>`);
       CH_URL_RE.lastIndex = mm.index + u.length;
       last = mm.index + u.length;
     } else {

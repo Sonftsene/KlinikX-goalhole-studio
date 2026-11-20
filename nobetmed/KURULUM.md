@@ -650,3 +650,29 @@ Her madde **yeşil** (tamam), **sarı** (öneri), **kırmızı** (düzeltilmeli)
   - Ödeme yöntemleri açık mı, test modunda mı, cURL var mı.
 - **Birimler:** Yöneticisi olmayan birimler; 30 gündür kimsenin girmediği birimler.
 - **Sunucu hataları:** PHP hata günlüğünden (Hostinger'da genelde `public_html/error_log`) son 7 günün satırları. Sunucu yolları gizlenir. Sorun bildirirken bu satırları iletin.
+
+## 33. Duyuru bandı, bağlantı paylaşma ve sohbette paylaşma (4.20)
+
+> **Not:** 4.20'den itibaren bu kurulum belgesi (KURULUM.md) zip'in içinde değil; her sürümle birlikte ayrı dosya olarak gelir. Sunucu `.md` dosyalarını zaten kimseye göstermez. Zip küçük kalsın diye dışarı alındı.
+
+### Duyuru bandı (Ayarlar › Genel › Duyuru bandı)
+- **Metin:** En fazla 600 karakter. **Bağlantı ekle** düğmesi metindeki seçili kelimeye site içi bir sayfa (menüdeki sayfalardan seçilir) ya da bir web adresi verir. Metinde `[yazı](adres)` olarak görünür; okuyana yalnız yazı bağlantı olarak çıkar.
+- **Renk:** Kırmızı (acil), turuncu (uyarı), mavi (bilgi), yeşil (olumlu), mor (duyuru).
+- **Düğme:** İsteğe bağlı bir yazı ve bağlantı (ör. "Ayrıntılar" → bir gönderi ya da sayfa). Bağlantı listeden seçilebilir ya da yazılabilir; yalnız site içi (`#/…`) ve `https://` adresleri kabul edilir.
+- **Başlangıç / bitiş:** Band yalnız bu aralıkta görünür. Boş bırakılırsa hemen başlar, siz kapatana kadar sürer.
+- **Kimler görsün:** Herkes ya da yalnız yöneticiler ve yayıncılar.
+- **Kapatma:**
+  - Kapatılabilir; sayfa yenilenince yine görünür.
+  - Kapatılabilir; duyuru değişene kadar görünmez.
+  - Kapatılamaz (sabit).
+- **Önizleme:** Yazarken bandın nasıl görüneceği hemen altında gösterilir.
+
+### Sayfa bağlantısını paylaşma
+- Her sayfanın başlığının yanında **Paylaş** düğmesi vardır. Pencerede sayfanın bağlantısı, **Bağlantıyı kopyala**, telefonun **Paylaş…** menüsü, **WhatsApp** ve **Sohbette paylaş** seçenekleri bulunur.
+- Bağlantıyı açan kişi giriş yapmışsa doğrudan o sayfaya gelir; giriş yapmamışsa önce giriş ekranı açılır. Çok birimli kurulumda bağlantı birimin anahtarını taşır.
+- Site içi bağlantılar (bant, gönderi, sohbet) uygulamanın içinde, aynı sekmede açılır. Sohbette tam adres yerine sayfanın adıyla (ör. "Takvimim") görünür.
+- **Gönderi yazarken** de **Bağlantı ekle** ile seçili kelimeye bağlantı verilebilir.
+
+### Taraf görselini sohbette paylaşma
+- Taraf listesinde **Paylaş** penceresinde **Sohbette paylaş** düğmesi vardır. Oluşan görsel, seçilen sohbete (birim grubu, özel grup ya da kişi) resim olarak gider; not eklenebilir.
+- WhatsApp'ta paylaşma, indirme ve metin olarak kopyalama aynen duruyor.

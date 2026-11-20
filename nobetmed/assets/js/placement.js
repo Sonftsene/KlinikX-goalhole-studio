@@ -734,20 +734,27 @@ async function plShareImage(date) {
 /** Paylaş penceresi: önizleme, WhatsApp'ta paylaş / indir, metin olarak kopyala */
 async function plOpenShare(date) {
   const m = openModal({ title: 'Paylaş', size: 'narrow', body: html`<div class="pl-share"><div class="pl-share-prev"><div class="spinner"></div></div></div>`,
-    foot: html`<button class="btn" data-copy="1">${icon('copy', 'sm')}<span>Metin olarak kopyala</span></button><button class="btn primary" data-share="1" disabled>${icon('send', 'sm')}<span>WhatsApp’ta paylaş</span></button>` });
+    foot: html`<button class="btn" data-copy="1">${icon('copy', 'sm')}<span>Metin olarak kopyala</span></button>${modOn('mesaj') && S.hosp && typeof shareToChat === 'function' ? html`<button class="btn" data-chat="1" disabled>${icon('chat', 'sm')}<span>Sohbette paylaş</span></button>` : ''}<button class="btn primary" data-share="1" disabled>${icon('send', 'sm')}<span>WhatsApp’ta paylaş</span></button>` });
   let blob = null, url = null, text = '';
   const name = `blok-${date}.png`;
   try {
     [blob, text] = await Promise.all([plShareImage(date), plShareText(date)]);
     url = URL.createObjectURL(blob);
     setHTML($('.pl-share-prev', m.el), html`<img src="${url}" alt="Blok yerleşimi ${date}">`);
-    const b = $('[data-share]', m.el); if (b) b.disabled = false;
+    $$('[data-share],[data-chat]', m.el).forEach((b) => { b.disabled = false; });
   } catch (e) { setHTML($('.pl-share-prev', m.el), html`<p class="small muted">${e.message}</p>`); }
   const _close = m.close;
   m.close = () => { if (url) URL.revokeObjectURL(url); _close(); };
   m.el.addEventListener('click', async (ev) => {
-    const b = ev.target.closest('[data-share],[data-copy]');
+    const b = ev.target.closest('[data-share],[data-copy],[data-chat]');
     if (!b) return;
+    if (b.dataset.chat) {
+      if (!blob) return;
+      const dt0 = parseDT(date);
+      m.close();
+      shareToChat({ file: new File([blob], name, { type: 'image/png' }), text: `Blok yerleşimi · ${dt0.getDate()} ${TR_MONTHS[dt0.getMonth()]}`, title: 'Görseli sohbette paylaş' });
+      return;
+    }
     if (b.dataset.copy) {
       try { if (!text) text = await plShareText(date); await navigator.clipboard.writeText(text); toast('Metin kopyalandı · WhatsApp’a yapıştırabilirsiniz'); }
       catch (e) { toast(e.message && /yerleşim/.test(e.message) ? e.message : 'Kopyalanamadı', 'err'); }

@@ -553,9 +553,9 @@ function a_boot(): void
     }
     if ($me) {
         $data['settings'] += [
-            'banner_on' => setting('banner_on') === '1',
-            'banner_text' => setting('banner_text'),
-            'banner_tone' => setting('banner_tone', 'danger'),
+            // Duyuru bandı: yalnız görünmesi gerekiyorsa (zaman aralığı, hedef kitle); yöneticiye ayrıca ham ayarlar
+            'banner' => banner_out($me),
+            'banner_cfg' => $me['role'] === 'admin' ? banner_cfg() : null,
             'allow_guest' => setting('allow_guest', '0') === '1',
             'mail_ready' => mail_ready(),
             'notify_post' => mail_event_on('notify_post') || (push_ready() && event_on('notify_post')),
@@ -1742,9 +1742,23 @@ function a_settings_save(): void
     $reg = s('registration', 10);
     if (in_array($reg, ['open', 'approval', 'closed'], true)) set_setting('registration', $reg);
     if ($has('banner_on')) set_setting('banner_on', b('banner_on') ? '1' : '0');
-    if ($has('banner_text')) set_setting('banner_text', s('banner_text', 300));
+    if ($has('banner_text')) set_setting('banner_text', s('banner_text', 600));
     $tone = s('banner_tone', 10);
-    if (in_array($tone, ['danger', 'info', 'success'], true)) set_setting('banner_tone', $tone);
+    if (in_array($tone, banner_tones(), true)) set_setting('banner_tone', $tone);
+    foreach (['banner_from', 'banner_until'] as $k) if ($has($k)) {
+        $v = str_replace('T', ' ', s($k, 19));
+        if ($v !== '' && !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', substr($v, 0, 16))) fail('Tarih ve saat geçersiz.');
+        set_setting($k, $v === '' ? '' : substr($v, 0, 16));
+    }
+    if (setting('banner_from') !== '' && setting('banner_until') !== '' && setting('banner_until') <= setting('banner_from')) fail('Bitiş zamanı başlangıçtan sonra olmalı.');
+    if ($has('banner_aud')) set_setting('banner_aud', s('banner_aud', 10) === 'staff' ? 'staff' : 'all');
+    if ($has('banner_close')) set_setting('banner_close', in_array(s('banner_close', 10), ['none', 'session', 'until'], true) ? s('banner_close', 10) : 'session');
+    if ($has('banner_btn_text')) set_setting('banner_btn_text', s('banner_btn_text', 40));
+    if ($has('banner_btn_url')) {
+        $u = s('banner_btn_url', 500);
+        if ($u !== '' && !banner_url_ok($u)) fail('Düğme bağlantısı site içi bir sayfa (#/…) ya da https:// ile başlayan bir adres olmalı.');
+        set_setting('banner_btn_url', $u);
+    }
     foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on', 'push_enabled', 'digest_on', 'shift_remind_on', 'backup_weekly'] as $k) {
         if ($has($k)) set_setting($k, b($k) ? '1' : '0');
     }
@@ -1771,7 +1785,7 @@ function a_settings_save(): void
     if ($has('mail_from_name')) set_setting('mail_from_name', s('mail_from_name', 120));
     if (setting('mail_on') === '1' && !filter_var(setting('mail_from'), FILTER_VALIDATE_EMAIL)) fail('E-posta bildirimleri için gönderen e-posta adresini girin.');
     audit($me, 'settings.save', 'Ayarlar');
-    out(['admin' => admin_settings()]);
+    out(['admin' => admin_settings(), 'banner' => banner_out($me), 'banner_cfg' => banner_cfg()]);
 }
 
 function admin_settings(): array
@@ -1809,6 +1823,34 @@ function admin_settings(): array
             'sent_today' => (int)val('SELECT COUNT(*) FROM mail_queue WHERE sent_at >= ?', [date('Y-m-d 00:00:00')]),
         ],
     ];
+}
+
+/* ---------------- Duyuru bandı ---------------- */
+/** Band renkleri (api.php'de sabit yerine işlev: dağıtıcı dosyanın ortasındaki sabite ulaşamaz) */
+function banner_tones(): array { return ['danger', 'amber', 'info', 'success', 'violet']; }
+/** Bağlantı güvenli mi: site içi sayfa, https, tel, mailto */
+function banner_url_ok(string $u): bool
+{
+    return (bool)preg_match('~^(#/[^\s<>"]*|https?://[^\s<>"]+|tel:[0-9+ ]{3,20}|mailto:[^\s<>"]+@[^\s<>"]+)$~i', $u);
+}
+function banner_cfg(): array
+{
+    return ['on' => setting('banner_on') === '1', 'text' => setting('banner_text'), 'tone' => setting('banner_tone', 'danger'),
+        'from' => setting('banner_from'), 'until' => setting('banner_until'), 'aud' => setting('banner_aud', 'all'), 'close' => setting('banner_close', 'session'),
+        'btn_text' => setting('banner_btn_text'), 'btn_url' => setting('banner_btn_url')];
+}
+/** Kişiye şu an gösterilecek band (yoksa null) */
+function banner_out(array $me): ?array
+{
+    $c = banner_cfg();
+    if (!$c['on'] || trim($c['text']) === '') return null;
+    $now = date('Y-m-d H:i');
+    if ($c['from'] !== '' && $now < $c['from']) return null;
+    if ($c['until'] !== '' && $now >= $c['until']) return null;
+    if ($c['aud'] === 'staff' && !in_array($me['role'], ['admin', 'editor'], true)) return null;
+    return ['text' => $c['text'], 'tone' => in_array($c['tone'], banner_tones(), true) ? $c['tone'] : 'danger', 'close' => $c['close'],
+        'btn_text' => $c['btn_text'], 'btn_url' => $c['btn_url'] !== '' && banner_url_ok($c['btn_url']) ? $c['btn_url'] : '',
+        'ver' => substr(sha1($c['text'] . '|' . $c['tone'] . '|' . $c['btn_text'] . '|' . $c['btn_url']), 0, 10)];
 }
 
 function a_settings_get(): void
