@@ -44,10 +44,10 @@ try {
   // ---- 1) Kişi bir bölüme girince yönetimde anlık görünür ----
   const E = await ctx('elif', true);
   await login(E.p, 'elif@test.com', 'YeniSifre99');
-  await E.p.goto(BASE + '#/mesaj');
+  await E.p.goto(BASE + '#/nobetim');
   await E.p.waitForTimeout(800);
-  await A.p.waitForFunction(() => { const r = [...document.querySelectorAll('tr[data-uid]')].find((t) => /Elif Yılmaz/.test(t.textContent)); return r && /Çevrimiçi/.test(r.textContent) && /Mesajlar/.test(r.textContent); }, null, { timeout: 30000 })
-    .catch(() => fail('yönetimde Elif “Çevrimiçi · Mesajlar” görünmedi'));
+  await A.p.waitForFunction(() => { const r = [...document.querySelectorAll('tr[data-uid]')].find((t) => /Elif Yılmaz/.test(t.textContent)); return r && /Çevrimiçi/.test(r.textContent) && /Takvimim/.test(r.textContent); }, null, { timeout: 30000 })
+    .catch(() => fail('yönetimde Elif “Çevrimiçi · Nöbet › Takvimim” görünmedi'));
   const live = await A.p.locator('#usLive').innerText();
   if (!/Şu an çevrimiçi: [1-9]/.test(live) || !/Elif Yılmaz/.test(live)) fail('“Şu an çevrimiçi” özeti yanlış: ' + live);
   await A.p.screenshot({ path: path.join(OUT, 'us-cevrimici.png'), fullPage: true });
@@ -55,7 +55,7 @@ try {
   await E.p.evaluate(() => { location.hash = '#/profil/guvenlik'; });
   await A.p.waitForFunction(() => { const r = [...document.querySelectorAll('tr[data-uid]')].find((t) => /Elif Yılmaz/.test(t.textContent)); return r && /Güvenlik/.test(r.textContent); }, null, { timeout: 30000 })
     .catch(() => fail('bölüm değişince yönetimde güncellenmedi'));
-  step('kişi Mesajlar’a girince yönetimde “Çevrimiçi · Mesajlar”, Hesabım › Güvenlik’e geçince o görünüyor (10 sn içinde, sayfa yenilemeden)');
+  step('kişi Takvimim’e girince yönetimde “Çevrimiçi · Nöbet › Takvimim”, Hesabım › Güvenlik’e geçince o görünüyor (sayfa yenilemeden)');
 
   // ---- 2) Kayıt numarası ve içerik saklanmaz ----
   await E.p.evaluate(() => { location.hash = '#/p/12345'; });
