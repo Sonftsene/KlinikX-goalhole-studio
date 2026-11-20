@@ -238,7 +238,10 @@ try {
         if (!z.enc || !z.nopass || !z.sqlite) fail('yedek şifreli değil ya da şifreyle açılmadı: ' + chk);
       }
     }
-    const dl = await ED.p.evaluate(async () => { const r = await fetch('api.php?action=sa.obk.download'); const b = new Uint8Array(await r.arrayBuffer()); return [r.status, r.headers.get('content-type'), b[0], b[1], b.length]; });
+    // 4.29: indirme bağlantısı oturum anahtarı (csrf) ister — başka siteden tetiklenemesin
+    const noCsrf = await ED.p.evaluate(async () => (await fetch('api.php?action=sa.obk.download')).status);
+    if (noCsrf !== 403) fail('anahtarsız yedek indirme reddedilmedi: ' + noCsrf);
+    const dl = await ED.p.evaluate(async () => { const r = await fetch('api.php?action=sa.obk.download&csrf=' + encodeURIComponent(S.csrf)); const b = new Uint8Array(await r.arrayBuffer()); return [r.status, r.headers.get('content-type'), b[0], b[1], b.length]; });
     if (dl[0] !== 200 || dl[1] !== 'application/zip' || dl[2] !== 0x50 || dl[3] !== 0x4b) fail('yedek indirilemedi: ' + dl);
     const dlA = await A.p.evaluate(async () => (await fetch('api.php?action=sa.obk.download')).status);
     if (dlA !== 401) fail('birim yöneticisi sistem yedeğini indirebildi');
