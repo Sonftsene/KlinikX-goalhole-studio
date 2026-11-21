@@ -173,14 +173,17 @@ const mTeam = await apiErr(m, 'placement.team.save', { name: 'X', members: [] })
 if (![mSave, mAuto, mAdj, mTeam].every((x) => x.startsWith('403'))) fail(`üye yetkisi: ${mSave} | ${mAuto} | ${mAdj} | ${mTeam}`);
 const badUnit = await apiErr(a, 'placement.save', { date: D, people: ppl13.map((x) => ({ ...x, segs: x.segs.map((s) => ({ ...s, unit: s.unit === 'A blok' ? 'Z blok' : s.unit })) })) });
 const missing = await apiErr(a, 'placement.save', { date: D, people: ppl13.slice(1) });
+// 4.30: nöbet dışı kişi yalnız elle eklenebilir (çağrılan gibi); karşıya geçişe / sayımlara girmez
 const exclCalled = await apiErr(a, 'placement.save', { date: D, people: [...ppl13, one('DENİZ ŞAHİN', 'A blok', 'night')] });
-if (!/birim bulunamadı/i.test(badUnit) || !/Herkesi/.test(missing) || !/dahil değil/.test(exclCalled)) fail(`doğrulama: ${badUnit} | ${missing} | ${exclCalled}`);
+const exclRow = exclCalled === 'kabul' ? (await apiCall(a, 'placement.day', { date: D })).saved.find((x) => /DENİZ ŞAHİN/i.test(x.name)) : null;
+if (!/birim bulunamadı/i.test(badUnit) || !/Herkesi/.test(missing) || exclCalled !== 'kabul' || !exclRow || exclRow.counted || exclRow.status !== 'called') fail(`doğrulama: ${badUnit} | ${missing} | ${exclCalled} | ${JSON.stringify(exclRow)}`);
+await apiCall(a, 'placement.save', { date: D, people: ppl13 });
 const emptyDay = await apiCall(a, 'placement.day', { date: d1(20) });
 const emptyAuto = await apiErr(a, 'placement.auto', { date: d1(20) });
 if (emptyDay.people.length || !/nöbetçi görünmüyor/.test(emptyAuto)) fail('boş gün: ' + emptyAuto);
 const md = await apiCall(m, 'placement.day', { date: D });
 if (md.can_edit || md.people.some((p) => p.exempt) || md.others.length || md.saved.some((x) => x.pool || x.why)) fail('üye düzenleme yetkisi / iç bilgi görüyor');
-step('yetki ve doğrulama: üye 403 (kaydet, dağıt, sayı, ekip), yanlış birim / eksik kişi / dahil edilmeyen kişi reddedildi, boş gün çökmedi');
+step('yetki ve doğrulama: üye 403 (kaydet, dağıt, sayı, ekip), yanlış birim / eksik kişi reddedildi, nöbet dışı kişi yalnız elle eklendi ve sayılmadı, boş gün çökmedi');
 
 // 8) Sorumlular ekibi: sabit üye hep ekibe, A/B/C'ye ve kuraya asla
 const tm = await apiCall(a, 'placement.team.save', { name: 'Sorumlular', members: ['BURAK DEMİR'], need: { day: 0, night: 0 } });
