@@ -20,9 +20,9 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self' https://a
 $v = NM_VERSION;
 // Yöneticinin yüklediği favicon ve uygulama simgesi (yoksa varsayılan dupcii simgesi)
 $bv = fn(string $k) => (string)setting('brand_' . $k, '');
-$favicon = $bv('icon') !== '' ? 'api.php?action=brand&f=icon&v=' . substr(md5($bv('icon')), 0, 10) : 'assets/icon.svg';
-$favType = ['svg' => 'image/svg+xml', 'png' => 'image/png', 'ico' => 'image/x-icon', 'jpg' => 'image/jpeg', 'webp' => 'image/webp'][strtolower(pathinfo($bv('icon') ?: 'x.svg', PATHINFO_EXTENSION))] ?? 'image/png';
-$touch = $bv('icon192') !== '' ? 'api.php?action=brand&f=icon192&v=' . substr(md5($bv('icon192')), 0, 10) : 'assets/icon-192.png';
+$favicon = $bv('icon') !== '' ? 'api.php?action=brand&f=icon&v=' . substr(md5($bv('icon')), 0, 10) : 'assets/favicon.png';
+$favType = ['svg' => 'image/svg+xml', 'png' => 'image/png', 'ico' => 'image/x-icon', 'jpg' => 'image/jpeg', 'webp' => 'image/webp'][strtolower(pathinfo($bv('icon') ?: 'x.png', PATHINFO_EXTENSION))] ?? 'image/png';
+$touch = $bv('icon192') !== '' ? 'api.php?action=brand&f=icon192&v=' . substr(md5($bv('icon192')), 0, 10) : 'assets/apple-touch-icon.png';
 // Bağlantı önizlemesi: birim belliyse birim adı, değilse dupcii
 $org = nm_tenant_hinted() ? trim((string)setting('org_name', '')) : '';
 if ($org === 'Klinik Portalı') $org = '';
@@ -53,7 +53,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
   <script src="assets/theme.js?v=<?= $v ?>"></script>
 </head>
 <body>
-  <div id="app"><div class="boot-splash"><div class="spinner"></div></div></div>
+  <div id="app"><div class="boot-splash"><?php if ($bv('logo') === '' && $bv('logo_dark') === ''): ?><img class="boot-logo light" src="assets/logo-light.png" alt="dupcii"><img class="boot-logo dark" src="assets/logo-dark.png" alt="dupcii"><?php endif; ?><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
 <?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'mesaj4', 'arama', 'kisi', 'bildirim', 'plan', 'yemek', 'pwa', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>

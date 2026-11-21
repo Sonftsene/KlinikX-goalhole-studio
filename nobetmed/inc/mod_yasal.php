@@ -106,7 +106,7 @@ function lg_page_head(string $title, string $desc = '', string $extraCss = ''): 
     echo '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<title>' . $e($title) . '</title>' . ($desc !== '' ? '<meta name="description" content="' . $e($desc) . '">' : '')
         . nm_og_tags($title, $desc !== '' ? $desc : 'Hastane birimleri için nöbet listeleri, değişimler ve ekip iletişimi tek yerde.', lg_get('brand', 'dupcii'))
-        . '<link rel="icon" href="assets/icon.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com">'
+        . '<link rel="icon" href="assets/favicon.png" type="image/png"><link rel="apple-touch-icon" href="assets/apple-touch-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com">'
         . '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">'
         . '<style>' . lg_css() . $extraCss . '</style></head><body>';
 }
@@ -117,7 +117,7 @@ function lg_css(): string
         . '*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}'
         . 'a{color:var(--brand)}.wrap{max-width:1080px;margin:0 auto;padding:0 20px}'
         . '.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}'
-        . '.top .wrap{display:flex;align-items:center;gap:12px;height:64px}.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:800;font-size:20px;letter-spacing:-.03em}.logo img{width:34px;height:34px}.logo b{color:var(--pur)}'
+        . '.top .wrap{display:flex;align-items:center;gap:12px;height:64px}.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:800;font-size:20px;letter-spacing:-.03em}.logo img{width:34px;height:34px}.logo img.lg-word{width:auto;height:46px}.logo b{color:var(--pur)}'
         . '.grow{flex:1}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border-radius:12px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--card);white-space:nowrap}'
         . '.btn.pri{border:0;color:#fff;background:linear-gradient(135deg,#0b8a83,#5b6fe0 70%,#8b6cf0)}.btn.sm{height:38px;padding:0 14px;font-size:14px}'
         . '.hero{padding:72px 0 40px;text-align:center}.hero h1{font-size:clamp(30px,5.4vw,52px);line-height:1.12;letter-spacing:-.035em;margin:0 auto 18px;max-width:820px}'
@@ -138,8 +138,8 @@ function lg_css(): string
 function lg_page_top(bool $apply): string
 {
     $brand = htmlspecialchars(lg_get('brand', 'dupcii'), ENT_QUOTES, 'UTF-8');
-    $word = '<span>' . ($brand === 'dupcii' ? 'dupc<b>ii</b>' : $brand) . '</span>';
-    return '<header class="top"><div class="wrap"><a class="logo" href="tanitim.php"><img src="assets/icon.svg" alt="">' . $word . '</a><span class="grow"></span>'
+    $logo = $brand === 'dupcii' ? '<img class="lg-word" src="assets/logo-light.png" alt="dupcii">' : '<img src="assets/icon-mark.png" alt=""><span>' . $brand . '</span>';
+    return '<header class="top"><div class="wrap"><a class="logo" href="tanitim.php">' . $logo . '</a><span class="grow"></span>'
         . '<a class="btn sm" href="index.php">Giriş yap</a>' . ($apply ? '<a class="btn sm pri" href="index.php#/basvuru">Biriminizi açın</a>' : '') . '</div></header>';
 }
 function lg_page_foot(): string

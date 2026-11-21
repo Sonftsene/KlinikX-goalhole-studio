@@ -1895,3 +1895,14 @@ a.in-link { font-weight: 600; }
   .pb-row:has(.pb-num + .pb-num) { flex-wrap: wrap; }
   .pb-row:has(.pb-num + .pb-num) .pb-nums { max-width: none; flex-basis: 100%; justify-content: flex-start; padding-left: 42px; }
 }
+
+/* ================= dupcii logosu (by fırtına) ================= */
+.brand-mark.brand-mark-img { background: none !important; box-shadow: none !important; border-radius: 22%; overflow: hidden; }
+.brand-mark-img img { width: 100%; height: 100%; display: block; }
+.brand-def .brand-img { height: calc(var(--logo-h) * 1.6); }
+.topbar .top-logo .brand-def .brand-img { height: calc(var(--logo-h-top) * 1.25); }
+.boot-splash { align-content: center; gap: 22px; }
+.boot-logo { display: block; width: min(220px, 56vw); height: auto; }
+.boot-logo.dark { display: none; }
+[data-theme="dark"] .boot-logo.light { display: none; }
+[data-theme="dark"] .boot-logo.dark { display: block; }

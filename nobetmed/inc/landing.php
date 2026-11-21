@@ -110,7 +110,7 @@ function lg_landing_page(): void
     $visMeal = '<div class="ui sm"><div class="ui-h">Sıradaki öğün<span class="sp"></span><span class="pill t">Akşam 18:00</span></div><div class="ui-s" style="margin-bottom:6px">Nöbetinizde 2 öğün var</div>'
         . '<div class="row2"><div class="gr"><b>Mercimek çorbası</b></div></div><div class="row2"><div class="gr"><b>Fırında tavuk · Pirinç pilavı</b></div></div><div class="row2"><div class="gr"><b>Ayran · Mevsim salata</b></div></div></div>'
         . '<div class="ui sm"><div class="ui-h">Telefon rehberi</div><div class="row2"><div class="gr"><b>Acil Servis</b><span class="ui-s">Hastane ortak rehberi</span></div><span class="pill t">2201</span></div><div class="row2"><div class="gr"><b>Kan merkezi</b><span class="ui-s">7/24</span></div><span class="pill t">2450</span></div></div>';
-    $ico = '<img src="assets/icon.svg" alt="">';
+    $ico = '<img src="assets/icon-mark.png" alt="">';
     $visNtf = '<div class="ntf">' . $ico . '<div><b>Değişiminiz onaylandı</b>15 Kasım gündüz artık sizde.</div><small>şimdi</small></div>'
         . '<div class="ntf">' . $ico . '<div><b>Yarın 08:00 nöbetiniz var</b>Yoğun Bakım · 24 saat</div><small>18:00</small></div>'
         . '<div class="ntf">' . $ico . '<div><b>Eksik personel</b>Bu gece için gönüllü aranıyor. Gelebilir misiniz?</div><small>2 dk</small></div>'

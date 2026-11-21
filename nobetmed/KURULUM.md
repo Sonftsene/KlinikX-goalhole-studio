@@ -933,3 +933,9 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Nöbetten çıkar:** Taraf › Elle düzenle'de listede nöbetçi olan kişiye dokunun → **Nöbetten çıkar**. Sebep sorulmaz. Kişi o gün hiçbir blokta, ana sayfa kartında, paylaşım görselinde / metninde ve ay tablosunda görünmez; kapsamaya, karşıya geçişe ve kuraya sayılmaz; otomatik dağıtıma girmez; "yerleştirilmedi" uyarısı çıkmaz. Sorumlular günün altında **Nöbetten çıkarılanlar** kartında görür, **Geri al** ile kişiyi kendi tarafına döndürür. ("Ofl." eve gönderme olarak ayrıca durur.)
 - **Sebepsiz ekstra:** **Ekstra kişi** penceresinde **Sebep: Çağrıldı / Sebepsiz ekstra** seçimi var. Sebepsiz eklenen kişi bloğa yazılır ama "Çağrıldı" etiketi hiçbir yerde görünmez; kişiye giden bildirimde "Blok yerleşimi" yazar. Sayım kuralları aynıdır (karşı tarafta gece içeriyorsa geçiş sayılır). Eklenmiş kişide etiket, kişiye dokunup **"Çağrıldı" etiketi** anahtarıyla sonradan da açılıp kapatılır.
 - İşlem günlüğünde kayıt satırına "nöbetten çıkarılan: …" ve "(ekstra)" eklenir.
+
+## 46. dupcii logosu (4.31.0)
+- Uygulamanın varsayılan logosu "dupcii | by fırtına" oldu: açık temada lacivert-kırmızı, koyu temada beyaz-kırmızı (assets/logo-light.png, logo-dark.png). Menüde, telefonda üst çubukta, giriş ekranında ve uygulama açılırken (yükleme ekranında) görünür.
+- Simge: d+ ve nabız çizgisi. Tarayıcı sekmesi (favicon.png), Android ana ekran simgesi (icon-192/512: çerçeveli; icon-maskable-192/512: beyaz zeminli, Android'in yuvarlak/kare kesimine uygun), iPhone ana ekran simgesi (apple-touch-icon.png), bildirim rozeti (badge-96.png) ve bağlantı önizleme görseli (og-image.jpg) yenilendi.
+- Yönetici Ayarlar › Genel › "Logo ve simge"den kendi logosunu yüklerse o kullanılır (öncekiyle aynı).
+- Telefona daha önce eklenmiş uygulamada simge: Android birkaç gün içinde kendisi yeniler (bazen sorar); iPhone yenilemez, ana ekrandan kaldırıp Safari'den yeniden eklemek gerekir.
