@@ -47,7 +47,7 @@ function mail_template(string $title, array $lines, ?string $button = null, ?str
         . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;border:1px solid #e1e8ea">'
         . '<tr><td style="padding:18px 24px;border-bottom:1px solid #e9eef0"><span style="display:inline-block;background:#1a1f3d;border-radius:10px;padding:6px 12px;font-size:17px;font-weight:800;letter-spacing:-.03em;color:#ffffff">dupc<span style="color:#b49bff">ii</span></span> <span style="font-size:13px;color:#6b7c84">· ' . $e($org) . '</span></td></tr>'
         . '<tr><td style="padding:24px"><h1 style="margin:0 0 14px;font-size:19px;line-height:1.35;color:#0f1b21">' . $e($title) . '</h1>' . $body . $btn . '</td></tr>'
-        . '<tr><td style="padding:14px 24px;border-top:1px solid #e9eef0;font-size:12px;color:#8a989f">Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portaldaki Hesabım sayfasından değiştirebilirsiniz.</td></tr>'
+        . '<tr><td style="padding:14px 24px;border-top:1px solid #e9eef0;font-size:12px;color:#8a989f">Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portaldaki Hesabım sayfasından değiştirebilirsiniz.<br><span style="color:#1f6fe0;font-weight:700">dupcii</span> <i style="font-family:Georgia,serif">by <b>Fırtına</b></i></td></tr>'
         . '</table></td></tr></table></body></html>';
     $text = $title . "\n\n" . implode("\n\n", $lines) . ($button && $url ? "\n\n$button: $url" : '') . "\n\n— " . $org;
     return [$html, $text];

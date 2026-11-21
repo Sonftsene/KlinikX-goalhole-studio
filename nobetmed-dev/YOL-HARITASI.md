@@ -119,6 +119,8 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.28 — Sohbet görünümü ✓ (4.28.0)
 - İlet / paylaşta tüm kişiler (arama, çoklu), modern liste, 7 tema, 4 balon biçimi, 8 duvar kağıdı, efektler, sağa kaydırmada ekran kaymaz.
 
+### 4.31 — dupcii logosu · by Fırtına ✓ (4.31.0)
+
 ### 4.30.1 — Excel tam ekran sabit sütun + “Sadece ben” düzeltmesi ✓ (4.30.1)
 
 ### 4.30 — Blok planı kuralları + basamakları birlikte planlama ✓ (4.30.0)
