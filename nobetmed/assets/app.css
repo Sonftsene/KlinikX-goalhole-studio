@@ -1890,3 +1890,8 @@ a.in-link { font-weight: 600; }
 .pj-set-x { border: 0; background: none; cursor: pointer; font-weight: 700; margin-left: 4px; color: inherit; padding: 0; }
 .pj-warn { color: var(--danger); font-weight: 600; }
 .pj-set .code-chip { display: inline-flex; align-items: center; white-space: nowrap; width: auto; min-width: 0; padding: 0 6px; }
+/* Telefon rehberi: dar ekranda iki numara varsa numaralar alt satıra (ad ve ünvan sıkışmasın) */
+@media (max-width: 560px) {
+  .pb-row:has(.pb-num + .pb-num) { flex-wrap: wrap; }
+  .pb-row:has(.pb-num + .pb-num) .pb-nums { max-width: none; flex-basis: 100%; justify-content: flex-start; padding-left: 42px; }
+}

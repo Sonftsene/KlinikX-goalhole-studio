@@ -490,6 +490,7 @@ function drawPanel() {
     ${d.conflicts.length ? html`<div class="card rq-conf"><div class="card-head"><h3>${icon('alert', 'sm')} Listeyle uyumsuz onaylı istekler</h3><span class="badge danger">${d.conflicts.length}</span></div>
       <div class="list">${d.conflicts.map((c) => html`<div class="list-row"><span class="rq-sw k-${c.kind}">${RQ_KIND[c.kind].s}</span><div class="grow"><div class="lr-t">${rqName(c.name)}</div><div class="lr-s">${rqShort(c.date)} ${rqDow(c.date)} · onaylı ${RQ_KIND[c.kind].l.toLocaleLowerCase('tr')} ama listede <b>${c.code}</b> nöbeti var</div></div></div>`)}</div></div>` : ''}
     ${d.sides.length > 1 ? html`<div class="seg rq-sides">${d.sides.map((s) => { const n = s.days.reduce((a, x) => a + x.req, 0); return html`<button class="${s.key === RQ.side ? 'on' : ''}" data-act="rq-side" data-k="${s.key}">${s.name}${n ? html`<span class="count muted">${n}</span>` : ''}</button>`; })}</div>` : ''}
+    <div class="card" id="rqPeople"></div>
     ${sd ? html`<div class="rq-panel">
       <div class="rq-col">
         <div class="card" id="rqHeat"></div>
@@ -497,7 +498,6 @@ function drawPanel() {
       </div>
       <div class="rq-col"><div class="card" id="rqDay"></div></div>
     </div>` : html`<div class="card empty"><p class="small">Bu dönem için liste bulunamadı. Taraflar Taraf sekmesinden, listeler Excel liste sekmesinden tanımlanır.</p></div>`}
-    <div class="card" id="rqPeople"></div>
     ${d.draws.length ? html`<div class="card"><div class="card-head"><h3>${icon('layers', 'sm')} Kura kayıtları</h3></div><div class="list">${d.draws.map((x) => html`<div class="list-row"><div class="grow"><div class="lr-t">${rqShort(x.date)} · ${rqSideName(x.side)}</div><div class="lr-s">Adaylar: ${(x.cands || []).map(rqName).join(', ')} → ret önerisi: <b>${(x.picked || []).map(rqName).join(', ')}</b> · ${x.by || ''} · ${fmtRel(x.at)}</div></div></div>`)}</div></div>` : ''}`);
   drawHeat(); drawPile(); drawDay(); drawPeople();
 }
