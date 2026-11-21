@@ -4,7 +4,7 @@
 
 /** Blok yerleşimi anlamlı mı: en az iki taraf ya da tek tarafta en az iki blok (tek alanlı birimde liste yeterli) */
 function plLayoutOk(sides) { return !!sides && (sides.length >= 2 || (sides.length === 1 && (sides[0].units || []).length >= 2)); }
-const PL = { date: '', day: null, prop: null, cur: null, standby: [], pins: new Set(), dirty: false, edit: false, ym: '', mon: null, monYm: '', sort: { k: 'total', d: -1 }, tok: 0, countsOpen: false };
+const PL = { date: '', day: null, prop: null, cur: null, standby: [], removed: [], pins: new Set(), dirty: false, edit: false, ym: '', mon: null, monYm: '', sort: { k: 'total', d: -1 }, tok: 0, countsOpen: false };
 const PL_TEAM = '@sorumlu';
 const PL_TONES = ['indigo', 'teal', 'sky', 'emerald', 'rose', 'amber'];
 const PL_PER = { day: '08-16', night: '16-08', 24: '24 saat' };
@@ -75,7 +75,7 @@ async function renderPlacement(view, r) {
   await plLoadDay();
 }
 NM_EXT.routes.taraf = (view, r) => renderPlacement(view, r);
-function plReset() { PL.prop = null; PL.cur = null; PL.standby = []; PL.dirty = false; PL.pins = new Set(); PL.edit = false; }
+function plReset() { PL.prop = null; PL.cur = null; PL.standby = []; PL.removed = []; PL.dirty = false; PL.pins = new Set(); PL.edit = false; }
 
 async function plLoadDay() {
   const tok = ++PL.tok;
@@ -137,20 +137,24 @@ async function plLoadMonth(force) {
   plDrawMonth();
 }
 
-/** Kayıtlı satırları kişi kişi toplar: {cur, standby} */
+/** Kayıtlı satırları kişi kişi toplar: {cur, standby, removed} */
 function plFromSaved(d) {
   const duty = plDutyMapOf(d);
   const cur = {};
   const standby = [];
+  const removed = [];
   (d.saved || []).forEach((s) => {
     if (s.status === 'standby') { standby.push({ key: s.key, name: s.name, side: s.side, cross: s.cross_total }); return; }
-    const e = cur[s.key] || (cur[s.key] = { key: s.key, name: s.name, side: duty[s.key] ? duty[s.key].side : s.side, duty: !!duty[s.key], segs: [], method: s.method, why: s.why, pool: null, crossBefore: s.cross_before });
+    if (s.status === 'removed') { if (duty[s.key]) removed.push({ key: s.key, name: s.name, side: duty[s.key].side }); return; }
+    const e = cur[s.key] || (cur[s.key] = { key: s.key, name: s.name, side: duty[s.key] ? duty[s.key].side : s.side, duty: !!duty[s.key], segs: [], method: s.method, why: s.why, pool: null, crossBefore: s.cross_before, plain: !!s.plain });
     e.segs.push({ unit: s.unit, period: s.period, status: s.status === 'called' ? 'called' : s.status });
     if (s.pool) e.pool = s.pool;
   });
   Object.values(cur).forEach((e) => e.segs.sort((a, b) => (a.period === 'night') - (b.period === 'night')));
-  return { cur, standby };
+  return { cur, standby, removed };
 }
+/** Sebepsiz nöbetten çıkarılanların anahtarları */
+function plRemovedKeys() { return new Set((PL.removed || []).map((r) => r.key)); }
 function plDutyMapOf(d) { return Object.fromEntries(((d && d.people) || []).map((p) => [p.key, p])); }
 
 /** Çalışılan durum: öneri varsa öneri (+ elle bırakılanlar ve çağrılanlar), yoksa kayıtlı yerleşim */
@@ -169,7 +173,8 @@ function plBuildCur(keepManual) {
     const x = plFromSaved(d);
     PL.cur = x.cur;
     PL.standby = x.standby;
-  } else { PL.cur = null; PL.standby = []; }
+    PL.removed = x.removed;
+  } else { PL.cur = null; PL.standby = []; PL.removed = []; }
 }
 
 /** Elle düzenlemeye boş başlarken: sabit ekip üyeleri Sorumlular'a, diğerleri kendi tarafına (çok birimli tarafta sırayla) */
@@ -177,7 +182,9 @@ function plHomeDefault() {
   const d = PL.day;
   const cur = {};
   const idx = {};
+  const rm = plRemovedKeys();
   d.people.forEach((p) => {
+    if (rm.has(p.key)) return;
     const sd = d.sides.find((s) => s.key === p.side);
     if (!sd) return;
     let unit;
@@ -210,11 +217,11 @@ function plSegChip(e, seg, editable) {
   const chip = p && seg.period === p.shift && e.segs.length === 1 ? plCodeChip(p) : plPerChip(seg.period);
   const inner = html`${chip}<span class="pl-nm">${editable ? plName(e.name) : pName(plName(e.name))}</span><span class="pl-cnt" title="Karşı tarafa toplam geçiş">(${plCrossShown(e)})</span>
     ${moved ? html`<span class="pl-from" title="${plSideName(e.side)} listesinden">${plSideShort(e.side)}</span>` : ''}
-    ${seg.status === 'called' ? html`<span class="pl-tag called">Çağrıldı</span>` : ''}
+    ${seg.status === 'called' && !e.plain ? html`<span class="pl-tag called">Çağrıldı</span>` : ''}
     ${off ? html`<span class="pl-tag off">Ofl. ${PL_PER_WORD[seg.period]}</span>` : ''}
     ${e.method === 'kura' && !off && moved ? html`<span class="pl-m" title="Kura ile">${icon('star', 'sm')}</span>` : ''}
     ${p && p.exempt ? html`<span class="pl-ex" title="Kuradan muaf">muaf</span>` : ''}`;
-  const cls = `pl-p ${moved ? 'in' : ''} ${off ? 'off' : ''} ${seg.status === 'called' ? 'called' : ''} ${plIsMe(e.name) ? 'me' : ''} ${editable ? 'ed' : ''}`;
+  const cls = `pl-p ${moved ? 'in' : ''} ${off ? 'off' : ''} ${seg.status === 'called' && !e.plain ? 'called' : ''} ${plIsMe(e.name) ? 'me' : ''} ${editable ? 'ed' : ''}`;
   return editable
     ? html`<button type="button" class="${cls}" data-act="pl-pick" data-k="${e.key}" title="${e.why || 'Düzenle'}">${inner}</button>`
     : html`<span class="${cls}" title="${e.why || ''}">${inner}</span>`;
@@ -258,8 +265,9 @@ function plDrawDay() {
   if (PL.prop || PL.dirty) status = html`<span class="badge warn">${icon('edit', 'sm')}Öneri · kaydedilmedi</span>`;
   else if (saved) status = html`<span class="badge success">${icon('checkCircle', 'sm')}Kaydedildi${d.saved_by ? ' · ' + d.saved_by : ''}${d.saved_at ? ' · ' + fmtRel(d.saved_at) : ''}</span>`;
   else status = html`<span class="badge">${icon('clock', 'sm')}Henüz yerleştirilmedi</span>`;
-  const bySide = d.sides.map((sd) => [sd, people.filter((p) => p.side === sd.key)]);
-  const summary = html`<div class="pl-sum"><span class="small"><b>${people.length}</b> kişi nöbette · ${bySide.map(([sd, l], i) => html`${i ? ' · ' : ''}${sd.name} <b>${l.length}</b>`)}</span><span class="grow"></span>${status}</div>`;
+  const rmKeys = cur ? plRemovedKeys() : new Set();
+  const bySide = d.sides.map((sd) => [sd, people.filter((p) => p.side === sd.key && !rmKeys.has(p.key))]);
+  const summary = html`<div class="pl-sum"><span class="small"><b>${people.length - people.filter((p) => rmKeys.has(p.key)).length}</b> kişi nöbette · ${bySide.map(([sd, l], i) => html`${i ? ' · ' : ''}${sd.name} <b>${l.length}</b>`)}</span><span class="grow"></span>${status}</div>`;
 
   let board;
   if (cur) {
@@ -273,7 +281,7 @@ function plDrawDay() {
     }));
     const order = ([a, sa], [b, sb]) => (sa.status === 'off') - (sb.status === 'off') || (sb.period === '24') - (sa.period === '24') || (sa.period === 'night' ? 0 : 1) - (sb.period === 'night' ? 0 : 1) || a.name.localeCompare(b.name, 'tr');
     const placedKeys = new Set(Object.keys(cur));
-    const unassigned = people.filter((p) => !placedKeys.has(p.key));
+    const unassigned = people.filter((p) => !placedKeys.has(p.key) && !rmKeys.has(p.key));
     board = html`<div class="pl-board">${units.map((u) => {
       const L = load[u.unit];
       const need = d.needs[u.unit] || { day: 0, night: 0 };
@@ -298,6 +306,13 @@ function plDrawDay() {
       <div class="pl-chips">${sbList.length ? sbList.map((s, i) => html`<span class="pl-p sb ${plIsMe(s.name) ? 'me' : ''}"><span class="pl-nm">${plName(s.name)}</span>${s.side ? html`<span class="tiny faint">${plSideShort(s.side)}</span>` : ''}
           ${edit ? html`<button type="button" class="btn sm pl-came" data-act="pl-sb-came" data-i="${i}">Geldi</button><button type="button" class="btn ghost icon sm" data-act="pl-sb-del" data-i="${i}" aria-label="Kaldır">${icon('x', 'sm')}</button>` : ''}</span>`)
         : html`<span class="tiny faint">Kimse yok</span>`}</div></div>` : '';
+
+  // Sebepsiz nöbetten çıkarılanlar: yalnız sorumlular görür (herkese açık görünümde hiç yok)
+  const rmList = cur ? PL.removed || [] : [];
+  const removed = rmList.length && d.can_edit ? html`<div class="card pl-standby pl-removed">
+      <div class="pl-uh"><span class="pl-ul tone-slate">${icon('x', 'sm')}</span><div class="grow"><b>Nöbetten çıkarılanlar</b><div class="tiny faint">Sebep yazılmaz · hiçbir blokta görünmez, sayılmaz</div></div></div>
+      <div class="pl-chips">${rmList.map((r, i) => html`<span class="pl-p sb"><span class="pl-nm">${plName(r.name)}</span>${r.side ? html`<span class="tiny faint">${plSideShort(r.side)}</span>` : ''}
+          ${edit ? html`<button type="button" class="btn sm" data-act="pl-rm-undo" data-i="${i}">Geri al</button>` : ''}</span>`)}</div></div>` : '';
 
   // Öneri açıklamaları
   const pr = PL.prop;
@@ -324,7 +339,7 @@ function plDrawDay() {
   const editHint = edit ? html`<div class="pl-edit-hint">${icon('edit', 'sm')}<span class="grow">Kişiye dokunun: blok, dönem (gündüz/gece), oflama. Bitince <b>Kaydet</b>.</span>
       <button class="btn sm" data-act="pl-call-add">${icon('plus', 'sm')}<span>Ekstra kişi ekle</span></button></div>` : '';
 
-  setHTML(host, html`${nav}${summary}${stale}${editHint}${board}${standby}${hint}${explain}${plCountsCard()}`);
+  setHTML(host, html`${nav}${summary}${stale}${editHint}${board}${removed}${standby}${hint}${explain}${plCountsCard()}`);
   plDrawActs();
 }
 
@@ -402,8 +417,9 @@ async function plRunAuto(el, reveal) {
   const keep = [];
   // Korunacaklar: listede olmayan (çağrılan), bu oturumda elle değiştirilen, kayıtlı elle yerleşim, oflanan ve iki yere bölünen kişiler
   if (PL.cur) Object.values(PL.cur).forEach((e) => {
-    if (!e.duty || PL.pins.has(e.key) || e.method === 'elle' || e.segs.length > 1 || e.segs.some((s) => s.status === 'off')) keep.push({ name: e.name, segs: e.segs });
+    if (!e.duty || PL.pins.has(e.key) || e.method === 'elle' || e.segs.length > 1 || e.segs.some((s) => s.status === 'off')) keep.push({ name: e.name, segs: e.segs, plain: !!e.plain });
   });
+  (PL.removed || []).forEach((r) => keep.push({ name: r.name, removed: true }));
   await busy(el, async () => {
     let r;
     try { r = await api('placement.auto', { date: PL.date, keep }); } catch (e) { toast(e.message, 'err'); return; }
@@ -422,7 +438,8 @@ ACT['pl-edit'] = () => { PL.edit = !PL.edit; if (PL.edit) plEnsureCur(); plDrawD
 ACT['pl-discard'] = () => { plReset(); plBuildCur(); plDrawDay(); };
 ACT['pl-save'] = (el) => busy(el, async () => {
   if (!PL.cur) return;
-  const people = Object.values(PL.cur).map((e) => ({ name: e.name, segs: e.segs.map((s) => ({ unit: s.unit, period: s.period, status: s.status })) }));
+  const people = Object.values(PL.cur).map((e) => ({ name: e.name, segs: e.segs.map((s) => ({ unit: s.unit, period: s.period, status: s.status })), ...(e.duty ? {} : { plain: !!e.plain }) }));
+  (PL.removed || []).forEach((r) => people.push({ name: r.name, removed: true }));
   const standby = (PL.standby || []).map((s) => ({ name: s.name }));
   try {
     const r = await api('placement.save', { date: PL.date, people, standby });
@@ -474,7 +491,7 @@ ACT['pl-pick'] = (el) => {
   const sel = plSelOf(e.segs);
   const opt = (per) => html`<select class="select" data-per="${per}"><option value="">— (yok)</option>${units.map((u) => html`<option value="${u.unit}" ${sel[per] === u.unit ? raw('selected') : ''}>${u.label}${u.side && e.side && u.side !== e.side ? ' · karşı taraf' : ''}</option>`)}${e.duty ? html`<option value="off" ${sel[per] === 'off' ? raw('selected') : ''}>Ofl. (eve gönderildi)</option>` : ''}</select>`;
   const m = openModal({ title: plName(e.name), size: 'narrow', body: html`<div class="stack">
-      <div class="row wrap">${p ? plCodeChip(p) : html`<span class="pl-tag called">Çağrıldı</span>`}<span class="small muted">${p ? (PL_PER[p.shift] || '') + ' · ' + (plSideName(p.side) || '') + ' listesi' : (e.side ? plSideName(e.side) + ' listesinden · o gün nöbetçi değil' : 'Listede yok')}</span>${p && p.exempt ? html`<span class="badge warn">Kuradan muaf</span>` : ''}${p && p.team ? html`<span class="badge">${plTeam(d).name} üyesi</span>` : ''}</div>
+      <div class="row wrap">${p ? plCodeChip(p) : e.plain ? html`<span class="pl-tag">Ekstra</span>` : html`<span class="pl-tag called">Çağrıldı</span>`}<span class="small muted">${p ? (PL_PER[p.shift] || '') + ' · ' + (plSideName(p.side) || '') + ' listesi' : (e.side ? plSideName(e.side) + ' listesinden · o gün nöbetçi değil' : 'Listede yok')}</span>${p && p.exempt ? html`<span class="badge warn">Kuradan muaf</span>` : ''}${p && p.team ? html`<span class="badge">${plTeam(d).name} üyesi</span>` : ''}</div>
       ${p ? html`<div class="pl-pstats"><div><b>${p.cross}</b><span>karşıya geçiş</span></div>${units.map((u) => html`<div><b>${counts[u.unit] || 0}</b><span>${u.label}</span></div>`)}</div>
         <p class="tiny faint">${p.last_unit ? `Son yer: ${plLabel(p.last_unit)} (${plShortDate(p.last_date)})` : 'Daha önce kayıtlı yeri yok'}</p>` : ''}
       <div class="sec-label" style="padding:0;border:0">Tek yer${p ? ` (${PL_PER[p.shift]})` : ''}</div>
@@ -483,11 +500,13 @@ ACT['pl-pick'] = (el) => {
       <div class="sec-label" style="padding:0;border:0">Dönem dönem (iki yere bölme, oflama)</div>
       <div class="pl-pers"><label>${icon('sun', 'sm')} Gündüz <small>08-16</small></label>${opt('day')}<label>${icon('moon', 'sm')} Gece <small>16-08</small></label>${opt('night')}</div>
       ${e.duty ? html`<div class="row wrap"><span class="tiny faint">Hızlı ofla:</span><button type="button" class="btn sm" data-off="day">Gündüz</button><button type="button" class="btn sm" data-off="night">Gece</button><button type="button" class="btn sm" data-off="24">Tümü</button></div>` : ''}
-      <p class="tiny faint">Bir kişi en fazla iki yerde olabilir (ör. gündüz ${plTeam(d).name}, gece blok). Oflanan dönem kapsamaya ve karşıya geçişe sayılmaz.</p></div>`,
-  foot: html`${!e.duty ? html`<button class="btn danger" data-rm="1">Kaldır</button>` : ''}<span class="grow"></span><button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-apply="1">Uygula</button>` });
+      ${!e.duty ? html`<label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" id="plpTag" ${e.plain ? '' : raw('checked')}><span class="track"></span></span><span class="small">“Çağrıldı” etiketi <span class="faint">(kapalıysa sebepsiz ekstra)</span></span></label>` : ''}
+      <p class="tiny faint">Bir kişi en fazla iki yerde olabilir (ör. gündüz ${plTeam(d).name}, gece blok). Oflanan dönem kapsamaya ve karşıya geçişe sayılmaz.${e.duty ? ' <b>Nöbetten çıkar</b>: sebep yazılmadan o günden çıkarılır, hiçbir blokta görünmez ve sayılmaz.' : ''}</p></div>`,
+  foot: html`${!e.duty ? html`<button class="btn danger" data-rm="1">Kaldır</button>` : html`<button class="btn danger" data-out="1">Nöbetten çıkar</button>`}<span class="grow"></span><button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-apply="1">Uygula</button>` });
   const apply = (segs) => {
     if (!segs.length) { toast('En az bir dönem seçin ya da oflayın', 'err'); return; }
-    PL.cur[e.key] = { ...e, segs, method: 'elle', why: 'Elle' };
+    const tag = $('#plpTag', m.el);
+    PL.cur[e.key] = { ...e, segs, method: 'elle', why: 'Elle', ...(tag ? { plain: !tag.checked } : {}) };
     if (e.duty) PL.pins.add(e.key);
     PL.dirty = true;
     m.close();
@@ -495,7 +514,7 @@ ACT['pl-pick'] = (el) => {
   };
   const readSel = () => ({ day: $('select[data-per=day]', m.el).value, night: $('select[data-per=night]', m.el).value });
   m.el.addEventListener('click', (ev) => {
-    const b = ev.target.closest('.pl-opt,[data-off],[data-apply],[data-rm]');
+    const b = ev.target.closest('.pl-opt,[data-off],[data-apply],[data-rm],[data-out]');
     if (!b) return;
     if (b.classList.contains('pl-opt')) {
       const per = p ? p.shift : (e.segs.length === 2 ? '24' : e.segs[0].period);
@@ -506,13 +525,29 @@ ACT['pl-pick'] = (el) => {
       apply(plSegsFrom(cur, e.segs, home).map((s) => (e.duty ? s : { ...s, status: 'called' })));
     } else if (b.dataset.apply) {
       apply(plSegsFrom(readSel(), e.segs, home).map((s) => (e.duty || s.status === 'off' ? s : { ...s, status: 'called' })));
-    } else if (b.dataset.rm) {
+    } else if (b.dataset.rm || b.dataset.out) {
       delete PL.cur[e.key];
+      if (b.dataset.out) { PL.pins.delete(e.key); PL.removed = [...(PL.removed || []).filter((r) => r.key !== e.key), { key: e.key, name: e.name, side: e.side }]; }
       PL.dirty = true;
       m.close();
       plDrawDay();
+      if (b.dataset.out) toast(`${plName(e.name)} nöbetten çıkarıldı · kaydedince kesinleşir`);
     }
   });
+};
+/** Nöbetten çıkarmayı geri al: kişi kendi tarafına, kendi saatine döner */
+ACT['pl-rm-undo'] = (el) => {
+  const r = (PL.removed || [])[+el.dataset.i];
+  if (!r) return;
+  PL.removed.splice(+el.dataset.i, 1);
+  const p = plDutyMap()[r.key];
+  if (p && PL.cur) {
+    const sd = PL.day.sides.find((s) => s.key === p.side) || { units: [''] };
+    PL.cur[r.key] = { key: p.key, name: p.name, side: p.side, duty: true, segs: [{ unit: p.team ? PL_TEAM : sd.units[0], period: p.shift, status: 'work' }], method: 'elle', why: 'Elle' };
+    PL.pins.add(r.key);
+  }
+  PL.dirty = true;
+  plDrawDay();
 };
 
 /** Kişi seçici (o gün nöbetçi olmayan liste kişileri + elle yazılan ad) */
@@ -558,10 +593,18 @@ function plCalledModal(pre, onDone) {
         <button type="button" class="on" data-p="night">Gece 16-08</button><button type="button" data-p="day">Gündüz 08-16</button><button type="button" data-p="24">24 saat</button><button type="button" data-p="split">Gündüz + gece ayrı blok</button></div></div>
       <div class="field" id="plcOne"><label>Blok</label><select class="select" id="plcUnit">${opt(firstShort('night'))}</select></div>
       <div class="grid2 hidden" id="plcTwo"><div class="field"><label>Gündüz (08-16) bloğu</label><select class="select" id="plcUnitD">${opt(firstShort('day'))}</select></div>
-        <div class="field"><label>Gece (16-08) bloğu</label><select class="select" id="plcUnitN">${opt(firstShort('night'))}</select></div></div></div>`,
+        <div class="field"><label>Gece (16-08) bloğu</label><select class="select" id="plcUnitN">${opt(firstShort('night'))}</select></div></div>
+      <div class="field"><label>Sebep</label><div class="seg seg-block pl-ctag" role="group"><button type="button" class="on" data-t="called">Çağrıldı</button><button type="button" data-t="plain">Sebepsiz ekstra</button></div>
+        <p class="tiny faint" style="margin-top:4px">Sebepsiz ekstra: kişi bloğa yazılır, “Çağrıldı” etiketi görünmez. Sayım kuralları aynıdır.</p></div></div>`,
   foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="plcGo">Ekle</button>` });
   if (!pre) plPickerBind(m, 'plc');
   let per = 'night';
+  let plain = false;
+  $('.pl-ctag', m.el).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-t]'); if (!b) return;
+    plain = b.dataset.t === 'plain';
+    $$('.pl-ctag [data-t]', m.el).forEach((x) => x.classList.toggle('on', x === b));
+  });
   $('.pl-cper', m.el).addEventListener('click', (e) => {
     const b = e.target.closest('[data-p]'); if (!b) return;
     per = b.dataset.p;
@@ -573,6 +616,7 @@ function plCalledModal(pre, onDone) {
   $('#plcGo', m.el).addEventListener('click', () => {
     const who = pre || plPickerValue(m, 'plc');
     if (!who) { toast('Kişiyi seçin ya da adını yazın', 'err'); return; }
+    if (plRemovedKeys().has(who.key)) { toast('Bu kişi nöbetten çıkarılmış; “Nöbetten çıkarılanlar” kartından geri alın', 'err'); return; }
     if (plDutyMap()[who.key]) { toast('Bu kişi o gün zaten listede; ona dokunarak düzenleyin', 'err'); return; }
     plEnsureCur();
     let segs;
@@ -580,7 +624,7 @@ function plCalledModal(pre, onDone) {
       const ud = $('#plcUnitD', m.el).value, un = $('#plcUnitN', m.el).value;
       segs = ud === un ? [{ unit: ud, period: '24', status: 'called' }] : [{ unit: ud, period: 'day', status: 'called' }, { unit: un, period: 'night', status: 'called' }];
     } else segs = [{ unit: $('#plcUnit', m.el).value, period: per, status: 'called' }];
-    PL.cur[who.key] = { key: who.key, name: who.name, side: who.side, duty: false, crossBefore: who.cross || 0, segs, method: 'elle', why: 'Nöbete getirildi' };
+    PL.cur[who.key] = { key: who.key, name: who.name, side: who.side, duty: false, crossBefore: who.cross || 0, segs, method: 'elle', why: plain ? '' : 'Nöbete getirildi', plain };
     if (onDone) onDone();
     PL.dirty = true;
     PL.edit = true;
@@ -649,7 +693,7 @@ async function plShareData(date) {
       if (!U) return;
       const p = duty[e.key];
       const moved = s.status !== 'off' && s.unit !== PL_TEAM && e.side && U.side && U.side !== e.side;
-      U.rows.push({ name: e.name, code: p && s.period === p.shift && e.segs.length === 1 ? p.code : { day: '8 16', night: '16 8', 24: '8 8' }[s.period], period: s.period, status: s.status, moved, from: moved ? plSideShort(e.side, d) : '', n });
+      U.rows.push({ name: e.name, code: p && s.period === p.shift && e.segs.length === 1 ? p.code : { day: '8 16', night: '16 8', 24: '8 8' }[s.period], period: s.period, status: s.status, plain: !!e.plain, moved, from: moved ? plSideShort(e.side, d) : '', n });
       if (s.status !== 'off') plPers(s.period).forEach((per) => { U[per]++; });
     });
   });
@@ -662,7 +706,7 @@ async function plShareText(date) {
   const x = await plShareData(date);
   const dt = parseDT(date);
   const org = (S.settings && S.settings.org_name) || '';
-  const tag = (r) => (r.status === 'off' ? ` (ofl. ${PL_PER_WORD[r.period]})` : r.status === 'called' ? ' (çağrıldı)' : '') + (r.status !== 'off' && r.period !== '24' ? ' ' + PL_PER[r.period] : '');
+  const tag = (r) => (r.status === 'off' ? ` (ofl. ${PL_PER_WORD[r.period]})` : r.status === 'called' && !r.plain ? ' (çağrıldı)' : '') + (r.status !== 'off' && r.period !== '24' ? ' ' + PL_PER[r.period] : '');
   const person = (r) => (r.status === 'off' ? `~${plShortName(r.name)}~` : plShortName(r.name)) + ` (${r.n})` + tag(r);
   const lines = [`*Blok yerleşimi · ${dt.getDate()} ${TR_MONTHS[dt.getMonth()]} ${TR_DAYS[dt.getDay()]}*`];
   if (org) lines.push(org);
@@ -751,7 +795,7 @@ async function plShareImage(date) {
       const badge = (t, f, b) => { c.font = F(700, 18); const w = tw(t, F(700, 18)) + 20; bx -= w; c.fillStyle = b; rr(bx, ry + 15, w, 30, 8); c.fill(); c.fillStyle = f; c.fillText(t, bx + 10, ry + 36); bx -= 8; };
       c.globalAlpha = 1;
       if (off) badge('Ofl. ' + PL_PER_WORD[r.period], '#c73a5c', '#fce8ed');
-      if (r.status === 'called') badge('Çağrıldı', '#a76300', '#fdf1dc');
+      if (r.status === 'called' && !r.plain) badge('Çağrıldı', '#a76300', '#fdf1dc');
       if (r.moved) badge(r.from, '#a76300', '#fdf1dc');
       const nx = x0 + 22 + cw + 14;
       const nF = F(600, 27);
@@ -1073,7 +1117,7 @@ NM_EXT.homeCards.push({
     r.sides.forEach((sd) => sd.units.forEach((u) => { sideOf[u] = sd.key; }));
     const person = (s) => {
       const moved = s.status !== 'off' && s.unit !== PL_TEAM && s.side && sideOf[s.unit] && sideOf[s.unit] !== s.side;
-      return html`<span class="pl-hp ${moved ? 'in' : ''} ${s.status === 'off' ? 'off' : ''} ${plIsMe(s.name) ? 'me' : ''}" title="${s.code || PL_PER[s.period]}${moved ? ' · ' + plSideName(s.side, src) + ' listesinden' : ''}"><span class="pl-hpn">${pName(plName(s.name))}</span> <small>(${s.cross_total})</small>${s.period !== '24' && s.status !== 'off' ? html` <small class="pl-hper">${PL_PER_WORD[s.period]}</small>` : ''}${s.status === 'off' ? html` <span class="pl-tag off">Ofl. ${PL_PER_WORD[s.period]}</span>` : ''}${s.status === 'called' ? html` <span class="pl-tag called">Çağrıldı</span>` : ''}</span>`;
+      return html`<span class="pl-hp ${moved ? 'in' : ''} ${s.status === 'off' ? 'off' : ''} ${plIsMe(s.name) ? 'me' : ''}" title="${s.code || PL_PER[s.period]}${moved ? ' · ' + plSideName(s.side, src) + ' listesinden' : ''}"><span class="pl-hpn">${pName(plName(s.name))}</span> <small>(${s.cross_total})</small>${s.period !== '24' && s.status !== 'off' ? html` <small class="pl-hper">${PL_PER_WORD[s.period]}</small>` : ''}${s.status === 'off' ? html` <span class="pl-tag off">Ofl. ${PL_PER_WORD[s.period]}</span>` : ''}${s.status === 'called' && !s.plain ? html` <span class="pl-tag called">Çağrıldı</span>` : ''}</span>`;
     };
     const body = work.length
       ? html`<div class="pl-hgrid">${units.map((u) => {

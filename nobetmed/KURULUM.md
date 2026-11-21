@@ -928,3 +928,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **4.30.2:** Excel'de bölme ilk kişinin satırına kadar dondurulmuşsa o kişi "başlık" sanılıp sizinle birlikte gösteriliyordu. Artık sizin satırınızla aynı yapıdaki satırlar (sıra no sütununda sayı, ünvan sütununda aynı yazı ya da gün sütunlarında nöbet kodu) kişi satırı sayılır ve gizlenir; başlık satırları (Personel listesi, Ünvanı, günler) görünmeye devam eder.
 - **4.30.3:** İstekler › Yönetim'de **Kişiler** bölümü (kişi kişi toplu onay / ret) en üste, özet sayıların ve basamak seçiminin hemen altına alındı; takvim ve yığılma onun altında.
 - **4.30.3:** Telefon rehberinde dar ekranda iki numarası olan kişinin numaraları alt satıra iner (ad ve ünvan sıkışmaz).
+
+## 45. Taraf: sebepsiz nöbetten çıkarma ve sebepsiz ekstra kişi (4.30.4)
+- **Nöbetten çıkar:** Taraf › Elle düzenle'de listede nöbetçi olan kişiye dokunun → **Nöbetten çıkar**. Sebep sorulmaz. Kişi o gün hiçbir blokta, ana sayfa kartında, paylaşım görselinde / metninde ve ay tablosunda görünmez; kapsamaya, karşıya geçişe ve kuraya sayılmaz; otomatik dağıtıma girmez; "yerleştirilmedi" uyarısı çıkmaz. Sorumlular günün altında **Nöbetten çıkarılanlar** kartında görür, **Geri al** ile kişiyi kendi tarafına döndürür. ("Ofl." eve gönderme olarak ayrıca durur.)
+- **Sebepsiz ekstra:** **Ekstra kişi** penceresinde **Sebep: Çağrıldı / Sebepsiz ekstra** seçimi var. Sebepsiz eklenen kişi bloğa yazılır ama "Çağrıldı" etiketi hiçbir yerde görünmez; kişiye giden bildirimde "Blok yerleşimi" yazar. Sayım kuralları aynıdır (karşı tarafta gece içeriyorsa geçiş sayılır). Eklenmiş kişide etiket, kişiye dokunup **"Çağrıldı" etiketi** anahtarıyla sonradan da açılıp kapatılır.
+- İşlem günlüğünde kayıt satırına "nöbetten çıkarılan: …" ve "(ekstra)" eklenir.

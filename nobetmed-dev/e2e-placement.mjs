@@ -389,6 +389,67 @@ const mShare = await m.evaluate(() => document.querySelectorAll('[data-act=pl-sh
 if (mShare) fail('üye paylaş düğmesi görüyor');
 step(`paylaşım: PNG ${img.w}×${img.h} (${Math.round(img.size / 1024)} KB), metin "${txt.split('\n')[0]}" · çağrılan/ofl. rozetleri · üyede düğme yok`);
 
+// 13b) Sebepsiz nöbetten çıkarma ve etiketsiz (sebepsiz) ekstra kişi
+const burak5 = { name: 'BURAK DEMİR', segs: [{ unit: TEAM, period: 'day', status: 'work' }, { unit: 'A blok', period: 'night', status: 'work' }] };
+const rm5 = await apiCall(a, 'placement.save', { date: D5, people: [one('ELİF YILMAZ', 'B blok', 'night'), one('AYŞE KAYA', 'B blok', 'day'), { name: 'KEMAL BULUT', removed: true }, burak5, { ...one('Deniz Ak', 'C blok', 'night'), plain: true }] });
+const kRow = rm5.saved.find((s) => /KEMAL/.test(s.name));
+const dRow = rm5.saved.find((s) => /Deniz Ak/i.test(s.name));
+if (!kRow || kRow.status !== 'removed' || kRow.counted || kRow.unit) fail('nöbetten çıkarılan satır: ' + JSON.stringify(kRow));
+if (!dRow || dRow.status !== 'called' || !dRow.plain || dRow.why) fail('etiketsiz ekstra satır: ' + JSON.stringify(dRow));
+if (rm5.stale.length) fail('çıkarılan kişi "yerleştirilmedi" uyarısı verdi: ' + JSON.stringify(rm5.stale));
+const rmBad = await apiErr(a, 'placement.save', { date: D5, people: [...toPeople(rm5.saved.filter((s) => s.status !== 'removed')), { name: 'MERVE KAPLAN', removed: true }] });
+if (!/listede nöbetçi değil/.test(rmBad)) fail('listede olmayanı nöbetten çıkarma: ' + rmBad);
+const rmDup = await apiErr(a, 'placement.save', { date: D5, people: [one('ELİF YILMAZ', 'B blok', 'night'), one('AYŞE KAYA', 'B blok', 'day'), one('KEMAL BULUT', 'C blok', '24'), { name: 'KEMAL BULUT', removed: true }, burak5] });
+if (!/iki kez/.test(rmDup)) fail('hem yerleşik hem çıkarılmış: ' + rmDup);
+for (let i = 0; i < 3; i++) {
+  const r = await apiCall(a, 'placement.auto', { date: D5, keep: [{ name: 'KEMAL BULUT', removed: true }] });
+  if (r.items.some((x) => /KEMAL/.test(x.name)) || r.draws.some((x) => x.pool.some((c) => /KEMAL/.test(c.name)))) { fail('çıkarılan kişi otomatik dağıtıma girdi'); break; }
+}
+const mo5 = await apiCall(a, 'placement.month', { month });
+if (Object.keys(mo5.placed[D5] || {}).some((k) => /kemal/i.test(k))) fail('çıkarılan kişi ay tablosunda: ' + JSON.stringify(mo5.placed[D5]));
+const mdx = mo5.placed[D5] && Object.entries(mo5.placed[D5]).find(([k]) => /deniz ak/i.test(k));
+if (mdx && mdx[1].st === 'called') fail('etiketsiz ekstra ay tablosunda "çağrıldı": ' + JSON.stringify(mdx));
+await a.goto(BASE + '#/taraf/' + D5);
+await a.locator('.pl-removed', { hasText: 'Kemal' }).waitFor();
+const dChip = a.locator('.pl-unit[data-unit="C blok"] .pl-p', { hasText: 'Deniz' });
+if (!(await dChip.count()) || /Çağrıldı/.test(await dChip.innerText()) || await a.locator('.pl-unit[data-unit="C blok"] .pl-p.called', { hasText: 'Deniz' }).count()) fail('etiketsiz ekstra çipinde Çağrıldı var');
+if (await a.locator('.pl-unit .pl-p', { hasText: 'Kemal' }).count()) fail('çıkarılan kişi blokta görünüyor');
+if (await a.locator('.pl-warn', { hasText: 'Kemal' }).count()) fail('çıkarılan kişi uyarıda');
+// Arayüz: Ayşe'yi sebepsiz çıkar, kaydet; sonra Kemal'i geri al ve sebepsiz ekstra ekle
+await a.click('[data-act=pl-edit]');
+await a.click('.pl-unit[data-unit="B blok"] .pl-p.ed:has-text("Ayşe")');
+await a.click('.modal [data-out]');
+await a.locator('.pl-removed', { hasText: 'Ayşe' }).waitFor();
+await a.click('[data-act=pl-save]');
+await a.getByText('Yerleşim kaydedildi').first().waitFor();
+const rm5b = await apiCall(a, 'placement.day', { date: D5 });
+if (rm5b.saved.find((s) => /AYŞE/.test(s.name)).status !== 'removed') fail('arayüzden nöbetten çıkarma kaydedilmedi');
+await a.click('[data-act=pl-edit]');
+await a.click('.pl-removed .pl-p:has-text("Kemal") [data-act=pl-rm-undo]');
+await a.locator('.pl-unit .pl-p', { hasText: 'Kemal' }).waitFor();
+await a.click('[data-act=pl-call-add]');
+await a.selectOption('.modal #plcSel', '__free');
+await a.fill('.modal #plcFree', 'Selin Er');
+await a.click('.modal .pl-ctag [data-t=plain]');
+await a.click('.modal .pl-cper [data-p=day]');
+await a.selectOption('.modal #plcUnit', 'A blok');
+await a.click('.modal #plcGo');
+await a.screenshot({ path: path.join(OUT, 'pl-removed-mobile.png'), fullPage: true });
+await a.click('[data-act=pl-save]');
+await a.getByText('Yerleşim kaydedildi').first().waitFor();
+const rm5c = await apiCall(a, 'placement.day', { date: D5 });
+const kc = rm5c.saved.find((s) => /KEMAL/.test(s.name));
+const sc = rm5c.saved.find((s) => /Selin Er/i.test(s.name));
+if (!kc || kc.status !== 'work' || !kc.unit) fail('geri alınan kişi yerleşmedi: ' + JSON.stringify(kc));
+if (!sc || sc.status !== 'called' || !sc.plain || sc.unit !== 'A blok' || sc.period !== 'day') fail('arayüzden etiketsiz ekstra: ' + JSON.stringify(sc));
+if (!rm5c.saved.some((s) => /AYŞE/.test(s.name) && s.status === 'removed')) fail('kayıtta Ayşe çıkarılmış kalmalıydı');
+const txt5 = await a.evaluate((d) => plShareText(d), D5);
+if (/Ayşe/.test(txt5) || /Selin E\. \(\d+\) \(çağrıldı\)/.test(txt5) || !/Selin E\./.test(txt5)) fail('paylaşım metni (çıkarılan / etiketsiz): ' + txt5);
+const md5 = await apiCall(m, 'placement.day', { date: D5 });
+if (md5.saved.some((s) => s.status === 'removed' && s.why)) fail('üye çıkarma sebebi görüyor');
+await apiCall(a, 'placement.save', { date: D5, people: [...base5, burak5] });
+step('sebepsiz nöbetten çıkarma (sayılmaz, blokta/ay tablosunda/paylaşımda yok, uyarı yok, dağıtıma girmez, geri alınır) ve etiketsiz ekstra (Çağrıldı etiketi yok) · API + arayüz');
+
 // 14) Üye görünümü (salt okunur) ve masaüstü
 await m.goto(BASE + '#/taraf/' + D);
 await m.locator('.pl-unit[data-unit="A blok"]').waitFor();

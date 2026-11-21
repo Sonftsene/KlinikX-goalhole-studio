@@ -11,7 +11,8 @@
  * Bir kişi bir günde en fazla 2 yerde olabilir (dönemler çakışmadan: gündüz + gece).
  *
  * Kayıt satırı (placements): kişi × yer × dönem (day | night | 24) × durum:
- *   work (çalışıyor) | off (oflandı, eve gönderildi) | called (listede yokken çağrıldı) | standby (nöbete gelecek kişi)
+ *   work (çalışıyor) | off (oflandı, eve gönderildi) | called (listede yokken getirildi; meta.plain = etiketsiz ekstra) | standby (nöbete gelecek kişi)
+ *   removed (listede nöbetçi ama sebepsiz nöbetten çıkarıldı: hiçbir yerde görünmez, kapsamaya ve sayımlara girmez)
  * Sayım: karşı taraftaki blokta gece içeren (night/24) work/called satırı = 1 geçiş. Sorumlular, ofl. ve 08-16 sayılmaz.
  * Kaynaklar: placements (side_since tarihinden beri) + eski side_moves (o güne yerleşim kaydı yoksa) + placement_adjust.
  *
@@ -590,7 +591,7 @@ function pl_saved_out(array $r, bool $pub = false): array
     $meta = json_decode((string)$r['meta'], true) ?: [];
     return ['key' => swap_key((string)$r['name']), 'name' => $r['name'], 'unit' => $r['unit'], 'side' => $r['side'], 'code' => $r['code'], 'period' => $r['period'],
         'status' => $r['status'] ?? 'work', 'method' => $r['method'], 'counted' => (bool)$r['counted'],
-        'pool' => $pub ? json_decode((string)$r['pool'], true) : null, 'why' => $pub ? ($meta['why'] ?? '') : ''];
+        'pool' => $pub ? json_decode((string)$r['pool'], true) : null, 'why' => $pub ? ($meta['why'] ?? '') : '', 'plain' => !empty($meta['plain'])];
 }
 
 function pl_users(): array
@@ -683,34 +684,45 @@ function pl_match_person(array $people, string $name): ?string
 }
 
 /**
- * İstemcinin kişi listesini ayrıştırır: [{name, segs}] → ['duty' => [anahtar => segs], 'called' => [anahtar => [name, side, roster_id, segs]]]
+" * İstemcinin kişi listesini ayrıştırır: [{name, segs, plain?, removed?}] →
+ * ['duty' => [anahtar => segs], 'called' => [anahtar => [name, side, roster_id, segs, plain]], 'removed' => [anahtar => true]]
+ * removed: listede nöbetçi olan kişi sebepsiz nöbetten çıkarıldı. plain: ekstra kişi "Çağrıldı" etiketi olmadan eklendi.
  */
 function pl_parse_people(array $people, array $list, string $date): array
 {
     $duty = [];
     $called = [];
+    $removed = [];
     foreach (array_slice($list, 0, 200) as $it) {
         if (!is_array($it)) continue;
         $name = mb_substr(trim((string)($it['name'] ?? '')), 0, 120);
         if (mb_strlen($name) < 3) fail('Kişi adı eksik.');
+        if (!empty($it['removed'])) {
+            $k = pl_match_person($people, $name);
+            if ($k === null) fail('“' . $name . '” o gün listede nöbetçi değil; nöbetten çıkarmak yerine kaldırın.');
+            if (isset($duty[$k]) || isset($removed[$k])) fail('“' . $people[$k]['name'] . '” iki kez yazılmış.');
+            $removed[$k] = true;
+            continue;
+        }
+        $plain = !empty($it['plain']);
         if (pl_excluded($name)) {
             // Nöbet dışı: yalnız elle eklenir; karşıya geçiş / blok sayımına girmez
             $k = swap_key($name);
             if (isset($called[$k])) fail('“' . $name . '” iki kez yazılmış.');
-            $called[$k] = ['key' => $k, 'name' => $name, 'side' => '', 'roster_id' => null, 'segs' => pl_norm_segs($it['segs'] ?? null, false, $name)];
+            $called[$k] = ['key' => $k, 'name' => $name, 'side' => '', 'roster_id' => null, 'segs' => pl_norm_segs($it['segs'] ?? null, false, $name), 'plain' => $plain];
             continue;
         }
         $k = pl_match_person($people, $name);
         if ($k !== null) {
-            if (isset($duty[$k])) fail('“' . $people[$k]['name'] . '” iki kez yazılmış.');
+            if (isset($duty[$k]) || isset($removed[$k])) fail('“' . $people[$k]['name'] . '” iki kez yazılmış.');
             $duty[$k] = pl_norm_segs($it['segs'] ?? null, true, $people[$k]['name']);
         } else {
             $h = pl_home_of($name, $date);
             if (isset($called[$h['key']])) fail('“' . $h['name'] . '” iki kez yazılmış.');
-            $called[$h['key']] = $h + ['segs' => pl_norm_segs($it['segs'] ?? null, false, $h['name'])];
+            $called[$h['key']] = $h + ['segs' => pl_norm_segs($it['segs'] ?? null, false, $h['name']), 'plain' => $plain];
         }
     }
-    return ['duty' => $duty, 'called' => $called];
+    return ['duty' => $duty, 'called' => $called, 'removed' => $removed];
 }
 
 function a_placement_auto(): void
@@ -722,6 +734,7 @@ function a_placement_auto(): void
     if (!$people) fail('Bu gün listede nöbetçi görünmüyor.');
     $parsed = pl_parse_people($people, arr('keep'), $date);
     $n = pl_needs($date);
+    $people = array_diff_key($people, $parsed['removed']);
     $res = pl_auto($date, $people, $n['needs'], $n['any'], $parsed['duty'], array_values($parsed['called']));
     // Öneri oturumda saklanır: kayıtta yöntem (otomatik/kura) ve kura adayları buradan doğrulanır
     $prop = [];
@@ -748,8 +761,8 @@ function a_placement_save(): void
     $people = pl_day_people($date);
     if (!$people) fail('Bu gün listede nöbetçi görünmüyor.');
     $parsed = pl_parse_people($people, arr('people'), $date);
-    $missing = array_diff_key($people, $parsed['duty']);
-    if ($missing) fail('Herkesi bir yere yerleştirin (ya da oflayın): ' . implode(', ', array_map(fn($p) => $p['name'], $missing)) . '.');
+    $missing = array_diff_key($people, $parsed['duty'], $parsed['removed']);
+    if ($missing) fail('Herkesi bir yere yerleştirin (ya da oflayın / nöbetten çıkarın): ' . implode(', ', array_map(fn($p) => $p['name'], $missing)) . '.');
     $standby = [];
     foreach (array_slice(arr('standby'), 0, 20) as $sb) {
         $name = mb_substr(trim((string)(is_array($sb) ? ($sb['name'] ?? '') : $sb)), 0, 120);
@@ -798,9 +811,16 @@ function a_placement_save(): void
             $sig = pl_segs_sig($c['segs']);
             foreach ($c['segs'] as $s) {
                 $counted = pl_counts_cross($c['side'], $s['unit'], $s['period'], 'called') ? 1 : 0;
-                $ins([$date, $c['name'], $u ? (int)$u['id'] : null, $c['roster_id'], $c['side'], $s['unit'], '', $s['period'], 'elle', $counted, null, $me['id'], now(), json_encode(['why' => 'Çağrıldı'], JSON_UNESCAPED_UNICODE), 'called']);
-                $rows[] = ['name' => $c['name'], 'side' => $c['side'], 'code' => '', 'seg' => $s, 'counted' => $counted, 'method' => 'elle', 'user' => $u, 'changed' => !isset($prev[$k]) || $prev[$k]['sig'] !== $sig];
+                $meta = $c['plain'] ? ['why' => '', 'plain' => true] : ['why' => 'Çağrıldı'];
+                $ins([$date, $c['name'], $u ? (int)$u['id'] : null, $c['roster_id'], $c['side'], $s['unit'], '', $s['period'], 'elle', $counted, null, $me['id'], now(), json_encode($meta, JSON_UNESCAPED_UNICODE), 'called']);
+                $rows[] = ['name' => $c['name'], 'side' => $c['side'], 'code' => '', 'seg' => $s, 'counted' => $counted, 'method' => 'elle', 'user' => $u, 'plain' => $c['plain'], 'changed' => !isset($prev[$k]) || $prev[$k]['sig'] !== $sig];
             }
+        }
+        // Sebepsiz nöbetten çıkarılanlar: yalnız iz kalır (hiçbir yerde görünmez, sayılmaz)
+        foreach ($parsed['removed'] as $k => $_) {
+            $p = $people[$k];
+            $u = swap_user_for($p['name'], $users);
+            $ins([$date, $p['name'], $u ? (int)$u['id'] : null, $p['roster_id'], $p['side'], '', (string)$p['row']['code'], '24', 'elle', 0, null, $me['id'], now(), null, 'removed']);
         }
         foreach ($standby as $k => $h) {
             $u = swap_user_for($h['name'], $users);
@@ -822,11 +842,12 @@ function a_placement_save(): void
             $s = $r['seg'];
             if ($s['status'] === 'off' || !$r['changed'] || !$r['user'] || (int)$r['user']['id'] === (int)$me['id'] || isset($done[$r['user']['id']])) continue;
             $cross = $s['unit'] !== PL_TEAM && ($u2s[$s['unit']] ?? '') !== $r['side'];
+            $isCalled = $s['status'] === 'called' && empty($r['plain']);
             if (!$cross && $s['status'] !== 'called') continue;
             $done[$r['user']['id']] = true;
             $lbl = pl_unit_label($s['unit']);
             notify_users([$r['user']], 'side', ($date === $today ? 'Bugün ' : 'Yarın ') . $lbl . '’ta çalışacaksın',
-                ($s['status'] === 'called' ? 'Çağrıldın' : ($r['method'] === 'kura' ? 'Kura sonucu' : 'Blok yerleşimi')) . ' · ' . ['day' => '08-16', 'night' => '16-08', '24' => '24 saat'][$s['period']]
+                ($isCalled ? 'Çağrıldın' : ($r['method'] === 'kura' ? 'Kura sonucu' : 'Blok yerleşimi')) . ' · ' . ['day' => '08-16', 'night' => '16-08', '24' => '24 saat'][$s['period']]
                 . ($r['side'] && $cross ? ' · ' . ($sideName[$r['side']] ?? '') . ' → ' . $lbl : '') . ($r['counted'] ? ' · karşı tarafa geçiş olarak sayıldı' : ''), '#/taraf/' . $date, null);
             $sent++;
         }
@@ -835,9 +856,10 @@ function a_placement_save(): void
     foreach ($rows as $r) {
         $s = $r['seg'];
         $byUnit[$s['unit']][] = $r['name'] . ($s['period'] !== '24' ? ' ' . ['day' => 'gündüz', 'night' => 'gece'][$s['period']] : '')
-            . ($s['status'] === 'off' ? ' (ofl.)' : ($s['status'] === 'called' ? ' (çağrıldı)' : ($r['counted'] ? ' (geçiş, ' . $r['method'] . ')' : '')));
+            . ($s['status'] === 'off' ? ' (ofl.)' : ($s['status'] === 'called' ? (empty($r['plain']) ? ' (çağrıldı)' : ' (ekstra)') : ($r['counted'] ? ' (geçiş, ' . $r['method'] . ')' : '')));
     }
     $detail = implode(' · ', array_map(fn($u, $l) => pl_short($u) . ': ' . implode(', ', $l), array_keys($byUnit), $byUnit));
+    if ($parsed['removed']) $detail .= ' · nöbetten çıkarılan: ' . implode(', ', array_map(fn($k) => $people[$k]['name'], array_keys($parsed['removed'])));
     if ($standby) $detail .= ' · bekleyen: ' . implode(', ', array_column($standby, 'name'));
     audit($me, 'placement.save', $date, $detail);
     pl_records_reset();
@@ -922,6 +944,8 @@ function a_placement_month(): void
         if (pl_excluded((string)$r['name'])) continue;
         $k = swap_key((string)$r['name']);
         $st = $r['status'] ?? 'work';
+        if ($st === 'removed') continue;
+        if ($st === 'called' && !empty((json_decode((string)$r['meta'], true) ?: [])['plain'])) $st = 'work';
         $d = $r['date'];
         if (!isset($log[$d])) $log[$d] = ['date' => $d, 'by' => $r['by_name'], 'at' => $r['created_at'], 'n' => 0, 'items' => [], 'legacy' => false];
         $c = &$placed[$d][$k];
@@ -1035,7 +1059,7 @@ function a_placement_today(): void
     if (!pl_layout_ok()) out(['sides' => []]);
     $date = date('Y-m-d');
     $rec = pl_records();
-    $saved = array_map(fn($s) => pl_saved_out($s, false) + ['cross_total' => (int)($rec[swap_key((string)$s['name'])]['total'] ?? 0)], pl_saved($date));
+    $saved = array_values(array_filter(array_map(fn($s) => pl_saved_out($s, false) + ['cross_total' => (int)($rec[swap_key((string)$s['name'])]['total'] ?? 0)], pl_saved($date)), fn($s) => $s['status'] !== 'removed'));
     $mine = [];
     foreach ($saved as $s) if ($s['status'] !== 'off' && $s['status'] !== 'standby' && names_match((string)$s['name'], (string)$me['name'])) $mine[] = pl_unit_label($s['unit']) . ($s['period'] !== '24' ? ' ' . ['day' => 'gündüz', 'night' => 'gece'][$s['period']] : '');
     $onDuty = $saved ? count(array_unique(array_column($saved, 'key'))) : count(pl_day_people($date));
@@ -1052,7 +1076,7 @@ function pl_my_blocks(array $me): array
     $from = date('Y-m-d', strtotime('-40 days'));
     $to = date('Y-m-d', strtotime('+40 days'));
     $out = [];
-    foreach (all("SELECT date, name, user_id, unit, period, status FROM placements WHERE date >= ? AND date <= ? AND status <> 'off' ORDER BY date, period = 'night', id", [$from, $to]) as $r) {
+    foreach (all("SELECT date, name, user_id, unit, period, status FROM placements WHERE date >= ? AND date <= ? AND status NOT IN ('off', 'removed') ORDER BY date, period = 'night', id", [$from, $to]) as $r) {
         if ((int)$r['user_id'] !== (int)$me['id'] && !names_match((string)$r['name'], (string)$me['name'])) continue;
         $lbl = $r['status'] === 'standby' ? 'Nöbete gelecek' : pl_unit_label((string)$r['unit']);
         $out[$r['date']] = isset($out[$r['date']]) && $out[$r['date']] !== $lbl ? $out[$r['date']] . ' / ' . $lbl : $lbl;
