@@ -233,6 +233,7 @@ async function homeTipsHtml() {
   if (!dismissed.push && typeof pushState === 'function' && S.settings.push_ready) {
     try { const st = await pushState(); if (st === 'off') tips.push(['push', 'bell', 'Telefon bildirimlerini açın', 'Duyuru ve nöbet hatırlatmaları anında gelsin.', 'Aç', 'push-on']); } catch (e) { /* */ }
   }
+  if (!S.me) return ''; // beklerken çıkış yapıldı / sistem paneline geçildi
   if (!dismissed.phone && !S.me.phone) tips.push(['phone', 'phone', 'Rehbere telefonunuzu ekleyin', 'Ekip sizi nöbetteyken tek dokunuşla arayabilsin.', 'Ekle', 'go-profile']);
   if (!tips.length) return '';
   return html`<div class="card tips">${tips.map(([k, ic, t, d, b, act]) => html`<div class="tip"><span class="cat-ico sm tone-teal">${icon(ic)}</span><div class="grow"><b class="small">${t}</b><div class="tiny faint">${d}</div></div><button class="btn sm primary" data-act="${act}">${b}</button><button class="btn sm icon ghost" data-act="tip-hide" data-k="${k}" aria-label="Gizle">${icon('x', 'sm')}</button></div>`)}</div>`;

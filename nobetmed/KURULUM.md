@@ -940,3 +940,5 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Yönetici Ayarlar › Genel › "Logo ve simge"den kendi logosunu yüklerse o kullanılır (öncekiyle aynı).
 - Telefona daha önce eklenmiş uygulamada simge: Android birkaç gün içinde kendisi yeniler (bazen sorar); iPhone yenilemez, ana ekrandan kaldırıp Safari'den yeniden eklemek gerekir.
 - Düzeltme: "Hatırlatma saatim" seçen kişiye, genel "yarın nöbetiniz var" hatırlatması o gün kendisine gitmediyse (ör. liste sonradan yüklendiyse) kişisel hatırlatma artık gönderiliyor; önceden o gün hiç gitmiyordu.
+- Bağlantı paylaşınca çıkan önizleme görseli: ortada "dupcii | by fırtına" logosu ve "Nöbet ve ekip portalı" yazısı (WhatsApp'ın kare kırpmasında da tam görünür). WhatsApp daha önce paylaşılmış bir bağlantının önizlemesini bir süre eski hâliyle saklar; yeni paylaşımlarda yenisi çıkar.
+- Düzeltme: sistem yönetimine geçerken ana sayfa ipuçları kartı ara sıra hata veriyordu.
