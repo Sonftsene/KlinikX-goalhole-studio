@@ -888,3 +888,27 @@ Yönetim › **Kullanıcılar** sayfasında:
 - İlan / çağrı seçiminde aynı anda iki kişi işlem yapınca “database is locked” yerine anlaşılır uyarı; nöbet değişimi kabul / ret / iptal aynı anda iki kez sonuçlanamaz.
 - Sunucu dışı yedeği indirme bağlantısı oturum anahtarı ister; güncelleme paketinde “./config.php” gibi yollar korunan dosyaların üzerine yazamaz; sistem yöneticisi birime girip çıkınca telefondaki ek dosyası önbelleği temizlenir.
 - Not: Excel/ODS okumak için kullanılan SheetJS kütüphanesi 0.18.5 sürümündedir (bilinen iki açığı bulunur; dosyalar zaten tarayıcıda ve sanal alanda açılır). Yeni sürüm yalnız cdn.sheetjs.com'dan indirilebiliyor; bir sonraki güncellemede değiştirilecek.
+
+## 43. Blok planı kuralları ve basamakları birlikte planlama (4.30)
+
+**Taraflar ve bloklar (Taraf › Taraflar)**
+- Birim kendi çalışma yerlerini tanımlar: **tek alan** (tek servis; blok yerleşimi gerekmez, liste yeterli) ya da **birden çok blok/alan**, istediği adlarla (A blok, B blok, Yoğun bakım…). Taraf eklenip kaldırılabilir.
+- Blokların **sırası önceliktir**: kişi eksikse önce üstteki blok dolar, fazlada eşitleme alttakine gelir. Örnek 2. basamak (A blok, C blok; A 3 + C 3 gerekli): 5 kişi → A3 C2, 6 kişi → A3 C3, 7 kişi → A4 C3.
+- **Karşı taraftan gelen yalnız şu bloklara:** örneğin 2. basamak tarafında yalnız A seçilir → 3. basamaktan karşıya geçen kişi yalnız A bloğa yerleşir.
+- **Aynı blokta üst üste en fazla N nöbet:** örneğin 2 → kişi A'da üst üste 2 nöbetten sonra C'ye, C'de 2 nöbetten sonra A'ya geçer. Önceki ayın son nöbetleri de sayılır.
+- Kurallar çakışırsa öncelik: blok sayıları → karşıdan gelenin bloğu → üst üste kuralı. Uyulamayan kural yerleşimin açıklamasında yazar.
+- **Nöbet dışı kişiler** kuraya, otomatik dağıtıma ve sayımlara hiç girmez; Taraf'ta yalnız elle eklenebilir ("Çağrılan ekle" › Nöbet dışı).
+- **Anlık güncelleme:** liste yeni sürüm alınca, değişim / devir olunca, taraflar ya da sayılar değişince, başka bir sorumlu kaydedince ya da oflayınca Taraf sayfası birkaç saniye içinde kendiliğinden yenilenir (adlar, sayılar, geçişler). Kaydedilmemiş düzenleme varsa üzerine yazılmaz; "Yenile" uyarısı çıkar.
+
+**Basamakları birlikte planla (Çizelge › Basamakları birlikte planla)**
+- En az iki taraf ve her birine nöbet listesi tanımlıysa görünür. İki basamak **aynı ekranda ama ayrı tablolarda** hazırlanır; birbirine karışmaz, her biri kendi listesinin taslağına kaydedilir ve **ayrı Excel** olarak indirilir / yayınlanır.
+- Ay değişince basamak kişileri değişebilir: kişi ekle, çıkar ya da "diğer basamağa taşı". Yeni ayın taslağı önceki ayın kişileriyle başlar.
+- **Gereken kişi sayıları blok planından gelir:** "Blok sayıları" (hafta içi / hafta sonu-tatil, gündüz / gece, blok blok) ve gün başlığına dokunarak o güne özel sayı. Taraf sayfasındaki gün gün sayılarla aynıdır. Sorumlular alan sayısına girmez.
+- **Otomatik dağıt:**
+  1. Onaylı izin / boşluk istekleri ve elle yazılan hücreler korunur; nöbet dışı kişilere yazılmaz.
+  2. Sorumlulara (Taraf › Sorumlular ekibi) isteğe bağlı hafta içi gündüz yazılır.
+  3. Her gün önce herkes kendi basamağından dolar; adalet sırası: ay içinde az saat → hafta sonu sayısı → son 7 gün → kura.
+  4. Bir taraf o gün dolmuyorsa eksik diğer basamağın listesinden tamamlanır: o kişi o gün karşıya geçecek kişidir, bloğu Taraf kurasında belli olur.
+  5. Herkes yerleştikten sonra Cuma (seçilen kod, ör. 16-08) ve isteğe bağlı Cumartesi (ör. 24) sorumlular sırayla atanır.
+- **Önceki ay hatırlanır:** dinlenme, üst üste çalışma ve 24 saat çıkışı kuralları önceki ayın son günleriyle birlikte denetlenir (ör. 31'inde 24 tutan 1'inde yazılmaz). Tablonun başında önceki ayın son 3 günü soluk görünür. Bu kural tek liste çizelgesinde de geçerlidir.
+- **Anlık sayılar:** her hücre değişikliğinde basamağın gece / gündüz alan sayısı (alan / gereken), gün gün toplam ve karşıya geçecek kişi sayısı (↔) hemen yeniden hesaplanır.

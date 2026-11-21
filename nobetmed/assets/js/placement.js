@@ -2,6 +2,8 @@
    oflama, çağrılan, nöbete gelecek kişi, karşı tarafa geçiş sayımı, kura ve WhatsApp paylaşımı */
 'use strict';
 
+/** Blok yerleşimi anlamlı mı: en az iki taraf ya da tek tarafta en az iki blok (tek alanlı birimde liste yeterli) */
+function plLayoutOk(sides) { return !!sides && (sides.length >= 2 || (sides.length === 1 && (sides[0].units || []).length >= 2)); }
 const PL = { date: '', day: null, prop: null, cur: null, standby: [], pins: new Set(), dirty: false, edit: false, ym: '', mon: null, monYm: '', sort: { k: 'total', d: -1 }, tok: 0, countsOpen: false };
 const PL_TEAM = '@sorumlu';
 const PL_TONES = ['indigo', 'teal', 'sky', 'emerald', 'rose', 'amber'];
@@ -84,15 +86,50 @@ async function plLoadDay() {
   }
   if (tok !== PL.tok) return;
   PL.day = d;
+  PL.sig = d.sig || null;
   plBuildCur();
   plDrawDay();
   plLoadMonth();
+  plWatch();
 }
+
+/* ---------------- Anlık güncelleme ----------------
+   Liste yeni sürüm aldı, değişim / devir oldu, taraflar ya da sayılar değişti, başka bir sorumlu kaydetti ya da oflama yaptıysa
+   sayfa kendiliğinden yenilenir (sayılar, adlar, geçişler). Kaydedilmemiş düzenleme varsa üzerine yazılmaz, uyarı çıkar. */
+function plWatch() {
+  if (PL.watch) return;
+  const tick = async () => {
+    if (!$('#plDay')) { clearInterval(PL.watch); PL.watch = null; document.removeEventListener('visibilitychange', vis); return; }
+    if (document.hidden || !PL.date || !PL.sig || PL.watching) return;
+    PL.watching = true;
+    try {
+      const r = await api('placement.sig', { date: PL.date });
+      if (r.sig && r.sig !== PL.sig && $('#plDay')) {
+        if (PL.dirty || PL.prop) plStaleBar(true);
+        else { PL.mon = null; await plLoadDay(); plLoadMonth(true); }
+      }
+    } catch (e) { /* çevrimdışı */ } finally { PL.watching = false; }
+  };
+  const vis = () => { if (!document.hidden) tick(); };
+  document.addEventListener('visibilitychange', vis);
+  PL.watch = setInterval(tick, 12000);
+}
+function plStaleBar(on) {
+  const host = $('#plDay'); if (!host) return;
+  let b = $('#plStale');
+  if (!on) { if (b) b.remove(); return; }
+  if (b) return;
+  host.insertAdjacentHTML('afterbegin', fmtVal(html`<div class="mk-box warn" id="plStale">${icon('alert', 'sm')}<span class="grow">Liste, taraflar ya da bu günün yerleşimi değişti. Kaydedilmemiş düzenlemeniz olduğu için kendiliğinden yenilenmedi.</span><button class="btn sm" data-act="pl-stale-reload">Yenile</button></div>`));
+}
+ACT['pl-stale-reload'] = async () => {
+  if ((PL.dirty || PL.prop) && !(await confirmDialog({ title: 'Kaydedilmemiş düzenleme silinsin mi?', text: 'Sayfa güncel listeyle yeniden yüklenir.', ok: 'Yenile', danger: true }))) return;
+  plReset(); PL.mon = null; await plLoadDay(); plLoadMonth(true);
+};
 
 async function plLoadMonth(force) {
   const ym = PL.date.slice(0, 7);
   if (!force && PL.mon && PL.monYm === ym) { plDrawMonth(); return; }
-  if (!PL.day || PL.day.sides.length < 2) { setHTML($('#plMonth'), ''); return; }
+  if (!PL.day || !plLayoutOk(PL.day.sides)) { setHTML($('#plMonth'), ''); return; }
   let d;
   try { d = await api('placement.month', { month: ym }); } catch (e) { const b = $('#plMonth'); if (b) setHTML(b, html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   if (ym !== PL.date.slice(0, 7)) return;
@@ -187,9 +224,9 @@ function plDrawDay() {
   const d = PL.day;
   const host = $('#plDay');
   if (!host || !d) return;
-  if (d.sides.length < 2) {
+  if (!plLayoutOk(d.sides)) {
     setHTML(host, html`<div class="card empty"><div class="e-ico">${icon('layers', 'lg')}</div><h3>Taraflar tanımlanmadı</h3>
-      <p class="small">${d.can_admin ? html`Örneğin <b>3. Basamak → B blok</b> ve <b>2. Basamak → A blok, C blok</b>. Her tarafı kendi nöbet listesine bağlayın; günlük blok yerleşimi buradan yapılır.` : 'Yönetici tarafları (ör. 3. Basamak · B blok, 2. Basamak · A ve C blok) tanımladığında burada görünür.'}</p>
+      <p class="small">${d.can_admin ? html`Örneğin <b>3. Basamak → B blok</b> ve <b>2. Basamak → A blok, C blok</b>. Her tarafı kendi nöbet listesine bağlayın; günlük blok yerleşimi buradan yapılır. Tek alanlı (tek servisli) birimde blok yerleşimi gerekmez; liste zaten yeterlidir.` : 'Yönetici tarafları (ör. 3. Basamak · B blok, 2. Basamak · A ve C blok) tanımladığında burada görünür.'}</p>
       ${d.can_admin ? html`<button class="btn primary" data-act="pl-setup" style="margin-top:12px">${icon('sliders', 'sm')}Tarafları tanımla</button>` : ''}</div>`);
     return;
   }
@@ -297,7 +334,7 @@ function plDrawActs() {
   const host = $('#plDay');
   if (!host || !d) return;
   let bar = $('#plBar');
-  if (!d.can_edit || d.sides.length < 2 || (!d.people.length && !(d.saved || []).length)) { if (bar) bar.remove(); return; }
+  if (!d.can_edit || !plLayoutOk(d.sides) || (!d.people.length && !(d.saved || []).length)) { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement('div'); bar.id = 'plBar'; bar.className = 'pl-bar'; host.prepend(bar); }
   const ties = PL.prop && PL.prop.draws.some((x) => x.group.length > 1);
   const savedClean = !PL.dirty && !PL.prop && (d.saved || []).length;
@@ -484,6 +521,7 @@ function plPersonPicker(id) {
   const others = (d.others || []).filter((o) => !used.has(o.key));
   return html`<div class="field"><label>Kişi</label><select class="select" id="${id}Sel"><option value="">Seçin</option>
       ${d.sides.map((sd) => { const l = others.filter((o) => o.side === sd.key); return l.length ? html`<optgroup label="${sd.name}">${l.map((o) => html`<option value="${o.key}">${plName(o.name)} (${o.cross})</option>`)}</optgroup>` : ''; })}
+      ${(() => { const l = others.filter((o) => o.excluded); return l.length ? html`<optgroup label="Nöbet dışı (yalnız elle, sayılmaz)">${l.map((o) => html`<option value="${o.key}">${plName(o.name)}</option>`)}</optgroup>` : ''; })()}
       <option value="__free">Listede yok · adı yazın</option></select></div>
     <div class="field hidden" id="${id}FreeF"><label>Ad soyad</label><input class="input" id="${id}Free" maxlength="120" placeholder="ör. Deniz Ak"></div>`;
 }
@@ -963,18 +1001,35 @@ ACT['pl-setup'] = async () => {
   try { g = await api('side.get', { month: PL.date.slice(0, 7) }); } catch (e) { toast(e.message, 'err'); return; }
   const rosters = g.rosters || [];
   const list = g.sides.length ? g.sides.map((s) => ({ ...s, units: s.units.join(', ') })) : [
-    { key: 's3', name: '3. Basamak', roster_id: 0, units: 'B blok' }, { key: 's2', name: '2. Basamak', roster_id: 0, units: 'A blok, C blok' }];
+    { key: 's3', name: '3. Basamak', roster_id: 0, units: 'B blok', cross_in: [], max_streak: 0 }, { key: 's2', name: '2. Basamak', roster_id: 0, units: 'A blok, C blok', cross_in: ['A blok'], max_streak: 2 }];
   list.forEach((s) => { if (!s.roster_id) { const n = (s.name.match(/\d/) || [])[0]; const r = n && rosters.find((x) => x.name.includes(n)); if (r) s.roster_id = r.id; } });
+  const unitsOf = (c) => c.querySelector('[name=units]').value.split(',').map((x) => x.trim()).filter(Boolean);
+  const crossHtml = (units, sel) => units.length > 1 ? units.map((u) => html`<label class="small pl-cin"><input type="checkbox" value="${u}" ${sel.includes(u) ? raw('checked') : ''}> ${u}</label>`) : html`<span class="tiny faint">Tek blok</span>`;
   const row = (s) => html`<div class="card card-pad stack pl-side-f">
+    <div class="row" style="gap:8px"><b class="grow">Taraf</b><button type="button" class="btn sm ghost danger" data-rm="1">${icon('trash', 'sm')}Kaldır</button></div>
     <div class="grid2"><div class="field"><label>Taraf adı</label><input class="input" name="name" value="${s.name}" placeholder="3. Basamak"></div>
       <div class="field"><label>Nöbet listesi</label><select class="select" name="roster_id"><option value="0">— Seçin</option>${rosters.map((r) => html`<option value="${r.id}" ${r.id === +s.roster_id ? raw('selected') : ''}>${r.name}</option>`)}</select></div></div>
-    <div class="field"><label>Bloklar <span class="faint">(virgülle)</span></label><input class="input" name="units" value="${s.units}" placeholder="A blok, C blok"><input type="hidden" name="key" value="${s.key}"></div></div>`;
-  const m = openModal({ title: 'Taraflar', size: 'wide', body: html`<div class="stack"><p class="small muted">Her taraf bir nöbet listesine bağlanır. Listesindeki kişiler normalde o tarafın bloklarında çalışır; karşı tarafın bloğuna gece içeren nöbetle geçenler sayılır. Sorumlular ekibi ayrıdır (Taraf sayfasındaki ekip kartı).</p>
-      <div class="stack">${list.map(row)}</div>
+    <div class="field"><label>Bloklar / alanlar <span class="faint">(virgülle; sıra öncelik: eksikte önce üstteki dolar, eşitlemede alttaki)</span></label><input class="input" name="units" value="${s.units}" placeholder="A blok, C blok"><input type="hidden" name="key" value="${s.key}"></div>
+    <div class="grid2"><div class="field"><label>Karşı taraftan gelen yalnız şu bloklara</label><div class="row wrap pl-cins" style="gap:10px">${crossHtml(String(s.units).split(',').map((x) => x.trim()).filter(Boolean), s.cross_in || [])}</div><p class="hint">Hiçbiri seçilmezse tüm bloklara. Ör. 3. basamaktan gelen yalnız A blok.</p></div>
+      <div class="field"><label>Aynı blokta üst üste en fazla</label><input class="input" type="number" min="0" max="10" name="max_streak" value="${s.max_streak || 0}" style="max-width:110px"><p class="hint">Ör. 2: A'da üst üste 2 nöbetten sonra C'ye (tersi de). 0: sınırsız. Önceki ay da sayılır.</p></div></div></div>`;
+  const m = openModal({ title: 'Taraflar ve bloklar', size: 'wide', body: html`<div class="stack"><p class="small muted">Her taraf bir nöbet listesine bağlanır. Listesindeki kişiler normalde o tarafın bloklarında çalışır; karşı tarafın bloğuna gece içeren nöbetle geçenler sayılır. Tek servisli birimde tek taraf ve tek alan yeterlidir. Sorumlular ekibi ayrıdır (Taraf sayfasındaki ekip kartı).</p>
+      <div class="stack" id="plSidesL">${list.map(row)}</div>
+      <div><button type="button" class="btn sm" id="plSideAdd">${icon('plus', 'sm')}Taraf ekle</button></div>
       <div class="field"><label>Sayımın başlangıcı <span class="faint">(isteğe bağlı)</span></label><input class="input" type="date" id="plSince" value="${g.since || ''}" style="max-width:200px"><p class="hint">Yeni bir dönem başlatmak için tarih seçin; bu tarihten önceki yerleşimler sayılmaz (elle girilen geçmiş sayılar her zaman eklenir).</p></div></div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="plSidesSave">Kaydet</button>` });
+  const L = $('#plSidesL', m.el);
+  L.addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (b) b.closest('.pl-side-f').remove(); });
+  L.addEventListener('input', (e) => {
+    if (e.target.name !== 'units') return;
+    const c = e.target.closest('.pl-side-f');
+    const box = c.querySelector('.pl-cins');
+    const sel = $$('input:checked', box).map((x) => x.value);
+    setHTML(box, crossHtml(unitsOf(c), sel));
+  });
+  $('#plSideAdd', m.el).addEventListener('click', () => { L.insertAdjacentHTML('beforeend', fmtVal(row({ key: '', name: '', roster_id: 0, units: '', cross_in: [], max_streak: 0 }))); });
   $('#plSidesSave', m.el).addEventListener('click', (e) => busy(e.currentTarget, async () => {
-    const sides = $$('.pl-side-f', m.el).map((c) => ({ key: c.querySelector('[name=key]').value, name: c.querySelector('[name=name]').value, roster_id: +c.querySelector('[name=roster_id]').value, units: c.querySelector('[name=units]').value.split(',').map((x) => x.trim()).filter(Boolean) }));
+    const sides = $$('.pl-side-f', m.el).map((c) => ({ key: c.querySelector('[name=key]').value, name: c.querySelector('[name=name]').value, roster_id: +c.querySelector('[name=roster_id]').value, units: unitsOf(c),
+      cross_in: $$('.pl-cins input:checked', c).map((x) => x.value), max_streak: +c.querySelector('[name=max_streak]').value || 0 }));
     try { await api('side.settings', { sides, since: $('#plSince', m.el).value }); m.close(); toast('Taraflar kaydedildi'); PL.mon = null; plReset(); await plLoadDay(); } catch (err) { toast(err.message, 'err'); }
   }));
 };
@@ -985,7 +1040,7 @@ NM_EXT.homeCards.push({
   render: async (el) => {
     let r;
     try { r = await api('placement.today'); } catch (e) { el.remove(); return; }
-    if (!r.sides || r.sides.length < 2 || (!r.saved.length && !r.on_duty)) { el.remove(); return; }
+    if (!r.sides || !plLayoutOk(r.sides) || (!r.saved.length && !r.on_duty)) { el.remove(); return; }
     const src = { sides: r.sides, team: r.team };
     const sb = r.saved.filter((s) => s.status === 'standby');
     const work = r.saved.filter((s) => s.status !== 'standby');

@@ -1874,3 +1874,14 @@ a.in-link { font-weight: 600; }
 .ch-tk svg.i { width: 15px; height: 15px; }
 .ch-tk-n { font-size: 11px; margin-left: 2px; }
 .ch-view { transition: none; }
+/* Basamakları birlikte planla (4.30) */
+.pj-grid .pj-prev { background: var(--surface-2); opacity: .7; min-width: 30px; }
+.pj-grid thead th.pj-prev small { font-size: 9px; }
+.pj-dh { border: 0; background: none; font: inherit; font-weight: 600; cursor: pointer; color: inherit; padding: 0; width: 100%; }
+.pj-dh small { display: block; font-size: 10px; color: var(--text-3); font-weight: 500; }
+.pl2-cov.over { color: var(--brand-text); font-weight: 700; }
+.pj-x { color: var(--brand-text); font-size: 10.5px; }
+.pj-grid tr.pj-team th.pl2-name { background: color-mix(in srgb, #8b5cf6 8%, var(--surface)); }
+.pj-grid tr.pj-excl { opacity: .65; }
+.pj-side .card-head { flex-wrap: wrap; gap: 6px; }
+.pl-cin { display: inline-flex; align-items: center; gap: 4px; }

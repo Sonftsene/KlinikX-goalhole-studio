@@ -10,6 +10,12 @@ declare(strict_types=1);
 
 const PLAN_MAX_PEOPLE = 120;
 
+/** Nöbet dışına alınan kişi (otomatik doldurmaya hiç girmez; yalnız elle yazılır) */
+function pl_excluded_name(string $name): bool
+{
+    return function_exists('rules_is_excluded') && rules_is_excluded($name);
+}
+
 function plan_dict(): array
 {
     if (function_exists('gs_load_parser')) gs_load_parser();
@@ -87,6 +93,58 @@ function plan_clean(array $in, string $ym): array
         'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20)];
 }
 
+/**
+ * Önceki ayın son günleri (kurallar ay sınırında da işlesin: ayın 31'i 24 saat çıkışına 1'inde nöbet yazılmasın,
+ * dinlenme süresi, uzun boşluk). Kaynak: listenin yayınlanmış hâli (değişim / devirler dahil); yoksa önceki ayın taslağı.
+ * Dönen: [swap_key(ad) => ['name' => ad, 'days' => [tarih => satır]]]
+ */
+function plan_prev_rows(int $rid, string $ym, int $n = 10): array
+{
+    static $cache = [];
+    $ck = $rid . '|' . $ym . '|' . $n;
+    if (isset($cache[$ck])) return $cache[$ck];
+    $to = date('Y-m-d', strtotime($ym . '-01 -1 day'));
+    $from = date('Y-m-d', strtotime($to . ' -' . ($n - 1) . ' day'));
+    $out = [];
+    if (function_exists('swap_timeline')) {
+        try {
+            foreach (swap_timeline($rid, $from, $to) as $k => $p) {
+                $days = [];
+                foreach ($p['days'] as $d => $row) if ($d >= $from && $d <= $to) $days[$d] = $row;
+                if ($days) $out[$k] = ['name' => (string)$p['name'], 'days' => $days];
+            }
+        } catch (Throwable $e) { $out = []; }
+    }
+    if (!$out) {
+        // Liste yeni aya geçtiyse önceki ayın nöbetleri eski dosya sürümündedir: o aralığı içeren en son dosya
+        $fid = (int)val('SELECT MAX(file_id) FROM roster_shifts WHERE roster_id = ? AND date >= ? AND date <= ?', [$rid, $from, $to]);
+        if ($fid) foreach (all('SELECT * FROM roster_shifts WHERE roster_id = ? AND file_id = ? AND date >= ? AND date <= ? ORDER BY date', [$rid, $fid, $from, $to]) as $r) {
+            if (function_exists('rules_is_excluded') && rules_is_excluded((string)$r['name'])) continue;
+            $k = swap_key((string)$r['name']);
+            if (!isset($out[$k])) $out[$k] = ['name' => (string)$r['name'], 'days' => []];
+            if (!isset($out[$k]['days'][$r['date']]) || $r['kind'] === 'shift') $out[$k]['days'][$r['date']] = $r;
+        }
+    }
+    if (!$out) {
+        $dr = one('SELECT data FROM plan_drafts WHERE roster_id = ? AND ym = ?', [$rid, substr($to, 0, 7)]);
+        $data = $dr ? (json_decode((string)$dr['data'], true) ?: []) : [];
+        $dict = plan_dict();
+        foreach ((array)($data['cells'] ?? []) as $name => $row) {
+            $days = [];
+            foreach ((array)$row as $d => $code) if ($d >= $from && $d <= $to && (string)$code !== '') $days[$d] = plan_row((string)$code, $dict);
+            if ($days) { ksort($days); $out[swap_key((string)$name)] = ['name' => (string)$name, 'days' => $days]; }
+        }
+    }
+    return $cache[$ck] = $out;
+}
+function plan_prev_for(array $prev, string $name): array
+{
+    $k = swap_key($name);
+    if (isset($prev[$k])) return $prev[$k]['days'];
+    foreach ($prev as $p) if (names_match($p['name'], $name)) return $p['days'];
+    return [];
+}
+
 /** Onaylı istekler: [ad => [tarih => 'bosluk'|'izin']] */
 function plan_requests(string $ym, int $rid): array
 {
@@ -127,7 +185,8 @@ function a_plan_get(): void
     $hol = [];
     $pd = plan_days($ym);
     if (function_exists('holidays_between')) foreach (holidays_between($pd[0], $pd[count($pd) - 1]) as $d => $h) $hol[$d] = is_array($h) ? ($h['name'] ?? '') : (string)$h;
-    out(['roster' => ['id' => (int)$r['id'], 'name' => $r['name']], 'ym' => $ym, 'from' => $from, 'draft' => $data,
+    $joint = function_exists('pt_sides') && count($ps = pt_sides()) >= 2 && in_array((int)$r['id'], array_map(fn($x) => (int)$x['roster_id'], $ps), true);
+    out(['roster' => ['id' => (int)$r['id'], 'name' => $r['name']], 'ym' => $ym, 'from' => $from, 'draft' => $data, 'joint' => $joint,
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
@@ -160,11 +219,14 @@ function plan_person_days(array $cells, array $dict): array
 }
 
 /** Denetim: kişi başı kural ihlalleri, isteğe aykırı nöbetler, gün gün kapsama */
-function plan_check(array $data, string $ym): array
+function plan_check(array $data, string $ym, ?int $rid = null): array
 {
     $dict = plan_dict();
     $cfg = rules_cfg();
-    $reqs = plan_requests($ym, (int)i('roster_id'));
+    $rid = $rid ?? (int)i('roster_id');
+    $reqs = plan_requests($ym, $rid);
+    $prev = plan_prev_rows($rid, $ym);
+    $first = $ym . '-01';
     $issues = [];
     $cells = (array)$data['cells'];
     $cov = [];
@@ -172,11 +234,12 @@ function plan_check(array $data, string $ym): array
     $hours = [];
     foreach ($data['people'] as $p) {
         $name = $p['name'];
-        $days = plan_person_days((array)($cells[$name] ?? []), $dict);
+        $days = plan_prev_for($prev, $name) + plan_person_days((array)($cells[$name] ?? []), $dict);
+        ksort($days);
         $req = plan_req_for($reqs, $name);
         $h = 0;
         foreach ($days as $d => $row) {
-            if ($row['kind'] !== 'shift') continue;
+            if ($row['kind'] !== 'shift' || $d < $first) continue;
             $h += (float)($row['hours'] ?? 0);
             foreach (shift_periods($row) as $per) $cov[$d][$per]++;
             if (isset($req[$d])) $issues[] = ['name' => $name, 'date' => $d, 'type' => 'istek', 'msg' => $name . ' bu gün için ' . ($req[$d] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteği onaylanmış'];
@@ -188,7 +251,7 @@ function plan_check(array $data, string $ym): array
         $occ = array_keys($days);
         for ($k = 1; $k < count($occ); $k++) {
             $gap = (int)round((strtotime($occ[$k]) - strtotime($occ[$k - 1])) / 86400) - 1;
-            if ($gap > $cfg['max_gap']) $issues[] = ['name' => $name, 'date' => date('Y-m-d', strtotime($occ[$k - 1] . ' +1 day')), 'type' => 'bosluk', 'msg' => "$name için $gap günlük boşluk (en fazla {$cfg['max_gap']} gün)"];
+            if ($gap > $cfg['max_gap'] && $occ[$k] >= $first) $issues[] = ['name' => $name, 'date' => max($first, date('Y-m-d', strtotime($occ[$k - 1] . ' +1 day'))), 'type' => 'bosluk', 'msg' => "$name için $gap günlük boşluk (en fazla {$cfg['max_gap']} gün)"];
         }
     }
     $short = [];
@@ -223,6 +286,8 @@ function a_plan_auto(): void
     $dict = plan_dict();
     $cfg = rules_cfg();
     $reqs = plan_requests($ym, (int)$r['id']);
+    $prev = plan_prev_rows((int)$r['id'], $ym);
+    $first = $ym . '-01';
     $dayCode = $data['day_code']; $nightCode = $data['night_code'];
     if ($dayCode === '' || $nightCode === '') fail('Gündüz ve gece için kullanılacak kodu seçin.');
     $dRow = plan_row($dayCode, $dict); $nRow = plan_row($nightCode, $dict);
@@ -230,10 +295,10 @@ function a_plan_auto(): void
     $cells = array_map(fn($x) => (array)$x, (array)$data['cells']);
     $people = array_column($data['people'], 'name');
     $daysOf = [];
-    foreach ($people as $n) $daysOf[$n] = plan_person_days($cells[$n] ?? [], $dict);
+    foreach ($people as $n) { $daysOf[$n] = plan_prev_for($prev, $n) + plan_person_days($cells[$n] ?? [], $dict); ksort($daysOf[$n]); }
     $reqOf = [];
     foreach ($people as $n) $reqOf[$n] = plan_req_for($reqs, $n);
-    $hoursOf = fn($n) => array_sum(array_map(fn($x) => $x['kind'] === 'shift' ? (float)($x['hours'] ?? 0) : 0, $daysOf[$n]));
+    $hoursOf = function ($n) use (&$daysOf, $first) { $h = 0; foreach ($daysOf[$n] as $d => $x) if ($d >= $first && $x['kind'] === 'shift') $h += (float)($x['hours'] ?? 0); return $h; };
     $last7 = function ($n, $d) use (&$daysOf) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($x['kind'] === 'shift' && $k < $d && $k >= date('Y-m-d', strtotime($d . ' -7 day'))) $c++; return $c; };
     $filled = 0;
     $unfilled = [];
@@ -245,7 +310,7 @@ function a_plan_auto(): void
             while ($have < $need[$per]) {
                 $cands = [];
                 foreach ($people as $n) {
-                    if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d])) continue;
+                    if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || pl_excluded_name($n)) continue;
                     $try = $daysOf[$n];
                     $try[$d] = $row;
                     ksort($try);

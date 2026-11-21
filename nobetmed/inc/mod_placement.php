@@ -32,6 +32,33 @@ function pl_sides(): array
     return array_values(array_filter(sides_cfg(), fn($s) => $s['units']));
 }
 
+/** Blok yerleşimi anlamlı mı: en az iki taraf ya da tek tarafta en az iki blok (tek alanlı birimde liste zaten yeterli) */
+function pl_layout_ok(): bool
+{
+    $s = pl_sides();
+    return count($s) >= 2 || (count($s) === 1 && count($s[0]['units']) >= 2);
+}
+
+/**
+ * Kişinin bir blokta üst üste kaç nöbettir çalıştığı ($date'ten önceki son kayıtlar; ay geçişinde de sürer).
+ * Sorumlular ekibinde ya da başka blokta çalışınca sayı sıfırlanır.
+ */
+function pl_streak(?array $r, string $date, string $unit): int
+{
+    if (!$r || !$r['hist']) return 0;
+    $n = 0;
+    $seenDate = null;
+    for ($i = count($r['hist']) - 1; $i >= 0; $i--) {
+        [$d, $u] = $r['hist'][$i];
+        if ($d >= $date) continue;
+        if ($d === $seenDate) continue; // aynı gün iki yer: son yer sayıldı
+        $seenDate = $d;
+        if ((string)$u !== $unit) break;
+        $n++;
+    }
+    return $n;
+}
+
 /** Bloklar: [birim => taraf anahtarı] (Sorumlular hariç) */
 function pl_unit_side(): array
 {
@@ -443,42 +470,57 @@ function pl_auto(string $date, array $people, array $needs, bool $hasNeeds, arra
             if (!$moved) break;
         }
     }
-    // Taraf içinde birimlere dağıtım
+    // Taraf içinde birimlere dağıtım (4.30):
+    //  1) Karşı taraftan gelenler önce ve yalnız tarafın "gelen" bloklarına (ör. 3. basamaktan gelen yalnız A'ya)
+    //  2) Blok sırası öncelik: eksik varsa önce üstteki blok dolar (A ≥ C), fazlada eşitlemede alttaki (A3 C2 → A3 C3)
+    //  3) Aynı blokta üst üste en fazla N nöbet (ör. A'da 2 nöbetten sonra C'ye; ay geçişinde de sürer)
     $unitOf = [];
     $why = [];
+    $recNow = $rec;
     foreach ($sides as $sd) {
-        $members = array_values(array_filter(array_keys($at), fn($k) => $at[$k] === $sd['key']));
         $units = $sd['units'];
-        while ($members) {
-            $best = null;
-            $bestList = [];
-            foreach ($members as $k) {
-                foreach ($units as $u) {
-                    $benefit = 0;
-                    foreach ($people[$k]['periods'] as $per) if ($uload[$u][$per] < ($needs[$u][$per] ?? 0)) $benefit++;
-                    $needTot = ($needs[$u]['day'] ?? 0) + ($needs[$u]['night'] ?? 0);
-                    $over = $benefit > 0 ? 0 : ($hasNeeds ? $ucount[$u] - (int)ceil($needTot / 2) : $ucount[$u]);
-                    $last = $info[$k]['last'];
-                    $pref = count($units) > 1 ? ((int)($info[$k]['units'][$u] ?? 0)) * 2 + ($last && $last[1] === $u ? 1 : 0) : 0;
-                    $score = [-$benefit, $over, $pref, count($people[$k]['periods']) > 1 ? 0 : 1];
-                    if ($best === null || $score < $best) { $best = $score; $bestList = [[$k, $u]]; }
-                    elseif ($score === $best) $bestList[] = [$k, $u];
+        $idx = array_flip($units);
+        $maxStreak = (int)($sd['max_streak'] ?? 0);
+        $crossIn = array_values(array_intersect((array)($sd['cross_in'] ?? []), $units));
+        $all = array_values(array_filter(array_keys($at), fn($k) => $at[$k] === $sd['key']));
+        $incoming = array_values(array_filter($all, fn($k) => $people[$k]['side'] !== $sd['key']));
+        $own = array_values(array_filter($all, fn($k) => $people[$k]['side'] === $sd['key']));
+        foreach ([$incoming, $own] as $stage => $members) {
+            while ($members) {
+                $best = null;
+                $bestList = [];
+                foreach ($members as $k) {
+                    $allowed = $stage === 0 && $crossIn ? $crossIn : $units;
+                    foreach ($allowed as $u) {
+                        $benefit = 0;
+                        foreach ($people[$k]['periods'] as $per) if ($uload[$u][$per] < ($needs[$u][$per] ?? 0)) $benefit++;
+                        $needTot = ($needs[$u]['day'] ?? 0) + ($needs[$u]['night'] ?? 0);
+                        $over = $benefit > 0 ? 0 : ($hasNeeds ? $ucount[$u] - (int)ceil($needTot / 2) : $ucount[$u]);
+                        $streak = $maxStreak > 0 && count($units) > 1 && pl_streak($recNow[$k] ?? null, $date, $u) >= $maxStreak ? 1 : 0;
+                        $last = $info[$k]['last'];
+                        $pref = count($units) > 1 ? ((int)($info[$k]['units'][$u] ?? 0)) * 2 + ($last && $last[1] === $u ? 1 : 0) : 0;
+                        $score = [-$benefit, $streak, $over, $idx[$u] ?? 99, $pref, count($people[$k]['periods']) > 1 ? 0 : 1];
+                        if ($best === null || $score < $best) { $best = $score; $bestList = [[$k, $u, $streak]]; }
+                        elseif ($score === $best) $bestList[] = [$k, $u, $streak];
+                    }
                 }
+                [$k, $u, $st] = $bestList[random_int(0, count($bestList) - 1)];
+                $unitOf[$k] = $u;
+                foreach ($people[$k]['periods'] as $per) $uload[$u][$per]++;
+                $ucount[$u]++;
+                $members = array_values(array_filter($members, fn($x) => $x !== $k));
+                if (isset($drawOf[$k])) {
+                    $draws[$drawOf[$k]]['unit'] = $u;
+                    $why[$k] = ($method[$k] === 'kura' ? 'Kura ile ' : 'En az geçen olarak ') . $sideName[$people[$k]['side']] . ' → ' . $u . ($stage === 0 && $crossIn ? ' (karşıdan gelen yalnız ' . implode('/', array_map('pl_short', $crossIn)) . ')' : '');
+                } elseif (count($units) > 1) {
+                    $parts = [];
+                    foreach ($units as $x) $parts[] = pl_short($x) . ': ' . (int)($info[$k]['units'][$x] ?? 0);
+                    $last = $info[$k]['last'];
+                    $sk = $maxStreak ? pl_streak($recNow[$k] ?? null, $date, (string)($last[1] ?? '')) : 0;
+                    $why[$k] = 'Daha önce ' . implode(', ', $parts) . ($last ? ' · son: ' . pl_unit_label($last[1]) . ($sk >= 2 ? ' (üst üste ' . $sk . ')' : '') : '')
+                        . ($st ? ' · üst üste ' . $maxStreak . ' kuralı uyulamadı (sayı öncelikli)' : '');
+                } else $why[$k] = '';
             }
-            [$k, $u] = $bestList[random_int(0, count($bestList) - 1)];
-            $unitOf[$k] = $u;
-            foreach ($people[$k]['periods'] as $per) $uload[$u][$per]++;
-            $ucount[$u]++;
-            $members = array_values(array_filter($members, fn($x) => $x !== $k));
-            if (isset($drawOf[$k])) {
-                $draws[$drawOf[$k]]['unit'] = $u;
-                $why[$k] = ($method[$k] === 'kura' ? 'Kura ile ' : 'En az geçen olarak ') . $sideName[$people[$k]['side']] . ' → ' . $u;
-            } elseif (count($units) > 1) {
-                $parts = [];
-                foreach ($units as $x) $parts[] = pl_short($x) . ': ' . (int)($info[$k]['units'][$x] ?? 0);
-                $last = $info[$k]['last'];
-                $why[$k] = 'Daha önce ' . implode(', ', $parts) . ($last ? ' · son: ' . pl_unit_label($last[1]) : '');
-            } else $why[$k] = '';
         }
     }
     foreach ($at as $k => $_) $items[$k] = ['segs' => [['unit' => $unitOf[$k], 'period' => $people[$k]['shift'], 'status' => 'work']], 'method' => $method[$k] ?? 'auto', 'why' => $why[$k] ?? '', 'draw' => $drawOf[$k] ?? null];
@@ -538,8 +580,8 @@ function pl_person_out(array $p, ?array $r, string $date, bool $pub, array $user
 
 function pl_saved(string $date): array
 {
-    return array_values(array_filter(all('SELECT p.*, u.name AS by_name FROM placements p LEFT JOIN users u ON u.id = p.created_by WHERE p.date = ? ORDER BY p.id', [$date]),
-        fn($r) => !pl_excluded((string)$r['name'])));
+    // Nöbet dışı kişiler de görünür (elle eklendiyse); sayımlara pl_records() zaten almaz
+    return all('SELECT p.*, u.name AS by_name FROM placements p LEFT JOIN users u ON u.id = p.created_by WHERE p.date = ? ORDER BY p.id', [$date]);
 }
 
 /** Kayıtlı yerleşim satırı. Yalnız son hâl: kura adayları ve gerekçe yalnız sorumlulara gider. */
@@ -555,6 +597,29 @@ function pl_users(): array
 {
     static $u = null;
     return $u ??= all("SELECT id, name, phone, role, notify_mode, push_on, email, status FROM users WHERE status = 'active'");
+}
+
+/**
+ * Günün yerleşimini etkileyen her şeyin imzası: liste sürümleri, değişim / devirler, taraf ve blok ayarları, gün gün sayılar,
+ * Sorumlular ekibi, nöbet dışı kişiler, o günün kayıtları (oflama dahil), elle sayılar. Değişince Taraf sayfası kendini yeniler.
+ */
+function pl_sig(string $date): string
+{
+    $parts = [];
+    foreach (['sides', 'pl_counts', 'pl_team', 'duty_excluded', 'side_since'] as $k) $parts[] = (string)setting($k, '');
+    foreach (all('SELECT unit, day_type, period, count FROM staff_needs ORDER BY unit, day_type, period') as $r) $parts[] = implode(':', $r);
+    foreach (all('SELECT id, parsed_file_id, period FROM rosters ORDER BY id') as $r) $parts[] = implode(':', array_map('strval', $r));
+    $parts[] = implode(':', array_map('strval', one('SELECT COUNT(*) AS n, MAX(id) AS m, MAX(decided_at) AS d, MAX(applied_at) AS a FROM swap_requests') ?: []));
+    $parts[] = implode(':', array_map('strval', one('SELECT COUNT(*) AS n, MAX(id) AS m FROM users WHERE no_duty = 1') ?: []));
+    $parts[] = implode(':', array_map('strval', one('SELECT COUNT(*) AS n, MAX(id) AS m, MAX(created_at) AS c FROM placements WHERE date = ?', [$date]) ?: []));
+    $parts[] = implode(':', array_map('strval', one('SELECT COUNT(*) AS n, MAX(id) AS m, SUM(cross_count) AS c FROM placement_adjust') ?: []));
+    try { $parts[] = implode(':', array_map('strval', one('SELECT COUNT(*) AS n, MAX(until) AS u FROM rule_exempt') ?: [])); } catch (Throwable $e) { /* */ }
+    return substr(hash('sha256', implode('|', $parts)), 0, 20);
+}
+function a_placement_sig(): void
+{
+    need_user();
+    out(['sig' => pl_sig(pl_date_in())]);
 }
 
 /** Gün verisi (sayfa ve kayıt sonrası) */
@@ -586,13 +651,15 @@ function pl_day_payload(string $date, array $me): array
     $others = [];
     if ($pub) foreach (pl_month_people($date) as $k => $p) if (!isset($people[$k])) $others[] = ['key' => $k, 'name' => $p['name'], 'side' => $p['side'], 'cross' => (int)($rec[$k]['total'] ?? 0)];
     usort($others, fn($a, $b) => strcmp($a['side'], $b['side']) ?: strcmp($a['name'], $b['name']));
+    // Nöbet dışına alınanlar: kuraya ve otomatik dağıtıma hiç girmez, yalnız elle eklenebilir
+    if ($pub && function_exists('rules_excluded_list')) foreach (rules_excluded_list() as $x) $others[] = ['key' => swap_key((string)$x['name']), 'name' => (string)$x['name'], 'side' => '', 'cross' => 0, 'excluded' => true];
     $hol = function_exists('holiday_on') ? holiday_on($date) : null;
     return [
         'date' => $date, 'sides' => pl_layout(), 'team' => pl_team_out(), 'people' => $ppl, 'others' => $others,
         'needs' => (object)$n['needs'], 'needs_default' => (object)$n['default'], 'needs_source' => $n['source'], 'has_needs' => $n['any'],
         'day_type' => function_exists('day_type') ? day_type($date) : 'weekday', 'holiday' => $hol,
         'saved' => $savedOut, 'saved_by' => $saved ? $saved[0]['by_name'] : null, 'saved_at' => $saved ? $saved[0]['created_at'] : null, 'stale' => $stale,
-        'can_edit' => $pub, 'can_admin' => is_admin($me), 'since' => setting('side_since') ?: null,
+        'can_edit' => $pub, 'can_admin' => is_admin($me), 'since' => setting('side_since') ?: null, 'sig' => pl_sig($date),
     ];
 }
 
@@ -626,7 +693,13 @@ function pl_parse_people(array $people, array $list, string $date): array
         if (!is_array($it)) continue;
         $name = mb_substr(trim((string)($it['name'] ?? '')), 0, 120);
         if (mb_strlen($name) < 3) fail('Kişi adı eksik.');
-        if (pl_excluded($name)) fail('“' . $name . '” nöbet hesaplarına dahil değil; yerleştirilemez.');
+        if (pl_excluded($name)) {
+            // Nöbet dışı: yalnız elle eklenir; karşıya geçiş / blok sayımına girmez
+            $k = swap_key($name);
+            if (isset($called[$k])) fail('“' . $name . '” iki kez yazılmış.');
+            $called[$k] = ['key' => $k, 'name' => $name, 'side' => '', 'roster_id' => null, 'segs' => pl_norm_segs($it['segs'] ?? null, false, $name)];
+            continue;
+        }
         $k = pl_match_person($people, $name);
         if ($k !== null) {
             if (isset($duty[$k])) fail('“' . $people[$k]['name'] . '” iki kez yazılmış.');
@@ -645,7 +718,7 @@ function a_placement_auto(): void
     $me = need_publisher();
     $date = pl_date_in();
     $people = pl_day_people($date);
-    if (count(pl_sides()) < 2) fail('Önce tarafları tanımlayın (Taraflar).');
+    if (!pl_layout_ok()) fail('Önce tarafları ve blokları tanımlayın (Taraflar). Tek alanlı birimde blok yerleşimi gerekmez.');
     if (!$people) fail('Bu gün listede nöbetçi görünmüyor.');
     $parsed = pl_parse_people($people, arr('keep'), $date);
     $n = pl_needs($date);
@@ -681,8 +754,7 @@ function a_placement_save(): void
     foreach (array_slice(arr('standby'), 0, 20) as $sb) {
         $name = mb_substr(trim((string)(is_array($sb) ? ($sb['name'] ?? '') : $sb)), 0, 120);
         if (mb_strlen($name) < 3) continue;
-        if (pl_excluded($name)) fail('“' . $name . '” nöbet hesaplarına dahil değil.');
-        $h = pl_home_of($name, $date);
+        $h = pl_excluded($name) ? ['key' => swap_key($name), 'name' => $name, 'side' => '', 'roster_id' => null] : pl_home_of($name, $date);
         if (pl_match_person($people, $name) !== null || isset($parsed['called'][$h['key']])) fail('“' . $name . '” zaten yerleşik; nöbete gelecek kişi olamaz.');
         $standby[$h['key']] = $h;
     }
@@ -960,7 +1032,7 @@ function a_placement_today(): void
 {
     $me = need_user();
     $sides = pl_layout();
-    if (count($sides) < 2) out(['sides' => []]);
+    if (!pl_layout_ok()) out(['sides' => []]);
     $date = date('Y-m-d');
     $rec = pl_records();
     $saved = array_map(fn($s) => pl_saved_out($s, false) + ['cross_total' => (int)($rec[swap_key((string)$s['name'])]['total'] ?? 0)], pl_saved($date));
@@ -992,6 +1064,7 @@ $GLOBALS['NM_BOOT'][] = fn(array $me): array => ['my_blocks' => (object)pl_my_bl
 
 return [
     'placement.day' => 'a_placement_day',
+    'placement.sig' => 'a_placement_sig',
     'placement.auto' => 'a_placement_auto',
     'placement.save' => 'a_placement_save',
     'placement.clear' => 'a_placement_clear',

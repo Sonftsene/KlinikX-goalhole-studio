@@ -24,6 +24,8 @@ function planNextYm(ym, k) { const [y, m] = ym.split('-').map(Number); const d =
 async function planPage(view, r) {
   if (!canManage('cizelge')) { location.hash = '#/'; return; }
   if (PL2.dirty && PL2.d) planSave(true); // geri tuşuyla başka aya / listeye geçilirken taslak kaybolmasın
+  if (typeof pjSaveDirty === 'function') pjSaveDirty();
+  if (r[1] === 'taraflar') return pjPage(view, r[2]);
   const list = planRosters();
   if (r[1] && /^\d+$/.test(r[1])) PL2.rid = +r[1];
   if (!list.some((x) => x.id === PL2.rid)) PL2.rid = list.length ? list[0].id : 0;
@@ -40,7 +42,7 @@ async function planLoad() {
   if (!box) return;
   let r;
   try { r = await api('plan.get', { roster_id: PL2.rid, ym: PL2.ym }); } catch (e) { setHTML(box, html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
-  PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null;
+  PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null; PL2.joint = !!r.joint;
   PL2.d.cells = PL2.d.cells && !Array.isArray(PL2.d.cells) ? PL2.d.cells : {};
   PL2.d.needs = PL2.d.needs || { weekday: { day: 0, night: 0 }, weekend: { day: 0, night: 0 } };
   const shiftCodes = PL2.codes.filter((c) => c.kind === 'shift');
@@ -88,6 +90,7 @@ function planDraw() {
         <select class="select" data-change="pl2-roster" style="width:auto">${planRosters().map((r) => html`<option value="${r.id}" ${r.id === PL2.rid ? raw('selected') : ''}>${r.name}</option>`)}</select>
         <div class="row" style="gap:4px"><button class="btn sm icon" data-act="pl2-month" data-k="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b class="pl2-ym">${TR_MONTHS[m - 1]} ${y}</b><button class="btn sm icon" data-act="pl2-month" data-k="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>
         <span class="grow"></span>
+        ${PL2.joint ? html`<a class="btn sm" href="#/cizelge/taraflar/${PL2.ym}">${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}
         <button class="btn sm" data-act="pl2-import">${icon('upload', 'sm')}<span>Yapıştır / CSV</span></button>
         <button class="btn sm" data-act="pl2-check">${icon('shield', 'sm')}<span>Denetle</span></button>
         <button class="btn sm" data-act="pl2-auto">${icon('star', 'sm')}<span>Otomatik doldur</span></button>
@@ -267,49 +270,53 @@ function planParseImport(text) {
 }
 
 /* ---------------- Yayınla: Excel görünümü + liste sürümü + nöbet kayıtları ---------------- */
-ACT['pl2-publish'] = async (el) => {
-  const ro = rosterById(PL2.rid);
-  const [y, m] = PL2.ym.split('-').map(Number);
+ACT['pl2-publish'] = (el) => planPublishCtx({ rid: PL2.rid, ym: PL2.ym, roster: PL2.roster, d: PL2.d, save: () => planSave(true), after: () => planDraw() }, el);
+/** Bir listenin çizelgesini yayınla: Excel görünümü listeye yeni sürüm olarak yüklenir, nöbetler kaydedilir */
+async function planPublishCtx(ctx, el) {
+  const ro = rosterById(ctx.rid);
+  const [y, m] = ctx.ym.split('-').map(Number);
   const curP = ro && ro.period;
-  const warn = curP && curP !== PL2.ym ? ` Liste şu an ${periodLabel(curP)} ayını gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} olur (eski ay sürümlerde kalır).` : '';
-  if (!(await confirmDialog({ title: `${TR_MONTHS[m - 1]} ${y} çizelgesi yayınlansın mı?`, text: `Çizelge “${PL2.roster.name}” listesinin yeni sürümü olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.${warn}`, ok: 'Yayınla' }))) return;
+  const warn = curP && curP !== ctx.ym ? ` Liste şu an ${periodLabel(curP)} ayını gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} olur (eski ay sürümlerde kalır).` : '';
+  if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: `Çizelge “${ctx.roster.name}” listesinin yeni sürümü olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.${warn}`, ok: 'Yayınla' }))) return;
   busy(el, async () => {
     try {
-      await planSave(true);
-      PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
-      if (PL2.chk.issues.some((x) => x.type === 'kural') && !(await confirmDialog({ title: 'Kural uyarıları var', text: `${PL2.chk.issues.filter((x) => x.type === 'kural').length} kural uyarısı var (dinlenme / üst üste çalışma). Yine de yayınlansın mı?`, ok: 'Yine de yayınla', danger: true }))) { planDraw(); return; }
-      const file = await planXlsx();
+      await ctx.save();
+      const chk = await api('plan.check', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d });
+      if (chk.issues.some((x) => x.type === 'kural') && !(await confirmDialog({ title: 'Kural uyarıları var', text: `${chk.issues.filter((x) => x.type === 'kural').length} kural uyarısı var (dinlenme / üst üste çalışma). Yine de yayınlansın mı?`, ok: 'Yine de yayınla', danger: true }))) return;
+      const file = await planXlsx(ctx);
       const att = await uploadFile(file);
-      await api('rosters.upload', { id: PL2.rid, attachment_id: att.id });
+      await api('rosters.upload', { id: ctx.rid, attachment_id: att.id });
       const entries = [];
-      PL2.d.people.forEach((p) => Object.entries(PL2.d.cells[p.name] || {}).forEach(([d, code]) => {
+      ctx.d.people.forEach((p) => Object.entries(ctx.d.cells[p.name] || {}).forEach(([d, code]) => {
         const c = planCode(code) || { kind: 'shift' };
         entries.push({ name: p.name, title: p.title || '', date: d, code, label: c.label || code, kind: c.kind || 'shift', hours: c.hours != null ? c.hours : undefined, start: c.start || undefined, end: c.end || undefined });
       }));
-      const r = await api('rosters.shifts', { roster_id: PL2.rid, file_id: att.id, period: PL2.ym, entries });
-      await api('plan.save', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d, published: true });
+      const r = await api('rosters.shifts', { roster_id: ctx.rid, file_id: att.id, period: ctx.ym, entries });
+      await api('plan.save', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d, published: true });
       await refreshRosters(); MY.at = 0;
-      toast(`Yayınlandı · ${r.saved} nöbet kaydı`);
-      planDraw();
+      toast(`${ctx.roster.name} yayınlandı · ${r.saved} nöbet kaydı`);
+      if (ctx.after) ctx.after();
     } catch (e) { toast(e.message, 'err'); }
   });
-};
+}
 /** Çizelgenin Excel görünümü (renkli kodlar, hafta sonu gölgeli) */
-async function planXlsx() {
+async function planXlsx(ctx) {
+  ctx = ctx || { ym: PL2.ym, d: PL2.d, roster: PL2.roster };
+  const D = ctx.d;
   await loadVendor('exceljs');
-  const [y, m] = PL2.ym.split('-').map(Number);
-  const days = planDays(PL2.ym);
+  const [y, m] = ctx.ym.split('-').map(Number);
+  const days = planDays(ctx.ym);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { views: [{ state: 'frozen', xSplit: 2, ySplit: 3 }] });
-  ws.addRow([`${PL2.roster.name} · ${TR_MONTHS[m - 1]} ${y} nöbet çizelgesi`]);
+  ws.addRow([`${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} nöbet çizelgesi`]);
   ws.mergeCells(1, 1, 1, days.length + 3);
   ws.getRow(1).font = { bold: true, size: 14 };
   ws.addRow(['Ad Soyad', 'Ünvan', ...days.map((d) => +d.slice(8)), 'Saat']);
   ws.addRow(['', '', ...days.map((d) => TR_DAYS_S[new Date(d).getDay()]), '']);
   const fill = { amber: 'FFFFF1C2', indigo: 'FFD9DCFF', violet: 'FFFFD6A5', emerald: 'FFC9F2D9', slate: 'FFE5E7EB' };
-  PL2.d.people.forEach((p) => {
+  D.people.forEach((p) => {
     let h = 0;
-    const codes = days.map((d) => { const c = (PL2.d.cells[p.name] || {})[d] || ''; const cc = planCode(c); if (cc && cc.kind === 'shift') h += +cc.hours || 0; return c; });
+    const codes = days.map((d) => { const c = (D.cells[p.name] || {})[d] || ''; const cc = planCode(c); if (cc && cc.kind === 'shift') h += +cc.hours || 0; return c; });
     const row = ws.addRow([p.name, p.title || '', ...codes, Math.round(h)]);
     codes.forEach((c, i) => { if (c) row.getCell(i + 3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill[planTone(c)] } }; });
   });
@@ -322,7 +329,299 @@ async function planXlsx() {
   [2, 3].forEach((r) => { ws.getRow(r).font = { bold: true }; });
   // Kod açıklamaları
   ws.addRow([]);
-  PL2.codes.filter((c) => Object.values(PL2.d.cells).some((row) => Object.values(row).includes(c.code))).forEach((c) => ws.addRow(['', c.code, c.label + (c.start && c.end ? ` ${c.start}–${c.end}` : '')]));
+  PL2.codes.filter((c) => Object.values(D.cells).some((row) => Object.values(row).includes(c.code))).forEach((c) => ws.addRow(['', c.code, c.label + (c.start && c.end ? ` ${c.start}–${c.end}` : '')]));
   const buf = await wb.xlsx.writeBuffer();
-  return new File([buf], `${PL2.roster.name} ${TR_MONTHS[m - 1]} ${y}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return new File([buf], `${ctx.roster.name} ${TR_MONTHS[m - 1]} ${y}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+
+/* =================================================================================================
+   Basamakları birlikte planla (4.30): #/cizelge/taraflar/<ay>
+   İki (ya da daha çok) basamak listesi aynı ekranda, ayrı tablolarda hazırlanır; karışmaz, ayrı Excel olarak yayınlanır.
+   Gün gün gereken sayılar blok planından (Taraf › sayılar) gelir; her düzenlemede sayılar anında yeniden hesaplanır.
+   ================================================================================================= */
+const PJ = { ym: '', sides: [], needs: {}, unitNeeds: {}, team: { members: [] }, excl: [], opts: {}, hol: {}, codes: [], chk: null, brush: null, dirty: {}, timer: null, last: null };
+
+function pjSaveDirty() {
+  Object.keys(PJ.dirty || {}).forEach((rid) => { const sd = PJ.sides.find((s) => String(s.roster.id) === String(rid)); if (sd) pjSaveSide(sd, true); });
+}
+async function pjSaveSide(sd, quiet) {
+  try { await api('plan.save', { roster_id: sd.roster.id, ym: PJ.ym, draft: sd.draft }); delete PJ.dirty[sd.roster.id]; if (!quiet) toast(sd.name + ' kaydedildi'); return true; } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
+}
+function pjDirty(sd) { PJ.dirty[sd.roster.id] = true; PJ.chk = null; }
+
+async function pjPage(view, ym) {
+  if (ym && /^\d{4}-\d{2}$/.test(ym)) PJ.ym = ym;
+  if (!PJ.ym) PJ.ym = PL2.ym || planNextYm(ymd(new Date()).slice(0, 7), new Date().getDate() > 15 ? 1 : 0);
+  setHTML(view, html`${hubHead('cizelge', 'Basamak listeleri aynı ekranda, ayrı ayrı hazırlanır; gereken sayılar blok planından gelir.')}
+    <div id="pjBody"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div></div></div>`);
+  await pjLoad();
+}
+async function pjLoad() {
+  const box = $('#pjBody'); if (!box) return;
+  let r;
+  try { r = await api('plan.sides.get', { ym: PJ.ym }); } catch (e) { setHTML(box, html`<div class="card empty"><p class="small">${e.message}</p><a class="btn" href="#/cizelge">Tek liste çizelgesine dön</a></div>`); return; }
+  Object.assign(PJ, { sides: r.sides, needs: r.needs || {}, unitNeeds: r.unit_needs || {}, team: r.team || { members: [] }, excl: r.excluded || [], opts: r.opts || {}, hol: r.holidays || {}, codes: r.codes || [], chk: null, dirty: {}, rules: r.rules || {} });
+  PJ.sides.forEach((sd) => { sd.draft.cells = sd.draft.cells && !Array.isArray(sd.draft.cells) ? sd.draft.cells : {}; sd.draft.people = sd.draft.people || []; sd.flags = sd.flags || {}; sd.prev = sd.prev || {}; sd.cross = sd.cross || {}; sd.requests = sd.requests || {}; });
+  // Ortak kod yardımcıları (planCode / planTone / planXlsx) bu ekranın kodlarını kullansın
+  PL2.codes = PJ.codes; PL2.hol = PJ.hol;
+  const sc = PJ.codes.filter((c) => c.kind === 'shift');
+  const o = PJ.opts;
+  if (!o.day_code) o.day_code = (sc.find((c) => c.start === '08:00' && c.end === '16:00') || sc[0] || {}).code || '';
+  if (!o.night_code) o.night_code = (sc.find((c) => c.start === '16:00' && c.end === '08:00') || sc[1] || {}).code || '';
+  if (!o.fri_code) o.fri_code = o.night_code;
+  if (!o.sat_code) o.sat_code = (sc.find((c) => (c.hours || 0) >= 20 || (c.start && c.start === c.end)) || {}).code || o.night_code;
+  pjDraw();
+  clearInterval(PJ.timer);
+  PJ.timer = setInterval(() => { if (!$('#pjBody')) { clearInterval(PJ.timer); return; } pjSaveDirty(); }, 20000);
+}
+
+function pjFlag(sd, name, f) {
+  const x = sd.flags[name];
+  if (x && f in x) return !!x[f];
+  const k = avKey(name);
+  return f === 'team' ? (PJ.team.members || []).some((m) => avKey(m) === k) : PJ.excl.some((m) => avKey(m) === k);
+}
+function pjCovers(code, per) {
+  const c = planCode(code);
+  if (!c || c.kind !== 'shift') return false;
+  const full = (c.hours || 0) >= 20 || (c.start && c.start === c.end);
+  const night = c.start && c.end && c.end <= c.start;
+  return per === 'day' ? (full || !night) : (full || night);
+}
+/** Tarafın o gün o dönem kendi alan kişisi (sorumlular ve nöbet dışı hariç) */
+function pjOwn(sd, d, per) {
+  let n = 0;
+  sd.draft.people.forEach((p) => { if (pjFlag(sd, p.name, 'team') || pjFlag(sd, p.name, 'excl')) return; const c = (sd.draft.cells[p.name] || {})[d]; if (c && pjCovers(c, per)) n++; });
+  return n;
+}
+function pjNeed(sd, d, per) { return ((PJ.needs[d] || {})[sd.key] || {})[per] || 0; }
+/** Gün özeti: taraf taraf fark, toplam ve karşıya geçecek sayı */
+function pjDaySum(d, per) {
+  let def = 0, sur = 0, own = 0, need = 0;
+  PJ.sides.forEach((sd) => { const o = pjOwn(sd, d, per); const n = pjNeed(sd, d, per); own += o; need += n; if (o < n) def += n - o; else sur += o - n; });
+  return { own, need, cross: Math.min(def, sur), short: Math.max(0, need - own) };
+}
+function pjReqFor(sd, name) { const k = avKey(name); for (const [n, days] of Object.entries(sd.requests || {})) if (avKey(n) === k) return days; return {}; }
+function pjPrevFor(sd, name) { const k = avKey(name); for (const [n, days] of Object.entries(sd.prev || {})) if (avKey(n) === k) return days; return {}; }
+
+function pjDraw() {
+  const box = $('#pjBody');
+  if (!box) return;
+  const days = planDays(PJ.ym);
+  const [y, m] = PJ.ym.split('-').map(Number);
+  const o = PJ.opts;
+  const sc = PJ.codes.filter((c) => c.kind === 'shift');
+  const codeSel = (k) => html`<select class="select" data-change="pj-opt" data-k="${k}" style="width:auto">${sc.map((c) => html`<option ${c.code === o[k] ? raw('selected') : ''}>${c.code}</option>`)}</select>`;
+  const issues = {};
+  (PJ.chk ? PJ.chk.sides : []).forEach((s) => s.issues.forEach((x) => { issues[s.roster_id + '|' + x.name + '|' + x.date] = x.msg; }));
+  const prevDays = [3, 2, 1].map((k) => { const dt = new Date(+PJ.ym.slice(0, 4), +PJ.ym.slice(5, 7) - 1, 1 - k); return ymd(dt); });
+  const head = (sd) => html`<thead><tr><th class="pl2-name">Kişi <button type="button" class="btn sm ghost icon" data-act="pj-addp" data-s="${sd.key}" aria-label="Kişi ekle">${icon('plus', 'sm')}</button></th>
+    ${prevDays.map((d) => html`<th class="pj-prev" title="Önceki ay">${+d.slice(8)}<small>önc.</small></th>`)}
+    ${days.map((d) => { const w = new Date(d).getDay(); return html`<th class="${w === 0 || w === 6 ? 'we' : ''} ${PJ.hol[d] !== undefined ? 'hol' : ''}" title="${PJ.hol[d] || ''}"><button type="button" class="pj-dh" data-act="pj-day" data-d="${d}">${+d.slice(8)}<small>${TR_DAYS_S[w].slice(0, 2)}</small></button></th>`; })}<th>Saat</th><th title="Karşı tarafa toplam geçiş (Taraf)">Geç.</th></tr></thead>`;
+  const body = (sd) => html`<tbody>${sd.draft.people.map((p) => {
+    const rq = pjReqFor(sd, p.name); const pv = pjPrevFor(sd, p.name);
+    const team = pjFlag(sd, p.name, 'team'); const ex = pjFlag(sd, p.name, 'excl');
+    let h = 0;
+    Object.values(sd.draft.cells[p.name] || {}).forEach((c) => { const cc = planCode(c); if (cc && cc.kind === 'shift') h += +cc.hours || 0; });
+    return html`<tr class="${team ? 'pj-team' : ''} ${ex ? 'pj-excl' : ''}"><th class="pl2-name"><button type="button" class="pl2-pn" data-act="pj-pmenu" data-s="${sd.key}" data-n="${p.name}">${p.name}${team ? html` <span class="badge tone-violet sm">Sorumlu</span>` : ''}${ex ? html` <span class="badge sm">Nöbet dışı</span>` : ''}${p.title ? html`<small>${p.title}</small>` : ''}</button></th>
+      ${prevDays.map((d) => html`<td class="pj-prev"><span class="pl2-c ${pv[d] ? 'tone-' + planTone(pv[d]) : ''}">${pv[d] || ''}</span></td>`)}
+      ${days.map((d) => { const code = (sd.draft.cells[p.name] || {})[d] || ''; const iss = issues[sd.roster.id + '|' + p.name + '|' + d]; return html`<td class="${rq[d] ? 'rq' : ''} ${iss ? 'bad' : ''}" title="${[iss, rq[d] ? (rq[d] === 'izin' ? 'Onaylı yıllık izin isteği' : 'Onaylı boşluk isteği') : ''].filter(Boolean).join(' · ')}"><button type="button" class="pl2-c ${code ? 'tone-' + planTone(code) : ''}" data-act="pj-cell" data-s="${sd.key}" data-n="${p.name}" data-d="${d}">${code || (rq[d] ? (rq[d] === 'izin' ? 'İ' : 'B') : '')}</button></td>`; })}
+      <td class="pl2-h">${Math.round(h)}</td><td class="pl2-h">${sd.cross[p.name] || 0}</td></tr>`;
+  })}</tbody>`;
+  const foot = (sd) => html`<tfoot>${['night', 'day'].map((per) => html`<tr><th class="pl2-name">${per === 'night' ? 'Gece' : 'Gündüz'} <small>alan / gereken</small></th>${prevDays.map(() => html`<td class="pj-prev"></td>`)}
+    ${days.map((d) => { const own = pjOwn(sd, d, per); const need = pjNeed(sd, d, per); const cls = own < need ? 'bad' : own > need ? 'over' : ''; return html`<td class="pl2-cov ${cls}" title="${sd.name} ${per === 'night' ? 'gece' : 'gündüz'}: ${own} / ${need}${own > need ? ' · fazla ' + (own - need) + ' (karşıya geçer)' : own < need ? ' · eksik ' + (need - own) : ''}">${own}/${need}</td>`; })}<td></td><td></td></tr>`)}</tfoot>`;
+  const sumRow = (per) => html`<tr><th class="pl2-name">${per === 'night' ? 'Gece' : 'Gündüz'} toplam</th>${days.map((d) => { const s = pjDaySum(d, per); return html`<td class="pl2-cov ${s.short ? 'bad' : ''}" title="Alan toplamı ${s.own} / ${s.need}${s.cross ? ' · ' + s.cross + ' kişi karşıya geçecek' : ''}">${s.own}/${s.need}${s.cross ? html`<br><b class="pj-x">↔${s.cross}</b>` : ''}</td>`; })}</tr>`;
+  setHTML(box, html`<div class="stack">
+    <div class="card card-pad stack pl2-head">
+      <div class="row wrap" style="gap:8px">
+        <a class="btn sm" href="#/cizelge">${icon('chevL', 'sm')}<span>Tek liste</span></a>
+        <div class="row" style="gap:4px"><button class="btn sm icon" data-act="pj-month" data-k="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b class="pl2-ym">${TR_MONTHS[m - 1]} ${y}</b><button class="btn sm icon" data-act="pj-month" data-k="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>
+        <span class="grow"></span>
+        <button class="btn sm" data-act="pj-needs">${icon('layers', 'sm')}<span>Blok sayıları</span></button>
+        <button class="btn sm" data-act="pj-check">${icon('shield', 'sm')}<span>Denetle</span></button>
+        <button class="btn sm primary" data-act="pj-auto">${icon('star', 'sm')}<span>Otomatik dağıt</span></button>
+        <button class="btn sm" data-act="pj-save">${icon('check', 'sm')}<span>Kaydet</span></button>
+      </div>
+      <div class="row wrap pl2-needs" style="gap:10px">
+        <label class="small">Gündüz kodu ${codeSel('day_code')}</label>
+        <label class="small">Gece kodu ${codeSel('night_code')}</label>
+        <label class="small"><input type="checkbox" data-change="pj-optb" data-k="team_day" ${o.team_day ? raw('checked') : ''}> Sorumlular hafta içi gündüz</label>
+        <label class="small"><input type="checkbox" data-change="pj-optb" data-k="fri_on" ${o.fri_on ? raw('checked') : ''}> Cuma sorumlu</label>
+        ${o.fri_on ? html`<label class="small"><input class="input" type="number" min="1" max="5" data-input="pj-optn" data-k="fri_n" value="${o.fri_n || 1}"> kişi ${codeSel('fri_code')}</label>` : ''}
+        <label class="small"><input type="checkbox" data-change="pj-optb" data-k="sat_on" ${o.sat_on ? raw('checked') : ''}> Cumartesi sorumlu</label>
+        ${o.sat_on ? html`<label class="small"><input class="input" type="number" min="1" max="5" data-input="pj-optn" data-k="sat_n" value="${o.sat_n || 1}"> kişi ${codeSel('sat_code')}</label>` : ''}
+      </div>
+      <div class="pl2-brush" role="toolbar" aria-label="Fırça"><span class="tiny faint">Fırça:</span>
+        ${PJ.codes.map((c) => html`<button type="button" class="code-chip tone-${planTone(c.code)} ${PJ.brush === c.code ? 'on' : ''}" data-act="pj-brush" data-c="${c.code}" title="${c.label}">${c.code}</button>`)}
+        <button type="button" class="btn sm ghost ${PJ.brush === '' ? 'on' : ''}" data-act="pj-brush" data-c="">${icon('x', 'sm')}Sil</button>
+        ${PJ.brush !== null ? html`<button type="button" class="btn sm ghost" data-act="pj-brush-off">Fırçayı bırak</button>` : ''}</div>
+      ${PJ.last ? html`<div class="mk-box ok small">${icon('checkCircle', 'sm')}<span>${PJ.last}</span></div>` : ''}
+    </div>
+    ${PJ.sides.map((sd) => html`<div class="card pj-side" data-side="${sd.key}">
+      <div class="card-head"><h3>${sd.name} <span class="tiny faint">· ${sd.units.join(', ')} · liste: ${sd.roster.name}</span></h3><span class="grow"></span>
+        ${PJ.dirty[sd.roster.id] ? html`<span class="badge warn sm">kaydedilmedi</span>` : ''}
+        <button class="btn sm" data-act="pj-xlsx" data-s="${sd.key}">${icon('download', 'sm')}<span>Excel</span></button>
+        <button class="btn sm primary" data-act="pj-publish" data-s="${sd.key}">${icon('send', 'sm')}<span>Yayınla</span></button></div>
+      <div class="pl2-wrap"><table class="pl2-grid pj-grid">${head(sd)}${body(sd)}${foot(sd)}</table></div></div>`)}
+    <div class="card"><div class="card-head"><h3>${icon('layers', 'sm')} Gün gün toplam</h3><span class="tiny faint">alan / gereken · ↔ karşıya geçecek kişi (bloğu Taraf kurasında belli olur)</span></div>
+      <div class="pl2-wrap" style="max-height:none"><table class="pl2-grid"><thead><tr><th class="pl2-name">Gün</th>${days.map((d) => html`<th>${+d.slice(8)}<small>${TR_DAYS_S[new Date(d).getDay()].slice(0, 2)}</small></th>`)}</tr></thead><tbody>${sumRow('night')}${sumRow('day')}</tbody></table></div></div>
+    <div id="pjIssues">${pjIssuesHtml()}</div>
+    <p class="tiny faint">Her basamak kendi tablosunda ve kendi listesinde kalır; birbirine karışmaz. Sorumlular ve nöbet dışı kişiler alan sayısına girmez. Nöbet dışı kişiye otomatik nöbet yazılmaz, yalnız elle. Kurallar önceki ayın son günleriyle birlikte denetlenir. Değişiklikler 20 saniyede bir kendiliğinden kaydedilir.</p>
+  </div>`);
+}
+function pjIssuesHtml() {
+  const c = PJ.chk;
+  if (!c) return '';
+  const all = [];
+  c.sides.forEach((s) => { const sd = PJ.sides.find((x) => x.key === s.key); s.issues.forEach((x) => all.push({ ...x, side: sd ? sd.name : '' })); });
+  const days = planDays(PJ.ym);
+  const short = [];
+  days.forEach((d) => ['night', 'day'].forEach((per) => { const s = pjDaySum(d, per); if (s.short) short.push({ d, per, s }); }));
+  if (!all.length && !short.length) return html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span>Kurallara uygun; eksik gün yok.</span></div>`;
+  return html`<div class="card"><div class="card-head"><h3>${icon('alert', 'sm')} ${all.length} uyarı${short.length ? `, ${short.length} eksik vardiya` : ''}</h3></div><div class="list">
+    ${all.slice(0, 100).map((x) => html`<div class="list-row small"><span class="badge ${x.type === 'kural' ? 'danger' : 'warn'}">${mkShortDate(x.date)}</span><span class="badge sm">${x.side}</span><span>${x.msg}</span></div>`)}
+    ${short.slice(0, 60).map((x) => html`<div class="list-row small"><span class="badge warn">${mkShortDate(x.d)}</span><span>${x.per === 'night' ? 'Gece' : 'Gündüz'} eksik: ${x.s.own}/${x.s.need}</span></div>`)}</div></div>`;
+}
+const pjSide = (k) => PJ.sides.find((s) => s.key === k);
+function pjSet(sd, name, d, code) {
+  const row = sd.draft.cells[name] || (sd.draft.cells[name] = {});
+  if (code) row[d] = code; else delete row[d];
+  pjDirty(sd);
+}
+
+ACT['pj-month'] = (el) => { pjSaveDirty(); PJ.ym = planNextYm(PJ.ym, +el.dataset.k); navStep(`#/cizelge/taraflar/${PJ.ym}`); PJ.last = null; pjLoad(); };
+CHANGE['pj-opt'] = (el) => { PJ.opts[el.dataset.k] = el.value; };
+CHANGE['pj-optb'] = (el) => { PJ.opts[el.dataset.k] = el.checked; pjDraw(); };
+CHANGE['pj-optn'] = (el) => { PJ.opts[el.dataset.k] = Math.max(1, Math.min(5, +el.value || 1)); };
+ACT['pj-brush'] = (el) => { PJ.brush = el.dataset.c; pjDraw(); };
+ACT['pj-brush-off'] = () => { PJ.brush = null; pjDraw(); };
+ACT['pj-cell'] = (el) => {
+  const sd = pjSide(el.dataset.s); if (!sd) return;
+  const { n, d } = el.dataset;
+  if (PJ.brush !== null) { pjSet(sd, n, d, PJ.brush); pjDraw(); return; }
+  const cur = (sd.draft.cells[n] || {})[d] || '';
+  const rq = pjReqFor(sd, n)[d];
+  const m = openModal({ title: `${n} · ${dateLabel(d)}`, size: 'narrow', body: html`<div class="stack">
+    <div class="tiny faint">${sd.name}</div>
+    ${rq ? html`<div class="mk-box warn">${icon('alert', 'sm')}<span>Onaylı ${rq === 'izin' ? 'yıllık izin' : 'boşluk'} isteği var.</span></div>` : ''}
+    <div class="pl2-pick">${PJ.codes.map((c) => html`<button type="button" class="code-chip tone-${planTone(c.code)} ${cur === c.code ? 'on' : ''}" data-c="${c.code}"><b>${c.code}</b> <span class="tiny">${c.label}</span></button>`)}</div>
+    <button type="button" class="btn sm ghost" data-c="">${icon('x', 'sm')} Boş bırak</button></div>` });
+  m.el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-c]'); if (!b) return; pjSet(sd, n, d, b.dataset.c); m.close(); pjDraw(); });
+};
+ACT['pj-pmenu'] = (el) => {
+  const sd = pjSide(el.dataset.s); if (!sd) return;
+  const n = el.dataset.n;
+  const others = PJ.sides.filter((s) => s.key !== sd.key);
+  const m = openModal({ title: n, size: 'narrow', body: html`<div class="list">
+    ${others.map((o) => html`<button type="button" class="list-row" data-o="move" data-to="${o.key}" style="width:100%;border:0;background:none;text-align:left">${icon('users', 'sm')}<span>${o.name} listesine taşı</span></button>`)}
+    <button type="button" class="list-row" data-o="clear" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Satırı temizle</span></button>
+    <button type="button" class="list-row tone-danger" data-o="remove" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span>Bu listeden çıkar</span></button></div>` });
+  m.el.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-o]'); if (!b) return;
+    const p = sd.draft.people.find((x) => x.name === n);
+    if (b.dataset.o === 'clear') delete sd.draft.cells[n];
+    else {
+      const cells = sd.draft.cells[n];
+      sd.draft.people = sd.draft.people.filter((x) => x.name !== n); delete sd.draft.cells[n];
+      if (b.dataset.o === 'move') {
+        const to = pjSide(b.dataset.to);
+        if (to && !to.draft.people.some((x) => avKey(x.name) === avKey(n))) { to.draft.people.push(p || { name: n, title: '' }); if (cells) to.draft.cells[n] = cells; to.flags[n] = sd.flags[n]; pjDirty(to); }
+      }
+    }
+    pjDirty(sd); m.close(); pjDraw();
+  });
+};
+ACT['pj-addp'] = (el) => {
+  const sd = pjSide(el.dataset.s); if (!sd) return;
+  const have = new Set(PJ.sides.flatMap((s) => s.draft.people.map((p) => avKey(p.name))));
+  const sug = (S.people || []).filter((p) => !have.has(avKey(p.name)));
+  const m = openModal({ title: `${sd.name} · kişi ekle`, size: 'narrow', body: html`<form class="stack" id="pjAddF"><div class="field"><label>Ad soyad</label><input class="input" name="name" list="pjPpl" required minlength="3" maxlength="120"><datalist id="pjPpl">${sug.map((p) => html`<option value="${p.name}">`)}</datalist></div>
+    <p class="hint">Bir kişi yalnız bir basamak listesinde olabilir. Portalda hesabı olmayan kişi de eklenebilir.</p><div class="form-error hidden" data-err></div></form>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="pjAddF">Ekle</button>` });
+  $('#pjAddF', m.el).addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = $('#pjAddF [name=name]', m.el).value.trim();
+    if (name.length < 3 || have.has(avKey(name))) { showFormError($('#pjAddF', m.el), have.has(avKey(name)) ? 'Bu kişi zaten bir basamak listesinde.' : 'Ad soyad girin.'); return; }
+    sd.draft.people.push({ name, title: '' });
+    try { const r = await api('plan.sides.flags', { names: [name] }); Object.assign(sd.flags, r.flags || {}); } catch (e) { /* */ }
+    pjDirty(sd); m.close(); pjDraw();
+  });
+};
+ACT['pj-save'] = (el) => busy(el, async () => { for (const sd of PJ.sides) await pjSaveSide(sd, true); toast('Basamak çizelgeleri kaydedildi'); pjDraw(); });
+const pjDrafts = () => Object.fromEntries(PJ.sides.map((sd) => [sd.roster.id, sd.draft]));
+ACT['pj-check'] = (el) => busy(el, async () => {
+  try { PJ.chk = await api('plan.sides.check', { ym: PJ.ym, drafts: pjDrafts() }); pjDraw(); const x = $('#pjIssues'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['pj-auto'] = async (el) => {
+  const o = PJ.opts;
+  if (!(await confirmDialog({ title: 'Otomatik dağıtılsın mı?', text: `Onaylı istekler ve elle yazılan hücreler korunur. ${o.team_day ? 'Sorumlulara hafta içi gündüz yazılır; ' : ''}boş vardiyalar blok planındaki sayılara göre önce kendi basamağından, adil sırayla (az saat → hafta sonu → son 7 gün → kura) doldurulur; bir taraf dolmazsa eksik diğer basamaktan tamamlanır (karşıya geçecek kişi).${o.fri_on ? ' Sonra Cuma günleri sorumlular sırayla atanır' + (o.sat_on ? ', Cumartesi de' : '') + '.' : ''} Nöbet dışı kişilere yazılmaz.`, ok: 'Dağıt' }))) return;
+  busy(el, async () => {
+    try {
+      const r = await api('plan.sides.auto', { ym: PJ.ym, drafts: pjDrafts(), opts: PJ.opts });
+      PJ.sides.forEach((sd) => { const c = (r.cells || {})[sd.roster.id]; sd.draft.cells = c && !Array.isArray(c) ? c : {}; pjDirty(sd); });
+      PJ.opts = r.opts || PJ.opts;
+      const team = (r.team.fri || []).length + (r.team.sat || []).length;
+      PJ.last = `${r.filled} nöbet yazıldı${r.cross.length ? ` · ${r.cross.length} vardiyada eksik taraf diğer basamaktan tamamlandı (karşıya geçecek)` : ''}${team ? ` · ${team} sorumlu nöbeti` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için eksik kaldı` : ''}`;
+      PJ.chk = await api('plan.sides.check', { ym: PJ.ym, drafts: pjDrafts() });
+      pjDraw();
+      toast('Dağıtıldı');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+};
+ACT['pj-xlsx'] = (el) => busy(el, async () => {
+  const sd = pjSide(el.dataset.s); if (!sd) return;
+  try { const f = await planXlsx({ ym: PJ.ym, d: sd.draft, roster: sd.roster }); downloadBlob(f, f.name); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['pj-publish'] = (el) => {
+  const sd = pjSide(el.dataset.s); if (!sd) return;
+  planPublishCtx({ rid: sd.roster.id, ym: PJ.ym, roster: sd.roster, d: sd.draft, save: () => pjSaveSide(sd, true), after: () => pjDraw() }, el);
+};
+/** Gün başlığı: o günün blok sayıları (Taraf ile ortak; yalnız o güne) */
+ACT['pj-day'] = (el) => {
+  const d = el.dataset.d;
+  const un = PJ.unitNeeds[d] || {};
+  const units = PJ.sides.flatMap((sd) => sd.units.map((u) => ({ u, side: sd.name })));
+  const m = openModal({ title: `${dateLabel(d)} · blok sayıları`, size: 'narrow', body: html`<div class="stack">
+    <p class="small muted">Bu güne özel gereken kişi (sorumlular hariç). Taraf sayfasındaki gün gün sayılarla aynıdır.</p>
+    <table class="tbl small"><thead><tr><th>Blok</th><th>Gündüz</th><th>Gece</th></tr></thead><tbody>${units.map((x) => html`<tr><td>${x.u} <span class="tiny faint">${x.side}</span></td>
+      <td><input class="input" type="number" min="0" max="30" data-u="${x.u}" data-p="day" value="${(un[x.u] || {}).day || 0}" style="width:70px"></td>
+      <td><input class="input" type="number" min="0" max="30" data-u="${x.u}" data-p="night" value="${(un[x.u] || {}).night || 0}" style="width:70px"></td></tr>`)}</tbody></table></div>`,
+  foot: html`<button class="btn ghost" id="pjDayDef">Varsayılana dön</button><span class="grow"></span><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="pjDayOk">Kaydet</button>` });
+  const apply = (needs) => {
+    PJ.unitNeeds[d] = needs;
+    PJ.needs[d] = {};
+    PJ.sides.forEach((sd) => { PJ.needs[d][sd.key] = { day: 0, night: 0 }; sd.units.forEach((u) => { PJ.needs[d][sd.key].day += +((needs[u] || {}).day || 0); PJ.needs[d][sd.key].night += +((needs[u] || {}).night || 0); }); });
+    m.close(); pjDraw();
+  };
+  $('#pjDayOk', m.el).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const counts = { ...un };
+    $$('input[data-u]', m.el).forEach((i) => { counts[i.dataset.u] = counts[i.dataset.u] || { day: 0, night: 0 }; counts[i.dataset.u] = { ...counts[i.dataset.u], [i.dataset.p]: Math.max(0, +i.value || 0) }; });
+    try { const r = await api('placement.counts', { date: d, counts }); apply(r.needs || counts); toast('Bu günün sayıları kaydedildi'); } catch (err) { toast(err.message, 'err'); }
+  }));
+  $('#pjDayDef', m.el).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    try { const r = await api('placement.counts', { date: d, counts: null }); apply(r.needs || {}); toast('Varsayılan sayılar kullanılıyor'); } catch (err) { toast(err.message, 'err'); }
+  }));
+};
+/** Varsayılan blok sayıları (hafta içi / hafta sonu-tatil, gündüz / gece) */
+ACT['pj-needs'] = async () => {
+  let g;
+  try { g = await api('rules.get'); } catch (e) { toast(e.message, 'err'); return; }
+  const needs = g.needs || {};
+  const units = PJ.sides.flatMap((sd) => sd.units.map((u) => ({ u, side: sd.name })));
+  const v = (u, dt, p) => ((needs[u] || {})[dt] || {})[p] || 0;
+  const m = openModal({ title: 'Blok sayıları (varsayılan)', size: 'wide', body: html`<div class="stack">
+    <p class="small muted">Her blok için normalde gereken kişi (sorumlular hariç). Tarafın sayısı bloklarının toplamıdır. Tek bir güne özel sayı için tablodaki gün başlığına dokunun.</p>
+    <div class="pl2-wrap" style="max-height:none"><table class="tbl small"><thead><tr><th>Blok</th><th>Hafta içi gündüz</th><th>Hafta içi gece</th><th>H. sonu / tatil gündüz</th><th>H. sonu / tatil gece</th></tr></thead><tbody>${units.map((x) => html`<tr><td>${x.u} <span class="tiny faint">${x.side}</span></td>
+      ${[['weekday', 'day'], ['weekday', 'night'], ['weekend', 'day'], ['weekend', 'night']].map(([dt, p]) => html`<td><input class="input" type="number" min="0" max="30" data-u="${x.u}" data-dt="${dt}" data-p="${p}" value="${v(x.u, dt, p)}" style="width:70px"></td>`)}</tr>`)}</tbody></table></div></div>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" id="pjNeedsOk">Kaydet</button>` });
+  $('#pjNeedsOk', m.el).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    const all = JSON.parse(JSON.stringify(needs));
+    $$('input[data-u]', m.el).forEach((i) => { const u = i.dataset.u; all[u] = all[u] || {}; all[u][i.dataset.dt] = all[u][i.dataset.dt] || {}; all[u][i.dataset.dt][i.dataset.p] = Math.max(0, +i.value || 0); });
+    try {
+      await api('rules.needs.save', { needs: all });
+      const r = await api('plan.sides.get', { ym: PJ.ym });
+      PJ.needs = r.needs || {}; PJ.unitNeeds = r.unit_needs || {};
+      m.close(); pjDraw(); toast('Blok sayıları kaydedildi');
+    } catch (err) { toast(err.message, 'err'); }
+  }));
+};

@@ -198,8 +198,12 @@ function sides_cfg(): array
     $out = [];
     foreach (is_array($j) ? $j : [] as $s) {
         if (!is_array($s) || empty($s['key'])) continue;
+        $units = array_values(array_filter(array_map('strval', (array)($s['units'] ?? [])), fn($u) => $u !== ''));
         $out[] = ['key' => (string)$s['key'], 'name' => (string)($s['name'] ?? ''), 'roster_id' => (int)($s['roster_id'] ?? 0),
-            'units' => array_values(array_filter(array_map('strval', (array)($s['units'] ?? [])), fn($u) => $u !== ''))];
+            'units' => $units,
+            // 4.30: karşı taraftan gelen kişi yalnız bu bloklara (boş: hepsi); aynı blokta üst üste en fazla N nöbet (0: sınırsız)
+            'cross_in' => array_values(array_intersect(array_map('strval', (array)($s['cross_in'] ?? [])), $units)),
+            'max_streak' => max(0, min(10, (int)($s['max_streak'] ?? 0)))];
     }
     return $out;
 }
@@ -417,15 +421,19 @@ function a_side_settings(): void
         $units = [];
         foreach ((array)($sd['units'] ?? []) as $u) { $u = mb_substr(trim((string)$u), 0, 40); if ($u !== '' && !in_array($u, $units, true)) $units[] = $u; }
         if (!$units) $units = [$name];
-        $list[] = ['key' => $key, 'name' => $name, 'roster_id' => $rid, 'units' => array_slice($units, 0, 6)];
+        $units = array_slice($units, 0, 8);
+        $crossIn = array_values(array_intersect(array_map(fn($u) => mb_substr(trim((string)$u), 0, 40), (array)($sd['cross_in'] ?? [])), $units));
+        $list[] = ['key' => $key, 'name' => $name, 'roster_id' => $rid, 'units' => $units, 'cross_in' => $crossIn, 'max_streak' => max(0, min(10, (int)($sd['max_streak'] ?? 0)))];
     }
-    if (count($list) < 2) fail('En az iki taraf tanımlayın (ör. 3. Basamak ve 2. Basamak).');
+    // Tek servisli / tek taraflı birim de olur (karşıya geçiş olmaz; bloklar yine dağıtılır)
+    if (!$list) fail('En az bir taraf (alan) tanımlayın.');
     $all = [];
     foreach ($list as $sd) foreach ($sd['units'] as $u) { if (isset($all[$u])) fail("“$u” iki tarafta birden olamaz."); $all[$u] = true; }
     set_setting('sides', json_encode($list, JSON_UNESCAPED_UNICODE));
     $since = s('since', 10);
     set_setting('side_since', valid_ymd($since) ? $since : '');
-    audit($me, 'settings.save', 'Taraf listesi', implode(' · ', array_map(fn($s) => $s['name'] . ': ' . implode('/', $s['units']), $list)));
+    audit($me, 'settings.save', 'Taraf listesi', implode(' · ', array_map(fn($s) => $s['name'] . ': ' . implode('/', $s['units'])
+        . ($s['cross_in'] ? ' (gelen: ' . implode('/', $s['cross_in']) . ')' : '') . ($s['max_streak'] ? ' (üst üste en fazla ' . $s['max_streak'] . ')' : ''), $list)));
     out(['sides' => sides_cfg(), 'since' => setting('side_since') ?: null]);
 }
 

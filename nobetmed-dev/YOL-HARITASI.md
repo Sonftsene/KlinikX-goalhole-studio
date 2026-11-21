@@ -119,6 +119,10 @@ Kişi adları / gerçek veriler bu dosyaya yazılmaz.
 ### 4.28 — Sohbet görünümü ✓ (4.28.0)
 - İlet / paylaşta tüm kişiler (arama, çoklu), modern liste, 7 tema, 4 balon biçimi, 8 duvar kağıdı, efektler, sağa kaydırmada ekran kaymaz.
 
+### 4.30 — Blok planı kuralları + basamakları birlikte planlama ✓ (4.30.0)
+- Taraf: blok sırası öncelik (A ≥ C), karşıdan gelen yalnız seçili bloğa (3. basamak → A), aynı blokta üst üste en fazla N (A↔C), tek alan / tek taraflı birim, nöbet dışı yalnız elle, anlık yenilenme.
+- Çizelge: iki basamak aynı ekranda ayrı tablolarda, blok planı sayılarıyla adil dağıtım, eksik taraf diğer basamaktan, sorumlular hafta içi gündüz + Cuma/Cumartesi sırayla, önceki ay kuralları, ayrı Excel.
+
 ### 4.29 — Geri tuşu + hız + güvenlik taraması ✓ (4.29.0)
 - Hız: sohbet animasyonları ve bulanık arka planlar kaldırıldı, okuma isteklerinde oturum kilidi erken bırakılır, açılış verisi paralel, yazı tipi beklemez.
 - Geri tuşu tek adım: pencere/menü/yan menü/bildirim kutusu/emoji/seçim katmanları, sekmeler ve sihirbaz adımları geçmişte; güvenlik taramasındaki bulgular kapatıldı (Excel önizleme HTML sızması, kayıtta ad sahiplenme, sıfırlama bağlantısı, salt okunur listede yazma uçları, SMTP iç ağ, yükleme kotası, SA giriş kilidi, yarış durumları).
