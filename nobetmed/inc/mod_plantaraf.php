@@ -378,15 +378,59 @@ function a_plan_sides_auto(): void
                     }
                 }
             }
-            if (!$bestMove) break;
-            ['hk' => $hk, 'lk' => $lk, 'd' => $d, 'give' => $give, 'keep' => $keep] = $bestMove;
-            if ($keep) {
-                $P[$hk]['days'][$d] = $keep;
-                $cells[$P[$hk]['rid']][$P[$hk]['name']][$d] = $keep['code'];
-            } else $unput($hk, $d);
-            $put($lk, $d, $give);
-            foreach ($cross as &$x) if ($x['date'] === $d && $x['name'] === $P[$hk]['name'] && !$keep) $x['name'] = $P[$lk]['name'];
-            unset($x);
+            // Doğrudan aktarım kurala takıldıysa üçüncü kişi üzerinden: fazla → ara kişi (d1), ara kişi → eksik (d2), aynı saat
+            $chain = null;
+            if (!$bestMove) {
+                $partsOf = function (array $row) use ($partD, $partN): array {
+                    $o = [[$row, null]];
+                    if (shift_periods($row) === ['day', 'night'] && $partD && $partN) { $o[] = [$partN, $partD]; $o[] = [$partD, $partN]; }
+                    return $o;
+                };
+                foreach ($sides as $sd) {
+                    $mem = array_values(array_filter(array_keys($w), fn($k) => $P[$k]['side'] === $sd['key'] && $w[$k] > 0));
+                    if (count($mem) < 3) continue;
+                    $tot = 0.0; $sw = 0.0;
+                    foreach ($mem as $k) { $tot += $hours($k); $sw += $w[$k]; }
+                    $dev = [];
+                    foreach ($mem as $k) $dev[$k] = $hours($k) - $tot * $w[$k] / $sw;
+                    arsort($dev);
+                    $his = array_keys(array_filter($dev, fn($v) => $v > 2));
+                    $los = array_reverse(array_keys(array_filter($dev, fn($v) => $v < -2)));
+                    foreach ($his as $hk) foreach ($los as $lk) {
+                        $gap = $dev[$hk] - $dev[$lk];
+                        if ($gap <= 4) continue;
+                        foreach ($mem as $mk) {
+                            if ($mk === $hk || $mk === $lk) continue;
+                            foreach ($auto[$hk] ?? [] as $d1 => $_) {
+                                if (!$free($mk, $d1)) continue;
+                                foreach ($partsOf($P[$hk]['days'][$d1]) as [$g1, $k1]) {
+                                    $h = $hOf($g1);
+                                    if ($h <= 0 || $h >= $gap || !$canAdd($mk, $d1, $g1)) continue;
+                                    foreach ($auto[$mk] ?? [] as $d2 => $__) {
+                                        if ($d2 === $d1 || !$free($lk, $d2)) continue;
+                                        foreach ($partsOf($P[$mk]['days'][$d2]) as [$g2, $k2]) {
+                                            if (abs($hOf($g2) - $h) > 0.01 || !$canAdd($lk, $d2, $g2)) continue;
+                                            $chain = [[$hk, $mk, $d1, $g1, $k1], [$mk, $lk, $d2, $g2, $k2]];
+                                            break 8;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!$bestMove && !$chain) break;
+            $moves = $chain ?: [[$bestMove['hk'], $bestMove['lk'], $bestMove['d'], $bestMove['give'], $bestMove['keep']]];
+            foreach ($moves as [$hk, $lk, $d, $give, $keep]) {
+                if ($keep) {
+                    $P[$hk]['days'][$d] = $keep;
+                    $cells[$P[$hk]['rid']][$P[$hk]['name']][$d] = $keep['code'];
+                } else $unput($hk, $d);
+                $put($lk, $d, $give);
+                foreach ($cross as &$x) if ($x['date'] === $d && $x['name'] === $P[$hk]['name'] && !$keep) $x['name'] = $P[$lk]['name'];
+                unset($x);
+            }
             $balanced++;
         }
     }
