@@ -24,6 +24,15 @@ try {
   const att = await p.evaluate(async () => {
     await loadVendor('exceljs');
     const wb = new ExcelJS.Workbook();
+    // Aralık: bölme ilk kişinin (Ayşe Kaya) satırına kadar dondurulmuş, sıra no + ünvan sütunlu (gerçek listelerdeki gibi)
+    const wd = wb.addWorksheet('Aralık', { views: [{ state: 'frozen', xSplit: 3, ySplit: 4 }] });
+    wd.addRow(['', 'BİRİM:', '']);
+    wd.addRow(['', 'PERSONEL LİSTESİ', 'ÜNVANI', ...Array.from({ length: 31 }, (_, i) => String(i + 1))]);
+    wd.addRow(['', '', '', ...Array.from({ length: 31 }, (_, i) => ['Paz..', 'Pzt..', 'Sal..', 'Çar..', 'Per..', 'Cum..', 'Cmt..'][i % 7])]);
+    [['4', 'AYŞE KAYA'], ['5', 'BURAK DEMİR'], ['8', 'ELİF YILMAZ'], ['9', 'CEREN AKSOY']].forEach(([n, who], k) => {
+      wd.addRow([n, who, 'HEMŞİRE', ...Array.from({ length: 31 }, (_, i) => ((i + k) % 2 === 0 ? '8 8' : ''))]);
+    });
+    wd.getColumn(2).width = 24;
     for (const name of ['Ekim', 'Kasım']) {
       const ws = wb.addWorksheet(name);
       ws.addRow([`${name} nöbet listesi`]);
@@ -47,6 +56,8 @@ try {
     mountPreview(host, a);
   }, att);
   await p.locator('#xvHost .xv-grid').waitFor();
+  await p.click('#xvHost .xv-tabs [data-sheet="1"]'); // Ekim
+  await p.waitForTimeout(300);
   const stick = (sel) => p.evaluate((s) => {
     const host = document.querySelector(s);
     const sc = host.querySelector('.xv-scroll');
@@ -70,9 +81,18 @@ try {
   if (!vis.includes('Elif Yılmaz') || vis.some((t) => /Kara|Demir|Ayşe/.test(t))) fail('“Sadece ben” başka kişileri de gösterdi: ' + vis.join(' | '));
   await p.click('#xvHost .xv-only');
   step('“Sadece ben”: yalnız Elif Yılmaz satırı (Elif Yılmaz Kara ve notunda adı geçen Burak Demir gösterilmedi)');
+  // Bölmesi ilk kişinin satırına kadar dondurulmuş sekme (Aralık): ilk kişi başlık sanılmasın
+  await p.click('#xvHost .xv-tabs [data-sheet="0"]');
+  await p.waitForTimeout(300);
+  await p.click('#xvHost .xv-only');
+  await p.waitForTimeout(400);
+  const vis2 = await p.evaluate(() => [...document.querySelectorAll('#xvHost .xv-grid tbody td')].map((x) => x.textContent.trim()).filter((t) => /KAYA|YILMAZ|DEMİR|AKSOY|PERSONEL|ÜNVAN/.test(t)));
+  if (!vis2.includes('ELİF YILMAZ') || vis2.some((t) => /KAYA|DEMİR|AKSOY/.test(t)) || !vis2.some((t) => /PERSONEL/.test(t))) fail('dondurulmuş listede “Sadece ben” başka kişiyi gösterdi ya da başlığı gizledi: ' + vis2.join(' | '));
+  await p.click('#xvHost .xv-only');
+  step('Bölmesi ilk kişiye kadar dondurulmuş listede “Sadece ben”: başlık satırları + yalnız ELİF YILMAZ (ilk kişi AYŞE KAYA gösterilmedi)');
 
   // Sekme değiştir → tam ekran aynı sekme, ad sütunu sabit
-  await p.click('#xvHost .xv-tabs [data-sheet="1"]');
+  await p.click('#xvHost .xv-tabs [data-sheet="2"]');
   await p.waitForTimeout(300);
   const sheet = await p.evaluate(() => document.querySelector('#xvHost').dataset.sheet);
   if (sheet !== 'Kasım') fail('açık sekme okunamadı: ' + sheet);

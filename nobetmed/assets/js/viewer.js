@@ -826,8 +826,34 @@ async function mountSheet(el, att, opts = {}) {
     const keep = new Set(mine);
     const first = mine[0];
     const hdrCell = /^(\d{1,2}\.?|pzt|pazartesi|sal|salı|çar|çarşamba|per|perşembe|cum|cuma|cmt|cts|cumartesi|paz|pazar)$/;
+    // Kişi satırı tanıma: kendi satırımla aynı yapıda olan satırlar (sıra no sütununda sayı, ünvan sütununda aynı yazı,
+    // gün sütunlarında nöbet kodu). Excel'de bölme ilk kişinin satırına kadar dondurulmuşsa o kişi "başlık" sanılmasın.
+    const txt = (r, c) => { const x = sh.cells.get(r * 100000 + c); return x && x.text != null ? String(x.text).trim() : ''; };
+    let nameCol = -1;
+    for (let c = 0; c < sh.nCols && nameCol < 0; c++) if (meExact(txt(first, c)) || meMatch(txt(first, c))) nameCol = c;
+    const idxCols = [], titleCols = [], dataCols = [];
+    for (let c = 0; c < sh.nCols; c++) {
+      const t = txt(first, c);
+      if (!t || c === nameCol) continue;
+      if (c < nameCol && /^\d{1,3}\.?$/.test(t)) idxCols.push(c);
+      else if (c > nameCol && c <= nameCol + 3 && /\p{L}{3,}/u.test(t) && !/\d/.test(t)) titleCols.push([c, foldName(t)]);
+      else if (c > nameCol) dataCols.push(c);
+    }
+    const isPerson = (r) => {
+      if (keep.has(r) && mine.includes(r)) return false;
+      if (idxCols.some((c) => /^\d{1,3}\.?$/.test(txt(r, c)))) return true;
+      if (titleCols.some(([c, t]) => foldName(txt(r, c)) === t)) return true;
+      // Ad sütununda ad görünümlü yazı + gün sütunlarında benimki gibi kod
+      if (nameCol >= 0 && /^\p{L}+(\s+\p{L}+){1,3}$/u.test(txt(r, nameCol))) {
+        const codes = new Set(dataCols.map((c) => txt(first, c)).filter(Boolean));
+        let n = 0;
+        for (const c of dataCols) { const t = txt(r, c); if (t && codes.has(t)) n++; }
+        if (n >= 2) return true;
+      }
+      return false;
+    };
     for (let r = 0; r < first; r++) {
-      if (r < sh.frozenR) { keep.add(r); continue; }
+      if (r < sh.frozenR) { if (!isPerson(r)) keep.add(r); continue; }
       let n = 0, title = false;
       for (let c = 0; c < sh.nCols; c++) {
         const x = sh.cells.get(r * 100000 + c);
@@ -840,8 +866,10 @@ async function mountSheet(el, att, opts = {}) {
     }
     for (const m of sh.merges) {
       if (m.r2 - m.r1 > 3) continue;
-      for (let r = m.r1; r <= m.r2; r++) if (keep.has(r)) { for (let k = m.r1; k <= m.r2; k++) keep.add(k); break; }
+      for (let r = m.r1; r <= m.r2; r++) if (keep.has(r)) { for (let k = m.r1; k <= m.r2; k++) if (!isPerson(k)) keep.add(k); break; }
     }
+    // Son denetim: benim satırlarım dışında kişi satırı kalmasın
+    for (const r of [...keep]) if (!mine.includes(r) && isPerson(r)) keep.delete(r);
     const hiddenR = new Set(sh.hiddenR);
     for (let r = 0; r < sh.nRows; r++) if (!keep.has(r)) hiddenR.add(r);
     return { ...sh, hiddenR };
