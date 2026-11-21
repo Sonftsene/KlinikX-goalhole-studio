@@ -63,7 +63,7 @@ if (!ex0.excluded.some((x) => /DENİZ/.test(x.name))) fail('dahil değil listesi
 const d4 = await apiCall(a, 'placement.day', { date: d1(4) });
 const mo0x = await apiCall(a, 'placement.month', { month });
 const denizSeen = d4.people.some((p) => /DENİZ/.test(p.name)) || mo0x.stats.some((x) => /DENİZ/.test(x.name)) || mo0x.sides.some((sd) => sd.people.some((p) => /DENİZ/.test(p.name)))
-  || (await apiCall(a, 'placement.day', { date: D })).others.some((o) => /DENİZ/.test(o.name));
+  || (await apiCall(a, 'placement.day', { date: D })).others.some((o) => /DENİZ/.test(o.name) && !o.excluded); // 4.30: yalnız "nöbet dışı · elle" grubunda
 if (denizSeen) fail('dahil edilmeyen kişi görünüyor');
 const denizAuto = await apiErr(a, 'placement.auto', { date: d1(4) });
 if (!/nöbetçi görünmüyor/.test(denizAuto)) fail('yalnız dahil edilmeyen kişinin günü: ' + denizAuto);
@@ -252,8 +252,8 @@ const aNight10 = (await a.locator('.pl-unit[data-unit="A blok"] .pl-need').nth(1
 if (!/^1/.test(aNight10)) fail('çağrılan kapsamaya sayılmadı: ' + aNight10);
 await a.click('[data-act=pl-edit]');
 await a.click('.pl-standby [data-act=pl-sb-came]');
+await a.click('.modal .pl-cper [data-p=night]');
 await a.selectOption('.modal #plcUnit', 'C blok');
-await a.selectOption('.modal #plcPer', 'night');
 await a.click('.modal #plcGo');
 await a.click('[data-act=pl-save]');
 await a.getByText('Yerleşim kaydedildi').first().waitFor();
@@ -262,9 +262,22 @@ const merveRow = c10b.saved.find((s) => /MERVE/.test(s.name));
 if (!merveRow || merveRow.status !== 'called' || merveRow.unit !== 'C blok' || merveRow.period !== 'night' || c10b.saved.some((s) => s.status === 'standby')) fail('Geldi: ' + JSON.stringify(c10b.saved));
 // Arayüzden çağrılan ekleme (listede olmayan ad) ve kaldırma
 await a.click('[data-act=pl-edit]');
-await a.click('[data-act=pl-call-add]');
+// 4.30: ekstra kişi — gündüz ve gece ayrı bloklarda
+await a.locator('[data-act=pl-call-add]').first().click();
+await a.selectOption('.modal #plcSel', '__free');
+await a.fill('.modal #plcFree', 'Deniz Ek');
+await a.click('.modal .pl-cper [data-p=split]');
+await a.selectOption('.modal #plcUnitD', 'A blok');
+await a.selectOption('.modal #plcUnitN', 'C blok');
+await a.click('.modal #plcGo');
+await a.locator('.pl-unit[data-unit="A blok"] .pl-p.called', { hasText: 'Deniz Ek' }).waitFor();
+if (!(await a.locator('.pl-unit[data-unit="C blok"] .pl-p.called', { hasText: 'Deniz Ek' }).count())) fail('ekstra kişi gece bloğunda (C) görünmedi');
+await a.locator('.pl-p.ed', { hasText: 'Deniz Ek' }).first().click();
+await a.click('.modal [data-rm]');
+await a.locator('[data-act=pl-call-add]').first().click();
 await a.selectOption('.modal #plcSel', '__free');
 await a.fill('.modal #plcFree', 'Sena Yurt');
+await a.click('.modal .pl-cper [data-p=day]');
 await a.selectOption('.modal #plcUnit', TEAM);
 await a.click('.modal #plcGo');
 await a.locator(`.pl-unit[data-unit="${TEAM}"] .pl-p.called`, { hasText: 'Sena Yurt' }).waitFor();
@@ -272,7 +285,7 @@ await a.locator('.pl-p.ed', { hasText: 'Sena Yurt' }).click();
 await a.click('.modal [data-rm]');
 if (await a.locator('.pl-p', { hasText: 'Sena Yurt' }).count()) fail('çağrılan kaldırılamadı');
 await a.click('[data-act=pl-discard]');
-step(`çağrılan: Ayşe A gece (karşı taraf, sayıldı ${ayseTot0}→${ayseTot1}), listede olmayan ad sayılmadı; nöbete gelecek Merve ayrı ve sayılmadı → "Geldi" ile C gece çağrıldı`);
+step(`çağrılan: Ayşe A gece (karşı taraf, sayıldı ${ayseTot0}→${ayseTot1}), listede olmayan ad sayılmadı; nöbete gelecek Merve ayrı ve sayılmadı → "Geldi" ile C gece çağrıldı; ekstra kişi gündüz A + gece C ayrı bloklara eklendi`);
 
 // 11) Bölme ve oflama arayüzden: Elif 24 → gündüz B, gece ofl.
 await a.click('[data-act=pl-edit]');

@@ -322,7 +322,7 @@ function plDrawDay() {
   const stale = !PL.prop && d.stale.length ? html`<div class="card card-pad pl-warn">${icon('alert', 'sm')} <span><b>Liste değişti:</b> ${d.stale.map((x) => `${plName(x.name)} ${x.why}`).join(' · ')}.${d.can_edit ? ' Yeniden dağıtıp kaydedin.' : ''}</span></div>` : '';
   const hint = !d.has_needs && d.can_edit && !PL.prop ? html`<p class="tiny faint pl-note">${icon('info', 'sm')} Gereken kişi sayıları girilmemiş; otomatik dağıtımda herkes kendi tarafında kalır.</p>` : '';
   const editHint = edit ? html`<div class="pl-edit-hint">${icon('edit', 'sm')}<span class="grow">Kişiye dokunun: blok, dönem (gündüz/gece), oflama. Bitince <b>Kaydet</b>.</span>
-      <button class="btn sm" data-act="pl-call-add">${icon('plus', 'sm')}<span>Çağrılan ekle</span></button></div>` : '';
+      <button class="btn sm" data-act="pl-call-add">${icon('plus', 'sm')}<span>Ekstra kişi ekle</span></button></div>` : '';
 
   setHTML(host, html`${nav}${summary}${stale}${editHint}${board}${standby}${hint}${explain}${plCountsCard()}`);
   plDrawActs();
@@ -341,6 +341,7 @@ function plDrawActs() {
   setHTML(bar, html`<button class="btn ${PL.cur && !PL.dirty ? '' : 'primary'}" data-act="pl-auto">${icon('layers', 'sm')}<span>Otomatik dağıt</span></button>
     ${ties ? html`<button class="btn" data-act="pl-redraw">${icon('star', 'sm')}<span>Kura</span></button>` : ''}
     <button class="btn ${PL.edit ? 'on' : ''}" data-act="pl-edit" aria-pressed="${PL.edit ? 'true' : 'false'}">${icon('edit', 'sm')}<span>${PL.edit ? 'Düzenleme açık' : 'Elle düzenle'}</span></button>
+    <button class="btn" data-act="pl-call-add">${icon('plus', 'sm')}<span>Ekstra kişi</span></button>
     ${PL.dirty || PL.prop ? html`<button class="btn primary" data-act="pl-save">${icon('check', 'sm')}<span>Kaydet</span></button><button class="btn ghost" data-act="pl-discard">Vazgeç</button>` : ''}
     ${savedClean ? html`<button class="btn" data-act="pl-share">${icon('send', 'sm')}<span>Paylaş</span></button><button class="btn ghost icon" data-act="pl-clear" title="Bu günün kaydını sil" aria-label="Bu günün kaydını sil">${icon('trash', 'sm')}</button>` : ''}`);
 }
@@ -542,30 +543,52 @@ function plPickerValue(m, id) {
   const o = (PL.day.others || []).find((x) => x.key === v);
   return o ? { key: o.key, name: o.name, side: o.side, cross: o.cross } : null;
 }
-/** Çağrılan ekle (veya nöbete gelecek kişi "Geldi") */
+/** Ekstra kişi (listede yokken nöbete getirilen) ya da nöbete gelecek kişi "Geldi": hangi blokta, gündüz / gece / 24 */
 function plCalledModal(pre, onDone) {
   const d = PL.day;
   const units = plUnitList(d, true);
-  const m = openModal({ title: pre ? `${plName(pre.name)} geldi` : 'Çağrılan ekle', size: 'narrow', body: html`<div class="stack">
-      <p class="small muted">${pre ? 'Nerede ve hangi dönemde çalışacak?' : 'O gün listede nöbetçi olmayan, eksik için çağrılan kişi. Kapsamaya ve (karşı taraftaysa, gece içeriyorsa) geçişe sayılır.'}</p>
+  // O an eksik olan blok önce önerilsin (dönem dönem)
+  const loadOf = (u, per) => { let n = 0; Object.values(PL.cur || {}).forEach((e) => e.segs.forEach((s) => { if (s.unit === u && s.status !== 'off' && plPers(s.period).includes(per)) n++; })); return n; };
+  const firstShort = (per) => (units.find((u) => u.unit !== PL_TEAM && loadOf(u.unit, per) < ((d.needs[u.unit] || {})[per] || 0)) || units[0] || {}).unit;
+  const opt = (sel) => units.map((u) => { const nd = d.needs[u.unit] || {}; return html`<option value="${u.unit}" ${u.unit === sel ? raw('selected') : ''}>${u.label} · ${u.sideName} (gündüz ${loadOf(u.unit, 'day')}/${nd.day || 0}, gece ${loadOf(u.unit, 'night')}/${nd.night || 0})</option>`; });
+  const m = openModal({ title: pre ? `${plName(pre.name)} geldi` : 'Ekstra kişi ekle', size: 'narrow', body: html`<div class="stack">
+      <p class="small muted">${pre ? 'Nereye ve hangi saatlerde geldi?' : 'Listede o gün nöbeti olmayan, nöbete getirilen kişi. Bloğa ve döneme sayılır; karşı taraftaysa ve gece içeriyorsa karşıya geçiş olarak sayılır.'}</p>
       ${pre ? '' : plPersonPicker('plc')}
-      <div class="grid2"><div class="field"><label>Yer</label><select class="select" id="plcUnit">${units.map((u) => html`<option value="${u.unit}">${u.label}</option>`)}</select></div>
-        <div class="field"><label>Dönem</label><select class="select" id="plcPer"><option value="night">Gece 16-08</option><option value="day">Gündüz 08-16</option><option value="24">24 saat</option></select></div></div></div>`,
+      <div class="field"><label>Ne zaman geldi?</label><div class="seg seg-block pl-cper" role="group">
+        <button type="button" class="on" data-p="night">Gece 16-08</button><button type="button" data-p="day">Gündüz 08-16</button><button type="button" data-p="24">24 saat</button><button type="button" data-p="split">Gündüz + gece ayrı blok</button></div></div>
+      <div class="field" id="plcOne"><label>Blok</label><select class="select" id="plcUnit">${opt(firstShort('night'))}</select></div>
+      <div class="grid2 hidden" id="plcTwo"><div class="field"><label>Gündüz (08-16) bloğu</label><select class="select" id="plcUnitD">${opt(firstShort('day'))}</select></div>
+        <div class="field"><label>Gece (16-08) bloğu</label><select class="select" id="plcUnitN">${opt(firstShort('night'))}</select></div></div></div>`,
   foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="plcGo">Ekle</button>` });
   if (!pre) plPickerBind(m, 'plc');
+  let per = 'night';
+  $('.pl-cper', m.el).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    per = b.dataset.p;
+    $$('.pl-cper [data-p]', m.el).forEach((x) => x.classList.toggle('on', x === b));
+    $('#plcOne', m.el).classList.toggle('hidden', per === 'split');
+    $('#plcTwo', m.el).classList.toggle('hidden', per !== 'split');
+    if (per !== 'split') { const u = firstShort(per === '24' ? 'night' : per); if (u) $('#plcUnit', m.el).value = u; }
+  });
   $('#plcGo', m.el).addEventListener('click', () => {
     const who = pre || plPickerValue(m, 'plc');
     if (!who) { toast('Kişiyi seçin ya da adını yazın', 'err'); return; }
     if (plDutyMap()[who.key]) { toast('Bu kişi o gün zaten listede; ona dokunarak düzenleyin', 'err'); return; }
     plEnsureCur();
-    PL.cur[who.key] = { key: who.key, name: who.name, side: who.side, duty: false, crossBefore: who.cross || 0, segs: [{ unit: $('#plcUnit', m.el).value, period: $('#plcPer', m.el).value, status: 'called' }], method: 'elle', why: 'Çağrıldı' };
+    let segs;
+    if (per === 'split') {
+      const ud = $('#plcUnitD', m.el).value, un = $('#plcUnitN', m.el).value;
+      segs = ud === un ? [{ unit: ud, period: '24', status: 'called' }] : [{ unit: ud, period: 'day', status: 'called' }, { unit: un, period: 'night', status: 'called' }];
+    } else segs = [{ unit: $('#plcUnit', m.el).value, period: per, status: 'called' }];
+    PL.cur[who.key] = { key: who.key, name: who.name, side: who.side, duty: false, crossBefore: who.cross || 0, segs, method: 'elle', why: 'Nöbete getirildi' };
     if (onDone) onDone();
     PL.dirty = true;
+    PL.edit = true;
     m.close();
     plDrawDay();
   });
 }
-ACT['pl-call-add'] = () => plCalledModal(null);
+ACT['pl-call-add'] = () => { plEnsureCur(); plCalledModal(null); };
 ACT['pl-sb-add'] = () => {
   const m = openModal({ title: 'Nöbete gelecek kişi', size: 'narrow', body: html`<div class="stack"><p class="small muted">Gerekirse (ör. hasta yatışında) nöbete gelecek kişi. Ayrı gösterilir, sayılmaz; gelince <b>Geldi</b> ile bir yere yerleştirin.</p>${plPersonPicker('pls')}</div>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="plsGo">Ekle</button>` });

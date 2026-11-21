@@ -897,7 +897,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Karşı taraftan gelen yalnız şu bloklara:** örneğin 2. basamak tarafında yalnız A seçilir → 3. basamaktan karşıya geçen kişi yalnız A bloğa yerleşir.
 - **Aynı blokta üst üste en fazla N nöbet:** örneğin 2 → kişi A'da üst üste 2 nöbetten sonra C'ye, C'de 2 nöbetten sonra A'ya geçer. Önceki ayın son nöbetleri de sayılır.
 - Kurallar çakışırsa öncelik: blok sayıları → karşıdan gelenin bloğu → üst üste kuralı. Uyulamayan kural yerleşimin açıklamasında yazar.
-- **Nöbet dışı kişiler** kuraya, otomatik dağıtıma ve sayımlara hiç girmez; Taraf'ta yalnız elle eklenebilir ("Çağrılan ekle" › Nöbet dışı).
+- **Ekstra kişi (nöbete getirilen):** Taraf'ta her zaman görünen **Ekstra kişi** düğmesiyle eklenir: kişi (listeden, nöbet dışı grubundan ya da adı yazılarak), **ne zaman geldiği** (Gece 16-08, Gündüz 08-16, 24 saat ya da **gündüz ve gece ayrı bloklarda**) ve **blok**. Pencerede her bloğun o anki gündüz / gece doluluğu görünür; eksik olan blok önce önerilir. "Nöbete gelecek kişi" geldiğinde **Geldi** ile aynı pencere açılır.
+- **Nöbet dışı kişiler** kuraya, otomatik dağıtıma ve sayımlara hiç girmez; Taraf'ta yalnız elle eklenebilir (Ekstra kişi › Nöbet dışı).
 - **Anlık güncelleme:** liste yeni sürüm alınca, değişim / devir olunca, taraflar ya da sayılar değişince, başka bir sorumlu kaydedince ya da oflayınca Taraf sayfası birkaç saniye içinde kendiliğinden yenilenir (adlar, sayılar, geçişler). Kaydedilmemiş düzenleme varsa üzerine yazılmaz; "Yenile" uyarısı çıkar.
 
 **Basamakları birlikte planla (Çizelge › Basamakları birlikte planla)**
