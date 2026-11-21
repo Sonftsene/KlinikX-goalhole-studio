@@ -353,8 +353,9 @@ function a_plan_sides_auto(): void
                 $dev = [];
                 foreach ($mem as $k) $dev[$k] = $hours($k) - $tot * $w[$k] / $sw;
                 arsort($dev);
-                $his = array_slice(array_keys($dev), 0, 2);
-                $los = array_slice(array_reverse(array_keys($dev)), 0, 4);
+                // Saati ortalamanın üstündeki herkes → altındaki herkes (yalnız en uçtakiler değil: kurallar en uçtakini engelleyebilir)
+                $his = array_keys(array_filter($dev, fn($v) => $v > 2));
+                $los = array_reverse(array_keys(array_filter($dev, fn($v) => $v < -2)));
                 foreach ($his as $hk) foreach ($los as $lk) {
                     $gap = $dev[$hk] - $dev[$lk];
                     if ($gap <= 4) continue;
