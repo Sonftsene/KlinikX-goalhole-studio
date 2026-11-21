@@ -74,9 +74,11 @@ try {
   await E.p.evaluate((id) => { RQ.pid = id; RQ.mine = null; location.hash = '#/'; }, pid);
   await E.p.waitForTimeout(300);
   await E.p.goto(BASE + '#/istekler');
-  await E.p.locator('#rqRost').waitFor({ timeout: 10000 }).catch(() => {});
+  await E.p.locator('#rqCal .rq-how').waitFor({ timeout: 10000 });
   const rostTxt = await E.p.locator('#rqRost').innerText().catch(() => '');
-  if (rostTxt && !/tüm birim/i.test(rostTxt)) fail('üye ekranında liste notu yanlış: ' + rostTxt);
+  if (rostTxt.trim() || await E.p.locator('#rqRost:not(.hidden)').count()) fail('tek havuzda liste kartı görünmemeliydi: ' + rostTxt);
+  const how = await E.p.locator('#rqCal .rq-how').innerText();
+  if (!/bir kez/.test(how) || !/iki kez/.test(how) || !/Yıllık izin/.test(how)) fail('istek açıklaması eksik: ' + how);
   const day = (n) => `${ym}-${p2(n)}`;
   // roster_id gönderilse bile yok sayılır
   await apiCall(E.p, 'req.save', { period_id: pid, items: [{ date: day(10), kind: 'bosluk' }, { date: day(11), kind: 'izin' }], roster_id: rosters[0].id });
@@ -84,7 +86,7 @@ try {
   const m2 = await apiCall(E.p, 'req.mine', { period_id: pid });
   if (m2.items.length !== 2 || m2.roster.id !== null) fail('üye istekleri kaydedilmedi ya da listeye bağlandı');
   await E.p.screenshot({ path: path.join(OUT, 'rqb-uye.png') });
-  step('üye: liste sorulmadı (“tüm birim için toplanır”), istekler listeye bağlanmadan kaydedildi');
+  step('üye: liste sorulmadı (liste kartı gizli), “bir kez / iki kez dokunun” açıklaması görünüyor, istekler listeye bağlanmadan kaydedildi');
 
   // ---- 3) Panel tek grup, pano liste adı göstermez ----
   const pan = await apiCall(A.p, 'req.panel', { period_id: pid });

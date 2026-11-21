@@ -943,3 +943,4 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Bağlantı paylaşınca çıkan önizleme görseli: ortada "dupcii | by fırtına" logosu ve "Nöbet ve ekip portalı" yazısı (WhatsApp'ın kare kırpmasında da tam görünür). WhatsApp daha önce paylaşılmış bir bağlantının önizlemesini bir süre eski hâliyle saklar; yeni paylaşımlarda yenisi çıkar.
 - Düzeltme: sistem yönetimine geçerken ana sayfa ipuçları kartı ara sıra hata veriyordu.
 - Düzeltme: çizelgede saat eşitleme, fazla saatli kişiden eksik olana doğrudan aktarım kurala takılınca araya üçüncü bir kişi alarak (aynı saatte iki aktarım) eşitliyor; 24 saatlik düzende 16 saate varan farklar kalabiliyordu.
+- İstekler: tek havuzlu birimde (liste sorulmayan) "İstekler tüm birim için toplanır…" notu kaldırıldı. Takvimin üstünde açık anlatım: **Boşluk için güne bir kez, Yıllık izin için iki kez dokunun, vazgeçmek için bir kez daha dokunun; bitince Kaydet.**

@@ -220,13 +220,14 @@ function drawRqRoster() {
   const ro = d.roster;
   const nm = (id) => (d.choices.find((c) => c.id === id) || {}).name || '';
   let inner;
-  if (ro.merged) inner = html`<div class="small muted">${icon('users', 'sm')} İstekler tüm birim için toplanır; hangi listede (basamakta) çalışacağınızı sorumlu belirler.</div>`;
+  if (ro.merged) inner = ''; // tüm birim tek havuz: liste sorulmaz, not da gösterilmez (yer kaplamasın)
   else if (ro.fixed) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${ro.name}</b></div>`;
   else if (d.choices.length <= 1 && ro.id) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${nm(ro.id)}</b></div>`;
   else if (ro.found && RQ.rosterSel) inner = html`<div class="row between wrap"><div class="small">${icon('table', 'sm')} ${d.target.self ? 'Listen' : 'Listesi'}: <b>${nm(RQ.rosterSel)}</b> <span class="tiny faint">${ro.auto ? '(adından bulundu)' : ''}</span></div>${d.can_edit ? html`<button class="btn sm ghost" data-act="rq-roster-pick">Değiştir</button>` : ''}</div>`;
   else inner = html`<div class="field"><label>${d.target.self ? 'Hangi listedesin?' : 'Hangi listede?'}</label><select class="select" data-change="rq-roster" ${d.can_edit ? '' : raw('disabled')}><option value="">Seçin</option>${d.choices.map((c) => html`<option value="${c.id}" ${c.id === RQ.rosterSel ? raw('selected') : ''}>${c.name}</option>`)}</select>
     <span class="hint">${ro.found ? '' : 'Adın listelerde bulunamadı; isteklerin doğru panoya düşmesi için listeni seç.'}</span></div>`;
   setHTML(box, inner);
+  box.classList.toggle('hidden', !inner);
 }
 ACT['rq-roster-pick'] = () => { RQ.mine.roster.found = false; drawRqRoster(); };
 CHANGE['rq-roster'] = (el) => { RQ.rosterSel = el.value ? +el.value : null; drawRqSave(); };
@@ -262,7 +263,11 @@ function drawRqCal() {
   const cnt = { bosluk: 0, izin: 0 };
   RQ.draft.forEach((v) => { cnt[v.kind]++; });
   setHTML(box, html`<div class="cal-head"><b>${TR_MONTHS[m - 1]} ${y}</b><span class="small muted">${cnt.bosluk ? html`<b>${cnt.bosluk}</b> boşluk` : ''}${cnt.bosluk && cnt.izin ? ' · ' : ''}${cnt.izin ? html`<b>${cnt.izin}</b> yıllık izin` : ''}${!cnt.bosluk && !cnt.izin ? 'Henüz istek yok' : ''}</span></div>
-    ${d.can_edit ? html`<p class="tiny faint rq-cal-hint">Güne dokun: <b>Boşluk</b> → <b>Yıllık izin</b> → kaldır</p>` : ''}
+    ${d.can_edit ? html`<div class="rq-how" role="note"><b class="rq-how-t">${icon('info', 'sm')}Nasıl istek yapılır?</b>
+      <span class="rq-how-r"><span class="rq-sw k-bosluk">B</span><span><b>Boşluk</b> için güne <b>bir kez</b> dokunun</span></span>
+      <span class="rq-how-r"><span class="rq-sw k-izin">Yİ</span><span><b>Yıllık izin</b> için <b>iki kez</b> dokunun</span></span>
+      <span class="rq-how-r"><span class="rq-sw rq-sw-x">${icon('x', 'sm')}</span><span>Vazgeçmek için <b>bir kez daha</b> dokunun</span></span>
+      <span class="tiny muted">Bitince aşağıdaki <b>Kaydet</b> düğmesine basın.</span></div>` : ''}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
     <div class="cal-legend"><span><span class="rq-sw k-bosluk">B</span>Boşluk</span><span><span class="rq-sw k-izin">Yİ</span>Yıllık izin</span><span><i class="rq-mk ok static">${icon('check')}</i>Onaylandı</span><span><i class="rq-mk no static">${icon('x')}</i>Reddedildi</span></div>`);
 }

@@ -208,3 +208,10 @@
   .rq-save-in { padding-left: 12px; gap: 4px; }
   .rq-g2 { grid-template-columns: minmax(0, 1fr); }
 }
+/* İstek takvimi: nasıl yapılır kutusu (alışkın olmayanlar için açık anlatım) */
+.rq-how { display: grid; gap: 7px; margin: 0 14px 10px; padding: 11px 13px; border-radius: 12px; background: var(--brand-soft); color: var(--text); font-size: 13.5px; line-height: 1.35; }
+.rq-how-t { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.rq-how-r { display: flex; align-items: center; gap: 9px; }
+.rq-sw.rq-sw-x { background: var(--surface-2, rgba(0,0,0,.06)); color: var(--text-3); }
+.rq-sw.rq-sw-x svg { width: 12px; height: 12px; }
+.rq-d { touch-action: manipulation; }
