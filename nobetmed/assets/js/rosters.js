@@ -166,7 +166,14 @@ function prefetchRosters() {
 }
 
 ACT['rs-tab'] = (el) => { navStep('#/nobet/' + el.dataset.id); showRoster(+el.dataset.id); };
-ACT['rs-full'] = () => { const r = rosterById(RS.active); if (r && r.file) openFullViewer(r.file, r.name); };
+ACT['rs-full'] = () => {
+  const r = rosterById(RS.active); if (!r || !r.file) return;
+  // Sayfada açık olan sekme ile aç (tam ekranda da aynı ay, aynı sabit sütunlar)
+  const v = RS.views.get(r.id);
+  const opts = r.linked ? { sheetName: r.tab || undefined, sheets: r.tabs || undefined } : {};
+  if (v && v.el.dataset.sheet) opts.sheetName = v.el.dataset.sheet;
+  openFullViewer(r.file, r.name, opts);
+};
 
 async function uploadRosterFile(file) {
   if (!file || RS.busy) return;

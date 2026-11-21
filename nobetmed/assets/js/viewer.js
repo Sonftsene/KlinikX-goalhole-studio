@@ -702,6 +702,49 @@ function nameMatcher(name) {
   };
 }
 
+/**
+ * Hücre yalnız bu kişinin adı mı? ("Elif Yılmaz", "ELİF NUR YILMAZ", "YILMAZ Elif") — notlar, iki kişilik hücreler,
+ * "Elif Yılmaz Kara" gibi başka bir kişinin adı sayılmaz.
+ */
+function nameExact(name) {
+  const tok = (x) => foldName(x || '').split(/[^a-z0-9]+/).filter(Boolean);
+  const N = tok(name);
+  if (!N.length) return () => false;
+  const first = N[0], last = N[N.length - 1];
+  return (text) => {
+    const T = tok(text);
+    if (!T.length || T.length < N.length || T.length > N.length + 1) return false;
+    if (T[0] === first && T[T.length - 1] === last) return N.every((t) => T.includes(t));
+    return T.length === N.length && T[0] === last && T[T.length - 1] === first && N.every((t) => T.includes(t));
+  };
+}
+/** Excel'de bölme dondurulmamışsa "Ad Soyad" (ya da adların bulunduğu) sütunu ve başlık satırını sabitle */
+function autoFreeze(sh) {
+  if (sh._af) return sh;
+  sh._af = true;
+  if (sh.frozenC > 0 || !sh.nRows) return sh;
+  const hdr = /^(ad[ıi]? ?soyad[ıi]?|ad[ıi]? ve soyad[ıi]?|ad-soyad|isim|isim soyisim|personel|personel ad[ıi]|ad)$/;
+  for (let r = 0; r < Math.min(sh.nRows, 40); r++) {
+    for (let c = 0; c < Math.min(sh.nCols, 12); c++) {
+      const x = sh.cells.get(r * 100000 + c);
+      if (x && x.text && hdr.test(trLower(String(x.text).trim()).replace(/\s+/g, ' '))) {
+        sh.frozenC = c + 1;
+        if (!sh.frozenR && r < 15) sh.frozenR = r + 1;
+        return sh;
+      }
+    }
+  }
+  // Başlık yoksa: en çok "ad soyad" görünümlü hücresi olan sütun (ilk 12 sütunda)
+  let best = -1, bestN = 4;
+  for (let c = 0; c < Math.min(sh.nCols, 12); c++) {
+    let n = 0;
+    for (let r = 0; r < sh.nRows; r++) { const x = sh.cells.get(r * 100000 + c); if (x && x.text && /^\p{L}+(\s+\p{L}+){1,3}$/u.test(String(x.text).trim())) n++; }
+    if (n > bestN) { bestN = n; best = c; }
+  }
+  if (best >= 0) sh.frozenC = best + 1;
+  return sh;
+}
+
 /** Excel görüntüleyiciyi kurar */
 async function mountSheet(el, att, opts = {}) {
   setHTML(el, html`<div class="fv-loading"><div class="spinner"></div><span>Excel açılıyor…</span></div>`);
@@ -715,6 +758,8 @@ async function mountSheet(el, att, opts = {}) {
   const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
   if (opts.sheetName) { const si = model.sheets.findIndex((x) => x.name === opts.sheetName); if (si >= 0) state.sheet = si; }
   const meMatch = S.me ? nameMatcher(S.me.name) : () => false;
+  const meExact = S.me ? nameExact(S.me.name) : () => false;
+  model.sheets.forEach(autoFreeze);
   setHTML(el, html`<div class="xv">
     <div class="xv-bar">
       <div class="search xv-search">${icon('search')}<input class="input" type="search" placeholder="Listede ara (isim, tarih…)" aria-label="Listede ara"></div>
@@ -765,12 +810,15 @@ async function mountSheet(el, att, opts = {}) {
   };
   /** "Sadece ben": başlık satırları + adımın geçtiği satırlar dışındakileri gizle */
   const meRowsOf = (sh) => {
-    const rows = [];
+    // Önce hücresi yalnız benim adım olan satırlar (ad sütunu); yoksa adımın geçtiği satırlar
+    const exact = [], loose = [];
     for (let r = 0; r < sh.nRows; r++) {
       if (sh.hiddenR.has(r)) continue;
-      for (let c = 0; c < sh.nCols; c++) { const x = sh.cells.get(r * 100000 + c); if (x && x.text && meMatch(x.text)) { rows.push(r); break; } }
+      let ex = false, lo = false;
+      for (let c = 0; c < sh.nCols; c++) { const x = sh.cells.get(r * 100000 + c); if (!x || !x.text) continue; if (meExact(x.text)) { ex = true; break; } if (!lo && meMatch(x.text)) lo = true; }
+      if (ex) exact.push(r); else if (lo) loose.push(r);
     }
-    return rows;
+    return exact.length ? exact : loose;
   };
   const onlyMeSheet = (sh) => {
     const mine = meRowsOf(sh);
@@ -867,7 +915,8 @@ async function mountSheet(el, att, opts = {}) {
     draw();
     scroll.scrollTop = top;
   });
-  tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-sheet]'); if (b) { state.sheet = +b.dataset.sheet; scroll.scrollTo(0, 0); draw(); } });
+  tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-sheet]'); if (b) { state.sheet = +b.dataset.sheet; el.dataset.sheet = model.sheets[state.sheet].name; scroll.scrollTo(0, 0); draw(); } });
+  el.dataset.sheet = model.sheets[state.sheet].name;
   input.addEventListener('input', debounce(() => { state.q = input.value; applySearch(true); }, 150));
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || !state.hits.length) return;
@@ -1076,11 +1125,16 @@ ACT['fv-dl'] = (el) => {
   a.download = el.dataset.name || '';
   document.body.appendChild(a); a.click(); a.remove();
 };
-function openFullViewer(att, title) {
+function openFullViewer(att, title, opts) {
   const m = openModal({ title: title || att.name, size: 'full' });
   m.body.classList.add('fv-fullbody');
   setHTML(m.body, html`<div class="fv-fill"></div>`);
-  mountPreview(m.body.querySelector('.fv-fill'), att);
+  mountPreview(m.body.querySelector('.fv-fill'), att, opts || {});
   return m;
 }
-ACT['fv-full'] = (el) => { const att = ATT_REG.get(String(el.dataset.att)); if (att) openFullViewer(att); };
+ACT['fv-full'] = (el) => {
+  const att = ATT_REG.get(String(el.dataset.att)); if (!att) return;
+  const card = el.closest('.fv');
+  const open = card && card.querySelector('.fv-body');
+  openFullViewer(att, null, open && open.dataset.sheet ? { sheetName: open.dataset.sheet } : {});
+};

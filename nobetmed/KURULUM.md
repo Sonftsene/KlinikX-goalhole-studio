@@ -921,3 +921,7 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Sayımlarda kısmi vardiya kesirli sayılır:** vardiya gündüzün (08-16) ve gecenin (16-08) kapsadığı kadar sayılır. 16-24 ve 24-8 gecenin ½'si, 8-24 gündüzün tamamı + gecenin ½'si, 8-8 ikisinin tamamı. Çizelgede alan / gereken sayıları ½, ¼ ile gösterilir (ör. 2½/3).
 - **Vardiya takımı:** Basamakları birlikte planla ekranında gündüz ve gece için birden çok kod seçilebilir; takım bir kişilik yeri doldurur. Ör. gece vardiyası = **16 24 + 24 8** (iki kişi, geceyi birlikte kapatır), gündüz = 8 16; ya da gece = 8 8 (24 saat). Takımın toplam kapsaması 1 değilse ekranda uyarı çıkar.
 - Taraf'ta (günlük blok yerleşimi) kişi, vardiyasının en az yarısını kapsadığı dönemde sayılır (16-24 → gece, 8-24 → gündüz + gece).
+
+## 44. Excel görüntüleyici düzeltmeleri (4.30.1)
+- **Tam ekranda sabit isim sütunu:** tam ekran artık sayfada açık olan sekmeyle (ay) açılır; isim sütunu ve başlık satırları sayfadaki gibi sabit kalır. Excel'de "bölmeleri dondur" yapılmamış dosyalarda "Ad Soyad" (ya da adların bulunduğu) sütun ve başlık satırı kendiliğinden sabitlenir.
+- **Sadece ben:** yalnız hücresi sizin adınız olan satır gösterilir ("Elif Yılmaz", "ELİF NUR YILMAZ", "YILMAZ Elif"). Benzer ad ("Elif Yılmaz Kara") ya da başka birinin satırındaki not ("Elif Yılmaz yerine…") artık eşleşmez. Adınız hiçbir hücrede tek başına yazılı değilse adınızın geçtiği satırlar gösterilir.
