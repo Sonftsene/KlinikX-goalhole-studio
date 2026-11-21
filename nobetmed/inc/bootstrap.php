@@ -535,7 +535,7 @@ function nm_og_tags(string $title, string $desc, string $site = 'dupcii'): strin
 {
     $e = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $img = request_base_url() . 'assets/og-image.jpg?v=' . NM_VERSION;
-    $alt = 'dupcii: nöbet listeleri, değişimler ve ekip iletişimi tek yerde';
+    $alt = 'dupcii by fırtına: nöbet ve ekip portalı';
     return '<meta property="og:type" content="website">'
         . '<meta property="og:site_name" content="' . $e($site) . '">'
         . '<meta property="og:locale" content="tr_TR">'
