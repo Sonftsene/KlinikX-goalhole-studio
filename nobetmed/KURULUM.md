@@ -939,3 +939,4 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Simge: d+ ve nabız çizgisi. Tarayıcı sekmesi (favicon.png), Android ana ekran simgesi (icon-192/512: çerçeveli; icon-maskable-192/512: beyaz zeminli, Android'in yuvarlak/kare kesimine uygun), iPhone ana ekran simgesi (apple-touch-icon.png), bildirim rozeti (badge-96.png) ve bağlantı önizleme görseli (og-image.jpg) yenilendi.
 - Yönetici Ayarlar › Genel › "Logo ve simge"den kendi logosunu yüklerse o kullanılır (öncekiyle aynı).
 - Telefona daha önce eklenmiş uygulamada simge: Android birkaç gün içinde kendisi yeniler (bazen sorar); iPhone yenilemez, ana ekrandan kaldırıp Safari'den yeniden eklemek gerekir.
+- Düzeltme: "Hatırlatma saatim" seçen kişiye, genel "yarın nöbetiniz var" hatırlatması o gün kendisine gitmediyse (ör. liste sonradan yüklendiyse) kişisel hatırlatma artık gönderiliyor; önceden o gün hiç gitmiyordu.

@@ -108,8 +108,10 @@ function a_me_prefs_save(): void
         if (!empty($val['reset'])) q('UPDATE users SET remind_prefs = NULL WHERE id = ?', [$me['id']]);
         else {
             $old = prefs_json($u['remind_prefs'] ?? null);
-            // Genel hatırlatma bugün zaten gönderildiyse kişisel "bir gün önce" bugün tekrar gönderilmesin
-            if (!isset($old['_d']) && setting('shift_remind_last') === date('Y-m-d')) $old['_d'] = date('Y-m-d');
+            // Genel hatırlatma bugün bu kişiye zaten gittiyse kişisel "bir gün önce" bugün tekrar gönderilmesin
+            // (genel görev çalışmış ama kişiye bir şey göndermemişse — ör. liste sonradan yüklendi — kişisel hatırlatma gider)
+            if (!isset($old['_d']) && setting('shift_remind_last') === date('Y-m-d')
+                && val("SELECT 1 FROM notifications WHERE user_id = ? AND kind = 'shift' AND title = 'Yarın nöbetiniz var' AND created_at >= ?", [$me['id'], date('Y-m-d') . ' 00:00:00'])) $old['_d'] = date('Y-m-d');
             q('UPDATE users SET remind_prefs = ? WHERE id = ?', [json_encode(prefs_clean_remind($val, $old)), $me['id']]);
         }
     } else {
