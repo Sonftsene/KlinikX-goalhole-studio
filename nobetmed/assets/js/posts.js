@@ -125,7 +125,7 @@ ACT.theme = () => {
   if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
 };
 ACT['me-menu'] = (el) => openMenu(el, [
-  { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''} · <span class="dp-by">by <b>Fırtına</b></span></div></div>` },
+  { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''}</div></div>` },
   { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
   ...(S.support ? [{ id: 's', icon: 'help', label: 'Destek', run: () => ACT['sp-open']() }] : []),
   ...(typeof vwCanUse === 'function' && vwCanUse() ? [{ id: 'v', icon: 'eye', label: S.me.view_as ? 'Rol önizlemesi: değiştir / çık' : 'Başka rolün gözünden gör', run: () => ACT['vw-pick']() }] : []),

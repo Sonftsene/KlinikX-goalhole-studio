@@ -18,7 +18,7 @@ function authLayout(inner) {
           <div class="auth-feat"><span class="fi">${icon('lock')}</span><div><b>Kapalı ve güvenli</b><span>Arama motorlarına kapalı, yalnızca onaylı üyeler erişir.</span></div></div>
         </div>
       </div>
-      <div class="tiny" style="opacity:.6">© ${new Date().getFullYear()} dupcii <span class="dp-by">by <b>Fırtına</b></span></div>
+      <div class="tiny" style="opacity:.6">© ${new Date().getFullYear()} dupcii</div>
     </aside>
     <main class="auth-form"><div class="auth-box">${inner}</div></main>
   </div>`;

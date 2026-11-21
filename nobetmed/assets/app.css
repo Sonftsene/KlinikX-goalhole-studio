@@ -1895,20 +1895,3 @@ a.in-link { font-weight: 600; }
   .pb-row:has(.pb-num + .pb-num) { flex-wrap: wrap; }
   .pb-row:has(.pb-num + .pb-num) .pb-nums { max-width: none; flex-basis: 100%; justify-content: flex-start; padding-left: 42px; }
 }
-
-/* ================= dupcii logosu (4.31): beyaz simge + “dupcii” + imza “by Fırtına” ================= */
-:root { --dp-blue: #1f6fe0; --dp-teal: #22b5a0; --dp-sign: #1d3557; }
-[data-theme="dark"] { --dp-blue: #6aa6ff; --dp-teal: #3fd1b8; --dp-sign: #c9d6ea; }
-.brand-lockup, .brand-default .brand-lockup { background: none; box-shadow: none; padding: 0; border-radius: 0; }
-.brand-mark { background: none !important; box-shadow: 0 2px 8px -2px rgba(31, 111, 224, .25) !important; }
-.brand-word { display: inline-flex; flex-direction: column; justify-content: center; height: auto !important; line-height: 1; white-space: nowrap; }
-.brand-word b { font-weight: 800; letter-spacing: -.03em; color: var(--dp-blue); font-size: 22px; }
-.brand-word b i { font-style: normal; color: var(--dp-teal); }
-.brand-word small { font-family: Georgia, "DejaVu Serif", "Times New Roman", serif; font-style: italic; font-size: 10.5px; color: var(--dp-sign); margin-top: 2px; letter-spacing: .01em; }
-.brand-word small em { font-weight: 700; }
-.brand-default .brand-word b { font-size: calc(var(--logo-h) * .62); }
-.brand-default .brand-word small { font-size: calc(var(--logo-h) * .3); }
-.auth-side-brand .brand-word b { font-size: 30px; } .auth-side-brand .brand-word small { font-size: 13px; }
-.on-dark .brand-word b, .bp-dark .brand-word b { color: #6aa6ff; } .on-dark .brand-word small, .bp-dark .brand-word small { color: #c9d6ea; }
-.dp-by { font-family: Georgia, "DejaVu Serif", serif; font-style: italic; }
-.dp-by b { font-weight: 700; }

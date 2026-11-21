@@ -148,7 +148,7 @@ function lg_page_foot(): string
     $links = '<a href="tanitim.php">Tanıtım</a>';
     foreach (LG_PAGES as $k => $t) $links .= '<a href="yasal.php?s=' . $k . '">' . $e($t) . '</a>';
     $kunye = array_filter([lg_get('owner'), lg_get('address'), lg_get('tax_office') !== '' ? lg_get('tax_office') . ' V.D.' . (lg_get('tax_no') !== '' ? ' ' . lg_get('tax_no') : '') : '', lg_get('mersis') !== '' ? 'MERSİS ' . lg_get('mersis') : '', lg_get('email'), lg_get('phone')]);
-    return '<footer><div class="wrap"><div class="links">' . $links . '</div><div>© ' . date('Y') . ' ' . $e(lg_get('brand', 'dupcii')) . ' <i style="font-family:Georgia,serif">by <b>Fırtına</b></i>' . ($kunye ? ' · ' . $e(implode(' · ', $kunye)) : '') . '</div></div></footer></body></html>';
+    return '<footer><div class="wrap"><div class="links">' . $links . '</div><div>© ' . date('Y') . ' ' . $e(lg_get('brand', 'dupcii')) . ($kunye ? ' · ' . $e(implode(' · ', $kunye)) : '') . '</div></div></footer></body></html>';
 }
 
 /** yasal.php */
