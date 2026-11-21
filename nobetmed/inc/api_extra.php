@@ -579,7 +579,7 @@ function a_shiftcodes_save(): void
         audit($me, 'settings.save', 'Nöbet kodları', 'Varsayılana döndü');
         out(['codes' => null]);
     }
-    $hm = fn($v) => is_string($v) && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v) ? $v : null;
+    $hm = fn($v) => is_string($v) && (preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v) || $v === '24:00') ? $v : null;
     $codes = [];
     $seen = [];
     foreach (array_slice(is_array($IN['codes'] ?? null) ? $IN['codes'] : [], 0, 80) as $c) {
@@ -600,7 +600,7 @@ function a_shiftcodes_save(): void
         }
         $aliases = array_values(array_filter(array_map(fn($a) => mb_substr(trim((string)$a), 0, 30), array_slice(is_array($c['aliases'] ?? null) ? $c['aliases'] : [], 0, 10)), fn($a) => $a !== ''));
         $row = ['code' => $code, 'label' => mb_substr(trim((string)($c['label'] ?? '')), 0, 40) ?: $code, 'start' => $start, 'end' => $end, 'hours' => $hours, 'kind' => $kind];
-        if ($start && $end && $end <= $start) $row['nextDay'] = true;
+        if ($start && $end && ($end <= $start || $end === '24:00' || $start === '24:00')) $row['nextDay'] = true;
         if ($aliases) $row['aliases'] = $aliases;
         $codes[] = $row;
     }

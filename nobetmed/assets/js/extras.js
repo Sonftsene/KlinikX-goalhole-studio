@@ -1303,14 +1303,14 @@ function drawCodes() {
     ${CODES.list.map((c, i) => html`<tr>
       <td><div class="row" style="gap:6px">${codeChip({ ...c, code: c.code || '?' })}<input class="input" data-i="${i}" data-k="code" value="${c.code || ''}" maxlength="12" style="width:72px" aria-label="Kod"></div></td>
       <td><input class="input" data-i="${i}" data-k="label" value="${c.label || ''}" maxlength="40" aria-label="Açıklama"></td>
-      <td>${c.kind === 'shift' ? html`<input class="input" type="time" data-i="${i}" data-k="start" value="${c.start || ''}" aria-label="Başlangıç">` : html`<span class="faint">—</span>`}</td>
-      <td>${c.kind === 'shift' ? html`<input class="input" type="time" data-i="${i}" data-k="end" value="${c.end || ''}" aria-label="Bitiş">` : html`<span class="faint">—</span>`}</td>
+      <td>${c.kind === 'shift' ? html`<input class="input code-hm" inputmode="numeric" maxlength="5" placeholder="08:00" data-i="${i}" data-k="start" value="${c.start || ''}" aria-label="Başlangıç">` : html`<span class="faint">—</span>`}</td>
+      <td>${c.kind === 'shift' ? html`<input class="input code-hm" inputmode="numeric" maxlength="5" placeholder="16:00" data-i="${i}" data-k="end" value="${c.end || ''}" aria-label="Bitiş">` : html`<span class="faint">—</span>`}</td>
       <td><select class="select" data-i="${i}" data-k="kind" aria-label="Tür">${kinds.map(([k, l]) => html`<option value="${k}" ${c.kind === k ? raw('selected') : ''}>${l}</option>`)}</select></td>
       <td><button type="button" class="btn sm icon ghost danger" data-act="code-del" data-i="${i}" aria-label="Sil">${icon('trash', 'sm')}</button></td></tr>`)}
   </tbody></table></div>
   <div class="row wrap"><button type="button" class="btn" data-act="code-add">${icon('plus', 'sm')}Kod ekle</button><span class="grow"></span>
     <button type="button" class="btn ghost" data-act="code-reset">Varsayılana dön</button><button type="button" class="btn primary" data-act="code-save">Kodları kaydet</button></div>
-  <p class="tiny faint">Örnek: “8 16” = Gündüz 08:00–16:00. Bitiş başlangıçtan önceyse ertesi güne geçen nöbet sayılır (gece, 24 saat).</p>`);
+  <p class="tiny faint">Her türlü vardiya tanımlanabilir. Örnek: “8 16” = 08:00–16:00, “16 8” = 16:00–08:00, “8 8” = 24 saat, “8 24” = 08:00–24:00, “16 24” = 16:00–24:00, “24 8” = gece yarısı 24:00–08:00. Saat “8”, “08:30” ya da “24” biçiminde yazılabilir. Bitiş başlangıçtan önceyse ertesi güne geçer. Sayımlarda vardiya gündüzün (08-16) ve gecenin (16-08) kapsadığı kadar sayılır (ör. 16-24 gecenin yarısı).</p>`);
 }
 ACT['code-add'] = () => { CODES.dirty = true; CODES.list.push({ code: '', label: '', start: '08:00', end: '16:00', kind: 'shift' }); drawCodes(); const ins = $$('#codesBox input[data-k=code]'); if (ins.length) ins[ins.length - 1].focus(); };
 ACT['code-del'] = (el) => { CODES.dirty = true; CODES.list.splice(+el.dataset.i, 1); drawCodes(); };
@@ -1318,7 +1318,21 @@ ACT['code-reset'] = async (el) => {
   if (!(await confirmDialog({ title: 'Varsayılan kodlara dönülsün mü?', text: 'Yaptığınız değişiklikler silinir ve listeler varsayılan kodlarla yeniden okunur.', ok: 'Varsayılana dön' }))) return;
   try { await api('shiftcodes.save', { reset: true }); S.settings.shift_codes = null; CODES.list = JSON.parse(JSON.stringify(SHIFT_CODES_DEFAULT)); drawCodes(); reparseAllRosters(); toast('Varsayılan kodlar geri yüklendi'); } catch (e) { toast(e.message, 'err'); }
 };
+/** Saat yazımı: "8", "08", "8:30", "0830", "24", "24:00" → "HH:MM" (geçersizse null) */
+function codeHm(v) {
+  const t = String(v || '').trim().replace('.', ':');
+  if (!t) return '';
+  let m = /^(\d{1,2})(?::?(\d{2}))?$/.exec(t);
+  if (!m) return null;
+  const h = +m[1], mi = m[2] ? +m[2] : 0;
+  if (h === 24 && mi === 0) return '24:00';
+  if (h > 23 || mi > 59) return null;
+  return `${pad(h)}:${pad(mi)}`;
+}
 async function saveCodes() {
+  const bad = [];
+  CODES.list.forEach((c) => { if (c.kind !== 'shift') return; ['start', 'end'].forEach((k) => { const v = codeHm(c[k]); if (v === null) bad.push(c.code || '?'); else c[k] = v; }); });
+  if (bad.length) throw new Error('Saat biçimi anlaşılmadı: ' + [...new Set(bad)].join(', ') + ' (ör. 08:00, 16:30, 24)');
   const r = await api('shiftcodes.save', { codes: CODES.list.filter((c) => String(c.code || '').trim()) });
   S.settings.shift_codes = r.codes;
   CODES.list = JSON.parse(JSON.stringify(r.codes));

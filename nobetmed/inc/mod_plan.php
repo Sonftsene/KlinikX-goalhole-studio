@@ -241,7 +241,8 @@ function plan_check(array $data, string $ym, ?int $rid = null): array
         foreach ($days as $d => $row) {
             if ($row['kind'] !== 'shift' || $d < $first) continue;
             $h += (float)($row['hours'] ?? 0);
-            foreach (shift_periods($row) as $per) $cov[$d][$per]++;
+            $cv = shift_cover($row);
+            $cov[$d]['day'] += $cv['day']; $cov[$d]['night'] += $cv['night'];
             if (isset($req[$d])) $issues[] = ['name' => $name, 'date' => $d, 'type' => 'istek', 'msg' => $name . ' bu gün için ' . ($req[$d] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteği onaylanmış'];
             $e = swap_check($days, [$d], [], $cfg, $name);
             if ($e) $issues[] = ['name' => $name, 'date' => $d, 'type' => 'kural', 'msg' => $e];
@@ -257,7 +258,7 @@ function plan_check(array $data, string $ym, ?int $rid = null): array
     $short = [];
     foreach ($cov as $d => $c) {
         $n = $data['needs'][day_type($d)] ?? ['day' => 0, 'night' => 0];
-        if ($c['day'] < $n['day'] || $c['night'] < $n['night']) $short[] = ['date' => $d, 'day' => $c['day'], 'night' => $c['night'], 'need_day' => $n['day'], 'need_night' => $n['night']];
+        if ($c['day'] < $n['day'] - 0.01 || $c['night'] < $n['night'] - 0.01) $short[] = ['date' => $d, 'day' => round($c['day'], 2), 'night' => round($c['night'], 2), 'need_day' => $n['day'], 'need_night' => $n['night']];
     }
     // Aynı kişi + gün için tek uyarı
     $u = [];
@@ -305,9 +306,10 @@ function a_plan_auto(): void
     foreach (plan_days($ym) as $d) {
         $need = $data['needs'][day_type($d)] ?? ['day' => 0, 'night' => 0];
         foreach (['day' => $dRow, 'night' => $nRow] as $per => $row) {
-            $have = 0;
-            foreach ($people as $n) if (isset($daysOf[$n][$d]) && in_array($per, shift_periods($daysOf[$n][$d]), true)) $have++;
-            while ($have < $need[$per]) {
+            $have = 0.0;
+            foreach ($people as $n) if (isset($daysOf[$n][$d])) $have += shift_cover($daysOf[$n][$d])[$per];
+            $step = max(0.25, shift_cover($row)[$per]);
+            while ($have < $need[$per] - 0.01) {
                 $cands = [];
                 foreach ($people as $n) {
                     if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || pl_excluded_name($n)) continue;
@@ -323,7 +325,7 @@ function a_plan_auto(): void
                 $daysOf[$n][$d] = $row;
                 ksort($daysOf[$n]);
                 $cells[$n][$d] = $row['code'];
-                $have++;
+                $have += $step;
                 $filled++;
             }
         }

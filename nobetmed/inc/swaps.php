@@ -33,6 +33,8 @@ function shift_is_night(array $row): bool
     if (($row['kind'] ?? 'shift') !== 'shift') return false;
     $st = $row['start_time'] ?? ($row['start'] ?? null);
     $en = $row['end_time'] ?? ($row['end'] ?? null);
+    // 08-24 / 16-24 gibi gece yarısına kadar süren ya da 24-08 gibi gece başlayan vardiyalar da gece içerir
+    if ($st && $en && function_exists('shift_cover')) return shift_cover($row)['night'] >= 0.5;
     if ($st && $en) return $en <= $st;
     return (int)($row['hours'] ?? 0) >= 16;
 }

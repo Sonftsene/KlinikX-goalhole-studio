@@ -54,8 +54,16 @@ function pt_opts(?array $in = null): array
 {
     $j = $in ?? (json_decode((string)setting('plan_side_opts', '{}'), true) ?: []);
     $s = fn($k) => mb_substr(trim((string)($j[$k] ?? '')), 0, 20);
+    // Dönemin vardiya takımı: bir "kişi" yerine geçen kodlar (ör. gece = 16-24 + 24-08); eski tek kod ayarı da okunur
+    $set = function (string $k, string $one) use ($j, $s): array {
+        $o = [];
+        foreach (array_slice((array)($j[$k] ?? []), 0, 6) as $c) { $c = mb_substr(trim((string)$c), 0, 20); if ($c !== '') $o[] = $c; }
+        return $o ?: array_values(array_filter([$s($one)]));
+    };
+    $dc = $set('day_codes', 'day_code');
+    $nc = $set('night_codes', 'night_code');
     return [
-        'day_code' => $s('day_code'), 'night_code' => $s('night_code'),
+        'day_code' => $dc[0] ?? '', 'night_code' => $nc[0] ?? '', 'day_codes' => $dc, 'night_codes' => $nc,
         'team_day' => array_key_exists('team_day', $j) ? !empty($j['team_day']) : true,
         'fri_on' => array_key_exists('fri_on', $j) ? !empty($j['fri_on']) : true, 'fri_code' => $s('fri_code'), 'fri_n' => max(1, min(5, (int)($j['fri_n'] ?? 1))),
         'sat_on' => !empty($j['sat_on']), 'sat_code' => $s('sat_code'), 'sat_n' => max(1, min(5, (int)($j['sat_n'] ?? 1))),
@@ -183,6 +191,8 @@ function a_plan_sides_auto(): void
     };
     $dRow = $rowOf($opt['day_code'], 'Gündüz');
     $nRow = $rowOf($opt['night_code'], 'Gece');
+    $dSet = array_map(fn($c) => $rowOf($c, 'Gündüz'), $opt['day_codes']);
+    $nSet = array_map(fn($c) => $rowOf($c, 'Gece'), $opt['night_codes']);
     $fRow = $opt['fri_on'] ? $rowOf($opt['fri_code'] ?: $opt['night_code'], 'Cuma sorumlu nöbeti') : null;
     $sRow = $opt['sat_on'] ? $rowOf($opt['sat_code'], 'Cumartesi sorumlu nöbeti') : null;
     set_setting('plan_side_opts', json_encode($opt, JSON_UNESCAPED_UNICODE));
@@ -242,10 +252,11 @@ function a_plan_sides_auto(): void
     // 3–4) Alan: tarafların gün gün sayıları
     $needs = pt_needs($ym)['side'];
     $field = function (string $k) use (&$P): bool { return !$P[$k]['team'] && !$P[$k]['excl']; };
-    $own = function (string $side, string $d, string $per) use (&$P, $field): int {
-        $n = 0;
-        foreach ($P as $k => $p) if ($p['side'] === $side && $field($k) && isset($p['days'][$d]) && ($p['days'][$d]['kind'] ?? '') === 'shift' && in_array($per, shift_periods($p['days'][$d]), true)) $n++;
-        return $n;
+    // Kısmi vardiyalar kesirli sayılır (16-24 gecenin ½'si)
+    $own = function (string $side, string $d, string $per) use (&$P, $field): float {
+        $n = 0.0;
+        foreach ($P as $k => $p) if ($p['side'] === $side && $field($k) && isset($p['days'][$d]) && ($p['days'][$d]['kind'] ?? '') === 'shift') $n += shift_cover($p['days'][$d])[$per];
+        return round($n, 3);
     };
     $xplan = [];
     $cross = [];
@@ -260,15 +271,21 @@ function a_plan_sides_auto(): void
         return $c;
     };
     foreach ($days as $d) {
-        foreach (['night' => $nRow, 'day' => $dRow] as $per => $row) {
-            // Önce herkes kendi tarafından
+        foreach (['night' => $nSet, 'day' => $dSet] as $per => $set) {
+            // Önce herkes kendi tarafından: her "kişi" için takımdaki her vardiyaya bir kişi (ör. 16-24 + 24-08)
             foreach ($sides as $sd) {
                 $sk = $sd['key'];
-                $need = (int)($needs[$d][$sk][$per] ?? 0);
-                while ($own($sk, $d, $per) < $need) {
-                    $c = $cand($d, $per, $row, fn($s) => $s === $sk, false);
-                    if (!$c) break;
-                    $put($pick($c), $d, $row);
+                $need = (float)($needs[$d][$sk][$per] ?? 0);
+                while ($own($sk, $d, $per) < $need - 0.01) {
+                    $done = 0;
+                    foreach ($set as $row) {
+                        if ($own($sk, $d, $per) >= $need - 0.01) break;
+                        $c = $cand($d, $per, $row, fn($s) => $s === $sk, false);
+                        if (!$c) continue;
+                        $put($pick($c), $d, $row);
+                        $done++;
+                    }
+                    if ($done < count($set)) break;
                 }
             }
             // Eksik kalan taraf: önce diğer tarafın fazlası, sonra diğer tarafın listesinden ek kişi (karşıya geçecek)
@@ -276,19 +293,25 @@ function a_plan_sides_auto(): void
             $sur = [];
             foreach ($sides as $sd) {
                 $sk = $sd['key'];
-                $diff = $own($sk, $d, $per) - (int)($needs[$d][$sk][$per] ?? 0);
-                if ($diff < 0) $def[$sk] = -$diff; elseif ($diff > 0) $sur[$sk] = $diff;
+                $diff = $own($sk, $d, $per) - (float)($needs[$d][$sk][$per] ?? 0);
+                if ($diff < -0.01) $def[$sk] = -$diff; elseif ($diff > 0.01) $sur[$sk] = $diff;
             }
             foreach ($def as $dk => $miss) {
-                foreach ($sur as $sk => $n) { $use = min($n, $miss); $sur[$sk] -= $use; $miss -= $use; if (!$miss) break; }
-                while ($miss > 0) {
-                    $c = $cand($d, $per, $row, fn($s) => $s !== $dk, true);
-                    if (!$c) { $unfilled[] = ['date' => $d, 'period' => $per, 'side' => $sideName[$dk], 'missing' => $miss]; break; }
-                    $k = $pick($c);
-                    $put($k, $d, $row);
-                    $xplan[$k] = ($xplan[$k] ?? 0) + 1;
-                    $cross[] = ['date' => $d, 'period' => $per, 'name' => $P[$k]['name'], 'from' => $sideName[$P[$k]['side']], 'to' => $sideName[$dk]];
-                    $miss--;
+                foreach ($sur as $sk => $n) { $use = min($n, $miss); $sur[$sk] -= $use; $miss -= $use; if ($miss < 0.01) break; }
+                while ($miss > 0.01) {
+                    $got = false;
+                    foreach ($set as $row) {
+                        if ($miss <= 0.01) break;
+                        $c = $cand($d, $per, $row, fn($s) => $s !== $dk, true);
+                        if (!$c) continue;
+                        $k = $pick($c);
+                        $put($k, $d, $row);
+                        $xplan[$k] = ($xplan[$k] ?? 0) + 1;
+                        $cross[] = ['date' => $d, 'period' => $per, 'name' => $P[$k]['name'], 'from' => $sideName[$P[$k]['side']], 'to' => $sideName[$dk]];
+                        $miss -= max(0.01, shift_cover($row)[$per]);
+                        $got = true;
+                    }
+                    if (!$got) { $unfilled[] = ['date' => $d, 'period' => $per, 'side' => $sideName[$dk], 'missing' => round($miss, 2)]; break; }
                 }
             }
         }

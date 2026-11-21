@@ -159,6 +159,21 @@ try {
   const splits = Object.values(r24.cells[r2] || {}).reduce((a, row) => a + Object.values(row).filter((c) => c === '16 8').length, 0);
   if (Math.max(...h24) - Math.min(...h24) > 8) fail('24 saatlik düzende saatler eşitlenmedi: ' + h24.join(','));
   step(`Saat eşitleme: 8-16 / 16-8 düzeninde 2. basamak fark ${Math.max(...h2) - Math.min(...h2)} saat; 24 saatlik düzende fark ${Math.max(...h24) - Math.min(...h24)} saat (${r24.balanced} değişiklik, ${splits} parça 16-8)`);
+  // Her türlü vardiya: kapsama oranları (sunucu) ve vardiya takımı (gece = 16-24 + 24-08)
+  const cov = J(`echo json_encode(array_map(fn($c) => shift_cover(['kind' => 'shift', 'start_time' => $c[0], 'end_time' => $c[1]]), [['08:00','24:00'], ['16:00','24:00'], ['24:00','08:00'], ['08:00','08:00']]));`);
+  if (JSON.stringify(cov.map((x) => [x.day, x.night])) !== JSON.stringify([[1, 0.5], [0, 0.5], [0, 0.5], [1, 1]])) fail('kapsama oranları yanlış: ' + JSON.stringify(cov));
+  const rs = await p.evaluate(([y, d, o]) => api('plan.sides.auto', { ym: y, drafts: d, opts: o }), [ym, drafts, { ...opts, day_codes: ['8 16'], night_codes: ['16 24', '24 8'], balance: true }]);
+  const nightCov = (cells, names, d) => names.filter((n) => !/^Sorumlu|Dışarıda/.test(n)).reduce((a, n) => a + ({ '16 24': 0.5, '24 8': 0.5, '16 8': 1, N: 1, '24': 1, '8 8': 1 }[(cells[n] || {})[d]] || 0), 0);
+  let setOk = 0;
+  const setBad = [];
+  days.forEach((d) => { if (d === d10) return; const b = nightCov(rs.cells[r3] || {}, three, d); const ac = nightCov(rs.cells[r2] || {}, two, d); if (b === 2 && ac === 3) setOk++; else setBad.push(`${d.slice(8)}: ${b}/${ac}`); });
+  const pairs = Object.values(rs.cells[r2] || {}).reduce((a, row) => a + Object.values(row).filter((c) => c === '16 24').length, 0);
+  const pairs2 = Object.values(rs.cells[r2] || {}).reduce((a, row) => a + Object.values(row).filter((c) => c === '24 8').length, 0);
+  if (setOk < 25 || !pairs || Math.abs(pairs - pairs2) > 3) fail(`vardiya takımı (16-24 + 24-08) geceyi doldurmadı: ${setOk} gün tam · 16-24: ${pairs}, 24-08: ${pairs2} · ${setBad.slice(0, 5).join(' ')}`);
+  const chkS = await p.evaluate(([y, d]) => api('plan.sides.check', { ym: y, drafts: d }), [ym, { [r3]: { ...drafts[r3], cells: rs.cells[r3] || {} }, [r2]: { ...drafts[r2], cells: rs.cells[r2] || {} } }]);
+  const kuralS = chkS.sides.flatMap((x) => x.issues.filter((i) => i.type === 'kural'));
+  if (kuralS.length) fail('16-24 + 24-08 düzeninde kural uyarısı: ' + kuralS.slice(0, 3).map((x) => x.msg).join(' · '));
+  step(`Her türlü vardiya: 08-24 gündüz 1 + gece ½, 16-24 ve 24-08 gece ½; gece takımı 16-24 + 24-08 ile ${setOk} gün tam (16-24: ${pairs}, 24-08: ${pairs2}), kural uyarısı yok`);
   step(`Birlikte planlama: ${okDays} günde B 2 ve A+C 3 kendi basamağından; 10 Nisan izinler korundu, eksik ${r.cross.filter((x) => x.date === d10).length ? 'diğer basamaktan tamamlandı' : 'yok'}; önceki ayın 24'ü sonrası 1'inde yazılmadı; nöbet dışına yazılmadı; Cuma sorumlular ${s1}/${s2}; 2. basamak saat farkı ${Math.max(...h2) - Math.min(...h2)}`);
   const chk = await p.evaluate(([y, d]) => api('plan.sides.check', { ym: y, drafts: d }), [ym, { [r3]: { ...drafts[r3], cells: cells3 }, [r2]: { ...drafts[r2], cells: cells2 } }]);
   const kural = chk.sides.flatMap((s) => s.issues.filter((x) => x.type === 'kural'));
@@ -207,7 +222,7 @@ try {
 } catch (e) {
   fail('beklenmeyen hata: ' + (e.stack || e.message));
 } finally {
-  try { restore(); php(`q("DELETE FROM shift_requests WHERE date LIKE '2031-04-%'"); q("DELETE FROM req_periods WHERE ym = '2031-04'");`); } catch (e) { console.log('geri yükleme hatası: ' + e.message); }
+  try { if (!process.env.KEEP) restore(); php(`q("DELETE FROM shift_requests WHERE date LIKE '2031-04-%'"); q("DELETE FROM req_periods WHERE ym = '2031-04'");`); } catch (e) { console.log('geri yükleme hatası: ' + e.message); }
   try { fs.unlinkSync(phpFile); } catch (e) { /* */ }
   await browser.close();
 }

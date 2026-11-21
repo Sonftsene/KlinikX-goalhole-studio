@@ -138,16 +138,45 @@ function needs_by_side(string $date): array
     return $out;
 }
 
-/** Bir nöbet kodunun hangi dönem(ler)i kapsadığı: 08-16 -> [day], 16-08 -> [night], 08-08 -> [day, night] */
+/** "HH:MM" → saat (24:00 = gece yarısı, günün sonu) */
+function shift_hm(?string $v): ?float
+{
+    if (!$v || !preg_match('/^(\d{1,2}):(\d{2})$/', $v, $m)) return null;
+    return (int)$m[1] + (int)$m[2] / 60;
+}
+
+/**
+ * Her türlü vardiya (4.30): gündüzün (08-16) ve gecenin (16-08) kaçta kaçını kapsar — 0..1.
+ * 08-16 → gündüz 1 · 16-08 → gece 1 · 08-08 → ikisi 1 · 08-24 → gündüz 1, gece ½ · 16-24 → gece ½ · 24-08 → gece ½ · 08-20 → gündüz 1, gece ¼.
+ * Saati bilinmeyen kodda süreye göre eski varsayım.
+ */
+function shift_cover(array $row): array
+{
+    if (($row['kind'] ?? 'shift') !== 'shift') return ['day' => 0.0, 'night' => 0.0];
+    $s = shift_hm($row['start_time'] ?? ($row['start'] ?? null));
+    $e = shift_hm($row['end_time'] ?? ($row['end'] ?? null));
+    if ($s === null || $e === null) {
+        $h = (float)($row['hours'] ?? 0);
+        if ($h >= 20) return ['day' => 1.0, 'night' => 1.0];
+        return $h >= 16 ? ['day' => 0.0, 'night' => 1.0] : ['day' => 1.0, 'night' => 0.0];
+    }
+    if ($e <= $s) $e += 24;
+    $ov = fn(float $a, float $b): float => max(0.0, min($e, $b) - max($s, $a));
+    $day = ($ov(8, 16) + $ov(32, 40)) / 8;
+    $night = ($ov(16, 32) + $ov(-8, 8)) / 16;
+    return ['day' => round(min(1.0, $day), 3), 'night' => round(min(1.0, $night), 3)];
+}
+
+/** Bir nöbet kodunun hangi dönem(ler)i kapsadığı (en az yarısı): 08-16 -> [day], 16-08 -> [night], 08-08 -> [day, night] */
 function shift_periods(array $row): array
 {
     if (($row['kind'] ?? 'shift') !== 'shift') return [];
-    $h = (int)($row['hours'] ?? 0);
-    $st = $row['start_time'] ?? ($row['start'] ?? null);
-    $en = $row['end_time'] ?? ($row['end'] ?? null);
-    if ($h >= 20 || ($st && $en && $st === $en)) return ['day', 'night'];
-    if ($st && $en) return $en <= $st ? ['night'] : ['day'];
-    return $h >= 16 ? ['night'] : ['day'];
+    $c = shift_cover($row);
+    $o = [];
+    if ($c['day'] >= 0.5) $o[] = 'day';
+    if ($c['night'] >= 0.5) $o[] = 'night';
+    if (!$o) $o[] = $c['night'] > $c['day'] ? 'night' : 'day';
+    return $o;
 }
 
 /* ------------------------------------------------------------------ */

@@ -70,14 +70,16 @@ function cal_ics(array $u): string
     foreach (shifts_for_user($u, $from, $to) as $r) {
         if (($r['kind'] ?? 'shift') !== 'shift') continue;
         $st = $r['start_time'] ?: '08:00'; $en = $r['end_time'] ?: '16:00';
-        $endDate = $en <= $st ? date('Y-m-d', strtotime($r['date'] . ' +1 day')) : $r['date'];
+        // 24:00 gibi saatler de olur (08-24, 24-08): zaman damgasıyla hesapla
+        $t0 = strtotime($r['date'] . ' ' . $st); $t1 = strtotime($r['date'] . ' ' . $en);
+        if ($t1 <= $t0) $t1 += 86400;
         $label = $r['label'] && $r['label'] !== $r['code'] ? ' – ' . $r['label'] : '';
         $uid = 'dupcii-' . (int)$u['id'] . '-' . (int)$r['roster_id'] . '-' . $r['date'] . '-' . preg_replace('/[^A-Za-z0-9]/', '', (string)$r['code']) . '@' . $host;
         $L[] = 'BEGIN:VEVENT';
         $L[] = 'UID:' . $uid;
         $L[] = 'DTSTAMP:' . $stamp;
-        $L[] = 'DTSTART;TZID=Europe/Istanbul:' . str_replace('-', '', $r['date']) . 'T' . str_replace(':', '', $st) . '00';
-        $L[] = 'DTEND;TZID=Europe/Istanbul:' . str_replace('-', '', $endDate) . 'T' . str_replace(':', '', $en) . '00';
+        $L[] = 'DTSTART;TZID=Europe/Istanbul:' . date('Ymd\THis', $t0);
+        $L[] = 'DTEND;TZID=Europe/Istanbul:' . date('Ymd\THis', $t1);
         $L[] = 'SUMMARY:' . $esc($r['code'] . ' nöbet' . $label);
         $L[] = 'DESCRIPTION:' . $esc(($r['roster_name'] ?? '') . ' · ' . $org);
         $L[] = 'TRANSP:OPAQUE';

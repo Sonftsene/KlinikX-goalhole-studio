@@ -914,3 +914,10 @@ Yönetim › **Kullanıcılar** sayfasında:
   6. Herkes yerleştikten sonra Cuma (seçilen kod, ör. 16-08) ve isteğe bağlı Cumartesi (ör. 24) sorumlular sırayla atanır.
 - **Önceki ay hatırlanır:** dinlenme, üst üste çalışma ve 24 saat çıkışı kuralları önceki ayın son günleriyle birlikte denetlenir (ör. 31'inde 24 tutan 1'inde yazılmaz). Tablonun başında önceki ayın son 3 günü soluk görünür. Bu kural tek liste çizelgesinde de geçerlidir.
 - **Anlık sayılar:** her hücre değişikliğinde basamağın gece / gündüz alan sayısı (alan / gereken), gün gün toplam ve karşıya geçecek kişi sayısı (↔) hemen yeniden hesaplanır.
+
+**Her türlü vardiya (Ayarlar › Nöbet › Nöbet kodları)**
+- Birim kendi vardiyalarını tanımlar: 8-16, 16-8, 8-8 (24 saat), 8-24, 16-24, 24-8, 8-20, 20-8… Saat “8”, “08:30” ya da “24” biçiminde yazılabilir; **24:00** gece yarısıdır (8-24 gece yarısına kadar, 24-8 gece yarısından sabaha). Varsayılan kodlara 8 24, 16 24 ve 24 8 eklendi.
+- Saatler, dinlenme / üst üste çalışma kuralları, takvim aboneliği ve “gece içerir” sayımı her vardiyanın gerçek başlangıç ve bitişiyle hesaplanır.
+- **Sayımlarda kısmi vardiya kesirli sayılır:** vardiya gündüzün (08-16) ve gecenin (16-08) kapsadığı kadar sayılır. 16-24 ve 24-8 gecenin ½'si, 8-24 gündüzün tamamı + gecenin ½'si, 8-8 ikisinin tamamı. Çizelgede alan / gereken sayıları ½, ¼ ile gösterilir (ör. 2½/3).
+- **Vardiya takımı:** Basamakları birlikte planla ekranında gündüz ve gece için birden çok kod seçilebilir; takım bir kişilik yeri doldurur. Ör. gece vardiyası = **16 24 + 24 8** (iki kişi, geceyi birlikte kapatır), gündüz = 8 16; ya da gece = 8 8 (24 saat). Takımın toplam kapsaması 1 değilse ekranda uyarı çıkar.
+- Taraf'ta (günlük blok yerleşimi) kişi, vardiyasının en az yarısını kapsadığı dönemde sayılır (16-24 → gece, 8-24 → gündüz + gece).

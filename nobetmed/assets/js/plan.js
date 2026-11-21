@@ -19,6 +19,23 @@ function planTone(code) {
   if ((c.hours || 0) >= 20 || (c.start && c.start === c.end)) return 'violet';
   return c.start && c.end && c.end <= c.start ? 'indigo' : 'amber';
 }
+/** Vardiya gündüzün (08-16) ve gecenin (16-08) kaçta kaçını kapsar (sunucudaki shift_cover ile aynı) */
+function shiftCover(c) {
+  if (!c || c.kind !== 'shift') return { day: 0, night: 0 };
+  const hm = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? +m[1] + +m[2] / 60 : null; };
+  const s = hm(c.start); let e = hm(c.end);
+  if (s === null || e === null) { const h = +c.hours || 0; return h >= 20 ? { day: 1, night: 1 } : h >= 16 ? { day: 0, night: 1 } : { day: 1, night: 0 }; }
+  if (e <= s) e += 24;
+  const ov = (a, b) => Math.max(0, Math.min(e, b) - Math.max(s, a));
+  return { day: Math.min(1, (ov(8, 16) + ov(32, 40)) / 8), night: Math.min(1, (ov(16, 32) + ov(-8, 8)) / 16) };
+}
+/** Kesirli kişi sayısı: 2, 2½, 2¼ … */
+function fmtN(x) {
+  const r = Math.round(x * 4) / 4;
+  const w = Math.floor(r + 1e-9); const f = r - w;
+  const fr = f >= 0.74 ? '¾' : f >= 0.49 ? '½' : f >= 0.24 ? '¼' : '';
+  return fr ? (w ? w + fr : fr) : String(w);
+}
 function planNextYm(ym, k) { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + k, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
 
 async function planPage(view, r) {
@@ -75,10 +92,8 @@ function planDraw() {
       const c = planCode(code);
       if (!c || c.kind !== 'shift' || !cov[d]) return;
       h += +c.hours || 0;
-      const full = (c.hours || 0) >= 20 || (c.start && c.start === c.end);
-      const night = c.start && c.end && c.end <= c.start;
-      if (full || !night) cov[d].day++;
-      if (full || night) cov[d].night++;
+      const cv = shiftCover(c);
+      cov[d].day += cv.day; cov[d].night += cv.night;
     });
     hours[p.name] = Math.round(h);
   });
@@ -117,7 +132,7 @@ function planDraw() {
       <tbody>${PL2.d.people.map((p) => { const rq = planReqFor(p.name); return html`<tr><th class="pl2-name"><button type="button" class="pl2-pn" data-act="pl2-pmenu" data-n="${p.name}">${p.name}${p.title ? html`<small>${p.title}</small>` : ''}</button></th>
         ${days.map((d) => { const code = (cells[p.name] || {})[d] || ''; const iss = issues[p.name + '|' + d]; return html`<td class="${rq[d] ? 'rq' : ''} ${iss ? 'bad' : ''}" title="${[iss, rq[d] ? (rq[d] === 'izin' ? 'Onaylı yıllık izin isteği' : 'Onaylı boşluk isteği') : ''].filter(Boolean).join(' · ')}"><button type="button" class="pl2-c ${code ? 'tone-' + planTone(code) : ''}" data-act="pl2-cell" data-n="${p.name}" data-d="${d}">${code || (rq[d] ? (rq[d] === 'izin' ? 'İ' : 'B') : '')}</button></td>`; })}
         <td class="pl2-h">${hours[p.name]}</td></tr>`; })}</tbody>
-      <tfoot><tr><th class="pl2-name">Gündüz / gece</th>${days.map((d) => { const n = need(d); const bad = cov[d].day < n.day || cov[d].night < n.night; return html`<td class="pl2-cov ${bad ? 'bad' : ''}" title="Gereken: ${n.day} / ${n.night}">${cov[d].day}<br>${cov[d].night}</td>`; })}<td></td></tr></tfoot></table></div>
+      <tfoot><tr><th class="pl2-name">Gündüz / gece</th>${days.map((d) => { const n = need(d); const bad = cov[d].day < n.day - 0.01 || cov[d].night < n.night - 0.01; return html`<td class="pl2-cov ${bad ? 'bad' : ''}" title="Gereken: ${n.day} / ${n.night}">${fmtN(cov[d].day)}<br>${fmtN(cov[d].night)}</td>`; })}<td></td></tr></tfoot></table></div>
     <div id="plIssues">${planIssuesHtml()}</div>
     <p class="tiny faint">B: onaylı boşluk isteği · İ: onaylı yıllık izin isteği. Kırmızı hücre kural uyarısı, kırmızı sayı eksik gün. Değişiklikler 20 saniyede bir kendiliğinden kaydedilir; ekip yayınlayana kadar görmez.</p>
   </div>`);
@@ -348,6 +363,12 @@ async function pjSaveSide(sd, quiet) {
   try { await api('plan.save', { roster_id: sd.roster.id, ym: PJ.ym, draft: sd.draft }); delete PJ.dirty[sd.roster.id]; if (!quiet) toast(sd.name + ' kaydedildi'); return true; } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
 }
 function pjDirty(sd) { PJ.dirty[sd.roster.id] = true; PJ.chk = null; }
+/** Dönemin vardiya takımı (eski tek kod ayarından da okunur) */
+function pjCodeSet(k) {
+  const o = PJ.opts;
+  if (!Array.isArray(o[k]) || !o[k].length) o[k] = [o[k === 'day_codes' ? 'day_code' : 'night_code']].filter(Boolean);
+  return o[k];
+}
 
 async function pjPage(view, ym) {
   if (ym && /^\d{4}-\d{2}$/.test(ym)) PJ.ym = ym;
@@ -381,25 +402,20 @@ function pjFlag(sd, name, f) {
   const k = avKey(name);
   return f === 'team' ? (PJ.team.members || []).some((m) => avKey(m) === k) : PJ.excl.some((m) => avKey(m) === k);
 }
-function pjCovers(code, per) {
-  const c = planCode(code);
-  if (!c || c.kind !== 'shift') return false;
-  const full = (c.hours || 0) >= 20 || (c.start && c.start === c.end);
-  const night = c.start && c.end && c.end <= c.start;
-  return per === 'day' ? (full || !night) : (full || night);
-}
-/** Tarafın o gün o dönem kendi alan kişisi (sorumlular ve nöbet dışı hariç) */
+/** Vardiyanın o dönemi kapsama oranı (16-24 gecenin ½'si) */
+function pjCovers(code, per) { return shiftCover(planCode(code))[per] || 0; }
+/** Tarafın o gün o dönem kendi alan kişisi (sorumlular ve nöbet dışı hariç; kısmi vardiya kesirli) */
 function pjOwn(sd, d, per) {
   let n = 0;
-  sd.draft.people.forEach((p) => { if (pjFlag(sd, p.name, 'team') || pjFlag(sd, p.name, 'excl')) return; const c = (sd.draft.cells[p.name] || {})[d]; if (c && pjCovers(c, per)) n++; });
-  return n;
+  sd.draft.people.forEach((p) => { if (pjFlag(sd, p.name, 'team') || pjFlag(sd, p.name, 'excl')) return; const c = (sd.draft.cells[p.name] || {})[d]; if (c) n += pjCovers(c, per); });
+  return Math.round(n * 1000) / 1000;
 }
 function pjNeed(sd, d, per) { return ((PJ.needs[d] || {})[sd.key] || {})[per] || 0; }
 /** Gün özeti: taraf taraf fark, toplam ve karşıya geçecek sayı */
 function pjDaySum(d, per) {
   let def = 0, sur = 0, own = 0, need = 0;
   PJ.sides.forEach((sd) => { const o = pjOwn(sd, d, per); const n = pjNeed(sd, d, per); own += o; need += n; if (o < n) def += n - o; else sur += o - n; });
-  return { own, need, cross: Math.min(def, sur), short: Math.max(0, need - own) };
+  return { own, need, cross: Math.floor(Math.min(def, sur) + 0.01), short: need - own > 0.01 ? need - own : 0 };
 }
 function pjReqFor(sd, name) { const k = avKey(name); for (const [n, days] of Object.entries(sd.requests || {})) if (avKey(n) === k) return days; return {}; }
 function pjPrevFor(sd, name) { const k = avKey(name); for (const [n, days] of Object.entries(sd.prev || {})) if (avKey(n) === k) return days; return {}; }
@@ -412,6 +428,11 @@ function pjDraw() {
   const o = PJ.opts;
   const sc = PJ.codes.filter((c) => c.kind === 'shift');
   const codeSel = (k) => html`<select class="select" data-change="pj-opt" data-k="${k}" style="width:auto">${sc.map((c) => html`<option ${c.code === o[k] ? raw('selected') : ''}>${c.code}</option>`)}</select>`;
+  // Dönemin vardiya takımı: bir "kişi" yerine geçen kodlar (ör. gece = 16 24 + 24 8). Toplamın kapsaması 1 olmalı.
+  const setPick = (k, per) => { const set = pjCodeSet(k); const tot = set.reduce((a, c) => a + pjCovers(c, per), 0);
+    return html`<div class="pj-set" data-k="${k}"><span class="small">${per === 'day' ? 'Gündüz' : 'Gece'} vardiyası:</span>${set.map((c, i) => html`<span class="code-chip tone-${planTone(c)}">${c}<button type="button" class="pj-set-x" data-act="pj-set-rm" data-k="${k}" data-i="${i}" aria-label="Çıkar">×</button></span>`)}
+      <select class="select sm" data-change="pj-set-add" data-k="${k}" aria-label="Vardiya ekle"><option value="">+ ekle</option>${sc.map((c) => html`<option value="${c.code}">${c.code} · ${c.label}${c.start ? ' ' + c.start + '–' + c.end : ''}</option>`)}</select>
+      <span class="tiny ${Math.abs(tot - 1) > 0.01 ? 'pj-warn' : 'faint'}">${Math.abs(tot - 1) > 0.01 ? `kapsama ${fmtN(tot)} (1 olmalı)` : 'tam'}</span></div>`; };
   const issues = {};
   (PJ.chk ? PJ.chk.sides : []).forEach((s) => s.issues.forEach((x) => { issues[s.roster_id + '|' + x.name + '|' + x.date] = x.msg; }));
   const prevDays = [3, 2, 1].map((k) => { const dt = new Date(+PJ.ym.slice(0, 4), +PJ.ym.slice(5, 7) - 1, 1 - k); return ymd(dt); });
@@ -429,8 +450,8 @@ function pjDraw() {
       <td class="pl2-h">${Math.round(h)}</td><td class="pl2-h">${sd.cross[p.name] || 0}</td></tr>`;
   })}</tbody>`;
   const foot = (sd) => html`<tfoot>${['night', 'day'].map((per) => html`<tr><th class="pl2-name">${per === 'night' ? 'Gece' : 'Gündüz'} <small>alan / gereken</small></th>${prevDays.map(() => html`<td class="pj-prev"></td>`)}
-    ${days.map((d) => { const own = pjOwn(sd, d, per); const need = pjNeed(sd, d, per); const cls = own < need ? 'bad' : own > need ? 'over' : ''; return html`<td class="pl2-cov ${cls}" title="${sd.name} ${per === 'night' ? 'gece' : 'gündüz'}: ${own} / ${need}${own > need ? ' · fazla ' + (own - need) + ' (karşıya geçer)' : own < need ? ' · eksik ' + (need - own) : ''}">${own}/${need}</td>`; })}<td></td><td></td></tr>`)}</tfoot>`;
-  const sumRow = (per) => html`<tr><th class="pl2-name">${per === 'night' ? 'Gece' : 'Gündüz'} toplam</th>${days.map((d) => { const s = pjDaySum(d, per); return html`<td class="pl2-cov ${s.short ? 'bad' : ''}" title="Alan toplamı ${s.own} / ${s.need}${s.cross ? ' · ' + s.cross + ' kişi karşıya geçecek' : ''}">${s.own}/${s.need}${s.cross ? html`<br><b class="pj-x">↔${s.cross}</b>` : ''}</td>`; })}</tr>`;
+    ${days.map((d) => { const own = pjOwn(sd, d, per); const need = pjNeed(sd, d, per); const cls = own < need - 0.01 ? 'bad' : own > need + 0.01 ? 'over' : ''; return html`<td class="pl2-cov ${cls}" title="${sd.name} ${per === 'night' ? 'gece' : 'gündüz'}: ${fmtN(own)} / ${need}${cls === 'over' ? ' · fazla ' + fmtN(own - need) + ' (karşıya geçer)' : cls === 'bad' ? ' · eksik ' + fmtN(need - own) : ''}">${fmtN(own)}/${need}</td>`; })}<td></td><td></td></tr>`)}</tfoot>`;
+  const sumRow = (per) => html`<tr><th class="pl2-name">${per === 'night' ? 'Gece' : 'Gündüz'} toplam</th>${days.map((d) => { const s = pjDaySum(d, per); return html`<td class="pl2-cov ${s.short ? 'bad' : ''}" title="Alan toplamı ${fmtN(s.own)} / ${s.need}${s.cross ? ' · ' + s.cross + ' kişi karşıya geçecek' : ''}">${fmtN(s.own)}/${s.need}${s.cross ? html`<br><b class="pj-x">↔${s.cross}</b>` : ''}</td>`; })}</tr>`;
   setHTML(box, html`<div class="stack">
     <div class="card card-pad stack pl2-head">
       <div class="row wrap" style="gap:8px">
@@ -443,8 +464,8 @@ function pjDraw() {
         <button class="btn sm" data-act="pj-save">${icon('check', 'sm')}<span>Kaydet</span></button>
       </div>
       <div class="row wrap pl2-needs" style="gap:10px">
-        <label class="small">Gündüz kodu ${codeSel('day_code')}</label>
-        <label class="small">Gece kodu ${codeSel('night_code')}</label>
+        ${setPick('day_codes', 'day')}
+        ${setPick('night_codes', 'night')}
         <label class="small" title="Saati fazla olanın nöbeti saati az olana geçer; 24 saatlik nöbet 8-16 ve 16-8 olarak bölünebilir"><input type="checkbox" data-change="pj-optb" data-k="balance" ${o.balance !== false ? raw('checked') : ''}> Saatleri eşitle (8-16 / 16-8 parçalarla)</label>
         <label class="small"><input type="checkbox" data-change="pj-optb" data-k="team_day" ${o.team_day ? raw('checked') : ''}> Sorumlular hafta içi gündüz</label>
         <label class="small"><input type="checkbox" data-change="pj-optb" data-k="fri_on" ${o.fri_on ? raw('checked') : ''}> Cuma sorumlu</label>
@@ -481,7 +502,7 @@ function pjIssuesHtml() {
   if (!all.length && !short.length) return html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span>Kurallara uygun; eksik gün yok.</span></div>`;
   return html`<div class="card"><div class="card-head"><h3>${icon('alert', 'sm')} ${all.length} uyarı${short.length ? `, ${short.length} eksik vardiya` : ''}</h3></div><div class="list">
     ${all.slice(0, 100).map((x) => html`<div class="list-row small"><span class="badge ${x.type === 'kural' ? 'danger' : 'warn'}">${mkShortDate(x.date)}</span><span class="badge sm">${x.side}</span><span>${x.msg}</span></div>`)}
-    ${short.slice(0, 60).map((x) => html`<div class="list-row small"><span class="badge warn">${mkShortDate(x.d)}</span><span>${x.per === 'night' ? 'Gece' : 'Gündüz'} eksik: ${x.s.own}/${x.s.need}</span></div>`)}</div></div>`;
+    ${short.slice(0, 60).map((x) => html`<div class="list-row small"><span class="badge warn">${mkShortDate(x.d)}</span><span>${x.per === 'night' ? 'Gece' : 'Gündüz'} eksik: ${fmtN(x.s.own)}/${x.s.need}</span></div>`)}</div></div>`;
 }
 const pjSide = (k) => PJ.sides.find((s) => s.key === k);
 function pjSet(sd, name, d, code) {
@@ -492,6 +513,9 @@ function pjSet(sd, name, d, code) {
 
 ACT['pj-month'] = (el) => { pjSaveDirty(); PJ.ym = planNextYm(PJ.ym, +el.dataset.k); navStep(`#/cizelge/taraflar/${PJ.ym}`); PJ.last = null; pjLoad(); };
 CHANGE['pj-opt'] = (el) => { PJ.opts[el.dataset.k] = el.value; };
+CHANGE['pj-set-add'] = (el) => { if (!el.value) return; pjCodeSet(el.dataset.k).push(el.value); pjSyncCodes(); pjDraw(); };
+ACT['pj-set-rm'] = (el) => { const s = pjCodeSet(el.dataset.k); s.splice(+el.dataset.i, 1); pjSyncCodes(); pjDraw(); };
+function pjSyncCodes() { const o = PJ.opts; o.day_code = (o.day_codes || [])[0] || ''; o.night_code = (o.night_codes || [])[0] || ''; }
 CHANGE['pj-optb'] = (el) => { PJ.opts[el.dataset.k] = el.checked; pjDraw(); };
 CHANGE['pj-optn'] = (el) => { PJ.opts[el.dataset.k] = Math.max(1, Math.min(5, +el.value || 1)); };
 ACT['pj-brush'] = (el) => { PJ.brush = el.dataset.c; pjDraw(); };
