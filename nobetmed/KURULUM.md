@@ -910,6 +910,7 @@ Yönetim › **Kullanıcılar** sayfasında:
   2. Sorumlulara (Taraf › Sorumlular ekibi) isteğe bağlı hafta içi gündüz yazılır.
   3. Her gün önce herkes kendi basamağından dolar; adalet sırası: ay içinde az saat → hafta sonu sayısı → son 7 gün → kura.
   4. Bir taraf o gün dolmuyorsa eksik diğer basamağın listesinden tamamlanır: o kişi o gün karşıya geçecek kişidir, bloğu Taraf kurasında belli olur.
-  5. Herkes yerleştikten sonra Cuma (seçilen kod, ör. 16-08) ve isteğe bağlı Cumartesi (ör. 24) sorumlular sırayla atanır.
+  5. **Saatleri eşitle** (varsayılan açık): aynı basamakta saati fazla olan kişinin otomatik yazılmış nöbeti saati az olana geçer; 24 saatlik nöbet gerekirse **8-16 ve 16-8** olarak bölünüp bir parçası verilir. Günün sayıları değişmez, her değişiklik kurallarla denetlenir, elle yazılan hücrelere dokunulmaz; izinli günü çok olanın hedefi orantılı olarak küçülür. Örnek: 8-16 / 16-8 düzeninde kişiler arası fark en fazla 8 saat, 24 saatlik düzende çoğunlukla 0.
+  6. Herkes yerleştikten sonra Cuma (seçilen kod, ör. 16-08) ve isteğe bağlı Cumartesi (ör. 24) sorumlular sırayla atanır.
 - **Önceki ay hatırlanır:** dinlenme, üst üste çalışma ve 24 saat çıkışı kuralları önceki ayın son günleriyle birlikte denetlenir (ör. 31'inde 24 tutan 1'inde yazılmaz). Tablonun başında önceki ayın son 3 günü soluk görünür. Bu kural tek liste çizelgesinde de geçerlidir.
 - **Anlık sayılar:** her hücre değişikliğinde basamağın gece / gündüz alan sayısı (alan / gereken), gün gün toplam ve karşıya geçecek kişi sayısı (↔) hemen yeniden hesaplanır.

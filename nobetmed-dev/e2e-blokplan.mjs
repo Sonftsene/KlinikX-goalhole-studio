@@ -151,7 +151,14 @@ try {
   // Adalet: 3. basamak alan kişilerinin saatleri birbirine yakın
   const hrs = (cells, n) => Object.values(cells[n] || {}).reduce((a, c) => a + (c === 'N' ? 16 : c === 'G' ? 8 : c === '24' ? 24 : 0), 0);
   const h2 = two.filter((n) => !/^Sorumlu/.test(n)).map((n) => hrs(cells2, n));
-  if (Math.max(...h2) - Math.min(...h2) > 40) fail('2. basamakta saatler adil dağılmadı: ' + h2.join(','));
+  if (Math.max(...h2) - Math.min(...h2) > 8) fail('2. basamakta saatler eşitlenmedi (en fazla 8 saat fark beklenir): ' + h2.join(','));
+  // 24 saatlik düzen: gece kodu 24 → saat eşitlemede 24 nöbet 8-16 / 16-8 parçalarına bölünebilir
+  const r24 = await p.evaluate(([y, d, o]) => api('plan.sides.auto', { ym: y, drafts: d, opts: o }), [ym, drafts, { ...opts, night_code: '24', fri_code: '16 8' }]);
+  const hrs24 = (cells, n) => Object.values(cells[n] || {}).reduce((a, c) => a + ({ '24': 24, G: 8, '8 16': 8, '16 8': 16, N: 16 }[c] || 0), 0);
+  const h24 = two.filter((n) => !/^Sorumlu/.test(n)).map((n) => hrs24(r24.cells[r2] || {}, n));
+  const splits = Object.values(r24.cells[r2] || {}).reduce((a, row) => a + Object.values(row).filter((c) => c === '16 8').length, 0);
+  if (Math.max(...h24) - Math.min(...h24) > 8) fail('24 saatlik düzende saatler eşitlenmedi: ' + h24.join(','));
+  step(`Saat eşitleme: 8-16 / 16-8 düzeninde 2. basamak fark ${Math.max(...h2) - Math.min(...h2)} saat; 24 saatlik düzende fark ${Math.max(...h24) - Math.min(...h24)} saat (${r24.balanced} değişiklik, ${splits} parça 16-8)`);
   step(`Birlikte planlama: ${okDays} günde B 2 ve A+C 3 kendi basamağından; 10 Nisan izinler korundu, eksik ${r.cross.filter((x) => x.date === d10).length ? 'diğer basamaktan tamamlandı' : 'yok'}; önceki ayın 24'ü sonrası 1'inde yazılmadı; nöbet dışına yazılmadı; Cuma sorumlular ${s1}/${s2}; 2. basamak saat farkı ${Math.max(...h2) - Math.min(...h2)}`);
   const chk = await p.evaluate(([y, d]) => api('plan.sides.check', { ym: y, drafts: d }), [ym, { [r3]: { ...drafts[r3], cells: cells3 }, [r2]: { ...drafts[r2], cells: cells2 } }]);
   const kural = chk.sides.flatMap((s) => s.issues.filter((x) => x.type === 'kural'));

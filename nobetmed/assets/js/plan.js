@@ -445,6 +445,7 @@ function pjDraw() {
       <div class="row wrap pl2-needs" style="gap:10px">
         <label class="small">Gündüz kodu ${codeSel('day_code')}</label>
         <label class="small">Gece kodu ${codeSel('night_code')}</label>
+        <label class="small" title="Saati fazla olanın nöbeti saati az olana geçer; 24 saatlik nöbet 8-16 ve 16-8 olarak bölünebilir"><input type="checkbox" data-change="pj-optb" data-k="balance" ${o.balance !== false ? raw('checked') : ''}> Saatleri eşitle (8-16 / 16-8 parçalarla)</label>
         <label class="small"><input type="checkbox" data-change="pj-optb" data-k="team_day" ${o.team_day ? raw('checked') : ''}> Sorumlular hafta içi gündüz</label>
         <label class="small"><input type="checkbox" data-change="pj-optb" data-k="fri_on" ${o.fri_on ? raw('checked') : ''}> Cuma sorumlu</label>
         ${o.fri_on ? html`<label class="small"><input class="input" type="number" min="1" max="5" data-input="pj-optn" data-k="fri_n" value="${o.fri_n || 1}"> kişi ${codeSel('fri_code')}</label>` : ''}
@@ -554,14 +555,14 @@ ACT['pj-check'] = (el) => busy(el, async () => {
 });
 ACT['pj-auto'] = async (el) => {
   const o = PJ.opts;
-  if (!(await confirmDialog({ title: 'Otomatik dağıtılsın mı?', text: `Onaylı istekler ve elle yazılan hücreler korunur. ${o.team_day ? 'Sorumlulara hafta içi gündüz yazılır; ' : ''}boş vardiyalar blok planındaki sayılara göre önce kendi basamağından, adil sırayla (az saat → hafta sonu → son 7 gün → kura) doldurulur; bir taraf dolmazsa eksik diğer basamaktan tamamlanır (karşıya geçecek kişi).${o.fri_on ? ' Sonra Cuma günleri sorumlular sırayla atanır' + (o.sat_on ? ', Cumartesi de' : '') + '.' : ''} Nöbet dışı kişilere yazılmaz.`, ok: 'Dağıt' }))) return;
+  if (!(await confirmDialog({ title: 'Otomatik dağıtılsın mı?', text: `Onaylı istekler ve elle yazılan hücreler korunur. ${o.team_day ? 'Sorumlulara hafta içi gündüz yazılır; ' : ''}boş vardiyalar blok planındaki sayılara göre önce kendi basamağından, adil sırayla (az saat → hafta sonu → son 7 gün → kura) doldurulur${o.balance !== false ? ', sonra saatler eşitlenir (gerekirse 24 saat 8-16 / 16-8 olarak bölünür)' : ''}; bir taraf dolmazsa eksik diğer basamaktan tamamlanır (karşıya geçecek kişi).${o.fri_on ? ' Sonra Cuma günleri sorumlular sırayla atanır' + (o.sat_on ? ', Cumartesi de' : '') + '.' : ''} Nöbet dışı kişilere yazılmaz.`, ok: 'Dağıt' }))) return;
   busy(el, async () => {
     try {
       const r = await api('plan.sides.auto', { ym: PJ.ym, drafts: pjDrafts(), opts: PJ.opts });
       PJ.sides.forEach((sd) => { const c = (r.cells || {})[sd.roster.id]; sd.draft.cells = c && !Array.isArray(c) ? c : {}; pjDirty(sd); });
       PJ.opts = r.opts || PJ.opts;
       const team = (r.team.fri || []).length + (r.team.sat || []).length;
-      PJ.last = `${r.filled} nöbet yazıldı${r.cross.length ? ` · ${r.cross.length} vardiyada eksik taraf diğer basamaktan tamamlandı (karşıya geçecek)` : ''}${team ? ` · ${team} sorumlu nöbeti` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için eksik kaldı` : ''}`;
+      PJ.last = `${r.filled} nöbet yazıldı${r.balanced ? ` · saat eşitleme: ${r.balanced} değişiklik` : ''}${r.cross.length ? ` · ${r.cross.length} vardiyada eksik taraf diğer basamaktan tamamlandı (karşıya geçecek)` : ''}${team ? ` · ${team} sorumlu nöbeti` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için eksik kaldı` : ''}`;
       PJ.chk = await api('plan.sides.check', { ym: PJ.ym, drafts: pjDrafts() });
       pjDraw();
       toast('Dağıtıldı');

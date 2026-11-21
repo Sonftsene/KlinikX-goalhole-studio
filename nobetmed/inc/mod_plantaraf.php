@@ -59,6 +59,7 @@ function pt_opts(?array $in = null): array
         'team_day' => array_key_exists('team_day', $j) ? !empty($j['team_day']) : true,
         'fri_on' => array_key_exists('fri_on', $j) ? !empty($j['fri_on']) : true, 'fri_code' => $s('fri_code'), 'fri_n' => max(1, min(5, (int)($j['fri_n'] ?? 1))),
         'sat_on' => !empty($j['sat_on']), 'sat_code' => $s('sat_code'), 'sat_n' => max(1, min(5, (int)($j['sat_n'] ?? 1))),
+        'balance' => array_key_exists('balance', $j) ? !empty($j['balance']) : true,
     ];
 }
 
@@ -292,6 +293,79 @@ function a_plan_sides_auto(): void
             }
         }
     }
+    // 4b) Saat eşitleme: aynı basamakta saati fazla olanın otomatik yazılmış nöbeti saati az olana geçer; 24 saatlik nöbet
+    //     8-16 ve 16-8 olarak bölünüp bir parçası verilebilir. Günün sayıları değişmez (aynı gün, aynı dönem, aynı taraf),
+    //     her hamle kurallarla denetlenir; elle yazılan hücrelere ve isteklere dokunulmaz. İzinli gün sayısına göre hedef küçülür.
+    $balanced = 0;
+    if ($opt['balance']) {
+        $onlyPer = function (array $row, string $per): bool { return shift_periods($row) === [$per]; };
+        $findPart = function (string $per) use ($dict, $dRow, $nRow, $onlyPer): ?array {
+            if ($per === 'day' && $onlyPer($dRow, 'day')) return $dRow;
+            if ($per === 'night' && $onlyPer($nRow, 'night')) return $nRow;
+            foreach ($dict as $c) {
+                $r = plan_row((string)($c['code'] ?? ''), $dict);
+                if ($r['kind'] === 'shift' && $onlyPer($r, $per) && ($per === 'day' ? ($r['start_time'] ?? '') === '08:00' : ($r['start_time'] ?? '') === '16:00')) return $r;
+            }
+            return null;
+        };
+        $partD = $findPart('day');
+        $partN = $findPart('night');
+        $hOf = fn(array $row) => (float)($row['hours'] ?? 0);
+        $nDays = count($days);
+        $w = [];
+        foreach ($P as $k => $p) {
+            if (!$field($k)) continue;
+            $off = 0;
+            foreach ($days as $d) if (isset($p['req'][$d]) || (isset($p['days'][$d]) && ($p['days'][$d]['kind'] ?? '') !== 'shift')) $off++;
+            $w[$k] = max(0, $nDays - $off) / $nDays;
+        }
+        $t0 = microtime(true);
+        for ($it = 0; $it < 300 && microtime(true) - $t0 < 12; $it++) {
+            $bestMove = null;
+            foreach ($sides as $sd) {
+                $mem = array_values(array_filter(array_keys($w), fn($k) => $P[$k]['side'] === $sd['key'] && $w[$k] > 0));
+                if (count($mem) < 2) continue;
+                $tot = 0.0; $sw = 0.0;
+                foreach ($mem as $k) { $tot += $hours($k); $sw += $w[$k]; }
+                $dev = [];
+                foreach ($mem as $k) $dev[$k] = $hours($k) - $tot * $w[$k] / $sw;
+                arsort($dev);
+                $his = array_slice(array_keys($dev), 0, 2);
+                $los = array_slice(array_reverse(array_keys($dev)), 0, 4);
+                foreach ($his as $hk) foreach ($los as $lk) {
+                    $gap = $dev[$hk] - $dev[$lk];
+                    if ($gap <= 4) continue;
+                    foreach ($auto[$hk] ?? [] as $d => $_) {
+                        if (!$free($lk, $d)) continue;
+                        $row = $P[$hk]['days'][$d];
+                        $per = shift_periods($row);
+                        // Bütün nöbet
+                        $opts = [[$row, null]];
+                        // 24'ün parçası: gece (16-8) ya da gündüz (8-16) verilir, diğeri kalır
+                        if ($per === ['day', 'night'] && $partD && $partN) { $opts[] = [$partN, $partD]; $opts[] = [$partD, $partN]; }
+                        foreach ($opts as [$give, $keep]) {
+                            $h = $hOf($give);
+                            if ($h <= 0 || $h >= $gap) continue;
+                            $gain = 2 * $h * ($gap - $h);
+                            if ($bestMove && $gain <= $bestMove['gain']) continue;
+                            if (!$canAdd($lk, $d, $give)) continue;
+                            $bestMove = ['gain' => $gain, 'hk' => $hk, 'lk' => $lk, 'd' => $d, 'give' => $give, 'keep' => $keep];
+                        }
+                    }
+                }
+            }
+            if (!$bestMove) break;
+            ['hk' => $hk, 'lk' => $lk, 'd' => $d, 'give' => $give, 'keep' => $keep] = $bestMove;
+            if ($keep) {
+                $P[$hk]['days'][$d] = $keep;
+                $cells[$P[$hk]['rid']][$P[$hk]['name']][$d] = $keep['code'];
+            } else $unput($hk, $d);
+            $put($lk, $d, $give);
+            foreach ($cross as &$x) if ($x['date'] === $d && $x['name'] === $P[$hk]['name'] && !$keep) $x['name'] = $P[$lk]['name'];
+            unset($x);
+            $balanced++;
+        }
+    }
     // 5) Cuma / Cumartesi sorumlular (sırayla; o günün otomatik gündüzü varsa yerine)
     $teamDone = ['fri' => [], 'sat' => []];
     $teamCount = [];
@@ -326,7 +400,7 @@ function a_plan_sides_auto(): void
     }
     $outCells = [];
     foreach ($cells as $rid => $c) $outCells[$rid] = (object)array_filter($c, fn($x) => (bool)$x);
-    out(['cells' => (object)$outCells, 'filled' => max(0, $filled), 'unfilled' => $unfilled, 'cross' => $cross, 'team' => $teamDone, 'opts' => $opt]);
+    out(['cells' => (object)$outCells, 'filled' => max(0, $filled), 'unfilled' => $unfilled, 'cross' => $cross, 'team' => $teamDone, 'balanced' => $balanced, 'opts' => $opt]);
 }
 
 /** Denetim: her liste ayrı (kurallar önceki ayla), gün gün taraf kapsaması ve karşıya geçecek sayısı */
