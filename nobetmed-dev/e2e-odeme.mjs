@@ -157,6 +157,7 @@ try {
   const pro0 = d.plans.find((p) => p.code === 'pro');
   if (JSON.stringify(pro0.durations.map((x) => x.months)) !== '[1,3,12]') fail('örnek pakette 1 / 3 / 12 aylık süreler yok: ' + JSON.stringify(pro0.durations));
   if (d.units.some((u) => u.status !== 'none')) fail('birimlere kendiliğinden abonelik tanımlandı');
+  if (!(d.plans.find((p) => p.is_free)?.modules || []).includes('istekler')) fail('ücretsiz pakette nöbet istekleri yok');
   step('başlangıç: abonelik kapalı (sayfa görünmez, kimse kısıtlanmaz); örnek paketler kişi başı 1 / 3 / 12 aylık fiyatlı (Temel ücretsiz, Profesyonel, Kurumsal)');
 
   // ---- 2) Sistem yöneticisi: sağlayıcılar, görünürlük, paket süreleri ----
@@ -293,16 +294,31 @@ try {
   if (subOf(eKey).status !== 'trial') fail('zorunluluk açılırken kaydı olmayan kişiye deneme başlamadı');
   await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
   if ((await E.p.evaluate(() => S.billing.mode)) !== 'trial') fail('Elif denemede görünmüyor');
-  // Askıya al → ücretsiz pakete (Temel) düşer: mesajlaşma kapalı; Ayşe (ödemiş) etkilenmez
+  // Elif'e elle Profesyonel: pakette çizelge yok, mesaj tam
+  await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'activate', plan_id: pro.id, period: 'm1' });
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const ep1 = await E.p.evaluate(() => ({ mode: S.billing.mode, cz: modOn('cizelge'), chat: modOn('mesaj'), ro: S.billing.reply_only }));
+  if (ep1.mode !== 'active' || ep1.cz || !ep1.chat || ep1.ro.length) fail('Profesyonel paket modülleri uygulanmadı: ' + JSON.stringify(ep1));
+  // Askıya al → ücretsiz pakete (Temel) düşer: istekler açık; mesaj / ilan / çağrı yalnız yanıt
   await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'suspend' });
   await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  const nb = await E.p.evaluate(() => ({ mode: S.billing.mode, chat: modOn('mesaj') }));
-  if (nb.mode !== 'free' || nb.chat) fail('süresi dolan kişi ücretsiz pakete düşmedi: ' + JSON.stringify(nb));
-  if (!/kapalı/.test(await apiErr(E.p, 'chat.list'))) fail('ücretsiz pakette mesajlaşma ucu açık');
-  await E.p.locator('#blBar .bl-bar').waitFor({ timeout: 8000 }).catch(() => fail('ücretsiz pakette uyarı şeridi yok'));
+  const nb = await E.p.evaluate(() => ({ mode: S.billing.mode, chat: modOn('mesaj'), req: modOn('istekler'), ilan: modOn('ilan'), cz: modOn('cizelge'), ro: S.billing.reply_only }));
+  if (nb.mode !== 'free' || !nb.req || !nb.chat || !nb.ilan || nb.cz || !['mesaj', 'ilan', 'eksik'].every((m) => nb.ro.includes(m))) fail('ücretsiz paket (istekler açık, ortak modüller yalnız yanıt) yanlış: ' + JSON.stringify(nb));
+  if ((await apiErr(E.p, 'chat.list')) !== 'kabul') fail('ücretsiz pakette gelen mesajlar okunamıyor');
+  if ((await apiErr(E.p, 'listing.list')) !== 'kabul') fail('ücretsiz pakette ilanlar görülemiyor');
+  const rqm = await apiErr(E.p, 'req.mine');
+  if (/paket|kapalı/.test(rqm)) fail('ücretsiz pakette istekler kapalı: ' + rqm);
+  const cc = await apiErr(E.p, 'chat.create', { name: 'Deneme grubu', members: [] });
+  if (!cc.startsWith('402') || !/yanıt/.test(cc)) fail('ücretsiz pakette yeni grup açılabildi: ' + cc);
+  const lc = await apiErr(E.p, 'listing.create', { date: '2031-01-15', kind: 'give' });
+  if (!lc.startsWith('402')) fail('ücretsiz pakette ilan verilebildi: ' + lc);
+  await E.p.goto(BASE + '#/abonelik'); await E.p.locator('#blReply').waitFor({ timeout: 8000 }).catch(() => fail('abonelik sayfasında “yanıt verebilirsiniz” notu yok'));
+  await E.p.goto(BASE + '#/'); await E.p.locator('#blBar .bl-bar').waitFor({ timeout: 8000 }).catch(() => fail('ücretsiz pakette uyarı şeridi yok'));
+  // Yönetici / sorumlu her zaman kapsamda: tüm modüller, şerit yok
   await A.p.reload(); await A.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  const ab = await A.p.evaluate(() => ({ mode: S.billing.mode, plan2: modOn('cizelge'), chat: modOn('mesaj') }));
-  if (ab.mode !== 'active' || ab.plan2 || !ab.chat) fail('aynı birimde ödeyen kişi etkilendi / Profesyonel modülleri uygulanmadı: ' + JSON.stringify(ab));
+  const ab = await A.p.evaluate(() => ({ mode: S.billing.mode, staff: S.billing.staff, cz: modOn('cizelge'), chat: modOn('mesaj'), bar: !!document.querySelector('#blBar .bl-bar'), ro: S.billing.reply_only }));
+  if (ab.mode !== 'comp' || !ab.staff || !ab.cz || !ab.chat || ab.bar || ab.ro.length) fail('birim yöneticisi her zaman kapsamda değil: ' + JSON.stringify(ab));
+  await A.p.goto(BASE + '#/abonelik'); await A.p.locator('#blStaff').waitFor({ timeout: 8000 }).catch(() => fail('yöneticinin abonelik sayfasında “ücretsiz” notu yok'));
   // Ücretsiz paket yok → salt okunur
   const temel = d.plans.find((p) => p.is_free);
   await apiCall(SA.p, 'sa.billing.plan', { ...temel, prices: [{ months: 1, price: '10' }], is_free: false, active: false, all_modules: false });
@@ -319,7 +335,7 @@ try {
   await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
   const nc = await E.p.evaluate(() => ({ mode: S.billing.mode, ro: S.billing.read_only, chat: modOn('mesaj') }));
   if (nc.mode !== 'comp' || nc.ro || !nc.chat) fail('ücretsiz tanımlanan kişi kısıtlı kaldı: ' + JSON.stringify(nc));
-  step('zorunluluk açık: kaydı olmayan kişiye deneme; askıya alınan kişi ücretsiz pakete düştü (mesajlaşma kapalı, şerit), aynı birimde ödeyen kişi etkilenmedi; ücretsiz paket yokken salt okunur (yazma 402, okuma ve ödeme açık); “ücretsiz tanımla” kısıtı kaldırdı');
+  step('zorunluluk açık: kaydı olmayan kişiye deneme; Profesyonel’de çizelge kapalı; askıya alınan kişi Temel’e düştü (istekler açık; mesaj / ilan / çağrı görülür ve yanıtlanır, yeni grup ve ilan 402); yönetici her zaman ücretsiz ve tam yetkili; ücretsiz paket yokken salt okunur (yazma 402, okuma ve ödeme açık); “ücretsiz tanımla” kısıtı kaldırdı');
 
   // Birimin tamamı (sponsor): Dahiliye'de herkes kapsanır, kimse ödemez; sıfırlanınca kişi başına döner
   await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
@@ -367,14 +383,45 @@ try {
   step('panel: kişi listesi (ad, e-posta, birim, paket, süre), arama ve durum süzgeci; elle etkinleştirmede paket süreleri (18 ay dahil)');
 
   // ---- 8) Hatırlatma: bitişe 2 gün kala kişinin kendisine bildirim (bir kez) ----
-  const remN = async (p) => (await apiCall(p, 'notif.list', { limit: 60 })).items.filter((n) => /Aboneliğiniz bitiyor/.test(n.title)).length;
-  const n0 = await remN(A.p);
-  php(`m_q("UPDATE bl_subs SET current_end = ?, reminded = '' WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 2 * 86400 - 60), '${aKey}']);`);
+  const remN = async (p) => (await apiCall(p, 'notif.list', { limit: 60 })).items.filter((n) => /bitiyor/.test(n.title)).length;
+  const n0 = await remN(E.p), a0 = await remN(A.p);
+  php(`m_q("UPDATE bl_subs SET trial_ends = ?, reminded = '' WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 2 * 86400 - 60), '${eKey}']); m_q("UPDATE bl_subs SET current_end = ?, reminded = '' WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 2 * 86400 - 60), '${aKey}']);`);
   cron(); cron();
-  const n2 = (await remN(A.p)) - n0;
+  const n2 = (await remN(E.p)) - n0;
   if (n2 !== 1) fail('bitiş hatırlatması ' + n2 + ' kez geldi (beklenen 1)');
-  if (await remN(E.p)) fail('Ayşe’nin hatırlatması Elif’e de gitti');
-  else step('hatırlatma: abonelik bitimine 2 gün kala yalnız kişinin kendisine bir kez bildirim');
+  else if ((await remN(A.p)) - a0) fail('kapsamdaki yöneticiye kişisel abonelik hatırlatması gitti');
+  else step('hatırlatma: deneme bitimine 2 gün kala yalnız kişinin kendisine bir kez bildirim; kapsamdaki yöneticiye hatırlatma yok');
+  php(`m_q("UPDATE bl_subs SET current_end = ? WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 200 * 86400), '${aKey}']);`);
+
+  // ---- 8b) Aboneliği taşı (birim değiştiren kişi): Ayşe'nin ödenmiş süresi Nil'in hesabına ----
+  const nilKey = `${nilTk}#u${await N.p.evaluate(() => S.me.id)}`;
+  const aEnd = subOf(aKey).current_end;
+  const aPays = +php(`echo m_val('SELECT COUNT(*) FROM bl_payments WHERE tkey = ?', ['${aKey}']);`);
+  d = await apiCall(SA.p, 'sa.billing');
+  if (!d.people.find((u) => u.key === aKey)?.staff) fail('panelde yönetici “yönetici / sorumlu” olarak işaretlenmedi');
+  if (d.summary.staff < 1) fail('özette yönetici / sorumlu sayılmadı');
+  await apiCall(SA.p, 'sa.billing.sub', { key: aKey, op: 'move', to: nilKey, note: 'birim değişikliği' });
+  const mv = subOf(nilKey);
+  if (!mv || mv.status !== 'active' || mv.current_end !== aEnd || subOf(aKey).status !== 'none') fail('abonelik taşınmadı: ' + JSON.stringify(mv));
+  if (+php(`echo m_val('SELECT COUNT(*) FROM bl_payments WHERE tkey = ?', ['${nilKey}']);`) !== aPays || aPays < 1) fail('ödemeler yeni hesaba geçmedi');
+  if (!/etkin aboneliği/.test(await apiErr(SA.p, 'sa.billing.sub', { key: eKey, op: 'move', to: nilKey }))) fail('etkin aboneliği olan hesaba üstüne taşındı');
+  cron();
+  if (!((await apiCall(N.p, 'notif.list', { limit: 30 })).items || []).some((n) => /taşındı/.test(n.title))) fail('yeni hesaba “aboneliğiniz taşındı” bildirimi gelmedi');
+  if (!(await apiCall(N.p, 'billing.page')).payments.length) fail('yeni hesabın ödemeler listesi boş');
+  step('aboneliği taşı: Ayşe’nin kalan süresi ve ödemeleri Dahiliye’deki hesaba geçti, eski kayıt sıfırlandı, yeni hesaba bildirim; etkin aboneliği olan hesaba üstüne taşınmaz');
+
+  // ---- 8c) Hesap devre dışı / silindi ----
+  const eu = (await apiCall(A.p, 'admin.users')).users.find((u) => u.email === 'elif@test.com');
+  await apiCall(A.p, 'admin.user.save', { ...eu, status: 'disabled' });
+  if (subOf(eKey).acct !== 'disabled') fail('devre dışı bırakılan hesap abonelik kaydında işaretlenmedi');
+  await apiCall(A.p, 'admin.user.save', { ...eu, status: 'active' });
+  if (subOf(eKey).acct !== '') fail('yeniden etkin hesap işareti kalkmadı');
+  const del = JSON.parse(php(`require_once '${path.join(SITE, 'inc/billing.php')}'; require_once '${path.join(SITE, 'inc/mod_odeme.php')}'; $t = nm_tenant(); $k = $t['tkey'] . '#u99999'; bl_sub_put($k, ['status' => 'active', 'plan_id' => ${pro.id}, 'period' => 'm1', 'current_end' => date('Y-m-d H:i:s', time() + 20 * 86400), 'name' => 'Silinecek Kişi'], 'test', 'deneme', 'test'); bl_acct_mark(99999, 'deleted'); echo json_encode(['old' => m_one('SELECT tkey FROM bl_subs WHERE tkey = ?', [$k]), 'new' => m_one("SELECT tkey, acct, status FROM bl_subs WHERE tkey LIKE ? AND tkey LIKE '%#x%'", [$t['tkey'] . '#%#u99999'])]);`));
+  if (del.old || !del.new || del.new.acct !== 'deleted' || del.new.status !== 'active') fail('silinen hesabın kaydı ayrı anahtara alınmadı: ' + JSON.stringify(del));
+  d = await apiCall(SA.p, 'sa.billing');
+  const gone = d.people.find((u) => u.key === del.new.tkey);
+  if (!gone || gone.acct !== 'deleted' || d.summary.gone < 1) fail('panelde silinmiş hesap görünmüyor: ' + JSON.stringify(gone));
+  step('hesap devre dışı / yeniden etkin abonelik kaydına işlendi; silinen hesabın ödenmiş kaydı ayrı anahtara alındı (aynı numarayla açılacak hesaba geçmez), panelde “hesap silindi” ve özette sayıldı');
 
   // ---- 9) Telefon görünümü ----
   await N.p.goto(BASE + '#/abonelik').catch(() => {});

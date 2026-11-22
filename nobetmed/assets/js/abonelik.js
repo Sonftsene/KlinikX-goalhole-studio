@@ -14,6 +14,7 @@ function blPeriods(plans) {
 function blPer(months) { return months === 1 ? 'ay' : months === 12 ? 'yıl' : months % 12 === 0 ? (months / 12) + ' yıl' : months + ' ay'; }
 const BL_ST = { pending: ['Bekliyor', 'warn'], paid: ['Ödendi', 'success'], failed: ['Başarısız', 'danger'], cancelled: ['İptal', ''], refunded: ['İade edildi', ''] };
 const BL_PROV = { paytr: 'PayTR', iyzico: 'iyzico', havale: 'Havale / EFT' };
+const BL_SHARED_TXT = { mesaj: 'mesajlaşma', ilan: 'nöbet ilanı ve değişim', eksik: 'eksik personel çağrısı' };
 const BL_MODE_TONE = { none: '', open: '', trial: 'info', active: 'success', grace: 'warn', comp: 'success', free: 'warn', expired: 'danger' };
 function blMoney(k) { return (Number(k || 0) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺'; }
 function blDate(s) { return s ? `${+s.slice(8, 10)} ${TR_MONTHS[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '—'; }
@@ -25,7 +26,7 @@ NM_EXT.notif.billing = ['emerald', 'wallet'];
 NM_EXT.settingsCards.push({
   sec: 'genel',
   html: () => (S.billing && S.billing.can_pay ? html`<div class="card card-pad stack" data-sec="genel"><div><h3 style="font-size:15px">${icon('wallet', 'sm')} Abonelik ve ödeme</h3>
-    <p class="small muted">${S.billing.sponsor ? 'Biriminizin tamamı kapsamda; ödeme yapmanız gerekmez.' : html`Paketiniz: <b>${(S.billing.plan && S.billing.plan.name) || S.billing.mode_txt}</b>${S.billing.ends ? ` · bitiş ${blDate(S.billing.ends)}` : ''}.`}</p></div>
+    <p class="small muted">${S.billing.staff ? 'Yönetici / sorumlu olarak ücretsiz kullanıyorsunuz; ödeme yapmanız gerekmez.' : S.billing.sponsor ? 'Biriminizin tamamı kapsamda; ödeme yapmanız gerekmez.' : html`Paketiniz: <b>${(S.billing.plan && S.billing.plan.name) || S.billing.mode_txt}</b>${S.billing.ends ? ` · bitiş ${blDate(S.billing.ends)}` : ''}.`}</p></div>
     <div><a class="btn" href="#/abonelik">${icon('wallet', 'sm')}<span>Abonelik sayfası</span></a></div></div>` : ''),
 });
 
@@ -34,7 +35,7 @@ function blBanner() {
   const box = $('#blBar');
   if (!box) return;
   const b = S.billing;
-  if (!b || !b.visible || b.sponsor || (S.sa && S.sa.in)) { setHTML(box, ''); return; }
+  if (!b || !b.visible || b.sponsor || b.staff || (S.sa && S.sa.in)) { setHTML(box, ''); return; }
   const go = b.can_pay ? html` <a href="#/abonelik">Aboneliğim</a>` : '';
   let tone = '', txt = '';
   if (b.mode === 'trial' && b.days_left !== null && b.days_left <= 7) { tone = 'warn'; txt = `Deneme süreniz ${b.days_left <= 0 ? 'bugün' : b.days_left + ' gün sonra'} bitiyor.`; }
@@ -88,8 +89,10 @@ function blDraw() {
       <div class="row wrap" style="gap:10px;align-items:center"><span class="cat-ico tone-emerald">${icon('wallet')}</span>
         <div class="grow"><div class="small muted">Aboneliğiniz</div><b style="font-size:17px">${(st.plan && st.plan.name) || 'Paket seçilmedi'}</b> <span class="badge ${BL_MODE_TONE[st.disp || st.mode] || ''}">${st.mode_txt}</span></div>
         <div class="bl-kv"><span class="tiny faint">Bitiş</span><b>${blDate(st.ends)}</b>${st.days_left !== null && st.days_left >= 0 ? html`<span class="tiny faint">${st.days_left} gün kaldı</span>` : ''}</div></div>
+      ${st.staff ? html`<div class="mk-box success" style="margin-top:10px" id="blStaff">${icon('check', 'sm')}<span>Birim yöneticisi / sorumlu olduğunuz için tüm özellikler size <b>ücretsiz</b> açık; ödeme yapmanız gerekmez.</span></div>` : ''}
+      ${st.enforce && !st.staff && (st.reply_only || []).length ? html`<div class="mk-box" style="margin-top:10px" id="blReply">${icon('chat', 'sm')}<span>Paketinizde ${st.reply_only.map((m) => BL_SHARED_TXT[m] || m).join(', ')} yok: size gelen mesaj, ilan, değişim ve çağrılara <b>yanıt verebilirsiniz</b>; yenisini başlatmak için ücretli paket seçin.</span></div>` : ''}
       ${st.sponsor ? html`<div class="mk-box success" style="margin-top:10px" id="blSponsor">${icon('check', 'sm')}<span>Biriminizin tamamı sistem yöneticisince kapsama alındı${st.ends ? ` (${blDate(st.ends)} tarihine kadar)` : ''}; ödeme yapmanız gerekmez.</span></div>` : ''}
-      ${!st.enforce && !st.sponsor ? html`<p class="tiny faint" style="margin:8px 0 0">Şu an tüm özellikler kısıtlamasız açık. İsterseniz şimdiden paket seçip ödeme yapabilirsiniz; süre kalan sürenin üstüne eklenir.</p>` : ''}
+      ${!st.enforce && !st.sponsor && !st.staff ? html`<p class="tiny faint" style="margin:8px 0 0">Şu an tüm özellikler kısıtlamasız açık. İsterseniz şimdiden paket seçip ödeme yapabilirsiniz; süre kalan sürenin üstüne eklenir.</p>` : ''}
       ${st.enforce && !st.sponsor && st.mode === 'free' ? html`<p class="tiny faint" style="margin:8px 0 0">Deneme ya da abonelik süreniz bittiği için ücretsiz paketi kullanıyorsunuz; ücretli paketle tüm özellikler açılır.</p>` : ''}
       ${pend.length ? html`<div class="mk-box warn" style="margin-top:10px">${icon('clock', 'sm')}<span>Havale / EFT ödemeniz onay bekliyor (${pend.map((p) => `${blMoney(p.total)} · kod ${p.oid}`).join(', ')}). Hesaba geçince aboneliğiniz uzatılır.</span></div>` : ''}
     </div>
@@ -193,7 +196,7 @@ function blSaDraw(box) {
   const modeTone = (m) => BL_MODE_TONE[m] || '';
   const MODE = MODE_U;
   setHTML(box, html`<div class="stack">
-    <div class="bl-stats">${[['Ücretli etkin kişi', s.active], ['Denemede', s.trial], ['Ücretsiz tanımlı kişi', s.comp], ['Süresi dolan', s.expired], ['Kapsama alınan birim', s.units_comp], ['Aylık tekrarlayan (KDV hariç)', blMoney(s.mrr)], ['Bu ay tahsilat', blMoney(s.month_paid)], ['Onay bekleyen havale', s.pending_havale]]
+    <div class="bl-stats">${[['Ücretli etkin kişi', s.active], ['Denemede', s.trial], ['Ücretsiz tanımlı kişi', s.comp], ['Süresi dolan', s.expired], ['Kapsama alınan birim', s.units_comp], ['Yönetici / sorumlu (ücretsiz)', s.staff], ['Silinmiş ama süresi olan', s.gone], ['Aylık tekrarlayan (KDV hariç)', blMoney(s.mrr)], ['Bu ay tahsilat', blMoney(s.month_paid)], ['Onay bekleyen havale', s.pending_havale]]
       .map(([l, v]) => html`<div class="card card-pad"><div class="tiny faint">${l}</div><b style="font-size:20px">${v}</b></div>`)}</div>
 
     <div class="card card-pad stack"><h3 style="font-size:15px;margin:0">${icon('sliders', 'sm')} Genel</h3>
@@ -227,7 +230,7 @@ function blSaDraw(box) {
 
     <div class="card" id="blsPeople"><div class="card-head"><h3>${icon('users', 'sm')} Kişilerin abonelikleri <span class="tiny faint">${D.people.length}</span></h3></div>
       <div class="card-pad row wrap" style="gap:8px;padding-top:0"><input class="input grow" id="blsQ" type="search" placeholder="Ad, e-posta ya da birim ara" value="${BLS.q}" style="min-width:180px">
-        <select class="select" id="blsF" style="max-width:180px">${[['', 'Tümü'], ['trial', 'Deneme'], ['active', 'Etkin'], ['comp', 'Ücretsiz'], ['expired', 'Süresi dolan'], ['none', 'Kaydı yok']].map(([k, l]) => html`<option value="${k}" ${BLS.f === k ? raw('selected') : ''}>${l}</option>`)}</select></div>
+        <select class="select" id="blsF" style="max-width:180px">${[['', 'Tümü'], ['trial', 'Deneme'], ['active', 'Etkin'], ['comp', 'Ücretsiz'], ['expired', 'Süresi dolan'], ['none', 'Kaydı yok'], ['staff', 'Yönetici / sorumlu'], ['gone', 'Silinmiş / devre dışı']].map(([k, l]) => html`<option value="${k}" ${BLS.f === k ? raw('selected') : ''}>${l}</option>`)}</select></div>
       <div class="list" id="blsPList">${blsPeopleRows()}</div></div>
 
     <div class="card" id="blsUnits"><div class="card-head"><h3>${icon('building', 'sm')} Birimler (birimin tamamı)</h3></div>
@@ -249,10 +252,10 @@ const BLS_MODE = { none: 'Kaydı yok', open: 'Kısıtlama yok', trial: 'Deneme',
 function blsPeopleRows() {
   const D = BLS.d; const q = trLower(BLS.q.trim()); const f = BLS.f;
   const rows = D.people.filter((u) => (!q || trLower(`${u.name} ${u.email} ${u.unit} ${u.hospital}`).includes(q))
-    && (!f || (f === 'expired' ? ['expired', 'free'].includes(u.mode) : f === 'active' ? ['active', 'grace'].includes(u.mode) : u.mode === f)));
+    && (!f || (f === 'staff' ? u.staff : f === 'gone' ? !!u.acct : f === 'expired' ? ['expired', 'free'].includes(u.mode) : f === 'active' ? ['active', 'grace'].includes(u.mode) : u.mode === f)));
   if (!rows.length) return html`<div class="list-row small muted">${D.people.length ? 'Eşleşen kişi yok.' : 'Henüz kimse giriş yapmadı (kayıt ilk girişte açılır).'}</div>`;
   const more = rows.length > 200 ? rows.length - 200 : 0;
-  return html`${rows.slice(0, 200).map((u) => html`<div class="list-row"><div class="grow" style="min-width:0"><div class="lr-t">${u.name} <span class="badge ${BL_MODE_TONE[u.mode] || ''}">${BLS_MODE[u.mode] || u.mode}</span></div>
+  return html`${rows.slice(0, 200).map((u) => html`<div class="list-row"><div class="grow" style="min-width:0"><div class="lr-t">${u.name} <span class="badge ${BL_MODE_TONE[u.mode] || ''}">${BLS_MODE[u.mode] || u.mode}</span>${u.staff ? html` <span class="badge success">yönetici / sorumlu · ücretsiz</span>` : ''}${u.acct ? html` <span class="badge danger">${u.acct === 'deleted' ? 'hesap silindi' : 'devre dışı'}</span>` : ''}</div>
       <div class="lr-s">${u.hospital ? u.hospital + ' › ' : ''}${u.unit}${u.email ? ' · ' + u.email : ''} · ${u.plan || 'paket yok'}${u.period_txt ? ' · ' + u.period_txt : ''} · bitiş ${blDate(u.ends)}${u.days_left !== null ? ` (${u.days_left} gün)` : ''}${u.note ? ' · ' + u.note : ''}</div></div>
     <button class="btn sm" data-act="bls-unit" data-k="${u.key}">${icon('more', 'sm')}<span>İşlemler</span></button></div>`)}${more ? html`<div class="list-row small muted">+${more} kişi daha; aramayı daraltın.</div>` : ''}`;
 }
@@ -358,7 +361,10 @@ ACT['bls-unit'] = (el) => {
       <div class="field"><label>Not</label><input class="input" id="beNote" maxlength="300"></div><div><button class="btn primary" id="beGo">Uzat</button></div>`,
     other: () => html`<div class="field"><label>Not</label><input class="input" id="boNote" maxlength="300" value="${u.note || ''}"></div>
       <div class="row wrap" style="gap:8px"><button class="btn" data-o="note">Notu kaydet</button><button class="btn" data-o="comp">Ücretsiz tanımla</button><button class="btn ghost danger" data-o="suspend">Askıya al</button><button class="btn ghost danger" data-o="reset">Kaydı sıfırla</button></div>
-      <p class="tiny faint">Ücretsiz: süresiz, tüm modüller (zorunluluk açıkken bile kısıtlanmaz). Askıya al: süresi dolmuş gibi davranır.</p>`,
+      <p class="tiny faint">Ücretsiz: süresiz, tüm modüller (zorunluluk açıkken bile kısıtlanmaz). Askıya al: süresi dolmuş gibi davranır.</p>
+      ${unit ? '' : html`<div class="field" style="margin-top:6px"><label>Aboneliği başka hesaba taşı (birim değiştiren kişi)</label>
+        <div class="row wrap" style="gap:6px"><select class="select grow" id="boTo"><option value="">Hesap seçin</option>${D.people.filter((x) => x.key !== u.key && !x.acct && /^[^#]+#u\d+$/.test(x.key)).map((x) => html`<option value="${x.key}">${x.name} · ${x.hospital ? x.hospital + ' › ' : ''}${x.unit}${x.email ? ' · ' + x.email : ''}</option>`)}</select><button class="btn" data-o="move">Taşı</button></div>
+        <p class="tiny faint" style="margin:4px 0 0">Kalan süre, ödemeler ve fatura bilgisi yeni hesaba geçer; bu kayıt sıfırlanır. Yeni hesap en az bir kez giriş yapmış olmalı.</p></div>`}`,
     hist: () => html`<div id="bhList">${mkSpin ? mkSpin() : ''}</div>`,
   };
   const show = async (k) => {
@@ -372,6 +378,14 @@ ACT['bls-unit'] = (el) => {
     if (k === 'extend') $('#beGo', m.el).addEventListener('click', () => run({ op: 'extend', days: +$('#beDays', m.el).value, note: $('#beNote', m.el).value }, 'Süre uzatıldı'));
     if (k === 'other') $$('[data-o]', body).forEach((b) => b.addEventListener('click', async () => {
       const o = b.dataset.o;
+      if (o === 'move') {
+        const to = $('#boTo', m.el).value;
+        if (!to) { toast('Taşınacak hesabı seçin', 'err'); return; }
+        const dst = D.people.find((x) => x.key === to);
+        if (!(await confirmDialog({ title: 'Abonelik taşınsın mı?', text: `${u.name} kişisinin aboneliği ${dst ? dst.name + ' (' + dst.unit + ')' : 'seçilen'} hesabına taşınır; bu kayıt sıfırlanır.`, ok: 'Taşı' }))) return;
+        run({ op: 'move', to, note: $('#boNote', m.el).value }, 'Abonelik taşındı');
+        return;
+      }
       if ((o === 'suspend' || o === 'reset') && !(await confirmDialog({ title: o === 'suspend' ? 'Askıya alınsın mı?' : 'Kayıt sıfırlansın mı?', text: unit ? 'Birimdeki herkes kendi aboneliğine döner; zorunluluk açıksa süresi dolanlar hemen kısıtlanır.' : 'Zorunluluk açıksa kişi hemen kısıtlanır.', ok: 'Onayla', danger: true }))) return;
       run({ op: o, note: $('#boNote', m.el).value }, 'Kaydedildi');
     }));

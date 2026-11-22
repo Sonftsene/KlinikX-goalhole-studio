@@ -76,6 +76,15 @@ function bl_ensure(): void
     $sc = $cols('bl_subs');
     if (!in_array('name', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN name TEXT NOT NULL DEFAULT ''");
     if (!in_array('email', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+    // role: 'staff' = yönetici / sorumlu (her zaman kapsamda); acct: '' | 'disabled' | 'deleted' (birimde hesabın durumu)
+    if (!in_array('role', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN role TEXT NOT NULL DEFAULT ''");
+    if (!in_array('acct', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN acct TEXT NOT NULL DEFAULT ''");
+    // 4.33: ücretsiz pakete Nöbet istekleri (değiştirilmemiş örnek "Temel" paket)
+    if ($p->query("SELECT 1 FROM m_settings WHERE k = 'bl.mig_433'")->fetchColumn() === false) {
+        $p->exec("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('bl.mig_433', '1')");
+        $u = $p->prepare('UPDATE bl_plans SET modules = ?, descr = ?, updated_at = ? WHERE code = ? AND modules = ?');
+        $u->execute([json_encode(['nobet', 'istekler', 'rehber', 'yemek']), 'Ücretsiz: nöbet listesi, takvim, kim nöbette, nöbet istekleri, duyurular, rehber, yemek listesi; mesaj, ilan ve çağrılara yanıt.', date('Y-m-d H:i:s'), 'temel', json_encode(['nobet', 'rehber', 'yemek'])]);
+    }
     if (!(int)$p->query('SELECT COUNT(*) FROM bl_plans')->fetchColumn()) bl_seed_plans();
 }
 
@@ -85,7 +94,7 @@ function bl_seed_plans(): void
     $now = now();
     // Kişi başı örnek fiyatlar (kuruş, KDV hariç): süre => fiyat
     $rows = [
-        ['temel', 'Temel', 'Ücretsiz: nöbet listesi, takvim, kim nöbette, duyurular, rehber, yemek listesi.', [], 0, ['nobet', 'rehber', 'yemek'], 1, 1],
+        ['temel', 'Temel', 'Ücretsiz: nöbet listesi, takvim, kim nöbette, nöbet istekleri, duyurular, rehber, yemek listesi; mesaj, ilan ve çağrılara yanıt.', [], 0, ['nobet', 'istekler', 'rehber', 'yemek'], 1, 1],
         ['pro', 'Profesyonel', 'Nöbet değişimi, ilan, devral, eksik personel çağrısı, istekler, mesajlaşma ve arama, bildirimler.', [1 => 9900, 3 => 26900, 12 => 99000], 0, ['nobet', 'taraf', 'istekler', 'ilan', 'eksik', 'gecmis', 'rehber', 'mesaj', 'yemek', 'ucret'], 0, 2],
         ['kurumsal', 'Kurumsal', 'Tüm modüller: çizelge hazırlama ve otomatik doldurma, hastane ortak belgeleri, raporlar; öncelikli destek.', [1 => 14900, 3 => 39900, 12 => 149000], 0, null, 0, 3],
     ];
@@ -200,16 +209,16 @@ function bl_sub(string $tkey): array
 {
     bl_ensure();
     $r = m_one('SELECT * FROM bl_subs WHERE tkey = ?', [$tkey]);
-    return $r ?: ['tkey' => $tkey, 'plan_id' => null, 'status' => 'none', 'period' => null, 'trial_ends' => null, 'current_end' => null, 'started_at' => null, 'note' => '', 'reminded' => '', 'updated_at' => null, 'name' => '', 'email' => ''];
+    return $r ?: ['tkey' => $tkey, 'plan_id' => null, 'status' => 'none', 'period' => null, 'trial_ends' => null, 'current_end' => null, 'started_at' => null, 'note' => '', 'reminded' => '', 'updated_at' => null, 'name' => '', 'email' => '', 'role' => '', 'acct' => ''];
 }
 function bl_sub_put(string $tkey, array $f, string $kind, string $detail, string $who = ''): void
 {
     bl_ensure();
     $cur = bl_sub($tkey);
     $row = array_merge($cur, $f, ['tkey' => $tkey, 'updated_at' => now()]);
-    m_q('INSERT OR REPLACE INTO bl_subs (tkey, plan_id, status, period, trial_ends, current_end, started_at, note, reminded, updated_at, name, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    m_q('INSERT OR REPLACE INTO bl_subs (tkey, plan_id, status, period, trial_ends, current_end, started_at, note, reminded, updated_at, name, email, role, acct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$tkey, $row['plan_id'] !== null ? (int)$row['plan_id'] : null, $row['status'], $row['period'], $row['trial_ends'], $row['current_end'], $row['started_at'], (string)$row['note'], (string)$row['reminded'], $row['updated_at'],
-            mb_substr((string)($row['name'] ?? ''), 0, 120), mb_substr((string)($row['email'] ?? ''), 0, 190)]);
+            mb_substr((string)($row['name'] ?? ''), 0, 120), mb_substr((string)($row['email'] ?? ''), 0, 190), (string)($row['role'] ?? ''), (string)($row['acct'] ?? '')]);
     m_q('INSERT INTO bl_events (tkey, kind, detail, who, at) VALUES (?, ?, ?, ?, ?)', [$tkey, $kind, mb_substr($detail, 0, 500), mb_substr($who, 0, 120), now()]);
 }
 function bl_add_period(string $from, string $period, int $n = 1): string

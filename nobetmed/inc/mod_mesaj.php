@@ -824,6 +824,7 @@ function a_chat_direct(): void
     $a = c_tk() . ':' . (int)$me['id']; $b = $p['tk'] . ':' . $p['uid'];
     $key = strcmp($a, $b) < 0 ? $a . '|' . $b : $b . '|' . $a;
     $c = h_one('SELECT * FROM c_chats WHERE direct_key = ?', [$key]);
+    if (!$c && function_exists('bl_reply_only') && bl_reply_only('mesaj')) fail(BL_REPLY_MSG, 402); // ücretsiz pakette yeni sohbet açılmaz, gelene yanıt verilir
     if (!$c) {
         h_q("INSERT INTO c_chats (kind, tkey, direct_key, created_by, created_at, retention_days) VALUES ('direct', ?, ?, ?, ?, ?)", [c_tk(), $key, $a, now(), function_exists('c_pref') ? (int)c_pref(c_tk(), (int)$me['id'])['ret_default'] : 0]);
         $id = (int)cdb()->lastInsertId();

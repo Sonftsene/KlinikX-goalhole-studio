@@ -1673,6 +1673,7 @@ function a_admin_user_save(): void
         if ($losingAdmin && admin_count() <= 1) fail('Sistemde en az bir aktif yönetici kalmalıdır.');
         q('UPDATE users SET name = ?, email = ?, role = ?, status = ?, title_id = ?, unit_id = ? WHERE id = ?',
             [$name, $email, $role, $status, $titleId, $unitId, $id]);
+        if (function_exists('bl_acct_mark') && $status !== $u['status']) bl_acct_mark($id, $status === 'disabled' ? 'disabled' : '');
         if (mb_strtolower((string)$u['email']) !== $email) { nm_dir_del((string)$u['email']); nm_dir_put($email); }
         if (array_key_exists('phone', $IN)) q('UPDATE users SET phone = ?, extension = ? WHERE id = ?', [preg_replace('/[^0-9+ ()-]/', '', s('phone', 30)) ?: null, preg_replace('/[^0-9A-Za-z -]/', '', s('extension', 12)) ?: null, $id]);
         user_save_role($id);
@@ -1748,6 +1749,7 @@ function a_admin_user_delete(): void
     avatar_delete_file($u);
     q('DELETE FROM users WHERE id = ?', [$id]);
     nm_dir_del((string)$u['email']);
+    if (function_exists('bl_acct_mark')) bl_acct_mark($id, 'deleted');
     audit($me, 'user.delete', $u['name'], $u['email']);
     out();
 }

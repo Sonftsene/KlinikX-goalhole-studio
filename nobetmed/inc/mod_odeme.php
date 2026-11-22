@@ -13,6 +13,36 @@ function bl_open_state(): array
 }
 
 /** Giriş yapmış kişinin abonelik durumu (istek boyunca önbellekli). Birimin tamamı ücretsiz / ödenmişse kişi de kapsanır. */
+/**
+ * Ortak işler: paketinde olmasa da kişi bu modüllerde başkasının başlattığına YANIT verebilir (görür, cevaplar, katılır);
+ * yalnız burada sayılan başlatma eylemleri ücretli pakette. Birebir sohbet: yeni sohbet açmak başlatmadır (mod_mesaj a_chat_direct).
+ */
+const BL_SHARED = [
+    'mesaj' => ['chat.create', 'chat.forward', 'chat.share', 'chat.survey', 'call.start'],
+    'ilan' => ['listing.create', 'swap.request', 'extra.take.ask'],
+    'eksik' => ['callout.create', 'callout.ask'],
+];
+const BL_REPLY_MSG = 'Bu işlemi başlatmak ücretli pakette. Size gelen mesaj, ilan, değişim ve çağrılara yanıt verebilirsiniz; Abonelik sayfasından paket seçebilirsiniz.';
+
+/** Yönetici ya da sorumlu mu (birim yöneticisi, yayıncı, herhangi bir modülü yöneten özel rol): her zaman kapsamda */
+function bl_is_staff(array $me): bool
+{
+    if (in_array($me['role'] ?? '', ['admin', 'editor'], true)) return true;
+    if (!function_exists('role_perms')) return false;
+    $rp = role_perms(isset($me['role_id']) ? (int)$me['role_id'] : null);
+    return is_array($rp) && in_array('manage', $rp, true);
+}
+
+/** Pakette olmayan ortak modüller "yalnız yanıt" olarak açılır */
+function bl_apply_shared(array $s): array
+{
+    $s['reply_only'] = [];
+    if (!is_array($s['modules'] ?? null)) return $s;
+    foreach (array_keys(BL_SHARED) as $m) if (!in_array($m, $s['modules'], true)) { $s['modules'][] = $m; $s['reply_only'][] = $m; }
+    return $s;
+}
+function bl_reply_only(string $m): bool { return bl_on() && in_array($m, bl_state_cur()['reply_only'] ?? [], true); }
+
 function bl_state_cur(): array
 {
     static $s = null;
@@ -31,17 +61,30 @@ function bl_state_cur(): array
         $unit = bl_sub($tk);
         if (in_array($unit['status'], ['comp', 'active'], true)) {
             $us = bl_state($tk);
-            if (in_array($us['real_mode'] ?? $us['mode'], ['comp', 'active', 'grace'], true)) return $s = $us + ['sponsor' => true];
+            if (in_array($us['real_mode'] ?? $us['mode'], ['comp', 'active', 'grace'], true)) return $s = bl_apply_shared($us + ['sponsor' => true]);
         }
         $key = bl_pkey($tk, (int)$me['id']);
-        $s = bl_state($key);
-        // Sistem yöneticisi listesinde ad ve e-posta görünsün
+        $staff = bl_is_staff($me);
+        $sub = bl_sub($key);
+        if ($staff) {
+            // Yönetici / sorumlu: birim onlarsız işlemez → her zaman ücretsiz, tam yetki (otomatik deneme başlatılmaz)
+            if ($sub['status'] !== 'none') $s = bl_state($key);
+            else { $s = bl_open_state(); $s['enforce'] = $c['enforce'] === '1'; $s['visible'] = $c['visible'] === '1' || $c['enforce'] === '1'; }
+            if ($s['enforce']) { $s['mode'] = 'comp'; $s['modules'] = null; $s['read_only'] = false; }
+            $s['staff'] = true;
+        } else {
+            $s = bl_state($key);
+        }
+        // Sistem yöneticisi listesinde ad, e-posta ve görev görünsün
         $sub = bl_sub($key);
         $nm = mb_substr((string)$me['name'], 0, 120);
         $em = mb_substr((string)$me['email'], 0, 190);
-        if ($sub['updated_at'] === null) bl_sub_put($key, ['name' => $nm, 'email' => $em], 'seen', 'İlk giriş', 'sistem'); // deneme kapalıyken de listede görünsün
-        elseif ((string)($sub['name'] ?? '') !== $nm || (string)($sub['email'] ?? '') !== $em) m_q('UPDATE bl_subs SET name = ?, email = ? WHERE tkey = ?', [$nm, $em, $key]);
+        $rl = $staff ? 'staff' : '';
+        if ($sub['updated_at'] === null) bl_sub_put($key, ['name' => $nm, 'email' => $em, 'role' => $rl, 'acct' => ''], 'seen', 'İlk giriş', 'sistem'); // deneme kapalıyken de listede görünsün
+        elseif ((string)($sub['name'] ?? '') !== $nm || (string)($sub['email'] ?? '') !== $em || (string)($sub['role'] ?? '') !== $rl || (string)($sub['acct'] ?? '') !== '')
+            m_q("UPDATE bl_subs SET name = ?, email = ?, role = ?, acct = '' WHERE tkey = ?", [$nm, $em, $rl, $key]);
         $s['max_users'] = 0;
+        $s = bl_apply_shared($s);
     } catch (Throwable $e) {
         error_log('[dupcii] abonelik durumu: ' . $e->getMessage());
         $s = bl_open_state();
@@ -56,7 +99,10 @@ function bl_public(?array $me): array
     // Zorunluluk kapalıyken de gerçek durum gösterilir (ödeme yapan "Etkin", denemedeki "Deneme")
     $disp = $s['mode'];
     if (!$s['enforce']) $disp = in_array($s['real_mode'] ?? '', ['active', 'trial', 'comp', 'grace'], true) ? $s['real_mode'] : ($s['status'] === 'none' ? 'none' : 'open');
-    return ['visible' => (bool)$s['visible'], 'enforce' => (bool)$s['enforce'], 'mode' => $s['mode'], 'disp' => $disp, 'mode_txt' => BL_MODE_TXT[$disp] ?? $disp,
+    $txt = BL_MODE_TXT[$disp] ?? $disp;
+    if (!empty($s['staff']) && !in_array($disp, ['active', 'grace'], true)) { $disp = 'comp'; $txt = 'Yönetici / sorumlu: ücretsiz'; }
+    return ['visible' => (bool)$s['visible'], 'enforce' => (bool)$s['enforce'], 'mode' => $s['mode'], 'disp' => $disp, 'mode_txt' => $txt,
+        'staff' => !empty($s['staff']), 'reply_only' => array_values($s['reply_only'] ?? []),
         'status' => $s['status'], 'plan' => $s['plan'] ? ['id' => $s['plan']['id'], 'name' => $s['plan']['name']] : null, 'ends' => $s['ends'], 'days_left' => $s['days_left'],
         'grace_until' => $s['grace_until'] ?? null, 'read_only' => (bool)$s['read_only'], 'max_users' => 0, 'sponsor' => !empty($s['sponsor']), 'personal' => true,
         'can_pay' => $me && empty($me['sa_virtual']) && $s['visible']];
@@ -75,6 +121,8 @@ function bl_gate(string $action): void
 {
     if (!bl_on() || !empty($_SESSION['sa_in'])) return;
     $s = bl_state_cur();
+    // Paketinde olmayan ortak modülde yalnız yanıt: başlatma eylemleri ücretli pakette
+    foreach ($s['reply_only'] ?? [] as $m) if (in_array($action, BL_SHARED[$m] ?? [], true)) fail(BL_REPLY_MSG, 402);
     if (!$s['read_only']) return;
     if (nm_read_action($action)) return;
     if (strncmp($action, 'sp.', 3) === 0) return; // destek talebi abonelik bitse de açılabilir
@@ -209,6 +257,29 @@ function a_billing_cancel(): void
     out(['ok' => $n === 1]);
 }
 
+/** Birimde kişi silindi / devre dışı / yeniden etkin: abonelik kaydına işaret; ödenmiş süresi varsa süper yöneticiye bilgi (iade kararı) */
+function bl_acct_mark(int $uid, string $acct): void
+{
+    if (!bl_on()) return;
+    try {
+        $t = nm_tenant();
+        $key = bl_pkey((string)$t['tkey'], $uid);
+        $sub = bl_sub($key);
+        if ($sub['updated_at'] === null || (string)($sub['acct'] ?? '') === $acct) return;
+        m_q('UPDATE bl_subs SET acct = ? WHERE tkey = ?', [$acct, $key]);
+        if ($acct === 'deleted') {
+            // Silinen hesabın kaydı ayrı anahtara alınır: aynı numarayla açılacak yeni hesap eskisinin aboneliğini devralmasın
+            $old = $key;
+            $key = (string)$t['tkey'] . '#x' . time() . '#u' . $uid;
+            foreach (['bl_subs', 'bl_payments', 'bl_billing', 'bl_events', 'bl_outbox'] as $tb) m_q("UPDATE $tb SET tkey = ? WHERE tkey = ?", [$key, $old]);
+        }
+        m_q('INSERT INTO bl_events (tkey, kind, detail, who, at) VALUES (?, ?, ?, ?, ?)', [$key, 'acct', $acct === '' ? 'Hesap yeniden etkin' : ($acct === 'deleted' ? 'Hesap birimden silindi' : 'Hesap devre dışı bırakıldı'), 'birim', now()]);
+        $paid = $sub['status'] === 'active' && $sub['current_end'] && $sub['current_end'] > now();
+        if ($acct !== '' && $paid && function_exists('bl_notify_sa'))
+            bl_notify_sa('Ödenmiş aboneliği olan hesap ' . ($acct === 'deleted' ? 'silindi' : 'devre dışı'), ((string)$sub['name'] ?: 'Kişi') . ' (' . $t['name'] . ') · bitiş ' . date('d.m.Y', strtotime((string)$sub['current_end'])) . '. Kişi başka birimde hesap açtıysa Abonelik › Kişiler › İşlemler › Diğer › Taşı; değilse iade kararını verin.');
+    } catch (Throwable $e) { error_log('[dupcii] abonelik hesap işareti: ' . $e->getMessage()); }
+}
+
 /** Süper yöneticilere bilgi (sistem günlüğü; e-posta yoksa yalnız günlük) */
 function bl_notify_sa(string $title, string $text): void
 {
@@ -249,7 +320,8 @@ function bl_sa_people(): array
         $o[] = ['key' => $sub['tkey'], 'name' => (string)($sub['name'] ?? '') ?: 'Kişi #' . bl_key_uid((string)$sub['tkey']), 'email' => (string)($sub['email'] ?? ''),
             'unit' => $units[$tk]['name'], 'hospital' => $units[$tk]['hospital_name'] ?? '', 'status' => $sub['status'],
             'mode' => $sub['status'] === 'none' ? 'none' : ($st['enforce'] ? $st['mode'] : ($st['real_mode'] ?? 'open')), 'plan' => $st['plan']['name'] ?? null, 'plan_id' => $sub['plan_id'] !== null ? (int)$sub['plan_id'] : null,
-            'period' => $sub['period'], 'period_txt' => $sub['period'] ? bl_period_label((string)$sub['period']) : null, 'ends' => $st['ends'], 'days_left' => $st['days_left'], 'note' => $sub['note']];
+            'period' => $sub['period'], 'period_txt' => $sub['period'] ? bl_period_label((string)$sub['period']) : null, 'ends' => $st['ends'], 'days_left' => $st['days_left'], 'note' => $sub['note'],
+            'staff' => ($sub['role'] ?? '') === 'staff', 'acct' => (string)($sub['acct'] ?? '')];
     }
     return $o;
 }
@@ -279,9 +351,11 @@ function a_sa_billing(): void
         return $o;
     }, m_all('SELECT * FROM bl_payments ORDER BY id DESC LIMIT 150'));
     // Özet: ücretli etkin kişiler, denemeler, aylığa çevrilmiş tekrarlayan gelir (KDV hariç), bu ay tahsilat
-    $sum = ['active' => 0, 'trial' => 0, 'expired' => 0, 'comp' => 0, 'mrr' => 0, 'month_paid' => 0, 'pending_havale' => 0, 'units_comp' => 0];
+    $sum = ['active' => 0, 'trial' => 0, 'expired' => 0, 'comp' => 0, 'mrr' => 0, 'month_paid' => 0, 'pending_havale' => 0, 'units_comp' => 0, 'staff' => 0, 'gone' => 0];
     foreach ($people as $u) {
         $m = $u['mode'];
+        if ($u['acct'] !== '' && in_array($m, ['active', 'grace'], true)) $sum['gone']++;
+        if ($u['staff'] && !in_array($m, ['active', 'grace'], true)) { $sum['staff']++; continue; }
         if (in_array($m, ['active', 'grace'], true)) { $sum['active']++; $sum['mrr'] += bl_monthly(bl_plan($u['plan_id']), $u['period']); }
         elseif ($m === 'trial') $sum['trial']++;
         elseif ($m === 'comp') $sum['comp']++;
@@ -390,7 +464,8 @@ function a_sa_billing_sub(): void
     $sa = need_sa();
     $key = s('key', 80);
     $t = nm_tenant_by_key(bl_key_tkey($key)) ?? fail('Birim bulunamadı.', 404);
-    $tk = bl_key_uid($key) !== null ? bl_key_tkey($key) . '#u' . bl_key_uid($key) : (string)$t['tkey'];
+    if (bl_key_uid($key) !== null && !preg_match('/^[A-Za-z0-9_-]+(#x\d+)?#u\d+$/', $key)) fail('Geçersiz kayıt.');
+    $tk = bl_key_uid($key) !== null ? $key : (string)$t['tkey'];
     $label = bl_key_uid($key) !== null ? ((string)(bl_sub($tk)['name'] ?? '') ?: 'kişi') . ' (' . $t['name'] . ')' : $t['name'] . ' (birimin tamamı)';
     $who = 'SA:' . $sa['name'];
     $note = s('note', 300);
@@ -424,6 +499,22 @@ function a_sa_billing_sub(): void
             break;
         case 'suspend':
             bl_sub_put($tk, ['status' => 'suspended'], 'suspend', 'Askıya alındı' . ($note ? ' · ' . $note : ''), $who);
+            break;
+        case 'move': // birim değiştiren kişi: abonelik, fatura bilgisi ve ödemeler yeni hesaba
+            if (bl_key_uid($tk) === null) fail('Yalnız kişi aboneliği taşınır.');
+            $to = s('to', 80);
+            if ($to === $tk || !preg_match('/^[A-Za-z0-9_-]+#u\d+$/', $to) || !nm_tenant_by_key(bl_key_tkey($to))) fail('Taşınacak hesabı seçin (etkin bir hesap).');
+            $dst = bl_sub($to);
+            if ($dst['updated_at'] === null) fail('Hedef hesap henüz giriş yapmamış; kişi yeni hesabıyla bir kez girsin.');
+            if (in_array($dst['status'], ['active', 'comp'], true)) fail('Hedef hesabın kendi etkin aboneliği var; önce onu sıfırlayın.');
+            if (!in_array($sub['status'], ['active', 'trial', 'comp'], true)) fail('Taşınacak etkin abonelik yok.');
+            $f = ['plan_id' => $sub['plan_id'], 'status' => $sub['status'], 'period' => $sub['period'], 'trial_ends' => $sub['trial_ends'], 'current_end' => $sub['current_end'], 'started_at' => $sub['started_at'], 'reminded' => ''];
+            $dstLabel = ((string)($dst['name'] ?? '') ?: 'kişi') . ' (' . (nm_tenant_by_key(bl_key_tkey($to))['name'] ?? '') . ')';
+            bl_sub_put($to, $f, 'move_in', 'Abonelik taşındı: ' . $label . ' hesabından' . ($note ? ' · ' . $note : ''), $who);
+            m_q('UPDATE bl_payments SET tkey = ? WHERE tkey = ?', [$to, $tk]);
+            if (!m_one('SELECT 1 FROM bl_billing WHERE tkey = ?', [$to])) m_q('UPDATE bl_billing SET tkey = ? WHERE tkey = ?', [$to, $tk]);
+            bl_sub_put($tk, ['status' => 'none', 'plan_id' => null, 'period' => null, 'trial_ends' => null, 'current_end' => null, 'reminded' => ''], 'move_out', 'Abonelik taşındı: ' . $dstLabel . ' hesabına', $who);
+            bl_unit_notify($to, 'Aboneliğiniz taşındı', 'Önceki hesabınızdaki abonelik bu hesaba taşındı; ödemeleriniz ve bitiş tarihiniz korunur.');
             break;
         case 'reset':
             bl_sub_put($tk, ['status' => 'none', 'plan_id' => null, 'period' => null, 'trial_ends' => null, 'current_end' => null, 'reminded' => ''], 'reset', 'Abonelik kaydı sıfırlandı' . ($note ? ' · ' . $note : ''), $who);
@@ -532,7 +623,8 @@ $GLOBALS['NM_JOBS']['billing_remind'] = function (bool $force) {
     $tk = (string)nm_tenant()['tkey'];
     try {
         bl_remind_one($tk, false);
-        foreach (m_all("SELECT tkey FROM bl_subs WHERE tkey LIKE ? AND status IN ('trial', 'active')", [$tk . '#u%']) as $r) bl_remind_one((string)$r['tkey'], true);
+        // Yönetici / sorumlular zaten kapsamda: kişisel aboneliği için hatırlatılmaz
+        foreach (m_all("SELECT tkey FROM bl_subs WHERE tkey LIKE ? AND status IN ('trial', 'active') AND role <> 'staff'", [$tk . '#u%']) as $r) bl_remind_one((string)$r['tkey'], true);
         bl_outbox_flush();
     } catch (Throwable $e) { error_log('[dupcii] abonelik hatırlatma: ' . $e->getMessage()); }
 };

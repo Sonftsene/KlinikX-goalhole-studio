@@ -1006,3 +1006,10 @@ Abonelik artık **her kişinin kendisine** aittir; birim başına ödeme yoktur.
 - Eski birim kayıtları silinmez; panelde “Birimler” bölümünde görünür ve birimin tamamı tanımı olarak çalışmaya devam eder (etkin / ücretsiz olduğu sürece).
 - Tanıtım sayfasındaki fiyatlar kişi başı ve tanımlı tüm sürelerle gösterilir.
 
+## 53. Abonelikte yönetici, ücretsiz paket ve hesap değişiklikleri (4.33.0)
+- **Yönetici ve sorumlular her zaman ücretsiz:** birim yöneticisi, yayıncı ve herhangi bir modülü yöneten (özel rolde "yönetir" yetkisi olan) kişiler ödeme zorunluluğundan etkilenmez; tüm özellikler açık kalır, uyarı şeridi ve hatırlatma gitmez. Abonelik sayfalarında “Yönetici / sorumlu olarak ücretsiz” yazar. Böylece birim (liste yükleme, istek dönemi, onaylar) hiç aksamaz.
+- **Temel (ücretsiz) pakette Nöbet istekleri var:** süresi dolan kişi de boşluk / yıllık izin isteği yapabilir. (Değiştirmediğiniz örnek Temel paketine güncellemede kendiliğinden eklenir; kendi düzenlediğiniz pakete siz eklersiniz.)
+- **Ücretsiz kişi yanıt verebilir:** paketinde mesajlaşma, nöbet ilanı / değişim ya da eksik personel çağrısı olmasa da bunları görür ve kendisine gelene yanıt verir (mesaja cevap, ilana başvuru, değişim isteğini kabul / ret, çağrıya gönüllü olma). Yeni sohbet ya da grup açmak, ilan vermek, değişim istemek, arama başlatmak ücretli pakettedir; denerse “Bu işlemi başlatmak ücretli pakette…” uyarısı çıkar.
+- **Aboneliği taşı (birim değiştiren kişi):** Sistem paneli › Abonelik › Kişiler › İşlemler › Diğer › “Aboneliği başka hesaba taşı”. Kalan süre, ödemeler ve fatura bilgisi yeni hesaba geçer; eski kayıt sıfırlanır; kişiye bildirim gider. Yeni hesap en az bir kez giriş yapmış olmalı; kendi etkin aboneliği olan hesaba taşınmaz.
+- **Silinen / devre dışı hesap:** birim yöneticisi bir kişiyi silerse ya da devre dışı bırakırsa abonelik kaydında “hesap silindi” / “devre dışı” rozeti çıkar (süzgeç: Silinmiş / devre dışı). Ödenmiş süresi varsa size bildirim gelir: kişi başka birime geçtiyse taşıyın, değilse iade kararını verin. Silinen hesabın kaydı ayrı tutulur; aynı numarayla açılan yeni bir hesap eskisinin aboneliğini devralmaz.
+
