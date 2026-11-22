@@ -513,7 +513,7 @@ ACT['pl-pick'] = (el) => {
     plDrawDay();
   };
   const readSel = () => ({ day: $('select[data-per=day]', m.el).value, night: $('select[data-per=night]', m.el).value });
-  m.el.addEventListener('click', (ev) => {
+  m.el.addEventListener('click', async (ev) => {
     const b = ev.target.closest('.pl-opt,[data-off],[data-apply],[data-rm],[data-out]');
     if (!b) return;
     if (b.classList.contains('pl-opt')) {
@@ -526,6 +526,8 @@ ACT['pl-pick'] = (el) => {
     } else if (b.dataset.apply) {
       apply(plSegsFrom(readSel(), e.segs, home).map((s) => (e.duty || s.status === 'off' ? s : { ...s, status: 'called' })));
     } else if (b.dataset.rm || b.dataset.out) {
+      if (!(await confirmDialog(b.dataset.out ? { title: `${plName(e.name)} nöbetten çıkarılsın mı?`, text: 'O gün hiçbir blokta görünmez ve sayılmaz. “Nöbetten çıkarılanlar” kartından geri alabilirsiniz.', ok: 'Nöbetten çıkar', danger: true }
+        : { title: `${plName(e.name)} kaldırılsın mı?`, text: 'Kişi bu günün yerleşiminden çıkar.', ok: 'Kaldır', danger: true }))) return;
       delete PL.cur[e.key];
       if (b.dataset.out) { PL.pins.delete(e.key); PL.removed = [...(PL.removed || []).filter((r) => r.key !== e.key), { key: e.key, name: e.name, side: e.side }]; }
       PL.dirty = true;

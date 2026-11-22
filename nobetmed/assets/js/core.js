@@ -38,7 +38,100 @@ class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status; }
 }
 
+/* ---------------- Yanlışlıkla silme / onay koruması ----------------
+ * Silen, kaldıran, iptal eden ya da onaylayan her istek sunucuya gitmeden önce "… silinsin mi? / onaylıyor musunuz?" diye sorar.
+ * Sayfa aynı işlem için az önce zaten sorduysa (confirmDialog / promptDialog ya da penceredeki kırmızı onay düğmesi) ikinci kez sormaz.
+ * Toplu işlemde (aynı onayla art arda giden istekler) tek kez sorulur. */
+const NM_GUARD = { until: 0, busy: 0 };
+function guardGrant(ms = 8000) { NM_GUARD.until = Math.max(NM_GUARD.until, Date.now() + ms); }
+function guardOf(action, d) {
+  d = d || {};
+  const del = (t, x = '') => [t, x, 'Sil'];
+  const M = {
+    'admin.user.delete': () => del('Kullanıcı silinsin mi?', 'Kişinin hesabı ve oturumları silinir. Bu işlem geri alınamaz.'),
+    'admin.user.resetpw': () => ['Şifre sıfırlansın mı?', 'Kişinin şifresi değişir; yeni geçici şifreyle girmesi gerekir.', 'Sıfırla'],
+    'apply.withdraw': () => ['Başvuru geri çekilsin mi?', 'Başvurunuz ve eklediğiniz belge silinir.', 'Geri çek'],
+    'backup.delete': () => del('Yedek silinsin mi?', 'Bu yedek dosyası kalıcı olarak silinir.'),
+    'billing.cancel': () => ['Abonelik iptal edilsin mi?', 'Dönem sonunda yenilenmez.', 'İptal et'],
+    'callout.cancel': () => ['Çağrı iptal edilsin mi?', 'Çağrı kapanır.', 'İptal et'],
+    'callout.delete': () => del('Çağrı silinsin mi?', 'Çağrı ve yanıtları silinir.'),
+    'callout.choose': () => ['Bu kişi seçilsin mi?', 'Seçilen kişiye bildirim gider.', 'Seç', false],
+    'chat.delete': () => ['Mesaj herkesten silinsin mi?', 'Mesaj ve eki sohbetteki herkes için silinir.', 'Herkesten sil'],
+    'chat.hide': () => ['Mesaj sizden silinsin mi?', 'Mesaj yalnız sizin ekranınızdan kalkar.', 'Benden sil'],
+    'chat.leave': () => ['Gruptan çıkılsın mı?', 'Gruptaki mesajları artık görmezsiniz.', 'Çık'],
+    'chat.block': () => (d.on ? ['Kişi engellensin mi?', 'Size mesaj gönderemez ve sizi arayamaz.', 'Engelle'] : null),
+    'chat.members': () => ({ remove: ['Kişi gruptan çıkarılsın mı?', '', 'Çıkar'], ban: ['Kişi gruptan atılıp engellensin mi?', 'Davet bağlantısıyla da geri katılamaz.', 'At ve engelle'],
+      restrict: ['Kişi kısıtlansın mı?', 'Grupta mesaj yazamaz.', 'Kısıtla'], member: ['Yöneticilik kaldırılsın mı?', '', 'Kaldır'] }[d.op] || null),
+    'extra.cancel': () => ['Ekstra nöbet isteği geri çekilsin mi?', '', 'Geri çek'],
+    'extra.take.cancel': () => ['Devir isteği iptal edilsin mi?', '', 'İptal et'],
+    'extra.take.respond': () => (d.accept ? ['Nöbet devrini kabul ediyor musunuz?', 'Kabul edince nöbet size geçer.', 'Kabul et', false] : ['Devir isteği reddedilsin mi?', '', 'Reddet']),
+    'gsync.source.delete': () => del('Google bağlantısı silinsin mi?', 'Bu kaynaktan liste güncellemesi durur.'),
+    'hdoc.delete': () => del('Belge silinsin mi?', 'Belge hastane genelinden kaldırılır.'),
+    'listing.cancel': () => ['İlan iptal edilsin mi?', '', 'İptal et'],
+    'listing.delete': () => del('İlan silinsin mi?'),
+    'listing.withdraw': () => ['Başvurunuz geri çekilsin mi?', '', 'Geri çek'],
+    'listing.choose': () => ['Bu kişi seçilsin mi?', 'Seçim sorumluya iletilir.', 'Seç', false],
+    'me.delete.request': () => ['Hesabınızın silinmesi istensin mi?', 'İstek yöneticiye iletilir.', 'İste'],
+    'me.sessions.revoke': () => [d.others ? 'Diğer tüm cihazlarda oturum kapatılsın mı?' : 'Bu cihazda oturum kapatılsın mı?', '', 'Kapat'],
+    'notif.delete': () => del(d.read_all ? 'Okunan bildirimler silinsin mi?' : 'Bildirim silinsin mi?'),
+    'notif.device.del': () => ['Cihaz kaldırılsın mı?', 'Bu cihaza artık telefon bildirimi gitmez.', 'Kaldır'],
+    'passkey.delete': () => ['Parmak izi / Face ID girişi kaldırılsın mı?', 'O cihazda şifreyle girmeniz gerekir.', 'Kaldır'],
+    'phonebook.delete': () => del('Rehber kaydı silinsin mi?'),
+    'placement.adjust.delete': () => del('Elle girilen sayı silinsin mi?'),
+    'placement.clear': () => del('Günün blok yerleşimi silinsin mi?', 'O güne ait geçiş sayımları da silinir.'),
+    'peer.apply.vote': () => (d.vote === 'yes' ? ['Onaylıyor musunuz?', '', 'Onayla', false] : ['Reddediyor musunuz?', '', 'Reddet']),
+    'posts.approve': () => ['İçerik onaylansın mı?', 'Onaylanınca herkese yayımlanır.', 'Onayla', false],
+    'posts.reject': () => ['İçerik reddedilsin mi?', '', 'Reddet'],
+    'posts.delete': () => del('İçerik silinsin mi?', 'İçerik ve ekleri silinir.'),
+    'qr.approve': () => (d.ok ? ['Bu girişi onaylıyor musunuz?', 'QR kodu okuttuğunuz cihazda hesabınız açılır.', 'Onayla', false] : null),
+    'req.decide': () => {
+      const n = (d.ids || []).length;
+      const k = n > 1 ? n + ' istek' : 'İstek';
+      return d.status === 'approved' ? [k + ' onaylansın mı?', '', 'Onayla', false] : d.status === 'rejected' ? [k + ' reddedilsin mi?', '', 'Reddet'] : [k + ' için karar değiştirilsin mi?', '', 'Onayla', false];
+    },
+    'req.period.delete': () => del('İstek dönemi silinsin mi?', 'Dönemdeki tüm istekler silinir.'),
+    'roles.delete': () => del('Rol silinsin mi?'),
+    'rosters.delete': () => del('Nöbet listesi silinsin mi?', 'Liste ve geçmiş sürümleri silinir.'),
+    'rosters.restore': () => ['Eski sürüme dönülsün mü?', 'Listenin şu anki hâli bu sürümle değişir.', 'Geri yükle'],
+    'rules.exempt.delete': () => ['Muafiyet kaldırılsın mı?', '', 'Kaldır'],
+    'sa.apply.approve': () => ['Başvuru onaylansın mı?', 'Birim açılır ve yöneticisine e-posta gider.', 'Onayla', false],
+    'sa.apply.decide': () => ({ reject: ['Başvuru reddedilsin mi?', '', 'Reddet'], spam: ['Başvuru geçersiz sayılsın mı?', 'Başvuru kapatılır ve belge silinir.', 'Geçersiz say'] }[d.act] || null),
+    'sa.billing.plan.del': () => del('Paket silinsin mi?'),
+    'side.delete': () => del('Kayıt silinsin mi?', 'Bu geçiş kaydı ve sayımı silinir.'),
+    'sp.close': () => ['Destek talebi kapatılsın mı?', '', 'Kapat'],
+    'swap.cancel': () => ['Değişim isteği iptal edilsin mi?', '', 'İptal et'],
+    'swap.delete': () => del('Değişim kaydı silinsin mi?'),
+    'swap.hide': () => ['Kayıt listeden kaldırılsın mı?', '', 'Kaldır'],
+    'swap.respond': () => (d.accept ? ['Değişimi kabul ediyor musunuz?', 'Kabul edince sorumluya iletilir.', 'Kabul et', false] : ['Değişim isteği reddedilsin mi?', '', 'Reddet']),
+    'tax.delete': () => del('Kayıt silinsin mi?'),
+    'templates.delete': () => del('Şablon silinsin mi?'),
+    'update.apply': () => ['Güncelleme kurulsun mu?', 'Site birkaç saniye bakım moduna girer.', 'Kur', false],
+    'sa.update.apply': () => ['Güncelleme kurulsun mu?', 'Site birkaç saniye bakım moduna girer.', 'Kur', false],
+    'update.rollback': () => ['Önceki sürüme dönülsün mü?', '', 'Geri al'],
+    'sa.update.rollback': () => ['Önceki sürüme dönülsün mü?', '', 'Geri al'],
+  };
+  const f = M[action];
+  const r = f ? f() : null;
+  return r ? { title: r[0], text: r[1] || 'Bu işlem geri alınamaz.', ok: r[2] || 'Onayla', danger: r[3] !== false } : null;
+}
+async function guardAsk(g) {
+  let force = false;
+  try { force = localStorage.getItem('nm-guard-test') === '1'; } catch (e) { /* */ }
+  if (navigator.webdriver && !force) return true; // otomatik testler (sayfanın kendi onayları yine çalışır)
+  if (NM_GUARD.busy || Date.now() < NM_GUARD.until) return true;
+  return confirmDialog(g);
+}
 async function api(action, data = {}) {
+  const g = guardOf(action, data);
+  if (!g) return apiCall0(action, data);
+  if (!(await guardAsk(g))) throw new ApiError('', -1); // vazgeçildi: sessizce durur
+  NM_GUARD.busy++;
+  try { return await apiCall0(action, data); } finally { NM_GUARD.busy--; NM_GUARD.until = Math.max(Date.now() + 1500, NM_GUARD.busy ? NM_GUARD.until : 0); }
+}
+// Penceredeki kırmızı onay düğmesi ya da "Tamam" (data-ok) da onay sayılır
+document.addEventListener('click', (e) => { if (e.isTrusted && e.target.closest && e.target.closest('.modal .solid-danger, .modal [data-ok]')) guardGrant(); }, true);
+
+async function apiCall0(action, data = {}) {
   if (window.NM_DEMO_API) {
     try { return await window.NM_DEMO_API.call(action, data); } catch (e) { throw new ApiError(e.message, e.status || 400); }
   }
@@ -574,6 +667,7 @@ async function submitForm(form, fn) {
 
 /* ---------------- Bildirim ---------------- */
 function toast(msg, type = 'ok') {
+  if (msg === '' || msg == null) return; // onay penceresinde vazgeçildi
   let box = $('.toasts');
   if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
   // Aynı mesaj üst üste yığılmasın
@@ -729,7 +823,7 @@ function confirmDialog({ title, text, ok = 'Onayla', danger = false }) {
       foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn ${danger ? 'solid-danger' : 'primary'}" data-ok>${ok}</button>`,
       onClose: () => { if (!done) resolve(false); },
     });
-    m.el.querySelector('[data-ok]').addEventListener('click', () => { done = true; m.close(); resolve(true); });
+    m.el.querySelector('[data-ok]').addEventListener('click', () => { done = true; guardGrant(); m.close(); resolve(true); });
   });
 }
 
@@ -745,7 +839,7 @@ function promptDialog({ title, label, placeholder = '', ok = 'Kaydet', value = '
       foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn ${danger ? 'solid-danger' : 'primary'}" data-ok>${ok}</button>`,
       onClose: () => { if (!done) resolve(null); },
     });
-    const finish = () => { done = true; const v = m.el.querySelector('[name=v]').value.trim(); m.close(); resolve(v); };
+    const finish = () => { done = true; guardGrant(); const v = m.el.querySelector('[name=v]').value.trim(); m.close(); resolve(v); };
     m.el.querySelector('[data-ok]').addEventListener('click', finish);
     m.el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); finish(); });
   });

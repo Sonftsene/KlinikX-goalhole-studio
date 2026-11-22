@@ -944,3 +944,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Düzeltme: sistem yönetimine geçerken ana sayfa ipuçları kartı ara sıra hata veriyordu.
 - Düzeltme: çizelgede saat eşitleme, fazla saatli kişiden eksik olana doğrudan aktarım kurala takılınca araya üçüncü bir kişi alarak (aynı saatte iki aktarım) eşitliyor; 24 saatlik düzende 16 saate varan farklar kalabiliyordu.
 - İstekler: tek havuzlu birimde (liste sorulmayan) "İstekler tüm birim için toplanır…" notu kaldırıldı. Takvimin üstünde açık anlatım: **Boşluk için güne bir kez, Yıllık izin için iki kez dokunun, vazgeçmek için bir kez daha dokunun; bitince Kaydet.**
+
+## 47. Yanlışlıkla silme ve onaya karşı koruma (4.31.1)
+- Sitenin her yerinde silen, kaldıran, iptal eden ya da onaylayan her işlem önce sorar: "Mesaj sizden silinsin mi?", "İlan silinsin mi?", "3 istek onaylansın mı?", "Değişimi kabul ediyor musunuz?", "Kişi gruptan çıkarılsın mı?" gibi. **Vazgeç** denince hiçbir şey yapılmaz.
+- Kapsam: mesajlar (benden sil, herkesten sil, toplu silme, gruptan çık, kişiyi çıkar / at / kısıtla, engelle), bildirimler, duyuru / içerik (sil, onayla, reddet), istekler (onay, ret, dönem silme), değişim ve devir (kabul, ret, iptal), ilan ve eksik personel çağrısı (seç, iptal, sil), nöbet listeleri (sil, eski sürüme dön), Taraf (günü sil, elle sayı, nöbetten çıkar, kaldır), rehber, belgeler, roller, şablonlar, kullanıcı silme / şifre sıfırlama, oturum kapatma, cihaz ve parmak izi girişi kaldırma, yedek silme, abonelik iptali, başvurular, destek talebi kapatma, güncelleme kurma / geri alma.
+- Sayfa aynı işlem için zaten soruyorsa ikinci kez sorulmaz; toplu işlemde tek kez sorulur.

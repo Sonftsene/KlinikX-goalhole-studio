@@ -267,7 +267,9 @@ ACT['ch-sel'] = async (el) => {
     if (o === 'star') { const on = ms.some((m) => !m.star); for (const m of ms) { await api('chat.star', { id: m.id, on }); m.star = on; } toast(on ? 'Yıldızlandı ⭐' : 'Yıldızlar kaldırıldı'); }
     else if (o === 'copy') { const t = ms.map((m) => `[${m.at.slice(0, 16)}] ${m.name}: ${m.body || (m.file ? m.file.name : '')}`).join('\n'); toast((await copyText(t)) ? 'Kopyalandı' : 'Kopyalanamadı'); }
     else if (o === 'fwd') { const fwd = ms.filter((m) => !['poll', 'call', 'system'].includes(m.kind) && !m.once); if (fwd.length) { chatForwardMany(fwd); } return; }
-    else if (o === 'hide') { for (const m of ms) await api('chat.hide', { id: m.id }); CH.msgs = CH.msgs.filter((m) => !CH.sel.has(m.id)); toast('Sizden silindi'); }
+    else if (o === 'hide') {
+      if (!(await confirmDialog({ title: ms.length + ' mesaj sizden silinsin mi?', text: 'Mesajlar yalnız sizin ekranınızdan kalkar.', ok: 'Benden sil', danger: true }))) return;
+      for (const m of ms) await api('chat.hide', { id: m.id }); CH.msgs = CH.msgs.filter((m) => !CH.sel.has(m.id)); toast('Sizden silindi'); }
     else if (o === 'del') {
       if (!(await confirmDialog({ title: ms.length + ' mesaj herkesten silinsin mi?', ok: 'Sil', danger: true }))) return;
       for (const m of ms) { await api('chat.delete', { id: m.id }); m.deleted = true; m.body = ''; delete m.file; }

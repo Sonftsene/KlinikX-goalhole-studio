@@ -274,6 +274,7 @@ await a.locator('.pl-unit[data-unit="A blok"] .pl-p.called', { hasText: 'Deniz E
 if (!(await a.locator('.pl-unit[data-unit="C blok"] .pl-p.called', { hasText: 'Deniz Ek' }).count())) fail('ekstra kişi gece bloğunda (C) görünmedi');
 await a.locator('.pl-p.ed', { hasText: 'Deniz Ek' }).first().click();
 await a.click('.modal [data-rm]');
+await a.click('.modal [data-ok]');
 await a.locator('[data-act=pl-call-add]').first().click();
 await a.selectOption('.modal #plcSel', '__free');
 await a.fill('.modal #plcFree', 'Sena Yurt');
@@ -283,6 +284,7 @@ await a.click('.modal #plcGo');
 await a.locator(`.pl-unit[data-unit="${TEAM}"] .pl-p.called`, { hasText: 'Sena Yurt' }).waitFor();
 await a.locator('.pl-p.ed', { hasText: 'Sena Yurt' }).click();
 await a.click('.modal [data-rm]');
+await a.click('.modal [data-ok]');
 if (await a.locator('.pl-p', { hasText: 'Sena Yurt' }).count()) fail('çağrılan kaldırılamadı');
 await a.click('[data-act=pl-discard]');
 step(`çağrılan: Ayşe A gece (karşı taraf, sayıldı ${ayseTot0}→${ayseTot1}), listede olmayan ad sayılmadı; nöbete gelecek Merve ayrı ve sayılmadı → "Geldi" ile C gece çağrıldı; ekstra kişi gündüz A + gece C ayrı bloklara eklendi`);
@@ -419,6 +421,7 @@ if (await a.locator('.pl-warn', { hasText: 'Kemal' }).count()) fail('çıkarıla
 await a.click('[data-act=pl-edit]');
 await a.click('.pl-unit[data-unit="B blok"] .pl-p.ed:has-text("Ayşe")');
 await a.click('.modal [data-out]');
+await a.click('.modal [data-ok]');
 await a.locator('.pl-removed', { hasText: 'Ayşe' }).waitFor();
 await a.click('[data-act=pl-save]');
 await a.getByText('Yerleşim kaydedildi').first().waitFor();
