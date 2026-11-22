@@ -1628,7 +1628,15 @@ function a_admin_users(): void
 {
     need_admin();
     $rows = all('SELECT u.*, (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) AS post_count FROM users u ORDER BY CASE WHEN u.status = \'pending\' THEN 0 ELSE 1 END, u.name');
-    out(['users' => array_map(fn($r) => user_out($r) + ['post_count' => (int)$r['post_count'], 'del_req' => $r['del_req'] ?? null], $rows)]);
+    // Kişinin göremediği bölümler (birimde açık olduğu hâlde rolü yüzünden): yönetici "neden görmüyor?" sorusunu buradan yanıtlar
+    $hidden = function (array $r): array {
+        if (!function_exists('user_perm') || !defined('NM_MODULES') || $r['role'] === 'admin') return [];
+        $o = [];
+        $rn = !empty($r['role_id']) ? (string)(val('SELECT name FROM roles WHERE id = ?', [(int)$r['role_id']]) ?: '') : '';
+        foreach (NM_MODULES as $m => $def) if (nm_mod_on($m) && user_perm($r, $m) === 'off') $o[] = ['key' => $m, 'name' => $def[0], 'why' => $rn !== '' ? '“' . $rn . '” rolünde “Göremez”' : 'yetkisi kapalı'];
+        return $o;
+    };
+    out(['users' => array_map(fn($r) => user_out($r) + ['post_count' => (int)$r['post_count'], 'del_req' => $r['del_req'] ?? null, 'hidden' => $hidden($r)], $rows)]);
 }
 
 function admin_count(): int

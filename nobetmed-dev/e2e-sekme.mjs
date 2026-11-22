@@ -76,6 +76,39 @@ try {
   await check('uye', 'elif@test.com', ['YeniSifre99', 'Sifre1234', 'Elif1234'], false);
   await check('uye-buyuk', 'elif@test.com', ['YeniSifre99', 'Sifre1234', 'Elif1234'], true);
   await check('yonetici-buyuk', 'ayse@test.com', ['Sifre1234'], true);
+  // Yönetici: rolü yüzünden bir bölümü göremeyen kişi kullanıcı listesinde uyarıyla görünür (neden görmüyor?)
+  {
+    const c = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+    await c.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
+    const p = await c.newPage();
+    await p.goto(BASE);
+    await p.fill('[data-form=login] [name=email]', 'ayse@test.com');
+    await p.fill('[data-form=login] [name=password]', 'Sifre1234');
+    await p.click('[data-form=login] button[type=submit]');
+    await p.waitForFunction(() => typeof S !== 'undefined' && S.me);
+    const r = await p.evaluate(async () => {
+      const users = (await api('admin.users')).users;
+      const t = users.find((u) => u.role === 'member' && u.status === 'active' && !/elif/i.test(u.email));
+      const ro = (await api('roles.save', { name: 'Sekme deneme rolü', perms: { istekler: 'off' } })).role;
+      const prev = t.role_id || null;
+      await api('admin.user.save', { id: t.id, name: t.name, email: t.email, role: t.role, status: t.status, title_id: t.title_id, unit_id: t.unit_id, role_id: ro.id });
+      const after = (await api('admin.users')).users.find((u) => u.id === t.id);
+      return { id: t.id, name: t.name, prev, rid: ro.id, hidden: after.hidden };
+    });
+    if (!r.hidden || !r.hidden.some((h) => h.key === 'istekler' && /Sekme deneme rolü/.test(h.why))) fail('göremediği bölüm yöneticiye gösterilmedi: ' + JSON.stringify(r.hidden));
+    await p.goto(BASE + '#/yonetim/kullanicilar');
+    await p.locator(`tr[data-uid="${r.id}"] .badge.warn`, { hasText: 'Nöbet istekleri görünmüyor' }).waitFor({ timeout: 8000 }).catch(() => fail('kullanıcı listesinde “görünmüyor” uyarısı yok'));
+    await p.screenshot({ path: path.join(OUT, 'sekme-yonetici-uyari.png') });
+    await p.evaluate(async (x) => {
+      const t = (await api('admin.users')).users.find((u) => u.id === x.id);
+      await api('admin.user.save', { id: t.id, name: t.name, email: t.email, role: t.role, status: t.status, title_id: t.title_id, unit_id: t.unit_id, role_id: x.prev });
+      await api('roles.delete', { id: x.rid });
+    }, r);
+    const back = await p.evaluate((id) => api('admin.users').then((d) => d.users.find((u) => u.id === id).hidden), r.id);
+    if (back.length) fail('rol kaldırılınca uyarı gitmedi: ' + JSON.stringify(back));
+    else step(`yönetici: “${r.name}” rolü yüzünden İstekler’i göremeyince kullanıcı listesinde “Nöbet istekleri görünmüyor” uyarısı ve nedeni çıktı; rol kaldırılınca düzeldi`);
+    await c.close();
+  }
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }

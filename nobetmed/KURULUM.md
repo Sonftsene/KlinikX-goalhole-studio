@@ -962,3 +962,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Yan menüde (telefonda ☰) Nöbet bölümüne İstekler, İlanlar, Ekstra nöbet ve (yöneticilerde) Çizelge eklendi.
 - Bir sekme yine görünmüyorsa: Ayarlar › Roller'de kişinin rolünde o modül "Göremez" olabilir ya da modül birimde kapatılmış olabilir.
 - Düzeltme: "Büyük yazı" seçen kişide ekran yüksekliğine göre boyutlanan alanlar taşıyordu: yan menünün altındaki hesap kartına ulaşılamıyor, sohbette yazma kutusu ekranın altında kalabiliyordu, yan menü uzayınca öğeler üst üste biniyordu. Artık hepsi ekrana sığar.
+
+## 50. "Bu kişi neden görmüyor?" (4.31.3)
+- Yönetim › Kullanıcılar'da, birimde açık olduğu hâlde bir bölümü göremeyen kişinin yanında uyarı çıkar: ör. **"Nöbet istekleri görünmüyor"**. Üzerine gelince ya da kişiyi düzenleyince nedeni yazar: ör. "“Destek personeli” rolünde “Göremez”".
+- Düzeltmek için kişinin **Birime özel rol**ünü "Yok" yapın ya da Ayarlar › Güvenlik › Roller'de o rolde bölümü **Kullanır** yapın.
+- Uyarı yoksa ve kişi yine göremiyorsa: kişi uygulamayı kapatıp yeniden açsın (telefonda eski sürüm açık kalmış olabilir) ya da başka bir birimin hesabıyla giriyor olabilir (o birimde modül kapalı olabilir).
