@@ -304,6 +304,7 @@ async function nbDraw() {
       <h3 class="ph">${icon('eye', 'sm')} Görünüm ve gizlilik</h3>
       <label class="switch"><input type="checkbox" data-change="nb-flag" data-k="preview" ${p.preview ? raw('checked') : ''} ${p.hide_preview ? raw('disabled') : ''}><span class="track"></span><span class="s-text"><b>Telefon bildiriminde içeriği göster</b><span>${p.hide_preview ? 'Yöneticiniz kişisel verilerin korunması için içerikleri gizledi: kilit ekranında yalnız “Yeni mesaj” gibi genel bir yazı görünür.' : 'Kapatırsanız kilit ekranında mesaj ve duyuru metni yerine yalnız “Yeni mesaj” yazar.'}</span></span></label>
       <label class="switch"><input type="checkbox" data-change="nb-flag" data-k="sound" ${p.sound ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Uygulama içi ses</b><span>Uygulama açıkken yeni bildirimde kısa bir ses.</span></span></label>
+      <label class="switch"><input type="checkbox" data-change="push-nag" ${typeof pushNagOn === 'function' && pushNagOn() ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Bildirimler kapalıyken her gün hatırlat</b><span>Bu cihazda bildirimler kapalıysa ana sayfada günde bir kez “Bildirimleriniz kapalı” uyarısı çıkar.</span></span></label>
       <label class="switch"><input type="checkbox" data-change="nb-flag" data-k="vibrate" ${p.vibrate ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Titreşim</b><span>Telefonda bildirim gelince titreşsin.</span></span></label>
     </div>
     <div class="card card-pad stack" id="nbDevices"><h3 class="ph">${icon('phone', 'sm')} Bildirim alan cihazlarım</h3><div class="skel" style="height:14px;width:50%"></div></div>`);
@@ -331,7 +332,7 @@ CHANGE['nb-quiet'] = async (el) => { if (!(await nbSave({ quiet: Object.assign({
 CHANGE['nb-quiet-t'] = (el) => nbSave({ quiet: Object.assign({}, S.me.notif.quiet, { [el.dataset.k]: el.value }) });
 ACT['nb-pause'] = async (el) => { if (await nbSave({ pause: el.dataset.v }, true)) { toast(el.dataset.v ? 'Bildirimler duraklatıldı' : 'Bildirimler yeniden açık'); nbDraw(); } };
 ACT['nb-push-on'] = (el) => busy(el, async () => {
-  try { if (await pushEnable()) { toast('Bildirimler bu cihazda açıldı'); nbDraw(); } } catch (e) { toast(e.message, 'err'); nbDraw(); }
+  try { if (await pushEnable()) { toast('Bildirimler bu cihazda açıldı'); nbDraw(); const nag = $('#pushNag'); if (nag) nag.remove(); } } catch (e) { toast(e.message, 'err'); nbDraw(); }
 });
 ACT['nb-push-off'] = (el) => busy(el, async () => { try { await pushDisable(); toast('Bu cihazda bildirimler kapatıldı'); nbDraw(); } catch (e) { toast(e.message, 'err'); } });
 ACT['nb-install'] = async () => {

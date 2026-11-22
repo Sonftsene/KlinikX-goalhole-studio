@@ -28,14 +28,32 @@ function ex_locate(string $name, string $ym): ?array
 {
     $first = $ym . '-01'; $last = ex_month_end($ym);
     $rows = all('SELECT DISTINCT s.roster_id, s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ? AND s.date <= ? AND r.kind <> ?', [$first, $last, 'tablo']);
+    // Kişi birden çok listede olabilir (ör. ay içinde basamak değişti): ana liste en çok nöbetinin olduğu liste;
+    // diğer listelerdeki nöbetleri de günlerine eklenir — yoksa başka listedeki nöbet günü "boş" sanılır
+    $found = [];
     foreach ($rows as $r) {
         if (!names_match((string)$r['name'], $name)) continue;
         $rid = (int)$r['roster_id'];
+        if (isset($found[$rid])) continue;
         $tl = mk_tl($rid, mk_shift_day($first, -40), mk_shift_day($last, 40));
         $k = swap_key((string)$r['name']);
-        if (isset($tl[$k])) return [$rid, $tl, $k];
+        if (!isset($tl[$k])) continue;
+        $n = 0;
+        foreach ($tl[$k]['days'] as $dd => $x) if ($dd >= $first && $dd <= $last && in_array($x['kind'] ?? '', ['shift', 'role'], true)) $n++;
+        $found[$rid] = [$rid, $tl, $k, $n];
     }
-    return null;
+    if (!$found) return null;
+    uasort($found, fn($a, $b) => $b[3] <=> $a[3]);
+    [$rid, $tl, $k] = array_values($found)[0];
+    foreach ($found as $orid => [, $otl, $ok]) {
+        if ($orid === $rid) continue;
+        foreach ($otl[$ok]['days'] as $dd => $x) {
+            $cur = $tl[$k]['days'][$dd] ?? null;
+            if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $tl[$k]['days'][$dd] = $x;
+        }
+    }
+    ksort($tl[$k]['days']);
+    return [$rid, $tl, $k];
 }
 
 /** Bu kişi bu gün bu vardiyayı ekstra alabilir mi: [bool, neden] */

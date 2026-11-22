@@ -27,6 +27,7 @@ function prefs_clean_ui(array $in): array
     if (in_array($in['shape'] ?? '', ['round', 'sharp'], true)) $o['shape'] = $in['shape'];
     if (in_array($in['density'] ?? '', ['cozy', 'compact'], true)) $o['density'] = $in['density'];
     if (isset($in['oled'])) $o['oled'] = (bool)$in['oled'];
+    if (isset($in['push_nag'])) $o['push_nag'] = (bool)$in['push_nag'];
     if (array_key_exists('meal', $in) && in_array($in['meal'], ['', 'all', 'shift', 'off'], true)) $o['meal'] = $in['meal'];
     if (isset($in['contact']) && is_array($in['contact'])) $o['contact'] = ['phone' => !empty($in['contact']['phone']), 'email' => !empty($in['contact']['email'])];
     if (isset($in['home']) && is_array($in['home'])) {

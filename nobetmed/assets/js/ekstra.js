@@ -103,7 +103,7 @@ async function exBoardPage(view, ym0) {
         <button class="btn sm" data-act="ex-callout" data-d="${d.date}" data-s="${d.short && d.short.night && !d.short.day ? 'night' : d.short && d.short.day && !d.short.night ? 'day' : (d.people[0].shifts[0] || 'night')}">${icon('alert', 'sm')}Çağrı aç</button></div>`)}</div></div>`
       : html`<div class="card empty"><p class="small">Kalan günlerde kurallara uyan gönüllü yok.</p></div>`}`);
 }
-ACT['ex-callout'] = (el) => { if (typeof openCalloutModal === 'function') openCalloutModal({ date: el.dataset.d, shift: el.dataset.s }); };
+ACT['ex-callout'] = (el) => { if (typeof openCalloutModal === 'function') openCalloutModal({ date: el.dataset.d, shift: el.dataset.s, other: true }); }; // gönüllü hangi taraftaysa görünsün
 
 /* =================================================================== */
 /* Nöbet devral: hem benim alabileceğim hem sahibinin bırakabileceği     */

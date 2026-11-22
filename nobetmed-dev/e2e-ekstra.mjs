@@ -109,11 +109,16 @@ else {
 }
 
 // ---- 2) Ekstra nöbet isteyen kişi: uygun günler (istek tarihinden ay sonuna kadar) ----
-const ym = (await apiCall(E.p, 'live', {})).now.slice(0, 7);
+// Ay sonuna az kaldıysa (kalan günlerde uygun gün olmayabilir) sonraki ay denenir; liste o ayın 1'inden başlar
+const nowD = (await apiCall(E.p, 'live', {})).now.slice(0, 10);
+const curYm = nowD.slice(0, 7);
+const leftDays = new Date(+nowD.slice(0, 4), +nowD.slice(5, 7), 0).getDate() - +nowD.slice(8, 10);
+const nxD = new Date(+nowD.slice(0, 4), +nowD.slice(5, 7), 1);
+const ym = leftDays < 12 ? `${nxD.getFullYear()}-${String(nxD.getMonth() + 1).padStart(2, '0')}` : curYm;
 const me0 = await apiCall(E.p, 'extra.me', { ym });
 if (!me0.found) fail('Elif ayın listesinde bulunamadı');
 const today = me0.days[0] && me0.days[0].date;
-if (today !== (await apiCall(E.p, 'live', {})).now.slice(0, 10)) fail('liste istek gününden (bugün) başlamıyor: ' + today);
+if (today !== (ym === curYm ? nowD : ym + '-01')) fail('liste istek gününden (bugün) başlamıyor: ' + today);
 const lastDay = me0.days[me0.days.length - 1].date;
 if (lastDay.slice(0, 7) !== ym || new Date(lastDay.slice(0, 4), +lastDay.slice(5, 7), 0).getDate() !== +lastDay.slice(8)) fail('liste ay sonunda bitmiyor: ' + lastDay);
 const busy = me0.days.find((d) => !d.types.night.ok && /nöbeti var/.test(d.types.night.why || ''));
@@ -152,7 +157,10 @@ if (ce && ce.ok && cand.people.filter((x) => x.ok)[0] !== undefined && !cand.peo
 await A.p.goto(BASE + '#/ekstra/liste/' + ym);
 await A.p.locator('.ex-p', { hasText: 'Elif Yılmaz' }).first().waitFor();
 await A.p.screenshot({ path: path.join(OUT, 'x-isteyenler-desktop.png'), fullPage: true });
-await A.p.locator('[data-act=ex-callout]').first().click();
+// Elif'in uygun olduğu günün çağrısı (ilk düğme ay sonuna yakın başka bir güne / gündüze düşebilir)
+const cBtn = A.p.locator(`[data-act=ex-callout][data-d="${bd.date}"]`);
+if ((await cBtn.count()) && (await cBtn.first().getAttribute('data-s')) !== 'day') await cBtn.first().click();
+else await A.p.evaluate((d) => openCalloutModal({ date: d, shift: 'night', other: true }), bd.date);
 await A.p.locator('.modal').first().waitFor();
 if (ce) { await A.p.locator('.modal .badge', { hasText: 'Ekstra istiyor' }).first().waitFor({ timeout: 15000 }).catch(() => fail('çağrı penceresinde “Ekstra istiyor” rozeti yok')); }
 await A.p.keyboard.press('Escape');
@@ -203,7 +211,7 @@ const chk = JSON.parse(php(`require '${path.join(SITE, 'inc/rules.php')}'; requi
   echo json_encode($bad, JSON_UNESCAPED_UNICODE);`));
 if (chk.length) fail('kurala uymayan nöbet “alınabilir” göründü: ' + chk.slice(0, 3).join(' | '));
 // Arayüz (telefon): genel liste, gün şeridi, vardiya süzgeci, seçili gün
-await E.p.goto(BASE + '#/ekstra');
+await E.p.goto(BASE + '#/ekstra/' + ym);
 await E.p.locator('.tk-strip .tk-dc').first().waitFor();
 await E.p.locator('.tk-it').first().waitFor();
 await E.p.screenshot({ path: path.join(OUT, 'x-devral-mobile.png'), fullPage: true });

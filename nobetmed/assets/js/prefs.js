@@ -149,53 +149,83 @@ const HOME_BUILTIN = [
 ];
 /** Varsayılan kapalı kartlar: kişi Hesabım › Görünüm › Ana sayfam'dan açarsa görünür */
 const HOME_OPTIN = ['countdown'];
-function homePrefs() {
-  const h = (S.my_prefs && S.my_prefs.ui && S.my_prefs.ui.home) || {};
+function homeNorm(h) {
+  h = h || {};
   return { hidden: Array.isArray(h.hidden) ? h.hidden : [], shown: Array.isArray(h.shown) ? h.shown : [], order: Array.isArray(h.order) ? h.order : [], side_first: !!h.side_first };
 }
+/** Yöneticinin herkes için belirlediği düzen (kişi kendi düzenini yapmadıysa bu kullanılır) */
+function homeDefault() { return homeNorm(S.home_default); }
+function homeMine() { const u = S.my_prefs && S.my_prefs.ui; return u && u.home ? homeNorm(u.home) : null; }
+function homePrefs() { return homeMine() || homeDefault(); }
+/** Yöneticinin düzenlediği (henüz kaydedilmemiş) varsayılan */
+let HLD = null;
+const hlP = (scope) => (scope === 'def' ? HLD || (HLD = homeDefault()) : homePrefs());
 /** Kart gizli mi (isteğe bağlı kartlar açılmadıkça gizli) */
 function homeOff(id, P = homePrefs()) { return HOME_OPTIN.includes(id) ? !P.shown.includes(id) : P.hidden.includes(id); }
-function homeItems() {
+function homeItems(P = homePrefs()) {
   const ext = NM_EXT.homeCards.filter((c) => !c.visible || c.visible()).map((c) => ({ id: c.id, title: c.title || c.id, place: c.place === 'top' ? 'top' : 'side', ext: true, order: c.order || 50 }));
   const all = [...HOME_BUILTIN, ...ext];
-  const ord = homePrefs().order;
+  const ord = P.order;
   const rank = (x, i) => { const k = ord.indexOf(x.id); return k < 0 ? 1000 + (x.ext ? x.order : i) : k; };
   return all.map((x, i) => Object.assign({ _r: rank(x, i) }, x)).sort((a, b) => a._r - b._r);
 }
-function homeLayoutHtml() {
-  const P = homePrefs();
-  const items = homeItems();
+function homeListHtml(scope) {
+  const P = hlP(scope);
+  const items = homeItems(P);
   const groups = [['hero', 'Üst karşılama alanı'], ['top', 'Üst kartlar'], ['main', 'Orta alan'], ['side', 'Yan kartlar (telefonda altta)']];
   const row = (x, list, i) => {
     const off = homeOff(x.id, P);
     return html`<div class="hl-item ${off ? 'off' : ''}">
       <span class="hl-t">${x.title}${x.fixed ? html`<span class="hl-s">Her zaman görünür</span>` : HOME_OPTIN.includes(x.id) ? html`<span class="hl-s">Varsayılan kapalı · göz simgesiyle açın</span>` : ''}</span>
-      ${list.length > 1 && (x.place === 'top' || x.place === 'side') ? html`<button type="button" class="btn ghost icon sm" data-act="hl-move" data-id="${x.id}" data-d="-1" ${i === 0 ? raw('disabled') : ''} aria-label="Yukarı taşı">${icon('up', 'sm')}</button>
-        <button type="button" class="btn ghost icon sm" data-act="hl-move" data-id="${x.id}" data-d="1" ${i === list.length - 1 ? raw('disabled') : ''} aria-label="Aşağı taşı">${icon('down', 'sm')}</button>` : ''}
-      ${x.fixed ? '' : html`<button type="button" class="btn ghost icon sm" data-act="hl-toggle" data-id="${x.id}" aria-label="${off ? 'Göster' : 'Gizle'}">${icon(off ? 'eyeOff' : 'eye', 'sm')}</button>`}
+      ${list.length > 1 && (x.place === 'top' || x.place === 'side') ? html`<button type="button" class="btn ghost icon sm" data-act="hl-move" data-scope="${scope}" data-id="${x.id}" data-d="-1" ${i === 0 ? raw('disabled') : ''} aria-label="Yukarı taşı">${icon('up', 'sm')}</button>
+        <button type="button" class="btn ghost icon sm" data-act="hl-move" data-scope="${scope}" data-id="${x.id}" data-d="1" ${i === list.length - 1 ? raw('disabled') : ''} aria-label="Aşağı taşı">${icon('down', 'sm')}</button>` : ''}
+      ${x.fixed ? '' : html`<button type="button" class="btn ghost icon sm" data-act="hl-toggle" data-scope="${scope}" data-id="${x.id}" aria-label="${off ? 'Göster' : 'Gizle'}">${icon(off ? 'eyeOff' : 'eye', 'sm')}</button>`}
     </div>`;
   };
-  return html`<div><h3 class="ph">${icon('grid', 'sm')} Ana sayfam</h3><p class="tiny faint">Ana sayfada görmek istediğiniz kartları seçin ve sıralayın. Yalnız sizin ana sayfanızı etkiler.</p></div>
-    ${groups.map(([g, label]) => { const list = items.filter((x) => x.place === g); return list.length ? html`<div class="hl-group">${label}</div><div class="hl-list">${list.map((x, i) => row(x, list, i))}</div>` : ''; })}
-    <label class="row" style="gap:10px;cursor:pointer;margin-top:4px"><span class="switch"><input type="checkbox" data-change="hl-sidefirst" ${P.side_first ? raw('checked') : ''}><span class="track"></span></span>
-      <span class="grow small">Telefonda kartları duyurulardan önce göster</span></label>
-    <div><button type="button" class="btn ghost sm" data-act="hl-reset">${icon('history', 'sm')}Ana sayfayı varsayılana döndür</button></div>`;
+  return html`${groups.map(([g, label]) => { const list = items.filter((x) => x.place === g); return list.length ? html`<div class="hl-group">${label}</div><div class="hl-list">${list.map((x, i) => row(x, list, i))}</div>` : ''; })}
+    <label class="row" style="gap:10px;cursor:pointer;margin-top:4px"><span class="switch"><input type="checkbox" data-change="hl-sidefirst" data-scope="${scope}" ${P.side_first ? raw('checked') : ''}><span class="track"></span></span>
+      <span class="grow small">Telefonda kartları duyurulardan önce göster</span></label>`;
 }
-function saveHome(h) {
-  const cur = homePrefs();
-  const home = Object.assign({ hidden: cur.hidden, shown: cur.shown, order: cur.order, side_first: cur.side_first }, h);
+function homeLayoutHtml() {
+  const own = !!homeMine();
+  return html`<div><h3 class="ph">${icon('grid', 'sm')} Ana sayfam</h3><p class="tiny faint">Ana sayfada görmek istediğiniz kartları seçin ve sıralayın. Yalnız sizin ana sayfanızı etkiler.
+      ${own ? 'Kendi düzeninizi kullanıyorsunuz.' : 'Şu an biriminizin varsayılan düzeni kullanılıyor; değiştirdiğiniz anda sizin düzeniniz olur.'}</p></div>
+    ${homeListHtml('me')}
+    ${own ? html`<div><button type="button" class="btn ghost sm" data-act="hl-reset" data-scope="me">${icon('history', 'sm')}Birimin varsayılan düzenine dön</button></div>` : ''}`;
+}
+function homeDefHtml() {
+  return html`<div><h3 style="font-size:15px">${icon('grid', 'sm')} Herkesin ana sayfası (varsayılan düzen)</h3>
+      <p class="small muted">Kartların görünüp görünmeyeceğini ve sırasını herkes için belirleyin. Kendi düzenini değiştirmemiş herkes bu düzeni görür; kişiler isterse Hesabım › Görünüm › Ana sayfam'dan kendine göre değiştirebilir.</p></div>
+    ${homeListHtml('def')}
+    <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" id="hldAll"><span class="track"></span></span>
+      <span class="grow small">Kendi düzenini yapmış kişileri de bu düzene döndür</span></label>
+    <div class="row wrap" style="gap:8px"><button type="button" class="btn primary" data-act="hld-save">${icon('check', 'sm')}Kaydet</button>
+      <button type="button" class="btn ghost sm" data-act="hl-reset" data-scope="def">${icon('history', 'sm')}Hepsini göster (ilk hâli)</button></div>`;
+}
+function saveHome(h, scope = 'me') {
+  if (scope === 'def') {
+    HLD = h === null ? homeNorm({}) : Object.assign({}, hlP('def'), h);
+    const c = $('#homeDefCard'); if (c) setHTML(c, homeDefHtml());
+    return;
+  }
   S.my_prefs = S.my_prefs || { ui: {}, pay: {}, remind: null };
-  S.my_prefs.ui = Object.assign({}, S.my_prefs.ui, { home });
+  const ui = Object.assign({}, S.my_prefs.ui);
+  let home = null;
+  if (h === null) delete ui.home; // birimin varsayılanına dön
+  else { home = Object.assign({}, homePrefs(), h); ui.home = home; }
+  S.my_prefs.ui = ui;
   api('me.prefs.save', { kind: 'ui', value: { home } }).catch((e) => toast(e.message, 'err'));
   const c = $('#homeLayoutCard'); if (c) setHTML(c, homeLayoutHtml());
 }
 ACT['hl-toggle'] = (el) => {
-  const id = el.dataset.id, P = homePrefs();
-  if (HOME_OPTIN.includes(id)) saveHome({ shown: P.shown.includes(id) ? P.shown.filter((x) => x !== id) : [...P.shown, id] });
-  else saveHome({ hidden: P.hidden.includes(id) ? P.hidden.filter((x) => x !== id) : [...P.hidden, id] });
+  const sc = el.dataset.scope || 'me';
+  const id = el.dataset.id, P = hlP(sc);
+  if (HOME_OPTIN.includes(id)) saveHome({ shown: P.shown.includes(id) ? P.shown.filter((x) => x !== id) : [...P.shown, id] }, sc);
+  else saveHome({ hidden: P.hidden.includes(id) ? P.hidden.filter((x) => x !== id) : [...P.hidden, id] }, sc);
 };
 ACT['hl-move'] = (el) => {
-  const items = homeItems();
+  const sc = el.dataset.scope || 'me';
+  const items = homeItems(hlP(sc));
   const me = items.find((x) => x.id === el.dataset.id);
   if (!me) return;
   const same = items.filter((x) => x.place === me.place);
@@ -205,10 +235,26 @@ ACT['hl-move'] = (el) => {
   // Tüm grupların sırası birlikte saklanır
   const order = [];
   ['hero', 'top', 'main', 'side'].forEach((g) => (g === me.place ? same : items.filter((x) => x.place === g)).forEach((x) => order.push(x.id)));
-  saveHome({ order });
+  saveHome({ order }, sc);
 };
-CHANGE['hl-sidefirst'] = (el) => saveHome({ side_first: el.checked });
-ACT['hl-reset'] = () => saveHome({ hidden: [], shown: [], order: [], side_first: false });
+CHANGE['hl-sidefirst'] = (el) => saveHome({ side_first: el.checked }, el.dataset.scope || 'me');
+ACT['hl-reset'] = (el) => saveHome(null, (el && el.dataset.scope) || 'me');
+ACT['hld-save'] = (el) => busy(el, async () => {
+  const all = !!($('#hldAll') || {}).checked;
+  if (all && !(await confirmDialog({ title: 'Herkesin düzeni bu düzene dönsün mü?', text: 'Kendi ana sayfa düzenini yapmış kişilerin düzeni de silinir ve bu düzen uygulanır.', ok: 'Herkese uygula', danger: true }))) return;
+  try {
+    const r = await api('home.default.save', { home: hlP('def'), reset_users: all });
+    S.home_default = r.home;
+    HLD = null;
+    if (all && S.my_prefs && S.my_prefs.ui) { S.my_prefs.ui = Object.assign({}, S.my_prefs.ui); delete S.my_prefs.ui.home; }
+    const c = $('#homeDefCard'); if (c) setHTML(c, homeDefHtml());
+    toast(all ? `Varsayılan düzen kaydedildi${r.reset ? ` · ${r.reset} kişinin düzeni sıfırlandı` : ''}` : 'Varsayılan düzen kaydedildi');
+  } catch (e) { toast(e.message, 'err'); }
+});
+NM_EXT.settingsCards.push({
+  sec: 'genel', admin: true,
+  html: () => { HLD = null; return html`<div class="card card-pad stack" data-sec="genel" id="homeDefCard">${homeDefHtml()}</div>`; },
+});
 
 /** Ana sayfa çizildikten sonra: gizle / sırala (posts.js renderHome çağırır) */
 function applyHomeLayout() {

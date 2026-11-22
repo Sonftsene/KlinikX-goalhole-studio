@@ -1906,3 +1906,6 @@ a.in-link { font-weight: 600; }
 .boot-logo.dark { display: none; }
 [data-theme="dark"] .boot-logo.light { display: none; }
 [data-theme="dark"] .boot-logo.dark { display: block; }
+/* Bildirimler kapalı uyarısı (ana sayfa) */
+.push-nag { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+.push-nag > .grow { min-width: 180px; }

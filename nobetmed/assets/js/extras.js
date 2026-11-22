@@ -191,6 +191,7 @@ async function loadHomeExtras() {
   if (k && typeof mountCountdown === 'function') mountCountdown(k, my);
   const tc = $('#todayCard');
   if (tc && day) setHTML(tc, todayCardHtml(day, true));
+  pushNagMount();
   const tips = $('#homeTips');
   if (tips) setHTML(tips, await homeTipsHtml());
   const sb = $('#setupBox');
@@ -229,9 +230,6 @@ async function homeTipsHtml() {
   try { dismissed = JSON.parse(localStorage.getItem('nm-tips') || '{}'); } catch (e) { /* */ }
   if (!dismissed.passkey && passkeySupported() && !window.NM_DEMO_API) {
     try { if (!(await api('passkey.list')).items.length) tips.push(['passkey', 'fingerprint', 'Parmak izi / Face ID ile giriş', 'Şifre yazmadan tek dokunuşla girin.', 'Ekle', 'pk-add']); } catch (e) { /* */ }
-  }
-  if (!dismissed.push && typeof pushState === 'function' && S.settings.push_ready) {
-    try { const st = await pushState(); if (st === 'off') tips.push(['push', 'bell', 'Telefon bildirimlerini açın', 'Duyuru ve nöbet hatırlatmaları anında gelsin.', 'Aç', 'push-on']); } catch (e) { /* */ }
   }
   if (!S.me) return ''; // beklerken çıkış yapıldı / sistem paneline geçildi
   if (!dismissed.phone && !S.me.phone) tips.push(['phone', 'phone', 'Rehbere telefonunuzu ekleyin', 'Ekip sizi nöbetteyken tek dokunuşla arayabilsin.', 'Ekle', 'go-profile']);
@@ -707,12 +705,40 @@ ACT.nmode = async (el) => {
     toast('Bildirim tercihiniz kaydedildi');
   } catch (e) { toast(e.message, 'err'); }
 };
+/* ---------------- Bildirimler kapalıysa ana sayfada uyarı (günde bir kez; ayarlardan kapatılır) ---------------- */
+function pushNagOn() { const u = S.my_prefs && S.my_prefs.ui; return !(u && u.push_nag === false); }
+function pushNagToday() { try { return localStorage.getItem('nm-push-nag') === ymd(new Date()); } catch (e) { return false; } }
+async function pushNagMount() {
+  const old = $('#pushNag'); if (old) old.remove();
+  if (!S.me || !S.settings.push_ready || typeof pushState !== 'function' || window.NM_DEMO_API || !pushNagOn() || pushNagToday()) return;
+  let st = 'unsupported';
+  try { st = await pushState(); } catch (e) { /* */ }
+  if (st !== 'off' && st !== 'denied') return;
+  const hero = $('#view .hero') || $('.hero') || $('#homeExtTop');
+  if (!hero || $('#pushNag')) return;
+  hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box warn push-nag" id="pushNag" role="alert">${icon('bell', 'sm')}
+    <div class="grow"><b class="small">Bildirimleriniz kapalı</b><div class="tiny">${st === 'denied' ? 'Bu cihazda bildirim izni verilmemiş. Tarayıcı ya da telefon ayarlarından dupcii için bildirim iznini açın.' : 'Nöbet hatırlatmaları, değişim istekleri ve mesajlar telefonunuza gelmez. Açmanız önerilir.'}</div></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${st === 'off' ? html`<button class="btn sm primary" data-act="push-on">${icon('bell', 'sm')}Bildirimleri aç</button>` : html`<a class="btn sm" href="#/profil/bildirim">Nasıl açılır?</a>`}
+      <button class="btn sm ghost" data-act="push-nag-later" title="Yarın yeniden hatırlatılır">Daha sonra</button></div></div>`));
+}
+ACT['push-nag-later'] = () => {
+  try { localStorage.setItem('nm-push-nag', ymd(new Date())); } catch (e) { /* */ }
+  const b = $('#pushNag'); if (b) b.remove();
+  toast('Yarın yeniden hatırlatılır · Hesabım › Bildirimler’den kapatabilirsiniz');
+};
+CHANGE['push-nag'] = async (el) => {
+  S.my_prefs = S.my_prefs || { ui: {}, pay: {}, remind: null };
+  S.my_prefs.ui = Object.assign({}, S.my_prefs.ui, { push_nag: el.checked });
+  try { await api('me.prefs.save', { kind: 'ui', value: { push_nag: el.checked } }); toast(el.checked ? 'Bildirimler kapalıyken her gün hatırlatılacak' : 'Bildirim hatırlatması kapatıldı'); } catch (e) { toast(e.message, 'err'); }
+};
+
 ACT['push-on'] = (el) => busy(el, async () => {
   try {
     if (window.NM_DEMO_API) { toast('Önizlemede telefon bildirimi açılamaz; sitenizde çalışır.'); return; }
     await pushEnable();
     toast('Telefon bildirimleri açıldı');
     const tip = el.closest('.tip'); if (tip) tip.remove();
+    const nag = $('#pushNag'); if (nag) nag.remove();
     mountProfileExtras();
   } catch (e) { toast(e.message, 'err'); }
 });
