@@ -274,7 +274,7 @@ function drawMine() {
         ${d.can_edit ? html`<div class="card card-pad rq-text">
           <label class="label" for="rqTxt">${icon('edit', 'sm')} Yazarak ekle</label>
           <div class="rq-text-row"><input class="input" id="rqTxt" data-input="rq-txt" autocomplete="off" placeholder="Örn: 2,3,4 boşluk; 15-19 yıllık izin"><button class="btn primary" data-act="rq-apply" id="rqApply" disabled>Ekle</button></div>
-          <div id="rqPrev" class="rq-prev"><span class="tiny faint">Gün numaralarını ve türünü yaz: <b>boşluk</b> (nöbet istemiyorum) ya da <b>yıllık izin</b>. Art arda günler için 15-19 ya da “15, 19 arası” yaz.</span></div>
+          <div id="rqPrev" class="rq-prev"><span class="tiny faint">Gün numaralarını ve türünü yaz: <b>boşluk</b> (nöbet istemiyorum) ya da <b>yıllık izin</b>. Art arda günler için 15-19 ya da “15, 19 arası” yaz. Aydan aya: “28 aralık - 2 ocak izin”.</span></div>
         </div>` : ''}
         <div class="card rq-calc" id="rqCal"></div>
       </div>
@@ -327,9 +327,12 @@ function drawRqCal() {
   const cells = [];
   // Komşu ayın günleri (ilk ve son hafta): aydan aya istek (ör. 28 Aralık – 2 Ocak)
   const cellDates = [];
-  for (let i = lead; i > 0; i--) cellDates.push(rqOffDate(p.ym, 1 - i));
+  // Ay pazartesi başlıyor / pazar bitiyorsa da komşu ayın bir haftası görünür (her ayda aydan aya istek yapılabilsin)
+  const leadN = lead || 7;
+  for (let i = leadN; i > 0; i--) cellDates.push(rqOffDate(p.ym, 1 - i));
   for (let dd = 1; dd <= days; dd++) cellDates.push(`${p.ym}-${pad(dd)}`);
-  while (cellDates.length % 7) cellDates.push(rqOffDate(p.ym, days + (cellDates.length - lead - days) + 1));
+  const tail = (7 - (cellDates.length % 7)) % 7 || 7;
+  for (let i = 1; i <= tail; i++) cellDates.push(rqOffDate(p.ym, days + i));
   for (const ds of cellDates) {
     const dd = rqDayN(ds);
     const adj = ds.slice(0, 7) !== p.ym;

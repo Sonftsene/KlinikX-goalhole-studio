@@ -978,6 +978,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Yazarak:** "28 aralık - 2 ocak izin", "28.12-2.1 izin", "30 kasım boş". Ay adı yazılmayan günler eskisi gibi dönemin ayıdır.
 - **Her gün kendi ayının dönemine düşer:** komşu ayın dönemi açıksa gün oraya yazılır (o ayın panelinde görünür). O ayın dönemi henüz açılmadıysa gün şimdilik bu dönemde bekler; o ay için dönem açılınca kendiliğinden oraya geçer. Kapanmış bir dönemin günlerini üye ekleyemez / değiştiremez (sorumluya yazar).
 - Çizelge hazırlarken onaylı istekler tarihe göre okunur: hangi dönemde yazılmış olursa olsun o ayın çizelgesinde dikkate alınır.
+- **4.32.1:** Ay pazartesi başlıyor ya da pazar bitiyorsa da takvimde önceki / sonraki ayın bir haftası gri olarak görünür; böylece her ayda aydan aya istek takvimden işaretlenebilir. “Yazarak ekle” ipucunda örnek: “28 aralık - 2 ocak izin”.
+- **Gri günleri göremiyorsanız** sitede eski sürüm çalışıyordur: Hesabım › Profil › Hesap bilgisi'nde sürüm 4.31.4 ya da üstü olmalı. Değilse paketi yükleyin; telefonda uygulamayı kapatıp açın.
 
 ## 52. Kişi bazlı abonelik (4.32.0)
 Abonelik artık **her kişinin kendisine** aittir; birim başına ödeme yoktur. Her kullanıcı kendi paketini ve süresini seçip kendisi öder.
