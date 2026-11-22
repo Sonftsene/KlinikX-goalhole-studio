@@ -1481,6 +1481,8 @@ function roster_out(array $r): array
         'sync_at' => !empty($r['src_on']) ? ($r['src_sync_at'] ?? null) : null,
         'sync_status' => !empty($r['src_on']) ? ($r['src_status'] ?? null) : null,
         'parsed_count' => $cur && isset($r['parsed_file_id']) && (int)$r['parsed_file_id'] === (int)$cur['id'] ? (int)val('SELECT COUNT(*) FROM roster_shifts WHERE roster_id = ?', [$r['id']]) : 0,
+        // Islak imzalı resmi liste (çizelge › Resmi liste; inc/mod_resmi.php)
+        'signed' => !empty($r['period']) && function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], (string)$r['period']) : null,
     ];
 }
 

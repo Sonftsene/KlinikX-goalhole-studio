@@ -7,7 +7,9 @@ NM_EXT.routes.cizelge = (view, r) => planPage(view, r);
 NM_EXT.hubTabs.push({ key: 'cizelge', mod: 'cizelge', pub: true, href: '#/cizelge', icon: 'edit', label: 'Çizelge' });
 Object.assign(NM_EXT.audit, { 'plan.publish': 'Nöbet çizelgesini yayınladı' });
 
-const PL2 = { rid: 0, ym: '', d: null, codes: [], req: {}, hol: {}, brush: null, dirty: false, chk: null, timer: null, roster: null };
+const PL2 = { rid: 0, ym: '', d: null, codes: [], req: {}, hol: {}, half: [], brush: null, dirty: false, chk: null, timer: null, roster: null, tab: 'grid', marks: {}, signed: null, published: false, synced: 0 };
+const PL2_TABS = [['grid', 'Çizelge', 'table'], ['chg', 'Değişiklikler', 'history'], ['resmi', 'Resmi liste', 'file']];
+const PL2_TAB_URL = { grid: '', chg: 'degisiklik', resmi: 'resmi' };
 
 function planRosters() { return (S.rosters || []).filter((r) => r.kind !== 'tablo' && !r.linked); }
 function planDays(ym) { const [y, m] = ym.split('-').map(Number); const n = new Date(y, m, 0).getDate(); return Array.from({ length: n }, (_, i) => `${ym}-${pad(i + 1)}`); }
@@ -47,6 +49,7 @@ async function planPage(view, r) {
   if (r[1] && /^\d+$/.test(r[1])) PL2.rid = +r[1];
   if (!list.some((x) => x.id === PL2.rid)) PL2.rid = list.length ? list[0].id : 0;
   if (r[2] && /^\d{4}-\d{2}$/.test(r[2])) PL2.ym = r[2];
+  PL2.tab = r[3] === 'degisiklik' ? 'chg' : r[3] === 'resmi' ? 'resmi' : 'grid';
   if (!PL2.ym) PL2.ym = planNextYm(ymd(new Date()).slice(0, 7), new Date().getDate() > 15 ? 1 : 0);
   setHTML(view, html`${hubHead('cizelge', 'Excel kullanmadan nöbet çizelgesi hazırlayın; kurallar denetlenir, eksik günler otomatik doldurulabilir.')}
     <div id="plBody">${list.length ? html`<div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div></div>`
@@ -60,7 +63,13 @@ async function planLoad() {
   let r;
   try { r = await api('plan.get', { roster_id: PL2.rid, ym: PL2.ym }); } catch (e) { setHTML(box, html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null; PL2.joint = !!r.joint;
+  PL2.half = r.half || []; PL2.marks = r.marks && !Array.isArray(r.marks) ? r.marks : {}; PL2.signed = r.signed || null; PL2.published = !!r.published; PL2.synced = r.synced || 0;
   PL2.d.cells = PL2.d.cells && !Array.isArray(PL2.d.cells) ? PL2.d.cells : {};
+  PL2.d.reqs = PL2.d.reqs && !Array.isArray(PL2.d.reqs) ? PL2.d.reqs : {};
+  PL2.d.hfix = PL2.d.hfix && !Array.isArray(PL2.d.hfix) ? PL2.d.hfix : {};
+  if (!PL2.d.leave_code) PL2.d.leave_code = (PL2.codes.find((c) => c.kind !== 'shift' && /yıllık/i.test(c.label || '')) || {}).code || '';
+  if (PL2.synced) PL2.dirty = true; // yayından sonraki değişim / devirler taslağa işlendi: kaydedilsin
+  try { await rsLoadTpl(); } catch (e) { /* şablon okunamadıysa varsayılan saatlerle */ }
   PL2.d.needs = PL2.d.needs || { weekday: { day: 0, night: 0 }, weekend: { day: 0, night: 0 } };
   const shiftCodes = PL2.codes.filter((c) => c.kind === 'shift');
   if (!PL2.d.day_code) PL2.d.day_code = (shiftCodes.find((c) => c.start === '08:00' && c.end === '16:00') || shiftCodes[0] || {}).code || '';
@@ -75,9 +84,28 @@ function planReqFor(name) {
   for (const [n, days] of Object.entries(PL2.req)) if (avKey(n) === k) return days;
   return {};
 }
+function planTabsHtml() {
+  return html`<div class="seg pl2-tabs" role="tablist">${PL2_TABS.map(([k, l, ic]) => html`<button type="button" role="tab" class="${PL2.tab === k ? 'on' : ''}" data-act="pl2-tab" data-t="${k}" aria-selected="${PL2.tab === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${l}</span></button>`)}</div>`;
+}
+function planNavHtml() {
+  const [y, m] = PL2.ym.split('-').map(Number);
+  return html`<select class="select" data-change="pl2-roster" style="width:auto">${planRosters().map((r) => html`<option value="${r.id}" ${r.id === PL2.rid ? raw('selected') : ''}>${r.name}</option>`)}</select>
+    <div class="row" style="gap:4px"><button class="btn sm icon" data-act="pl2-month" data-k="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b class="pl2-ym">${TR_MONTHS[m - 1]} ${y}</b><button class="btn sm icon" data-act="pl2-month" data-k="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>`;
+}
+ACT['pl2-tab'] = (el) => {
+  if (PL2.dirty) planSave(true);
+  PL2.tab = el.dataset.t;
+  navStep(`#/cizelge/${PL2.rid}/${PL2.ym}${PL2_TAB_URL[PL2.tab] ? '/' + PL2_TAB_URL[PL2.tab] : ''}`);
+  planDraw();
+};
 function planDraw() {
   const box = $('#plBody');
   if (!box || !PL2.d) return;
+  if (PL2.tab !== 'grid') {
+    setHTML(box, html`<div class="stack"><div class="card card-pad row wrap pl2-head" style="gap:8px">${planNavHtml()}<span class="grow"></span>${planTabsHtml()}</div><div id="plTabBody"></div></div>`);
+    if (PL2.tab === 'chg') rsChgTab($('#plTabBody')); else rsDocTab($('#plTabBody'));
+    return;
+  }
   const days = planDays(PL2.ym);
   const [y, m] = PL2.ym.split('-').map(Number);
   const cells = PL2.d.cells;
@@ -97,13 +125,13 @@ function planDraw() {
     });
     hours[p.name] = Math.round(h);
   });
+  const offH = rsHours(PL2.d, PL2.ym, RS2.tpl, PL2.hol, PL2.half);
   const need = (d) => { const dt = new Date(d).getDay(); const we = dt === 0 || dt === 6 || (PL2.hol[d] !== undefined); return PL2.d.needs[we ? 'weekend' : 'weekday']; };
   const shiftCodes = PL2.codes.filter((c) => c.kind === 'shift');
   setHTML(box, html`<div class="stack">
     <div class="card card-pad stack pl2-head">
+      <div class="row wrap" style="gap:8px">${planNavHtml()}<span class="grow"></span>${planTabsHtml()}</div>
       <div class="row wrap" style="gap:8px">
-        <select class="select" data-change="pl2-roster" style="width:auto">${planRosters().map((r) => html`<option value="${r.id}" ${r.id === PL2.rid ? raw('selected') : ''}>${r.name}</option>`)}</select>
-        <div class="row" style="gap:4px"><button class="btn sm icon" data-act="pl2-month" data-k="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b class="pl2-ym">${TR_MONTHS[m - 1]} ${y}</b><button class="btn sm icon" data-act="pl2-month" data-k="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>
         <span class="grow"></span>
         ${PL2.joint ? html`<a class="btn sm" href="#/cizelge/taraflar/${PL2.ym}">${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}
         <button class="btn sm" data-act="pl2-import">${icon('upload', 'sm')}<span>Yapıştır / CSV</span></button>
@@ -113,6 +141,7 @@ function planDraw() {
         <button class="btn sm primary" data-act="pl2-publish">${icon('send', 'sm')}<span>Yayınla</span></button>
       </div>
       ${PL2.info ? html`<div class="tiny faint">${PL2.info}</div>` : ''}
+      ${PL2.synced ? html`<div class="mk-box warn" id="pl2Synced">${icon('history', 'sm')}<span>Yayından sonra kabul edilen değişim / devir / çağrılar çizelgeye işlendi (<b>${PL2.synced}</b> hücre). Saatler güncel; listeye de işlemek için <b>Yayınla</b>.</span></div>` : ''}
       <div class="row wrap pl2-needs" style="gap:10px">
         <span class="small muted">Gereken kişi</span>
         <label class="small">Hafta içi gündüz <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekday.day" value="${PL2.d.needs.weekday.day}"></label>
@@ -121,6 +150,7 @@ function planDraw() {
         <label class="small">gece <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekend.night" value="${PL2.d.needs.weekend.night}"></label>
         <label class="small">Gündüz kodu <select class="select" data-change="pl2-code" data-k="day_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.day_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
         <label class="small">Gece kodu <select class="select" data-change="pl2-code" data-k="night_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.night_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
+        <label class="small" title="Otomatik dağıtımda onaylı (ya da elle girilen) yıllık izin isteği olan boş günlere yazılır">İzin kodu <select class="select" data-change="pl2-code" data-k="leave_code" style="width:auto"><option value="">Yazma</option>${PL2.codes.filter((c) => c.kind !== 'shift').map((c) => html`<option value="${c.code}" ${c.code === PL2.d.leave_code ? raw('selected') : ''}>${c.code} · ${c.label}</option>`)}</select></label>
       </div>
       <div class="pl2-brush" role="toolbar" aria-label="Fırça"><span class="tiny faint">Fırça:</span>
         ${PL2.codes.map((c) => html`<button type="button" class="code-chip tone-${planTone(c.code)} ${PL2.brush === c.code ? 'on' : ''}" data-act="pl2-brush" data-c="${c.code}" title="${c.label}">${c.code}</button>`)}
@@ -128,13 +158,13 @@ function planDraw() {
         ${PL2.brush !== null ? html`<button type="button" class="btn sm ghost" data-act="pl2-brush-off">Fırçayı bırak</button>` : ''}</div>
     </div>
     <div class="pl2-wrap"><table class="pl2-grid" id="plGrid"><thead><tr><th class="pl2-name">Kişi <button type="button" class="btn sm ghost icon" data-act="pl2-addp" aria-label="Kişi ekle">${icon('plus', 'sm')}</button></th>
-      ${days.map((d) => { const w = new Date(d).getDay(); return html`<th class="${w === 0 || w === 6 ? 'we' : ''} ${PL2.hol[d] !== undefined ? 'hol' : ''}" title="${PL2.hol[d] || ''}">${+d.slice(8)}<small>${TR_DAYS_S[w].slice(0, 2)}</small></th>`; })}<th>Saat</th></tr></thead>
-      <tbody>${PL2.d.people.map((p) => { const rq = planReqFor(p.name); return html`<tr><th class="pl2-name"><button type="button" class="pl2-pn" data-act="pl2-pmenu" data-n="${p.name}">${p.name}${p.title ? html`<small>${p.title}</small>` : ''}</button></th>
-        ${days.map((d) => { const code = (cells[p.name] || {})[d] || ''; const iss = issues[p.name + '|' + d]; return html`<td class="${rq[d] ? 'rq' : ''} ${iss ? 'bad' : ''}" title="${[iss, rq[d] ? (rq[d] === 'izin' ? 'Onaylı yıllık izin isteği' : 'Onaylı boşluk isteği') : ''].filter(Boolean).join(' · ')}"><button type="button" class="pl2-c ${code ? 'tone-' + planTone(code) : ''}" data-act="pl2-cell" data-n="${p.name}" data-d="${d}">${code || (rq[d] ? (rq[d] === 'izin' ? 'İ' : 'B') : '')}</button></td>`; })}
-        <td class="pl2-h">${hours[p.name]}</td></tr>`; })}</tbody>
-      <tfoot><tr><th class="pl2-name">Gündüz / gece</th>${days.map((d) => { const n = need(d); const bad = cov[d].day < n.day - 0.01 || cov[d].night < n.night - 0.01; return html`<td class="pl2-cov ${bad ? 'bad' : ''}" title="Gereken: ${n.day} / ${n.night}">${fmtN(cov[d].day)}<br>${fmtN(cov[d].night)}</td>`; })}<td></td></tr></tfoot></table></div>
+      ${days.map((d) => { const w = new Date(d).getDay(); return html`<th class="${w === 0 || w === 6 ? 'we' : ''} ${PL2.hol[d] !== undefined ? 'hol' : ''}" title="${PL2.hol[d] || ''}">${+d.slice(8)}<small>${TR_DAYS_S[w].slice(0, 2)}</small></th>`; })}<th class="pl2-hh" title="Çalışılması gereken saat (iş günü × günlük saat − izin / rapor)">Ger.</th><th class="pl2-hh" title="Çalışılan saat">Çal.</th><th class="pl2-hh" title="Fazla mesai (çalışılan − gereken)">Fazla</th></tr></thead>
+      <tbody>${PL2.d.people.map((p) => { const rq = Object.assign({}, planReqFor(p.name), PL2.d.reqs[p.name] || {}); const mk = PL2.marks[p.name] || {}; const oh = offH[p.name] || { req: 0, work: 0, over: 0 }; return html`<tr><th class="pl2-name"><button type="button" class="pl2-pn" data-act="pl2-pmenu" data-n="${p.name}">${p.name}${p.title ? html`<small>${p.title}</small>` : ''}</button></th>
+        ${days.map((d) => { const code = (cells[p.name] || {})[d] || ''; const iss = issues[p.name + '|' + d]; const man = (PL2.d.reqs[p.name] || {})[d]; return html`<td class="${rq[d] ? 'rq' : ''} ${iss ? 'bad' : ''} ${mk[d] ? 'chg' : ''}" title="${[mk[d], iss, rq[d] ? (rq[d] === 'izin' ? (man ? 'Yıllık izin isteği (elle)' : 'Onaylı yıllık izin isteği') : (man ? 'Boşluk isteği (elle)' : 'Onaylı boşluk isteği')) : ''].filter(Boolean).join(' · ')}"><button type="button" class="pl2-c ${code ? 'tone-' + planTone(code) : ''}" data-act="pl2-cell" data-n="${p.name}" data-d="${d}">${code || (rq[d] ? (rq[d] === 'izin' ? 'İ' : 'B') : '')}</button></td>`; })}
+        <td class="pl2-h ${oh.fixed ? 'fx' : ''}" title="${oh.fixed ? 'Elle düzeltildi' : ''}">${rsNum(oh.req)}</td><td class="pl2-h">${rsNum(oh.work)}</td><td class="pl2-h ${oh.over < 0 ? 'neg' : ''}">${oh.over ? rsNum(oh.over) : ''}</td></tr>`; })}</tbody>
+      <tfoot><tr><th class="pl2-name">Gündüz / gece</th>${days.map((d) => { const n = need(d); const bad = cov[d].day < n.day - 0.01 || cov[d].night < n.night - 0.01; return html`<td class="pl2-cov ${bad ? 'bad' : ''}" title="Gereken: ${n.day} / ${n.night}">${fmtN(cov[d].day)}<br>${fmtN(cov[d].night)}</td>`; })}<td></td><td></td><td></td></tr></tfoot></table></div>
     <div id="plIssues">${planIssuesHtml()}</div>
-    <p class="tiny faint">B: onaylı boşluk isteği · İ: onaylı yıllık izin isteği. Kırmızı hücre kural uyarısı, kırmızı sayı eksik gün. Değişiklikler 20 saniyede bir kendiliğinden kaydedilir; ekip yayınlayana kadar görmez.</p>
+    <p class="tiny faint">B: boşluk isteği · İ: yıllık izin isteği (onaylı ya da sizin elle girdiğiniz). Köşesinde nokta olan hücre yayından sonra değişti (ayrıntı: Değişiklikler). Kırmızı hücre kural uyarısı, kırmızı sayı eksik gün. Ger. / Çal. / Fazla: resmi listedeki saatler (kişi adına dokunup gereken saati elle düzeltebilirsiniz). Değişiklikler 20 saniyede bir kendiliğinden kaydedilir; ekip yayınlayana kadar görmez.</p>
   </div>`);
 }
 function planIssuesHtml() {
@@ -153,8 +183,9 @@ function planSetCell(name, d, code) {
   planDirty();
 }
 
-ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); navStep(`#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
-CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; navStep(`#/cizelge/${PL2.rid}/${PL2.ym}`); planLoad(); };
+const pl2Url = () => `#/cizelge/${PL2.rid}/${PL2.ym}${PL2_TAB_URL[PL2.tab] ? '/' + PL2_TAB_URL[PL2.tab] : ''}`;
+ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); navStep(pl2Url()); planLoad(); };
+CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; navStep(pl2Url()); planLoad(); };
 CHANGE['pl2-need'] = (el) => { const [a, b] = el.dataset.k.split('.'); PL2.d.needs[a][b] = Math.max(0, +el.value || 0); planDirty(); };
 CHANGE['pl2-code'] = (el) => { PL2.d[el.dataset.k] = el.value; planDirty(); };
 ACT['pl2-brush'] = (el) => { PL2.brush = el.dataset.c; planDraw(); };
@@ -164,21 +195,62 @@ ACT['pl2-cell'] = (el) => {
   if (PL2.brush !== null) { planSetCell(n, d, PL2.brush); planDraw(); return; }
   const cur = (PL2.d.cells[n] || {})[d] || '';
   const rq = planReqFor(n)[d];
-  const m = openModal({ title: `${n} · ${dateLabel(d)}`, size: 'narrow', body: html`<div class="stack">
+  const man = (PL2.d.reqs[n] || {})[d] || '';
+  const mk = (PL2.marks[n] || {})[d];
+  const grp = [['Çalışma saatleri', PL2.codes.filter((c) => c.kind === 'shift')], ['İzin ve rapor', PL2.codes.filter((c) => c.kind === 'leave')], ['Görev ve diğer', PL2.codes.filter((c) => c.kind !== 'shift' && c.kind !== 'leave')]].filter((g) => g[1].length);
+  const m = openModal({ title: `${n} · ${dateLabel(d)}`, body: html`<div class="stack">
+    ${mk ? html`<div class="mk-box">${icon('history', 'sm')}<span>${mk}</span></div>` : ''}
     ${rq ? html`<div class="mk-box warn">${icon('alert', 'sm')}<span>Onaylı ${rq === 'izin' ? 'yıllık izin' : 'boşluk'} isteği var.</span></div>` : ''}
-    <div class="pl2-pick">${PL2.codes.map((c) => html`<button type="button" class="code-chip tone-${planTone(c.code)} ${cur === c.code ? 'on' : ''}" data-c="${c.code}"><b>${c.code}</b> <span class="tiny">${c.label}</span></button>`)}</div>
-    <button type="button" class="btn sm ghost" data-c="">${icon('x', 'sm')} Boş bırak</button></div>` });
-  m.el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-c]'); if (!b) return; planSetCell(n, d, b.dataset.c); m.close(); planDraw(); });
+    ${grp.map(([t, list]) => html`<div><div class="tiny faint" style="margin-bottom:4px">${t}</div><div class="pl2-pick">${list.map((c) => html`<button type="button" class="code-chip tone-${planTone(c.code)} ${cur === c.code ? 'on' : ''}" data-c="${c.code}"><b>${c.code}</b> <span class="tiny">${c.label}${c.kind === 'shift' && c.start && c.end ? ` ${c.start}–${c.end}` : ''}</span></button>`)}</div></div>`)}
+    <div><button type="button" class="btn sm ghost" data-c="">${icon('x', 'sm')} Boş bırak</button></div>
+    <div class="pl2-reqbox"><div class="tiny faint" style="margin-bottom:4px">İstek (elle) — otomatik dağıtım bu güne nöbet yazmaz</div>
+      <div class="row wrap" style="gap:6px"><button type="button" class="btn sm ${man === 'bosluk' ? 'on' : ''}" data-rq="bosluk">B · Boşluk isteği</button><button type="button" class="btn sm ${man === 'izin' ? 'on' : ''}" data-rq="izin">İ · Yıllık izin isteği</button>${man ? html`<button type="button" class="btn sm ghost" data-rq="">İsteği kaldır</button>` : ''}</div></div></div>` });
+  m.el.addEventListener('click', (ev) => {
+    const q = ev.target.closest('[data-rq]');
+    if (q) {
+      const row = PL2.d.reqs[n] || (PL2.d.reqs[n] = {});
+      if (q.dataset.rq) row[d] = q.dataset.rq; else delete row[d];
+      if (q.dataset.rq === 'izin' && !cur && PL2.d.leave_code) planSetCell(n, d, PL2.d.leave_code);
+      planDirty(); m.close(); planDraw(); return;
+    }
+    const b = ev.target.closest('[data-c]'); if (!b) return; planSetCell(n, d, b.dataset.c); m.close(); planDraw();
+  });
 };
 ACT['pl2-pmenu'] = (el) => {
   const n = el.dataset.n;
+  const p0 = PL2.d.people.find((p) => p.name === n) || {};
+  const fx = (PL2.d.hfix[n] || {}).req;
   const m = openModal({ title: n, size: 'narrow', body: html`<div class="list">
+    <button type="button" class="list-row" data-o="title" style="width:100%;border:0;background:none;text-align:left">${icon('edit', 'sm')}<span>Unvan: <b>${p0.title || '—'}</b></span></button>
+    <button type="button" class="list-row" data-o="up" style="width:100%;border:0;background:none;text-align:left">${icon('chevL', 'sm')}<span>Sırada yukarı taşı</span></button>
+    <button type="button" class="list-row" data-o="down" style="width:100%;border:0;background:none;text-align:left">${icon('chevR', 'sm')}<span>Sırada aşağı taşı</span></button>
+    <button type="button" class="list-row" data-o="hfix" style="width:100%;border:0;background:none;text-align:left">${icon('clock', 'sm')}<span>Çalışılması gereken saat: <b>${fx !== undefined ? fx + ' (elle)' : 'otomatik'}</b></span></button>
     <button type="button" class="list-row" data-o="clear" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Satırı temizle</span></button>
     <button type="button" class="list-row tone-danger" data-o="remove" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span>Çizelgeden çıkar</span></button></div>` });
   m.el.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-o]'); if (!b) return;
-    if (b.dataset.o === 'clear') delete PL2.d.cells[n];
-    else { PL2.d.people = PL2.d.people.filter((p) => p.name !== n); delete PL2.d.cells[n]; }
+    const o = b.dataset.o;
+    const i = PL2.d.people.findIndex((p) => p.name === n);
+    if (o === 'title') {
+      m.close();
+      promptDialog({ title: `${n} · unvan`, label: 'Unvan (resmi listede yazar)', value: p0.title || '', ok: 'Kaydet' }).then((v) => { if (v === null || v === undefined) return; PL2.d.people[i].title = String(v).trim().slice(0, 80); planDirty(); planDraw(); });
+      return;
+    }
+    if (o === 'hfix') {
+      m.close();
+      promptDialog({ title: `${n} · çalışılması gereken saat`, label: 'Saat (boş bırakılırsa otomatik hesaplanır)', value: fx !== undefined ? String(fx) : '', ok: 'Kaydet' }).then((v) => {
+        if (v === null || v === undefined) return;
+        const t = String(v).trim().replace(',', '.');
+        if (t === '') delete PL2.d.hfix[n]; else if (isFinite(+t) && +t >= 0) PL2.d.hfix[n] = { req: +t }; else { toast('Geçerli bir saat girin', 'err'); return; }
+        planDirty(); planDraw();
+      });
+      return;
+    }
+    if (o === 'up' || o === 'down') {
+      const j = o === 'up' ? i - 1 : i + 1;
+      if (j >= 0 && j < PL2.d.people.length) { const t = PL2.d.people[i]; PL2.d.people[i] = PL2.d.people[j]; PL2.d.people[j] = t; }
+    } else if (o === 'clear') delete PL2.d.cells[n];
+    else { PL2.d.people = PL2.d.people.filter((p) => p.name !== n); delete PL2.d.cells[n]; delete PL2.d.reqs[n]; delete PL2.d.hfix[n]; }
     planDirty(); m.close(); planDraw();
   });
 };
@@ -203,7 +275,7 @@ ACT['pl2-check'] = (el) => busy(el, async () => {
   try { PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d }); planDraw(); const x = $('#plIssues'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { toast(e.message, 'err'); }
 });
 ACT['pl2-auto'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Gereken sayıya ulaşmayan günlere (${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece) kurallara ve onaylı isteklere uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → son 7 günde az nöbeti olan → kura. Dolu hücrelere dokunulmaz.`, ok: 'Doldur' }))) return;
+  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Önce istekler yerleşir${PL2.d.leave_code ? ` (yıllık izin isteği olan boş günlere ${PL2.d.leave_code})` : ''}; boşluk isteği olan güne nöbet yazılmaz. Sonra gereken sayıya ulaşmayan günlere (${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece) kurallara uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura. Dolu hücrelere dokunulmaz; sonra elle düzenleyebilirsiniz.`, ok: 'Doldur' }))) return;
   busy(el, async () => {
     try {
       const r = await api('plan.auto', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
@@ -211,7 +283,7 @@ ACT['pl2-auto'] = async (el) => {
       planDirty();
       PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
       planDraw();
-      toast(`${r.filled} nöbet yazıldı${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
+      toast(`${r.placed ? r.placed + ' izin günü işlendi · ' : ''}${r.filled} nöbet yazıldı${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
     } catch (e) { toast(e.message, 'err'); }
   });
 };
@@ -285,7 +357,7 @@ function planParseImport(text) {
 }
 
 /* ---------------- Yayınla: Excel görünümü + liste sürümü + nöbet kayıtları ---------------- */
-ACT['pl2-publish'] = (el) => planPublishCtx({ rid: PL2.rid, ym: PL2.ym, roster: PL2.roster, d: PL2.d, save: () => planSave(true), after: () => planDraw() }, el);
+ACT['pl2-publish'] = (el) => planPublishCtx({ rid: PL2.rid, ym: PL2.ym, roster: PL2.roster, d: PL2.d, save: () => planSave(true), after: () => planLoad() }, el);
 /** Bir listenin çizelgesini yayınla: Excel görünümü listeye yeni sürüm olarak yüklenir, nöbetler kaydedilir */
 async function planPublishCtx(ctx, el) {
   const ro = rosterById(ctx.rid);
@@ -298,6 +370,8 @@ async function planPublishCtx(ctx, el) {
       await ctx.save();
       const chk = await api('plan.check', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d });
       if (chk.issues.some((x) => x.type === 'kural') && !(await confirmDialog({ title: 'Kural uyarıları var', text: `${chk.issues.filter((x) => x.type === 'kural').length} kural uyarısı var (dinlenme / üst üste çalışma). Yine de yayınlansın mı?`, ok: 'Yine de yayınla', danger: true }))) return;
+      // Daha önce yayınlanmış ayda: güncel hâl ile yeni taslak arasındaki farklar "düzeltme" olarak kaydedilir (Değişiklikler)
+      try { await api('plan.mark', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d }); } catch (e) { /* kayıt tutulamadıysa yayın yine yapılır */ }
       const file = await planXlsx(ctx);
       const att = await uploadFile(file);
       await api('rosters.upload', { id: ctx.rid, attachment_id: att.id });

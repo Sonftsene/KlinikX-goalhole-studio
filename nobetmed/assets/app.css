@@ -1375,6 +1375,22 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .pl2-cov { font-size: 11px; line-height: 1.2; color: var(--text-2); }
 .pl2-cov.bad { color: var(--danger); font-weight: 700; }
 .pl2-h { font-weight: 700; min-width: 44px; }
+.pl2-h.neg { color: var(--danger); } .pl2-h.fx { text-decoration: underline dotted; }
+.pl2-grid .pl2-hh { font-size: 11px; min-width: 40px; }
+.pl2-grid td.chg { position: relative; }
+.pl2-grid td.chg::after { content: ''; position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 1.5px var(--surface); pointer-events: none; }
+.pl2-tabs { flex-wrap: wrap; }
+.pl2-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.pl2-reqbox { border-top: 1px solid var(--border); padding-top: 10px; }
+.pl2-reqbox .btn.on { background: var(--brand-soft); border-color: var(--brand); }
+/* 4.34 resmi liste */
+.rs-paper-wrap { overflow: hidden; border-radius: 10px; background: #8a8f98; padding: 0; position: relative; }
+.rs-paper { width: 297mm; min-height: 200mm; background: #fff; padding: 7mm; transform-origin: 0 0; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+.rs-logo-prev { width: 84px; height: 64px; border: 1px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden; }
+.rs-logo-prev img { max-width: 80px; max-height: 60px; }
+.rs-codes { display: grid; gap: 6px; max-height: 300px; overflow: auto; padding-right: 4px; }
+.rs-signed, .rs-signed a { display: inline-flex; gap: 6px; align-items: center; }
+.rs-signed { color: var(--success, #16a34a); margin-top: 4px; }
 @media (max-width: 560px) { .pl2-grid .pl2-name { min-width: 112px; max-width: 120px; } .pl2-wrap { max-height: 62vh; } }
 /* 4.6 sohbet ayarları */
 .ch-filters { margin-bottom: 10px; }

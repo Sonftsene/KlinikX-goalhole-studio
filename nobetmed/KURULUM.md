@@ -1013,3 +1013,38 @@ Abonelik artık **her kişinin kendisine** aittir; birim başına ödeme yoktur.
 - **Aboneliği taşı (birim değiştiren kişi):** Sistem paneli › Abonelik › Kişiler › İşlemler › Diğer › “Aboneliği başka hesaba taşı”. Kalan süre, ödemeler ve fatura bilgisi yeni hesaba geçer; eski kayıt sıfırlanır; kişiye bildirim gider. Yeni hesap en az bir kez giriş yapmış olmalı; kendi etkin aboneliği olan hesaba taşınmaz.
 - **Silinen / devre dışı hesap:** birim yöneticisi bir kişiyi silerse ya da devre dışı bırakırsa abonelik kaydında “hesap silindi” / “devre dışı” rozeti çıkar (süzgeç: Silinmiş / devre dışı). Ödenmiş süresi varsa size bildirim gelir: kişi başka birime geçtiyse taşıyın, değilse iade kararını verin. Silinen hesabın kaydı ayrı tutulur; aynı numarayla açılan yeni bir hesap eskisinin aboneliğini devralmaz.
 
+## 54. Çizelgede resmi liste, saatler ve değişiklik raporu (4.34.0)
+Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sayfasında üç sekme var: **Çizelge**, **Değişiklikler**, **Resmi liste**. Üyeler yalnız yayınlanan güncel listeyi (ve eklendiyse imzalı belgeyi) görür.
+
+### Çizelge
+- **İstekler önce yerleşir:** onaylı boşluk / yıllık izin istekleri hücrelerde B / İ olarak görünür. Otomatik doldurmada yıllık izin isteği olan boş günlere seçtiğiniz **İzin kodu** (ör. Yİ) yazılır, boşluk isteği olan güne nöbet yazılmaz.
+- **Elle istek:** bir güne dokunun → pencerenin altında “B · Boşluk isteği” / “İ · Yıllık izin isteği”. İstek sisteminden gelmemiş istekleri de böyle girersiniz; otomatik dağıtım bunlara da uyar.
+- **Adil dağıtım:** boş vardiyalar kurallara uyarak, ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura sırasıyla doldurulur. Dolu hücrelere dokunulmaz; sonra elle düzenlersiniz.
+- **Elle düzenleme:** güne dokununca tüm türler gruplu çıkar: çalışma saatleri (08-16, 16-08, 08-08…), izin ve rapor (yıllık, doğum, mazeret, idari, rapor, refakat…), görev ve diğer. Fırça ile art arda boyama da var. Kod listesi Ayarlar › Nöbet › Nöbet kodları’ndan genişletilir.
+- **Kişi menüsü** (ada dokunun): unvan (resmi listede yazar), sırada yukarı / aşağı taşı, çalışılması gereken saati elle düzelt (ör. arife), satırı temizle, çizelgeden çıkar.
+- **Saat sütunları:** Ger. (çalışılması gereken), Çal. (çalışılan), Fazla (fazla mesai). Her düzenlemede anında yeniden hesaplanır.
+
+### Saat hesabı
+- Çalışılması gereken = ayın iş günleri × günlük saat (varsayılan 8) − hafta içine denk gelen izin / rapor günleri × 8. Resmi tatiller (Ayarlar › Nöbet › Tatiller) düşülür; yarım gün tatilde (arife) şablondaki saat (varsayılan 4) sayılır. Örnek: Kasım 2026 = 21 iş günü × 8 = 168; 5 gün yıllık izinli = 128.
+- Çalışılan = vardiya saatlerinin toplamı (08-08 = 24, 08-16 = 8, 16-08 = 16).
+- Fazla mesai = çalışılan − gereken (eksik saatte eksi yazılır).
+- Her kodun saat etkisi şablonda değiştirilebilir: “gerekenden düşer” (izin, rapor), “çalışılmış sayılır” (ör. eğitim, görevlendirme), “etkisiz”.
+
+### Her zaman güncel
+- Liste yayınlandıktan sonra kabul edilen **nöbet değişimi, devir (parçalı dahil) ve eksik personel çağrısı** çizelge açılınca kendiliğinden işlenir (o hücreyi siz değiştirmediyseniz). Saatler ve resmi liste güncel hâlden hesaplanır. Sarı uyarı çıkar: listeye de işlemek için **Yayınla**.
+- Yayından sonra yaptığınız düzeltmeler (rapor, izin, silinen / değişen nöbet) yeniden yayınlarken kaydedilir.
+- Excel ile yüklenmiş (çizelgede hazırlanmamış) listeler de çizelgede açılır; güncel hâli, saatleri ve resmi çıktısı aynı şekilde alınır.
+
+### Değişiklikler sekmesi
+- O ay yayından sonra olan değişim, devir, eksik çağrısı ve düzeltmeler: tarih, kişi(ler), eski → yeni, kim yaptı / onayladı.
+- Çizelgede bu hücrelerin köşesinde küçük işaret olur (üstüne gelince ya da dokununca ayrıntı). **Resmi çıktıda iz yoktur.**
+- Arama, türe göre süzme, Excel olarak indirme.
+- **Silme:** bir ya da birden çok kaydı seçip silin. Yalnız rapordaki kayıt ve hücre işareti kalkar; liste güncel hâliyle kalır, silinen kayıt geri gelmez.
+
+### Resmi liste sekmesi
+- Ekranda kâğıdın birebir önizlemesi. **Yazdır / PDF** (A4 yatay, tek sayfaya sığar; 30 kişiye kadar denendi), **Word** (.docx, tam düzenlenebilir), **Excel** (.xlsx).
+- **Şablon** (birim başına, bir kez): kurum logosu (PNG / JPG, otomatik küçültülür), başlık satırları ({HASTANE}, {BİRİM}, {LİSTE}, {YIL}, {AY} değişkenleriyle), sağ üst doküman kutusu (Doküman No, Yayın Tarihi, Revizyon No… istediğiniz kadar satır), sütunlar (Sıra, Unvan, 3 saat sütunu), hafta sonu / tatil gölgesi, günlük ve yarım gün saati, kodların çıktıdaki yazımı (08-16, Y.İZİN, D.İZNİ, RAPOR…) ve saat etkisi, imza alanları (Birim Sorumlusu, Sağlık Bakım Hizmetleri Müdürü…).
+- Çok birimli kurulumda şablonu hastanedeki diğer birimlerle paylaşabilir, başka birimin şablonunu kopyalayabilirsiniz.
+- **Islak imzalı belge:** imzalandıktan sonra taranmış PDF / fotoğrafı ekleyin; ekip Nöbet listesi sayfasında “İmzalı resmi liste” olarak görür. Kaldırılabilir.
+- Kısayol: Ayarlar › Nöbet › Resmi liste şablonu.
+

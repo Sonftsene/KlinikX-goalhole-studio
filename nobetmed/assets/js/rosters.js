@@ -96,6 +96,7 @@ function drawRosterInfo() {
       ${r.linked ? html`<div class="tiny rs-linked">${icon('link', 'sm')}<span><b>Google E-Tablolar’a bağlı</b> · Excel’de değişince kendiliğinden güncellenir${r.sync_at ? ' · son kontrol ' + fmtRel(r.sync_at) : ''}${r.tab ? ' · sekme: ' + r.tab : ''}</span></div>
         ${isPublisher() && r.sync_status ? html`<div class="tiny ${String(r.sync_status).startsWith('!') ? 'err-text' : 'faint'} rs-parsed">${icon('calendar', 'sm')}<span>${String(r.sync_status).replace(/^!/, '')}</span></div>` : ''}`
       : f && isPublisher() && r.period && r.parsed_file_id === f.id ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(r.period)}</b> · ${r.parsed_count || 0} nöbet kaydı okundu</span><a href="#" data-act="rs-period">Ayı değiştir</a></div>` : ''}
+      ${r.signed ? html`<div class="tiny rs-signed">${icon('checkCircle', 'sm')}<span><b>İmzalı resmi liste</b> (${periodLabel(r.signed.ym)})</span><a href="${r.signed.url}" target="_blank" rel="noopener">Aç</a></div>` : ''}
       <div class="rs-progress hidden" id="rsProgress"><div class="progress"><span style="width:0%"></span></div><span class="tiny muted">Yükleniyor…</span></div>
     </div>
     <div class="row wrap rs-actions">

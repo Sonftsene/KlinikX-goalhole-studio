@@ -89,8 +89,19 @@ function plan_clean(array $in, string $ym): array
     }
     $needs = [];
     foreach (['weekday', 'weekend'] as $dt) foreach (['day', 'night'] as $pp) $needs[$dt][$pp] = max(0, min(50, (int)(($in['needs'] ?? [])[$dt][$pp] ?? 0)));
-    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs,
-        'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20)];
+    // Yöneticinin elle girdiği istekler (4.34): [ad => [tarih => 'bosluk'|'izin']] — onaylı istek gibi işlenir
+    $reqs = [];
+    $names = array_flip(array_column($people, 'name'));
+    foreach ((array)($in['reqs'] ?? []) as $n => $row) {
+        if (!isset($names[$n])) continue;
+        foreach ((array)$row as $d => $k) if (isset($days[$d]) && in_array($k, ['bosluk', 'izin'], true)) $reqs[$n][$d] = $k;
+    }
+    // Resmi listede kişi başı saat düzeltmesi (ör. arife yarım günü): [ad => ['req' => saat]]
+    $hfix = [];
+    foreach ((array)($in['hfix'] ?? []) as $n => $x) if (isset($names[$n]) && is_array($x) && isset($x['req']) && is_numeric($x['req'])) $hfix[$n] = ['req' => max(0, min(400, round((float)$x['req'], 1)))];
+    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix,
+        'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20),
+        'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20)];
 }
 
 /**
@@ -154,10 +165,11 @@ function plan_requests(string $ym, int $rid): array
     } catch (Throwable $e) { /* istekler modülü yok */ }
     return $o;
 }
-function plan_req_for(array $reqs, string $name): array
+function plan_req_for(array $reqs, string $name, array $manual = []): array
 {
-    foreach ($reqs as $n => $days) if (names_match((string)$n, $name)) return $days;
-    return [];
+    $o = [];
+    foreach ($reqs as $n => $days) if (names_match((string)$n, $name)) { $o = $days; break; }
+    return ((array)($manual[$name] ?? [])) + $o;
 }
 
 function a_plan_get(): void
@@ -178,15 +190,31 @@ function a_plan_get(): void
             if (!isset($seen[tr_lower($x['name'])])) { $seen[tr_lower($x['name'])] = 1; $people[] = ['name' => $x['name'], 'title' => (string)$x['title']]; }
             $cells[$x['name']][$x['date']] = $x['code'];
         }
+        // Yayınlanmış listenin güncel hâli (kabul edilen değişim / devir / çağrılar dahil)
+        if ($people && function_exists('pc_sync_draft')) {
+            $data0 = ['people' => $people, 'cells' => $cells];
+            [$data0] = pc_sync_draft((int)$r['id'], $ym, $data0);
+            $people = $data0['people']; $cells = $data0['cells'];
+        }
         $from = $people ? 'liste' : 'bos';
         if (!$people) foreach (all("SELECT u.name, t.name AS title FROM users u LEFT JOIN titles t ON t.id = u.title_id WHERE u.status = 'active' AND COALESCE(u.no_duty, 0) = 0 ORDER BY u.name") as $u) $people[] = ['name' => $u['name'], 'title' => (string)$u['title']];
         $data = ['people' => $people, 'cells' => $cells, 'needs' => plan_default_needs((int)$r['id'])];
     }
+    // Yayından sonra kabul edilen değişim / devir / çağrılar taslağa işlenir (yönetici o hücreyi değiştirmediyse)
+    $synced = 0;
+    if ($dr && ($dr['status'] ?? '') === 'published' && function_exists('pc_sync_draft')) {
+        try { [$data, $synced] = pc_sync_draft((int)$r['id'], $ym, $data); } catch (Throwable $e) { error_log('[dupcii] çizelge güncel hâl: ' . $e->getMessage()); }
+    }
+    $marks = [];
+    if (function_exists('pc_marks')) { try { pc_sync((int)$r['id'], $ym); $marks = pc_marks((int)$r['id'], $ym); } catch (Throwable $e) { error_log('[dupcii] çizelge değişiklikleri: ' . $e->getMessage()); } }
     $hol = [];
+    $half = [];
     $pd = plan_days($ym);
-    if (function_exists('holidays_between')) foreach (holidays_between($pd[0], $pd[count($pd) - 1]) as $d => $h) $hol[$d] = is_array($h) ? ($h['name'] ?? '') : (string)$h;
+    if (function_exists('holidays_between')) foreach (holidays_between($pd[0], $pd[count($pd) - 1]) as $d => $h) { $hol[$d] = is_array($h) ? ($h['name'] ?? '') : (string)$h; if (is_array($h) && !empty($h['half'])) $half[] = $d; }
     $joint = function_exists('pt_sides') && count($ps = pt_sides()) >= 2 && in_array((int)$r['id'], array_map(fn($x) => (int)$x['roster_id'], $ps), true);
     out(['roster' => ['id' => (int)$r['id'], 'name' => $r['name']], 'ym' => $ym, 'from' => $from, 'draft' => $data, 'joint' => $joint,
+        'published' => $dr ? ($dr['status'] ?? '') === 'published' : $from === 'liste', 'published_at' => $dr['published_at'] ?? null, 'synced' => $synced, 'marks' => (object)$marks, 'half' => $half,
+        'signed' => function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], $ym) : null,
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
@@ -236,7 +264,7 @@ function plan_check(array $data, string $ym, ?int $rid = null): array
         $name = $p['name'];
         $days = plan_prev_for($prev, $name) + plan_person_days((array)($cells[$name] ?? []), $dict);
         ksort($days);
-        $req = plan_req_for($reqs, $name);
+        $req = plan_req_for($reqs, $name, (array)($data['reqs'] ?? []));
         $h = 0;
         foreach ($days as $d => $row) {
             if ($row['kind'] !== 'shift' || $d < $first) continue;
@@ -298,7 +326,21 @@ function a_plan_auto(): void
     $daysOf = [];
     foreach ($people as $n) { $daysOf[$n] = plan_prev_for($prev, $n) + plan_person_days($cells[$n] ?? [], $dict); ksort($daysOf[$n]); }
     $reqOf = [];
-    foreach ($people as $n) $reqOf[$n] = plan_req_for($reqs, $n);
+    foreach ($people as $n) $reqOf[$n] = plan_req_for($reqs, $n, (array)$data['reqs']);
+    // 1) İstekler: yıllık izin isteği olan boş günlere izin kodu (seçildiyse); boşluk isteği olan güne nöbet yazılmaz
+    $leaveCode = $data['leave_code'];
+    $placed = 0;
+    if ($leaveCode !== '' && plan_row($leaveCode, $dict)['kind'] !== 'shift') {
+        foreach ($people as $n) foreach ($reqOf[$n] as $d => $k) {
+            if ($k !== 'izin' || isset($cells[$n][$d]) || substr((string)$d, 0, 7) !== $ym) continue;
+            $cells[$n][$d] = $leaveCode;
+            $daysOf[$n][$d] = plan_row($leaveCode, $dict);
+            ksort($daysOf[$n]);
+            $placed++;
+        }
+    }
+    $isWe = fn($d) => day_type($d) === 'weekend';
+    $weCount = function ($n) use (&$daysOf, $first, $isWe) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($k >= $first && $x['kind'] === 'shift' && $isWe($k)) $c++; return $c; };
     $hoursOf = function ($n) use (&$daysOf, $first) { $h = 0; foreach ($daysOf[$n] as $d => $x) if ($d >= $first && $x['kind'] === 'shift') $h += (float)($x['hours'] ?? 0); return $h; };
     $last7 = function ($n, $d) use (&$daysOf) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($x['kind'] === 'shift' && $k < $d && $k >= date('Y-m-d', strtotime($d . ' -7 day'))) $c++; return $c; };
     $filled = 0;
@@ -317,11 +359,12 @@ function a_plan_auto(): void
                     $try[$d] = $row;
                     ksort($try);
                     if (swap_check($try, [$d], [], $cfg, $n)) continue;
-                    $cands[] = [$hoursOf($n), $last7($n, $d), random_int(0, 1000000), $n];
+                    // Adalet: ay içinde az saat → (hafta sonu / tatilse) az hafta sonu nöbeti → son 7 günde az nöbet → kura
+                    $cands[] = [$hoursOf($n), $isWe($d) ? $weCount($n) : 0, $last7($n, $d), random_int(0, 1000000), $n];
                 }
                 if (!$cands) { $unfilled[] = ['date' => $d, 'period' => $per, 'missing' => $need[$per] - $have]; break; }
                 sort($cands);
-                $n = $cands[0][3];
+                $n = $cands[0][4];
                 $daysOf[$n][$d] = $row;
                 ksort($daysOf[$n]);
                 $cells[$n][$d] = $row['code'];
@@ -330,7 +373,7 @@ function a_plan_auto(): void
             }
         }
     }
-    out(['cells' => (object)$cells, 'filled' => $filled, 'unfilled' => $unfilled]);
+    out(['cells' => (object)$cells, 'filled' => $filled, 'unfilled' => $unfilled, 'placed' => $placed]);
 }
 
 return [
