@@ -55,17 +55,27 @@ function rqStBadge(s) { const x = RQ_ST[s] || RQ_ST.pending; return html`<span c
 function rqParse(text, ym) {
   const max = rqDaysIn(ym);
   const s = trLower(text).replace(/[’'`´]/g, "'");
-  const re = /(\d{1,2})\s*(?:-|–|—|\.\.|ile)\s*(\d{1,2})|(\d{1,2})|(?<![a-zçğıöşü])(yıllık\s*izin|yillik\s*izin|yıllık|yillik|izin|yi|yı|y\.i\.|y\.ı\.|boşluk|bosluk|boşluğu|boş|bos|b)(?![a-zçğıöşü])|(arası|arasi|kadar)|([;\n]+)/g;
+  // iOS 16.4 öncesi Safari geriye bakan düzenli ifadeyi (lookbehind) tanımaz ve dosyanın tamamı çalışmaz: harf dizileri tek tek alınıp sözcük olarak denetlenir
+  const re = /(\d{1,2})\s*(?:-|–|—|\.\.|ile)\s*(\d{1,2})|(\d{1,2})|(yıllık\s*izin|yillik\s*izin|[a-zçğıöşü][a-zçğıöşü.]*)|([;\n]+)/g;
+  const KW = /^(yıllık\s*izin|yillik\s*izin|yıllık|yillik|izin|yi|yı|y\.i\.|y\.ı\.|boşluk|bosluk|boşluğu|boş|bos|b)$/;
   const groups = [];
   let cur = { items: [], kind: null, prefix: false };
   const flush = () => { if (cur.items.length) groups.push({ kind: cur.kind, items: cur.items }); cur = { items: [], kind: null, prefix: false }; };
   for (const m of s.matchAll(re)) {
+    let kw = null, rng = false;
+    if (m[4]) {
+      const w = m[4];
+      if (/^(arası|arasi|kadar)/.test(w)) rng = true; // “arasında” da
+      else if (KW.test(w)) kw = w;
+      else if (KW.test(w.replace(/\.+$/, ''))) kw = w.replace(/\.+$/, '');
+      else continue; // başka sözcük: yok say
+    }
     if (m[1]) cur.items.push([+m[1], +m[2]]);
     else if (m[3]) cur.items.push([+m[3], +m[3]]);
-    else if (m[4]) {
-      const k = /^y|izin/.test(m[4]) ? 'izin' : 'bosluk';
+    else if (kw) {
+      const k = /^y|izin/.test(kw) ? 'izin' : 'bosluk';
       if (!cur.items.length) { cur.kind = k; cur.prefix = true; } else if (cur.prefix) { flush(); cur.kind = k; cur.prefix = true; } else { cur.kind = k; flush(); }
-    } else if (m[5]) {
+    } else if (rng) {
       const n = cur.items.length;
       if (n >= 2 && cur.items[n - 1][0] === cur.items[n - 1][1] && cur.items[n - 2][0] === cur.items[n - 2][1]) {
         const a = cur.items[n - 2][0], b = cur.items[n - 1][0];
