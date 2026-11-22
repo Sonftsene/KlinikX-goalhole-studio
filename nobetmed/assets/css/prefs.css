@@ -155,3 +155,11 @@
   .tk-strip::-webkit-scrollbar-thumb, .seg::-webkit-scrollbar-thumb, .tabs::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-3) 45%, transparent); border-radius: 6px; }
   .hs-drag { cursor: grabbing; user-select: none; }
 }
+/* Sekmeler hiçbir ekranda gizli kalmasın (dar telefon, büyük yazı): sığmayınca alt satıra geçer, yana kaydırma yok */
+.hub-tabs, .tabs, .seg[role="tablist"] { flex-wrap: wrap; overflow-x: visible; max-width: none; }
+.hub-tabs a { flex: 1 1 auto; min-width: 0; }
+.seg[role="tablist"] > * { flex: 1 1 auto; }
+@media (max-width: 900px) {
+  .hub-tabs { gap: 3px; }
+  .hub-tabs a { height: 34px; padding: 0 10px; }
+}

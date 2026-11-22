@@ -84,6 +84,7 @@ function renderNav() {
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
     ${modOn('taraf') ? navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf') : ''}
+    ${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => navItem(x.href, icon(x.icon), x.label, 0, x.href.slice(2).split('/')[0] === r[0]))}
     ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && modOn(n.mod) && (!n.pub || canManage(n.mod)) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
     ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}

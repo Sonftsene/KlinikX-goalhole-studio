@@ -956,3 +956,8 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Bildirimleriniz kapalı:** Bu cihazda telefon bildirimleri kapalı olan kişide ana sayfanın üstünde uyarı çıkar: **Bildirimleri aç** ya da **Daha sonra**. "Daha sonra" denirse ertesi gün yeniden hatırlatılır. İzin tarayıcıda reddedildiyse "Nasıl açılır?" bağlantısı çıkar.
 - Günlük hatırlatmayı kişi **Hesabım › Bildirimler › "Bildirimler kapalıyken her gün hatırlat"** anahtarından kapatabilir.
 - Düzeltme: Ekstra nöbet listesi, kişi ay içinde birden çok listede (ör. iki basamakta) görünüyorsa öbür listedeki nöbet gününü boş sanıyordu; artık tüm listelerindeki nöbetlerine bakar. Ekstra listesinden açılan eksik çağrısında karşı taraftaki gönüllüler de görünür.
+
+## 49. Sekmeler kimsede gizli kalmasın (4.31.2)
+- Telefonda Nöbet sekmeleri (Takvimim, Kim nöbette, Taraf, İstekler, İlanlar, Ekstra nöbet, Çizelge, Excel liste) tek satırda yana kayıyordu; dar telefonda ya da büyük yazı tercihinde bazı sekmeler (ör. İstekler) ekranın dışında kalıyor ve görünmüyordu. Artık sığmayan sekmeler alt satıra geçer; hepsi her zaman görünür. Aynı düzen Hesabım, Ayarlar ve diğer sekme şeritlerinde de geçerli.
+- Yan menüde (telefonda ☰) Nöbet bölümüne İstekler, İlanlar, Ekstra nöbet ve (yöneticilerde) Çizelge eklendi.
+- Bir sekme yine görünmüyorsa: Ayarlar › Roller'de kişinin rolünde o modül "Göremez" olabilir ya da modül birimde kapatılmış olabilir.
