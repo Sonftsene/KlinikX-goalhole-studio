@@ -88,16 +88,23 @@ step(`yayıncı ${MON} ayını açtı (son gün ${dayOff(1)}), herkese bildirim:
 
 // 2) Metin çözümleyici
 const parsed = await m.evaluate((ym) => {
-  const f = (t) => { const r = rqParse(t, ym); return Object.entries(r.map).map(([d, k]) => d + (k === 'izin' ? 'i' : 'b')).join(',') + (r.warn.length ? ' !' + r.warn.length : ''); };
+  const f = (t) => { const r = rqParse(t, ym); return Object.entries(r.map).map(([d, k]) => (d.slice(0, 7) === ym ? +d.slice(8) : d) + (k === 'izin' ? 'i' : 'b')).join(',') + (r.warn.length ? ' !' + r.warn.length : ''); };
+  // Aydan aya: önceki ayın son günleri – bu ayın ilk günleri (ör. 28 Aralık – 2 Ocak)
+  const MN = ['ocak', 'şubat', 'mart', 'nisan', 'mayıs', 'haziran', 'temmuz', 'ağustos', 'eylül', 'ekim', 'kasım', 'aralık'];
+  const pm = +ym.slice(5, 7), prevM = pm === 1 ? 12 : pm - 1, prevY = pm === 1 ? +ym.slice(0, 4) - 1 : +ym.slice(0, 4);
+  const pl = new Date(prevY, prevM, 0).getDate();
+  const pds = (d) => `${prevY}-${String(prevM).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   return {
     a: f('2,3,4 boşluk; 6,7 boşluk; 15-19 yıllık izin'), b: f('15,19 arası yıllık izin'), c: f('2 3 4 bos'), d: f('boşluk 2,3 izin 20-21'),
     e: f('5 YI'), f: f('8, 9'), g: f('40 boş'), h: f('10 ile 12 arası izin'), i: f("12'den 14'e kadar boş"),
+    j: f(`${pl - 1} ${MN[prevM - 1]} - 2 ${MN[pm - 1]} yıllık izin`), k: f(`${pl}.${prevM}-1.${pm} boş`), l: f(`${pl - 20} ${MN[prevM - 1]} boş`),
+    jw: [pds(pl - 1), pds(pl)].map((d) => d + 'i').concat(['1i', '2i']).join(','), kw: [pds(pl) + 'b', '1b'].join(','),
   };
 }, YM);
-const want = { a: '2b,3b,4b,6b,7b,15i,16i,17i,18i,19i', b: '15i,16i,17i,18i,19i', c: '2b,3b,4b', d: '2b,3b,20i,21i', e: '5i', f: '8b,9b !1', g: ' !1', h: '10i,11i,12i', i: '12b,13b,14b' };
+const want = { a: '2b,3b,4b,6b,7b,15i,16i,17i,18i,19i', b: '15i,16i,17i,18i,19i', c: '2b,3b,4b', d: '2b,3b,20i,21i', e: '5i', f: '8b,9b !1', g: ' !1', h: '10i,11i,12i', i: '12b,13b,14b', j: parsed.jw, k: parsed.kw, l: ' !1' };
 const bad = Object.keys(want).filter((k) => parsed[k] !== want[k]);
 if (bad.length) fail('metin çözümleme: ' + bad.map((k) => `${k}: ${parsed[k]} ≠ ${want[k]}`).join(' | '));
-step('metin çözümleme: "2,3,4 boşluk; 15-19 yıllık izin", "15,19 arası", "2 3 4 bos", önek/sonek, aralık, uyarılar');
+step('metin çözümleme: "2,3,4 boşluk; 15-19 yıllık izin", "15,19 arası", "2 3 4 bos", önek/sonek, aralık, uyarılar; aydan aya "30 kasım - 2 aralık", "30.11-1.12" (en fazla 7 gün öncesi)');
 
 // 3) Üye (telefon): yazarak + takvimde dokunarak
 await go(m, '#/');
@@ -132,7 +139,7 @@ const ow1 = await overflow(m);
 if (ow1 > 390) fail('İsteklerim telefonda yatay taşma: ' + ow1);
 await m.screenshot({ path: path.join(OUT, 'req-m-mine.png'), fullPage: true });
 // Doğrulama: ay dışı tarih, geçersiz tür, başkası adına
-if (!/içinde olmalı/.test(await apiErr(m, 'req.save', { period_id: PID, items: [{ date: dayOff(0), kind: 'bosluk' }] }))) fail('ay dışı tarih kabul edildi');
+if (!/içinde olmalı/.test(await apiErr(m, 'req.save', { period_id: PID, items: [{ date: ymdOf(new Date(+YM.slice(0, 4), +YM.slice(5, 7) - 1, -19)), kind: 'bosluk' }] }))) fail('ay dışı (7 günden uzak) tarih kabul edildi');
 if (!/yalnızca Boşluk/.test(await apiErr(m, 'req.save', { period_id: PID, items: [{ date: d1(5), kind: 'rapor' }] }))) fail('geçersiz tür kabul edildi');
 if (!/sorumlular/.test(await apiErr(m, 'req.save', { period_id: PID, name: 'Burak Demir', items: [{ date: d1(5), kind: 'bosluk' }] }))) fail('üye başkası adına istek girdi');
 if (!/yayın yetkisi/.test(await apiErr(m, 'req.panel', { period_id: PID }))) fail('üye paneli açabildi');

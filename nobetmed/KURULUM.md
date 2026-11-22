@@ -969,3 +969,10 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Uyarı yoksa ve kişi yine göremiyorsa: kişi uygulamayı kapatıp yeniden açsın (telefonda eski sürüm açık kalmış olabilir) ya da başka bir birimin hesabıyla giriyor olabilir (o birimde modül kapalı olabilir).
 - **4.31.4:** Kişinin kendi ekranında **Hesabım › Profil › Hesap bilgisi** kartı: hangi birimde olduğu (ve hastanesi), yetkisi, sürüm ve **size görünmeyen bölümler** nedeniyle (ör. "Nöbet istekleri: biriminizde kapalı (sistem yöneticisi ayarı)", "abonelik paketinizde yok", "“X” rolünüzde kapalı"). Görünmeyen bölüm varsa kart en üstte çıkar; kişi ekran görüntüsünü yöneticisine gönderir. Kişi sizin Kullanıcılar listenizde yoksa hesabı başka bir birimdedir.
 - **4.31.4 — eski iPhone düzeltmesi:** iOS 16.4'ten eski iPhone'larda **İstekler** sekmesi hiç görünmüyordu. İstekler dosyasındaki bir yazı ayrıştırma ifadesini (geriye bakan düzenli ifade) eski Safari tanımıyor ve dosyanın tamamını çalıştırmıyordu. İfade eski Safari'nin anladığı biçimde yeniden yazıldı; sonuç aynı ("2,3 boşluk; 15-19 yıllık izin" gibi yazımlar). Tüm uygulama dosyaları eski iPhone (iOS 15 – 16.3) uyumu için tarandı; bundan sonra her sürümde otomatik denetleniyor.
+
+## 51. Aydan aya nöbet isteği (4.31.4)
+- Bir istek dönemi, ayın **7 gün öncesine ve 7 gün sonrasına** kadar gün alır: ör. Ocak dönemindeyken **28 Aralık – 2 Ocak** yıllık izin tek seferde yazılır.
+- **Takvimde:** ayın ilk ve son haftasındaki gri günler önceki / sonraki aya aittir (altında ay adı yazar); dokunarak işaretlenir.
+- **Yazarak:** "28 aralık - 2 ocak izin", "28.12-2.1 izin", "30 kasım boş". Ay adı yazılmayan günler eskisi gibi dönemin ayıdır.
+- **Her gün kendi ayının dönemine düşer:** komşu ayın dönemi açıksa gün oraya yazılır (o ayın panelinde görünür). O ayın dönemi henüz açılmadıysa gün şimdilik bu dönemde bekler; o ay için dönem açılınca kendiliğinden oraya geçer. Kapanmış bir dönemin günlerini üye ekleyemez / değiştiremez (sorumluya yazar).
+- Çizelge hazırlarken onaylı istekler tarihe göre okunur: hangi dönemde yazılmış olursa olsun o ayın çizelgesinde dikkate alınır.

@@ -150,7 +150,7 @@ function plan_requests(string $ym, int $rid): array
 {
     $o = [];
     try {
-        foreach (all("SELECT r.name, r.date, r.kind FROM shift_requests r JOIN req_periods p ON p.id = r.period_id WHERE p.ym = ? AND r.status = 'approved' AND (r.roster_id IS NULL OR r.roster_id = ?)", [$ym, $rid]) as $r) $o[$r['name']][$r['date']] = $r['kind'];
+        foreach (all("SELECT r.name, r.date, r.kind FROM shift_requests r WHERE r.date >= ? AND r.date <= ? AND r.status = 'approved' AND (r.roster_id IS NULL OR r.roster_id = ?)", [$ym . '-01', date('Y-m-t', strtotime($ym . '-01')), $rid]) as $r) $o[$r['name']][$r['date']] = $r['kind'];
     } catch (Throwable $e) { /* istekler modülü yok */ }
     return $o;
 }

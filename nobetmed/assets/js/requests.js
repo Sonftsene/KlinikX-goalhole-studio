@@ -38,6 +38,31 @@ function rqRanges(days) {
 }
 const rqDayN = (d) => +String(d).slice(8, 10);
 const rqDaysIn = (ym) => new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+/** Ay aşan istekler: dönem ayının en fazla 7 gün öncesi ve sonrası (sunucuyla aynı) */
+const RQ_SPAN = 7;
+/** Tarihin gün sırası (aylar arası ardışıklık için) */
+const rqSerial = (ds) => Math.round(Date.UTC(+ds.slice(0, 4), +ds.slice(5, 7) - 1, +ds.slice(8, 10)) / 864e5);
+const rqFromSerial = (n) => { const x = new Date(n * 864e5); return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`; };
+/** Dönem ayına göre gün sırası: 1 = ayın 1'i; 0, -1… önceki ay; ayın son gününden büyük → sonraki ay */
+const rqOffDate = (ym, off) => rqFromSerial(rqSerial(ym + '-01') + off - 1);
+const rqInWin = (ym, ds) => { const o = rqSerial(ds) - rqSerial(ym + '-01') + 1; return o >= 1 - RQ_SPAN && o <= rqDaysIn(ym) + RQ_SPAN; };
+/** Tarihleri okunur aralıklara çevirir: "2-4 Ara", "28 Ara – 2 Oca"; dönem ayındakilerde ay adı istenirse yazılır */
+function rqRangeText(dates, ym, withMonth = true) {
+  const a = [...new Set(dates)].sort();
+  const out = [];
+  const mo = (ds) => TR_MONTHS_S[+ds.slice(5, 7) - 1];
+  const showM = (ds) => withMonth || ds.slice(0, 7) !== ym;
+  for (let i = 0; i < a.length; i++) {
+    let j = i;
+    while (j + 1 < a.length && rqSerial(a[j + 1]) === rqSerial(a[j]) + 1) j++;
+    const s = a[i], e = a[j];
+    if (i === j) out.push(`${rqDayN(s)}${showM(s) ? ' ' + mo(s) : ''}`);
+    else if (s.slice(0, 7) === e.slice(0, 7)) out.push(`${rqDayN(s)}-${rqDayN(e)}${showM(s) ? ' ' + mo(s) : ''}`);
+    else out.push(`${rqDayN(s)} ${mo(s)} – ${rqDayN(e)} ${mo(e)}`);
+    i = j;
+  }
+  return out.join(', ');
+}
 const rqShort = (d) => { const x = parseDT(d); return x ? `${x.getDate()} ${TR_MONTHS_S[x.getMonth()]}` : d; };
 const rqDow = (d) => { const x = parseDT(d); return x ? TR_DAYS_S[x.getDay()] : ''; };
 const rqPeriod = () => RQ.periods.find((p) => p.id === RQ.pid) || null;
@@ -55,50 +80,85 @@ function rqStBadge(s) { const x = RQ_ST[s] || RQ_ST.pending; return html`<span c
 function rqParse(text, ym) {
   const max = rqDaysIn(ym);
   const s = trLower(text).replace(/[’'`´]/g, "'");
+  // Gün: "12", "28.12", "28/12", "28 aralık" (ay adıyla). Aralık: gün - gün. Dönem ayının 7 gün öncesi / sonrası da yazılabilir.
   // iOS 16.4 öncesi Safari geriye bakan düzenli ifadeyi (lookbehind) tanımaz ve dosyanın tamamı çalışmaz: harf dizileri tek tek alınıp sözcük olarak denetlenir
-  const re = /(\d{1,2})\s*(?:-|–|—|\.\.|ile)\s*(\d{1,2})|(\d{1,2})|(yıllık\s*izin|yillik\s*izin|[a-zçğıöşü][a-zçğıöşü.]*)|([;\n]+)/g;
+  const MON = 'ocak|şubat|subat|mart|nisan|mayıs|mayis|haziran|temmuz|ağustos|agustos|eylül|eylul|ekim|kasım|kasim|aralık|aralik';
+  const D = `(\\d{1,2})(?:\\s*[./]\\s*(\\d{1,2})(?!\\d)|\\s+(${MON})[a-zçğıöşü]*)?`;
+  const re = new RegExp(`${D}\\s*(?:-|–|—|\\.\\.|ile)\\s*${D}|${D}|(yıllık\\s*izin|yillik\\s*izin|[a-zçğıöşü][a-zçğıöşü.]*)|([;\\n]+)`, 'g');
   const KW = /^(yıllık\s*izin|yillik\s*izin|yıllık|yillik|izin|yi|yı|y\.i\.|y\.ı\.|boşluk|bosluk|boşluğu|boş|bos|b)$/;
+  const MONS = ['ocak', 'şubat|subat', 'mart', 'nisan', 'mayıs|mayis', 'haziran', 'temmuz', 'ağustos|agustos', 'eylül|eylul', 'ekim', 'kasım|kasim', 'aralık|aralik'];
+  const monOf = (num, name) => (num ? +num : name ? MONS.findIndex((x) => x.split('|').includes(name)) + 1 : 0);
+  const py = +ym.slice(0, 4), pm = +ym.slice(5, 7);
+  // Gün + ay → dönem ayına göre gün sırası (ay yoksa dönem ayı); yıl, dönem ayına en yakın olan
+  const offOf = (day, mon) => {
+    if (!mon) return day;
+    if (mon < 1 || mon > 12) return NaN;
+    let y = py;
+    if (mon - pm > 6) y--; else if (pm - mon > 6) y++;
+    if (day < 1 || day > new Date(y, mon, 0).getDate()) return NaN;
+    return rqSerial(`${y}-${pad(mon)}-${pad(day)}`) - rqSerial(ym + '-01') + 1;
+  };
   const groups = [];
   let cur = { items: [], kind: null, prefix: false };
   const flush = () => { if (cur.items.length) groups.push({ kind: cur.kind, items: cur.items }); cur = { items: [], kind: null, prefix: false }; };
+  const MS = MON.split('|');
   for (const m of s.matchAll(re)) {
     let kw = null, rng = false;
-    if (m[4]) {
-      const w = m[4];
-      if (/^(arası|arasi|kadar)/.test(w)) rng = true; // “arasında” da
+    const w = m[10];
+    if (w) {
+      if (/^(arası|arasi|kadar)/.test(w)) rng = true;
       else if (KW.test(w)) kw = w;
       else if (KW.test(w.replace(/\.+$/, ''))) kw = w.replace(/\.+$/, '');
+      else if (MS.some((x) => w.startsWith(x))) continue; // tek başına ay adı
       else continue; // başka sözcük: yok say
     }
-    if (m[1]) cur.items.push([+m[1], +m[2]]);
-    else if (m[3]) cur.items.push([+m[3], +m[3]]);
-    else if (kw) {
+    if (m[1]) {
+      let am = monOf(m[2], m[3]), bm = monOf(m[5], m[6]);
+      const ad = +m[1], bd = +m[4];
+      if (!am && bm) am = ad > bd ? (bm === 1 ? 12 : bm - 1) : bm; // "28-2 ocak": 28 Aralık
+      if (am && !bm) bm = bd < ad ? (am === 12 ? 1 : am + 1) : am; // "28 aralık-2": 2 Ocak
+      cur.items.push([offOf(ad, am), offOf(bd, bm), !!(am || bm), !!(am || bm)]);
+    } else if (m[7]) {
+      const mo = monOf(m[8], m[9]);
+      const o = offOf(+m[7], mo);
+      cur.items.push([o, o, false, !!mo]);
+    } else if (kw) {
       const k = /^y|izin/.test(kw) ? 'izin' : 'bosluk';
       if (!cur.items.length) { cur.kind = k; cur.prefix = true; } else if (cur.prefix) { flush(); cur.kind = k; cur.prefix = true; } else { cur.kind = k; flush(); }
     } else if (rng) {
       const n = cur.items.length;
       if (n >= 2 && cur.items[n - 1][0] === cur.items[n - 1][1] && cur.items[n - 2][0] === cur.items[n - 2][1]) {
         const a = cur.items[n - 2][0], b = cur.items[n - 1][0];
-        cur.items.splice(n - 2, 2, [a, b]);
+        cur.items.splice(n - 2, 2, [a, b, false, cur.items[n - 2][3] || cur.items[n - 1][3]]);
       }
     } else flush();
   }
   flush();
+  // map: tarih → tür (dönem ayı ve 7 gün öncesi / sonrası)
   const map = {};
   const warn = [];
-  const bad = new Set();
+  const bad = [];
   const out = [];
   groups.forEach((g) => {
     const kind = g.kind || 'bosluk';
-    const days = [];
-    g.items.forEach(([a0, b0]) => {
-      const a = Math.min(a0, b0), b = Math.max(a0, b0);
-      for (let d = a; d <= b; d++) { if (d < 1 || d > max) bad.add(d); else { map[d] = kind; days.push(d); } }
+    const dates = [];
+    g.items.forEach(([a0, b0, ordered, explicit]) => {
+      if (Number.isNaN(a0) || Number.isNaN(b0)) { bad.push('geçersiz tarih'); return; }
+      // Ay adı yazılmadıysa "28-2" eskisi gibi 2-28 sayılır; ay adıyla yazılan aralık yazıldığı sırayla
+      const a = ordered ? a0 : Math.min(a0, b0), b = ordered ? b0 : Math.max(a0, b0);
+      if (b < a || b - a > 62) { bad.push('ters ya da çok uzun aralık'); return; }
+      for (let d = a; d <= b; d++) {
+        // Ay adı yazılmadan yazılan gün yalnız dönem ayında (ör. "32" yok); başka aya ay adıyla ya da takvimden
+        if (!explicit && (d < 1 || d > max)) { bad.push(String(d)); continue; }
+        if (d < 1 - RQ_SPAN || d > max + RQ_SPAN) { bad.push(rqRangeText([rqOffDate(ym, d)], ym)); continue; }
+        const ds = rqOffDate(ym, d);
+        map[ds] = kind; dates.push(ds);
+      }
     });
-    if (!g.kind && days.length) warn.push(`${rqRanges(days)}: tür yazılmadı, Boşluk sayıldı`);
-    if (days.length) out.push({ kind, days });
+    if (!g.kind && dates.length) warn.push(`${rqRangeText(dates, ym, false)}: tür yazılmadı, Boşluk sayıldı`);
+    if (dates.length) out.push({ kind, dates });
   });
-  if (bad.size) warn.push(`${[...bad].sort((x, y) => x - y).join(', ')} bu ayda yok`);
+  if (bad.length) warn.push(`${[...new Set(bad)].slice(0, 6).join(', ')}: bu dönemde yazılamaz (ayın en fazla ${RQ_SPAN} gün öncesi ve sonrası)`);
   return { map, groups: out, warn };
 }
 
@@ -178,6 +238,12 @@ async function loadMine() {
   RQ.mine = d;
   rqInitDraft();
   drawMine();
+}
+/** Gün kapanmış bir komşu dönemde mi (o güne dokunulamaz) */
+function rqLocked(ds) {
+  const d = RQ.mine;
+  if (!d || ds.slice(0, 7) === d.period.ym) return false;
+  return (d.locked_months || []).includes(ds.slice(0, 7));
 }
 function rqInitDraft() {
   RQ.draft = new Map(RQ.mine.items.map((x) => [x.date, { kind: x.kind, note: x.note || '' }]));
@@ -259,16 +325,23 @@ function drawRqCal() {
   const prev = RQ.preview ? RQ.preview.map : {};
   const today = ymd(new Date());
   const cells = [];
-  for (let i = 0; i < lead; i++) cells.push(html`<span class="cal-d empty" aria-hidden="true"></span>`);
-  for (let dd = 1; dd <= days; dd++) {
-    const ds = `${p.ym}-${pad(dd)}`;
+  // Komşu ayın günleri (ilk ve son hafta): aydan aya istek (ör. 28 Aralık – 2 Ocak)
+  const cellDates = [];
+  for (let i = lead; i > 0; i--) cellDates.push(rqOffDate(p.ym, 1 - i));
+  for (let dd = 1; dd <= days; dd++) cellDates.push(`${p.ym}-${pad(dd)}`);
+  while (cellDates.length % 7) cellDates.push(rqOffDate(p.ym, days + (cellDates.length - lead - days) + 1));
+  for (const ds of cellDates) {
+    const dd = rqDayN(ds);
+    const adj = ds.slice(0, 7) !== p.ym;
+    const lockedD = rqLocked(ds);
     const x = RQ.draft.get(ds);
     const s = saved.get(ds);
     const st = x && s && s.kind === x.kind ? s.status : x ? 'new' : '';
-    const wd = new Date(y, m - 1, dd).getDay();
-    const cls = ['cal-d', 'rq-d', x ? 'k-' + x.kind : '', st ? 'st-' + st : '', prev[dd] ? 'pv' : '', wd === 0 || wd === 6 ? 'we' : '', ds === today ? 'today' : '', s && s.conflict ? 'cf' : ''].filter(Boolean).join(' ');
-    const label = `${dd} ${TR_MONTHS[m - 1]} ${TR_DAYS[wd]}${x ? ' · ' + RQ_KIND[x.kind].l : ''}${st && st !== 'new' ? ' · ' + RQ_ST[st][0] : ''}`;
-    cells.push(html`<button type="button" class="${cls}" data-act="rq-tap" data-d="${ds}" aria-label="${label}" ${d.can_edit ? '' : raw('disabled')}><span class="cd-n">${dd}</span>${x ? html`<span class="cd-c">${RQ_KIND[x.kind].s}</span>` : prev[dd] ? html`<span class="cd-c">${RQ_KIND[prev[dd]].s}</span>` : ''}${st === 'approved' ? html`<i class="rq-mk ok">${icon('check')}</i>` : st === 'rejected' ? html`<i class="rq-mk no">${icon('x')}</i>` : st === 'new' ? html`<i class="rq-mk nw"></i>` : ''}</button>`);
+    const dt = parseDT(ds);
+    const wd = dt.getDay();
+    const cls = ['cal-d', 'rq-d', adj ? 'adj' : '', lockedD ? 'lk' : '', x ? 'k-' + x.kind : '', st ? 'st-' + st : '', prev[ds] ? 'pv' : '', wd === 0 || wd === 6 ? 'we' : '', ds === today ? 'today' : '', s && s.conflict ? 'cf' : ''].filter(Boolean).join(' ');
+    const label = `${dd} ${TR_MONTHS[dt.getMonth()]} ${TR_DAYS[wd]}${x ? ' · ' + RQ_KIND[x.kind].l : ''}${st && st !== 'new' ? ' · ' + RQ_ST[st][0] : ''}${lockedD ? ' · dönemi kapandı' : ''}`;
+    cells.push(html`<button type="button" class="${cls}" data-act="rq-tap" data-d="${ds}" aria-label="${label}" ${d.can_edit ? '' : raw('disabled')}><span class="cd-n">${dd}${adj ? html`<small class="cd-m">${TR_MONTHS_S[dt.getMonth()]}</small>` : ''}</span>${x ? html`<span class="cd-c">${RQ_KIND[x.kind].s}</span>` : prev[ds] ? html`<span class="cd-c">${RQ_KIND[prev[ds]].s}</span>` : ''}${st === 'approved' ? html`<i class="rq-mk ok">${icon('check')}</i>` : st === 'rejected' ? html`<i class="rq-mk no">${icon('x')}</i>` : st === 'new' ? html`<i class="rq-mk nw"></i>` : ''}</button>`);
   }
   const cnt = { bosluk: 0, izin: 0 };
   RQ.draft.forEach((v) => { cnt[v.kind]++; });
@@ -277,12 +350,13 @@ function drawRqCal() {
       <span class="rq-how-r"><span class="rq-sw k-bosluk">B</span><span><b>Boşluk</b> için güne <b>bir kez</b> dokunun</span></span>
       <span class="rq-how-r"><span class="rq-sw k-izin">Yİ</span><span><b>Yıllık izin</b> için <b>iki kez</b> dokunun</span></span>
       <span class="rq-how-r"><span class="rq-sw rq-sw-x">${icon('x', 'sm')}</span><span>Vazgeçmek için <b>bir kez daha</b> dokunun</span></span>
-      <span class="tiny muted">Bitince aşağıdaki <b>Kaydet</b> düğmesine basın.</span></div>` : ''}
+      <span class="tiny muted">Ayın başındaki / sonundaki gri günler önceki / sonraki aya aittir: aydan aya istek (ör. 28 Aralık – 2 Ocak) de yazabilirsiniz; her gün kendi ayının listesine düşer. Bitince aşağıdaki <b>Kaydet</b> düğmesine basın.</span></div>` : ''}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
     <div class="cal-legend"><span><span class="rq-sw k-bosluk">B</span>Boşluk</span><span><span class="rq-sw k-izin">Yİ</span>Yıllık izin</span><span><i class="rq-mk ok static">${icon('check')}</i>Onaylandı</span><span><i class="rq-mk no static">${icon('x')}</i>Reddedildi</span></div>`);
 }
 ACT['rq-tap'] = (el) => {
   const d = el.dataset.d;
+  if (rqLocked(d)) { toast(`${rqShort(d)}: o ayın istek dönemi kapandı; değişiklik için sorumluya yazın`, 'err'); return; }
   const x = RQ.draft.get(d);
   if (!x) RQ.draft.set(d, { kind: 'bosluk', note: '' });
   else if (x.kind === 'bosluk') RQ.draft.set(d, { kind: 'izin', note: x.note });
@@ -300,8 +374,8 @@ CHANGE['rq-txt'] = (el) => {
     if (!pv) setHTML(prev, html`<span class="tiny faint">Gün numaralarını ve türünü yaz: <b>boşluk</b> ya da <b>yıllık izin</b>.</span>`);
     else {
       const byKind = { bosluk: [], izin: [] };
-      Object.entries(pv.map).forEach(([dd, k]) => byKind[k].push(+dd));
-      setHTML(prev, html`${Object.entries(byKind).filter(([, a]) => a.length).map(([k, a]) => html`<span class="rq-chip k-${k}"><b>${rqRanges(a)}</b> ${RQ_KIND[k].l}</span>`)}
+      Object.entries(pv.map).forEach(([ds, k]) => byKind[k].push(ds));
+      setHTML(prev, html`${Object.entries(byKind).filter(([, a]) => a.length).map(([k, a]) => html`<span class="rq-chip k-${k}"><b>${rqRangeText(a, RQ.mine.period.ym, false)}</b> ${RQ_KIND[k].l}</span>`)}
         ${!pv.groups.length ? html`<span class="tiny faint">Gün bulunamadı. Örn: 2,3,4 boşluk</span>` : html`<span class="tiny faint">${Object.keys(pv.map).length} gün · “Ekle” deyince takvime işlenir</span>`}
         ${pv.warn.map((w) => html`<span class="tiny err-text rq-warn">${icon('alert', 'sm')}${w}</span>`)}`);
     }
@@ -311,9 +385,9 @@ CHANGE['rq-txt'] = (el) => {
 ACT['rq-apply'] = () => {
   const pv = RQ.preview;
   if (!pv) return;
-  const ym = RQ.mine.period.ym;
-  Object.entries(pv.map).forEach(([dd, k]) => {
-    const ds = `${ym}-${pad(+dd)}`;
+  let locked = 0;
+  Object.entries(pv.map).forEach(([ds, k]) => {
+    if (rqLocked(ds)) { locked++; return; }
     const x = RQ.draft.get(ds);
     RQ.draft.set(ds, { kind: k, note: x ? x.note : '' });
   });
@@ -321,7 +395,7 @@ ACT['rq-apply'] = () => {
   const inp = $('#rqTxt');
   if (inp) { inp.value = ''; CHANGE['rq-txt'](inp); }
   drawRqCal(); drawRqList(); drawRqSave();
-  toast('Takvime eklendi · kaydetmeyi unutma');
+  toast(locked ? `Takvime eklendi · ${locked} gün kapanmış dönemde olduğu için eklenmedi` : 'Takvime eklendi · kaydetmeyi unutma');
 };
 
 /** Ardışık, aynı tür/durum/notlu günleri tek satırda toplar */
@@ -329,7 +403,7 @@ function rqGroups(entries) {
   const out = [];
   entries.sort((a, b) => a.date.localeCompare(b.date)).forEach((e) => {
     const last = out[out.length - 1];
-    if (last && last.kind === e.kind && last.status === e.status && (last.note || '') === (e.note || '') && (last.reason || '') === (e.reason || '') && rqDayN(e.date) === rqDayN(last.dates[last.dates.length - 1]) + 1) last.dates.push(e.date);
+    if (last && last.kind === e.kind && last.status === e.status && (last.note || '') === (e.note || '') && (last.reason || '') === (e.reason || '') && rqSerial(e.date) === rqSerial(last.dates[last.dates.length - 1]) + 1) last.dates.push(e.date);
     else out.push({ ...e, dates: [e.date] });
   });
   return out;
@@ -345,12 +419,11 @@ function drawRqList() {
     return { date, kind: v.kind, note: v.note || '', status: same ? s.status : 'new', reason: same && s.status === 'rejected' ? s.reason : '', conflict: same ? s.conflict : null };
   });
   const groups = rqGroups(list);
-  const mon = TR_MONTHS_S[+d.period.ym.slice(5, 7) - 1];
   setHTML(box, html`<div class="card-head"><h3>${d.target.self ? 'İsteklerim' : rqName(d.target.name) + ' — istekler'}</h3><span class="tiny faint">${list.length} gün</span></div>
     <div class="list">${groups.length ? groups.map((g) => html`<div class="list-row rq-g st-${g.status}">
       <span class="rq-sw k-${g.kind} big">${RQ_KIND[g.kind].s}</span>
       <div class="grow" style="min-width:0">
-        <div class="lr-t">${rqRanges(g.dates.map(rqDayN))} ${mon} <span class="muted small">· ${RQ_KIND[g.kind].l}${g.dates.length > 1 ? ` · ${g.dates.length} gün` : ''}</span></div>
+        <div class="lr-t">${rqRangeText(g.dates, d.period.ym)} <span class="muted small">· ${RQ_KIND[g.kind].l}${g.dates.length > 1 ? ` · ${g.dates.length} gün` : ''}</span></div>
         <div class="row wrap rq-g-b">${g.status === 'new' ? html`<span class="badge info">Kaydedilmedi</span>` : rqStBadge(g.status)}${g.conflict ? html`<span class="badge danger">${icon('alert', 'sm')}Listede nöbet var (${g.conflict})</span>` : ''}</div>
         ${g.status === 'rejected' && g.reason ? html`<div class="rq-reason small">${icon('info', 'sm')}<span><b>Gerekçe:</b> ${g.reason}</span></div>` : ''}
         ${d.can_edit ? html`<input class="input rq-note" maxlength="200" placeholder="Kısa not (isteğe bağlı)" value="${g.note}" data-input="rq-note" data-dates="${g.dates.join(',')}">` : g.note ? html`<div class="tiny faint">Not: ${g.note}</div>` : ''}
@@ -363,7 +436,13 @@ CHANGE['rq-note'] = (el) => {
   el.dataset.dates.split(',').forEach((ds) => { const x = RQ.draft.get(ds); if (x) x.note = el.value.slice(0, 200); });
   drawRqSave();
 };
-ACT['rq-rm'] = (el) => { el.dataset.dates.split(',').forEach((ds) => RQ.draft.delete(ds)); drawRqCal(); drawRqList(); drawRqSave(); };
+ACT['rq-rm'] = (el) => {
+  const ds0 = el.dataset.dates.split(',');
+  const lk = ds0.filter(rqLocked);
+  ds0.filter((ds) => !rqLocked(ds)).forEach((ds) => RQ.draft.delete(ds));
+  if (lk.length) toast(`${rqRangeText(lk, RQ.mine.period.ym)}: o ayın istek dönemi kapandı; sorumluya yazın`, 'err');
+  drawRqCal(); drawRqList(); drawRqSave();
+};
 function drawRqSave() {
   const box = $('#rqSave');
   if (!box || !RQ.mine) return;
@@ -398,7 +477,7 @@ async function loadBoard() {
 }
 /** Kişinin isteklerini kısa çiplere çevirir: "2-4 B", "15-19 Yİ" (durum rengiyle) */
 function rqChips(items) {
-  return rqGroups(items.map((x) => ({ ...x }))).map((g) => html`<span class="rq-chip k-${g.kind} st-${g.status}" title="${RQ_KIND[g.kind].l} · ${RQ_ST[g.status][0]}">${g.status === 'approved' ? icon('check', 'sm') : g.status === 'rejected' ? icon('x', 'sm') : ''}<b>${rqRanges(g.dates.map(rqDayN))}</b> ${RQ_KIND[g.kind].s}</span>`);
+  return rqGroups(items.map((x) => ({ ...x }))).map((g) => html`<span class="rq-chip k-${g.kind} st-${g.status}" title="${RQ_KIND[g.kind].l} · ${RQ_ST[g.status][0]}">${g.status === 'approved' ? icon('check', 'sm') : g.status === 'rejected' ? icon('x', 'sm') : ''}<b>${rqRangeText(g.dates, (RQ.board || RQ.panel || {}).period ? (RQ.board || RQ.panel).period.ym : g.dates[0].slice(0, 7), false)}</b> ${RQ_KIND[g.kind].s}</span>`);
 }
 function drawBoard() {
   const d = RQ.board;
@@ -659,7 +738,7 @@ function rqPersonModal(key) {
       <div class="rq-chips">${rqChips(p.items)}</div>
       <div class="card rq-pm-l"><div class="list">${rqGroups(p.items.map((x) => ({ ...x, note: x.note || '', reason: x.reason || '' }))).map((g) => { const ids = g.dates.map((ds) => p.items.find((i) => i.date === ds).id); const on = ids.every((id) => sel.has(id)); return html`<label class="list-row rq-o">
         <input type="checkbox" data-pm="${ids.join(',')}" ${on ? raw('checked') : ''}><span class="rq-sw k-${g.kind}">${RQ_KIND[g.kind].s}</span>
-        <div class="grow" style="min-width:0"><div class="lr-t">${rqRanges(g.dates.map(rqDayN))} ${TR_MONTHS_S[+RQ.panel.period.ym.slice(5, 7) - 1]} <span class="small muted">· ${RQ_KIND[g.kind].l}</span></div>
+        <div class="grow" style="min-width:0"><div class="lr-t">${rqRangeText(g.dates, RQ.panel.period.ym)} <span class="small muted">· ${RQ_KIND[g.kind].l}</span></div>
           ${g.note ? html`<div class="tiny faint">Not: ${g.note}</div>` : ''}${g.reason ? html`<div class="tiny err-text">Gerekçe: ${g.reason}</div>` : ''}${g.conflict ? html`<div class="tiny err-text">${icon('alert', 'sm')} Listede ${g.conflict} nöbeti var</div>` : ''}</div>${rqStBadge(g.status)}</label>`; })}</div></div>`);
     m.setFoot(html`<button class="btn ghost" data-pm-act="pending">Beklemeye al</button><button class="btn danger" data-pm-act="rejected">${icon('x', 'sm')}<span>Reddet</span></button><button class="btn primary" data-pm-act="approved">${icon('check', 'sm')}<span>Onayla</span></button>`);
   };
@@ -705,7 +784,7 @@ ACT['rq-xlsx'] = (el) => busy(el, async () => {
       const row = 4 + r;
       ws.getCell(row, 1).value = rqName(pp.name);
       ws.getCell(row, 2).value = rqSideName(pp.side);
-      pp.items.forEach((it) => {
+      pp.items.filter((it) => it.date.slice(0, 7) === d.period.ym).forEach((it) => {
         const c = ws.getCell(row, 2 + rqDayN(it.date));
         c.value = RQ_KIND[it.kind].s;
         c.alignment = { horizontal: 'center' };
@@ -718,7 +797,7 @@ ACT['rq-xlsx'] = (el) => busy(el, async () => {
     const sumRow = 4 + ppl.length;
     ws.getCell(sumRow, 1).value = 'Gün toplamı (reddedilenler hariç)'; ws.getCell(sumRow, 1).font = { bold: true };
     for (let dd = 1; dd <= days; dd++) {
-      const n = ppl.reduce((a, pp) => a + pp.items.filter((it) => rqDayN(it.date) === dd && it.status !== 'rejected').length, 0);
+      const n = ppl.reduce((a, pp) => a + pp.items.filter((it) => it.date.slice(0, 7) === d.period.ym && rqDayN(it.date) === dd && it.status !== 'rejected').length, 0);
       const c = ws.getCell(sumRow, 2 + dd); c.value = n || null; c.alignment = { horizontal: 'center' }; c.font = { bold: true };
     }
     const lg = sumRow + 2;

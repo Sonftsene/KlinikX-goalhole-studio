@@ -189,6 +189,56 @@ function rq_users(): array
 /** Dönemde basamak / liste ayrımı yok mu (kişiler ay ay liste değiştiriyor; istekler tüm birim için toplanır) */
 function rq_merged(array $p): bool { return !empty(rq_meta($p['meta'] ?? '')['merge']); }
 
+/* ---------------- Aydan aya istek (ör. 28 Aralık – 2 Ocak) ---------------- */
+const RQ_SPAN = 7; // dönem ayının en fazla 7 gün öncesi ve sonrası
+
+/** Dönemin kabul ettiği tarih aralığı: [ayın 1'i − 7 gün, ay sonu + 7 gün] */
+function rq_window(array $p): array
+{
+    return [date('Y-m-d', strtotime($p['ym'] . '-01 -' . RQ_SPAN . ' days')), date('Y-m-d', strtotime(rq_month_end($p['ym']) . ' +' . RQ_SPAN . ' days'))];
+}
+
+/** Başka bir ayın, bu dönemle aynı kapsamdaki (liste) dönemi; yoksa null */
+function rq_neighbor(array $p, string $ym): ?array
+{
+    $rows = all('SELECT * FROM req_periods WHERE ym = ? ORDER BY id', [$ym]);
+    $rid = $p['roster_id'] !== null && $p['roster_id'] !== '' ? (int)$p['roster_id'] : null;
+    foreach ($rows as $r) { $xr = $r['roster_id'] !== null && $r['roster_id'] !== '' ? (int)$r['roster_id'] : null; if ($xr === $rid) return $r; }
+    foreach ($rows as $r) if ($r['roster_id'] === null || $r['roster_id'] === '') return $r;
+    return null;
+}
+
+/** Kişinin komşu dönemlerdeki (önceki / sonraki ay) ve bu dönemde tutulan ay dışı satırları: [satırlar, kapanmış aylar] */
+function rq_cross_rows(array $p, array $t, bool $isPub): array
+{
+    [$wf, $wt] = rq_window($p);
+    $rows = [];
+    $locked = [];
+    foreach (array_unique([substr($wf, 0, 7), substr($wt, 0, 7)]) as $ym) {
+        if ($ym === $p['ym']) continue;
+        $np = rq_neighbor($p, $ym);
+        if (!$np) continue;
+        if (!$isPub && !rq_member_open($np)) $locked[] = $ym;
+        foreach (rq_rows_for($np, $t) as $r) if ($r['date'] >= $wf && $r['date'] <= $wt) $rows[] = $r + ['_p' => $np];
+    }
+    return [$rows, $locked];
+}
+
+/** Yeni açılan dönem: başka dönemlerde bekleyen bu aya ait istekler (aydan aya yazılmış) bu döneme geçer */
+function rq_rehome(int $pid): int
+{
+    $p = rq_period($pid);
+    $rid = $p['roster_id'] !== null && $p['roster_id'] !== '' ? (int)$p['roster_id'] : null;
+    $from = $p['ym'] . '-01';
+    $to = rq_month_end($p['ym']);
+    $sql = 'SELECT r.id FROM shift_requests r JOIN req_periods p ON p.id = r.period_id WHERE r.period_id <> ? AND r.date >= ? AND r.date <= ?';
+    $args = [$pid, $from, $to];
+    if ($rid !== null) { $sql .= ' AND (p.roster_id IS NULL OR p.roster_id = ?)'; $args[] = $rid; }
+    $ids = array_map(fn($r) => (int)$r['id'], all($sql, $args));
+    if ($ids) q('UPDATE shift_requests SET period_id = ? WHERE id IN (' . implode(',', $ids) . ')', [$pid]);
+    return count($ids);
+}
+
 function rq_period_out(array $p, array $me, array $stats = []): array
 {
     $rosters = rq_nobet_rosters();
@@ -281,7 +331,8 @@ function a_req_period_save(): void
         q('INSERT INTO req_periods (ym, roster_id, deadline, status, note, created_by, created_at, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$ym, $rid, $deadline, 'open', $note ?: null, $me['id'], now(), $merge ? '{"merge":true}' : '{}']);
         $id = insert_id();
-        audit($me, 'req.period', rq_month_label($ym) . ' istekleri açıldı', $scope . ' · son gün ' . $dl);
+        $moved = rq_rehome($id);
+        audit($me, 'req.period', rq_month_label($ym) . ' istekleri açıldı', $scope . ' · son gün ' . $dl . ($moved ? ' · önceden yazılmış ' . $moved . ' gün bu döneme geçti' : ''));
         if (!b('silent')) {
             $title = "$label nöbet istekleri açıldı · son gün $dl";
             $body = "Boşluk ve yıllık izin isteklerini $dl akşamına kadar yazabilirsin." . ($rid ? " ($scope)" : '') . ($note ? ' ' . $note : '');
@@ -351,6 +402,9 @@ function rq_rows_for(array $p, array $t): array
 function rq_mine_out(array $p, array $t, array $me): array
 {
     $rows = rq_rows_for($p, $t);
+    [$xrows, $lockedM] = rq_cross_rows($p, $t, is_publisher($me));
+    $rows = array_merge($rows, $xrows);
+    usort($rows, fn($a, $b) => strcmp($a['date'], $b['date']));
     $scope = rq_scope_rosters($p);
     $people = rq_roster_people($scope, $p['ym']);
     $cands = rq_detect_roster($t['name'], $people);
@@ -372,7 +426,10 @@ function rq_mine_out(array $p, array $t, array $me): array
             'id' => (int)$r['id'], 'date' => $r['date'], 'kind' => $r['kind'], 'note' => $r['note'], 'status' => $r['status'],
             'reason' => $r['status'] === 'rejected' ? $r['reason'] : null, 'decided_at' => $r['decided_at'],
             'conflict' => $r['status'] === 'approved' && isset($shifts[$r['date']]) ? $shifts[$r['date']] : null,
+            'month' => substr($r['date'], 0, 7) !== $p['ym'] ? substr($r['date'], 0, 7) : null,
         ], $rows),
+        'window' => rq_window($p),
+        'locked_months' => $lockedM,
         'roster' => ['id' => $rid, 'name' => $rid ? ($rosters[$rid] ?? null) : null, 'auto' => !$p['roster_id'] && $rid !== null && in_array($rid, $cands, true), 'fixed' => (bool)$p['roster_id'], 'found' => $cands !== [], 'merged' => $merged],
         'choices' => $merged ? [] : array_map(fn($id) => ['id' => $id, 'name' => $rosters[$id] ?? ''], $scope),
         'can_edit' => $isPub || ($t['self'] && rq_member_open($p)),
@@ -412,12 +469,13 @@ function a_req_save(): void
         if (!is_array($it)) continue;
         $d = is_string($it['date'] ?? null) ? $it['date'] : '';
         $k = is_string($it['kind'] ?? null) ? $it['kind'] : '';
-        if (!valid_ymd($d) || substr($d, 0, 7) !== $p['ym']) fail('Tarih ' . rq_month_label($p['ym']) . ' içinde olmalı.');
+        [$wf, $wt] = rq_window($p);
+        if (!valid_ymd($d) || $d < $wf || $d > $wt) fail('Tarih ' . rq_month_label($p['ym']) . ' içinde olmalı (aydan aya istekte ayın en fazla ' . RQ_SPAN . ' gün öncesi ve sonrası).');
         if (!isset(RQ_KINDS[$k])) fail('İstek türü yalnızca Boşluk veya Yıllık izin olabilir.');
         $note = is_scalar($it['note'] ?? null) ? trim(preg_replace('/[\x00-\x1F\x7F]+/u', ' ', (string)$it['note'])) : '';
         $want[$d] = ['kind' => $k, 'note' => mb_substr($note, 0, 200)];
     }
-    if (count($want) > 31) fail('Çok fazla gün.');
+    if (count($want) > 31 + 2 * RQ_SPAN) fail('Çok fazla gün.');
     // Liste: dönemin listesi, seçilen ya da adından bulunan
     $scope = rq_scope_rosters($p);
     $rid = i('roster_id');
@@ -427,8 +485,22 @@ function a_req_save(): void
     else $rid = rq_detect_roster($t['name'], rq_roster_people($scope, $p['ym']))[0] ?? null;
 
     $rows = rq_rows_for($p, $t);
+    // Aydan aya: komşu ayların günleri o ayın dönemine yazılır (dönem yoksa ya da kişi için kapandıysa bu dönemde bekler)
+    [$xrows, $lockedM] = rq_cross_rows($p, $t, $isPub);
+    $rows = array_merge($rows, $xrows);
+    $homeOf = [];
+    foreach (array_keys($want) as $d) {
+        $ym2 = substr($d, 0, 7);
+        $np = $ym2 !== $p['ym'] ? rq_neighbor($p, $ym2) : null;
+        $homeOf[$d] = $np && ($isPub || rq_member_open($np)) ? $np : $p;
+    }
     $have = [];
-    foreach ($rows as $r) $have[$r['date']] = $r;
+    foreach ($rows as $r) {
+        // Kapanmış komşu dönemdeki satıra üye dokunamaz: olduğu gibi kalır
+        if (in_array(substr($r['date'], 0, 7), $lockedM, true) && isset($r['_p'])) { unset($want[$r['date']]); continue; }
+        $have[$r['date']] = $r;
+    }
+    foreach (array_keys($want) as $d) if (in_array(substr($d, 0, 7), $lockedM, true)) fail(rq_month_label(substr($d, 0, 7)) . ' istek dönemi kapandı; o ayın günleri için sorumluya yazın.', 403);
     $add = $chg = $del = 0;
     $now = now();
     db()->beginTransaction();
@@ -448,7 +520,7 @@ function a_req_save(): void
         foreach ($want as $d => $w) {
             if (isset($have[$d])) continue;
             q("INSERT INTO shift_requests (period_id, user_id, name, roster_id, date, kind, note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-                [(int)$p['id'], $t['user_id'], $t['name'], $rid, $d, $w['kind'], $w['note'] ?: null, $now]);
+                [(int)$homeOf[$d]['id'], $t['user_id'], $t['name'], $rid, $d, $w['kind'], $w['note'] ?: null, $now]);
             $add++;
         }
         db()->commit();

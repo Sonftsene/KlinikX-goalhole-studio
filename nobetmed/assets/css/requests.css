@@ -215,3 +215,7 @@
 .rq-sw.rq-sw-x { background: var(--surface-2, rgba(0,0,0,.06)); color: var(--text-3); }
 .rq-sw.rq-sw-x svg { width: 12px; height: 12px; }
 .rq-d { touch-action: manipulation; }
+/* Aydan aya istek: takvimde önceki / sonraki ayın günleri (ilk ve son hafta) */
+.rq-d.adj:not([class*="k-"]) { background: var(--surface-2, rgba(0,0,0,.03)); color: var(--text-3); }
+.rq-d .cd-m { display: block; font-size: 9px; font-weight: 600; opacity: .75; line-height: 1; margin-top: 1px; }
+.rq-d.lk { opacity: .55; cursor: not-allowed; }
