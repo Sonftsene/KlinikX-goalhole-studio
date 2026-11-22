@@ -272,7 +272,7 @@ function chatFit() {
   const bnh = bn && getComputedStyle(bn).display !== 'none' && !(vv && vv.height < window.innerHeight - 120) ? bn.getBoundingClientRect().height : 0; // klavye açıkken alt menü klavyenin altında
   chatObserveBars();
   const h = Math.max(300, Math.floor(vh - Math.max(0, top) - bnh - 12));
-  v.style.height = h + 'px';
+  v.style.height = Math.floor(h / pageZoom()) + 'px'; // büyük yazıda sayfa büyütülmüş: CSS pikseline çevir
   if (CH.stick) chatScrollEnd(true);
 }
 /** Kişi yukarı kaydırmadıkça en altta kal (görsel / ses yüklenince, yeni mesaj gelince) */

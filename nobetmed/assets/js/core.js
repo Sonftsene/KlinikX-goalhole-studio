@@ -814,6 +814,13 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/** "Büyük yazı" sayfayı büyütür (body zoom): ekran ölçüleri (getBoundingClientRect) ile CSS pikseli arasındaki oran */
+function pageZoom() {
+  const b = document.body;
+  if (!b || !b.offsetWidth) return 1;
+  const z = b.getBoundingClientRect().width / b.offsetWidth;
+  return z > 0.5 && z < 3 ? z : 1;
+}
 function confirmDialog({ title, text, ok = 'Onayla', danger = false }) {
   return new Promise((resolve) => {
     let done = false;
@@ -860,13 +867,14 @@ function openMenu(anchor, items) {
   document.body.appendChild(el);
   MENU_OV = ovOpen(() => closeMenu(), () => document.body.contains(el));
   const r = anchor.getBoundingClientRect();
-  const w = el.offsetWidth, h = el.offsetHeight;
+  const z = pageZoom();
+  const w = el.offsetWidth * z, h = el.offsetHeight * z;
   let left = Math.min(r.right - w, window.innerWidth - w - 8);
   left = Math.max(8, left);
   let top = r.bottom + 6;
   if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
-  el.style.left = left + 'px';
-  el.style.top = top + 'px';
+  el.style.left = left / z + 'px';
+  el.style.top = top / z + 'px';
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-mi]');
     if (!b) return;

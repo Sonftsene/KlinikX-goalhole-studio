@@ -163,3 +163,21 @@
   .hub-tabs { gap: 3px; }
   .hub-tabs a { height: 34px; padding: 0 10px; }
 }
+/* Yan menü uzayınca öğeler sıkışıp üst üste binmesin; menü kaysın, alttaki hesap kartı her zaman ulaşılabilir */
+.sidebar > * { flex-shrink: 0; }
+/* Büyük yazı (body zoom 1.12): ekran yüksekliğine göre boyutlanan alanlar büyütmeyle taşmasın (yan menünün altı, sohbet yazma kutusu, pencereler) */
+html.fs-lg .shell, html.fs-lg .auth, html.fs-lg .boot-splash { min-height: calc(100vh / 1.12); min-height: calc(100dvh / 1.12); }
+html.fs-lg .sidebar { height: calc(100vh / 1.12); height: calc(100dvh / 1.12); }
+html.fs-lg .modal { max-height: calc(100vh / 1.12 - 40px); max-height: calc(100dvh / 1.12 - 40px); }
+html.fs-lg .drawer .modal { height: calc(100dvh / 1.12); max-height: calc(100dvh / 1.12); }
+html.fs-lg .modal.full { width: calc(100vw / 1.12); height: calc(100vh / 1.12); height: calc(100dvh / 1.12); }
+html.fs-lg .notif-pop { max-height: min(560px, calc(100vh / 1.12 - 90px)); }
+html.fs-lg .ch-view { height: calc(100dvh / 1.12 - var(--topbar) - 64px); }
+html.fs-lg .rs-view { height: calc(100dvh / 1.12 - var(--topbar) - 196px); }
+html.fs-lg .sys { min-height: calc(100dvh / 1.12); }
+@media (max-width: 900px) {
+  html.fs-lg .sidebar { bottom: auto; }
+  html.fs-lg .modal { max-height: calc(94dvh / 1.12); }
+  html.fs-lg .ch-view { height: calc(100dvh / 1.12 - var(--topbar) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 112px); }
+  html.fs-lg .rs-view { height: calc(100dvh / 1.12 - var(--topbar) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 108px); }
+}

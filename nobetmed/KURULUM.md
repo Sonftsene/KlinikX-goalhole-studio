@@ -961,3 +961,4 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Telefonda Nöbet sekmeleri (Takvimim, Kim nöbette, Taraf, İstekler, İlanlar, Ekstra nöbet, Çizelge, Excel liste) tek satırda yana kayıyordu; dar telefonda ya da büyük yazı tercihinde bazı sekmeler (ör. İstekler) ekranın dışında kalıyor ve görünmüyordu. Artık sığmayan sekmeler alt satıra geçer; hepsi her zaman görünür. Aynı düzen Hesabım, Ayarlar ve diğer sekme şeritlerinde de geçerli.
 - Yan menüde (telefonda ☰) Nöbet bölümüne İstekler, İlanlar, Ekstra nöbet ve (yöneticilerde) Çizelge eklendi.
 - Bir sekme yine görünmüyorsa: Ayarlar › Roller'de kişinin rolünde o modül "Göremez" olabilir ya da modül birimde kapatılmış olabilir.
+- Düzeltme: "Büyük yazı" seçen kişide ekran yüksekliğine göre boyutlanan alanlar taşıyordu: yan menünün altındaki hesap kartına ulaşılamıyor, sohbette yazma kutusu ekranın altında kalabiliyordu, yan menü uzayınca öğeler üst üste biniyordu. Artık hepsi ekrana sığar.

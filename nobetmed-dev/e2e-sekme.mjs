@@ -48,7 +48,27 @@ async function check(tag, email, pws, big) {
   await p.locator('.prof-tabs').first().waitFor({ timeout: 8000 }).catch(() => {});
   const pt = await p.locator('.prof-tabs > *').evaluateAll((els) => els.filter((e) => { const r = e.getBoundingClientRect(); return r.width && (r.left < 0 || r.right > 360); }).map((e) => e.textContent.trim()));
   if (pt.length) fail(`[${tag}] Hesabım sekmelerinden ekran dışında kalan: ${pt.join(', ')}`);
-  if (errors.length === e0) step(`[${tag}] 360 px${big ? ' + büyük yazı' : ''}: ${tabs.length} Nöbet sekmesinin hepsi ekranda (${names.join(', ')}); yan menüde İstekler, İlanlar, Ekstra nöbet; Hesabım sekmeleri ekranda`);
+  if (big) {
+    // Büyük yazıda yan menünün altı ve sohbet yazma kutusu ekranda kalmalı
+    await p.goto(BASE + '#/');
+    await p.click('[data-act=nav-open]');
+    await p.waitForTimeout(400);
+    await p.click('.sidebar .me-card', { timeout: 6000 }).then(() => p.keyboard.press('Escape'), () => fail(`[${tag}] büyük yazıda yan menünün altındaki hesap kartına ulaşılamadı`));
+    await p.goto(BASE + '#/mesaj');
+    const row = p.locator('.ch-row').first();
+    if (await row.waitFor({ timeout: 8000 }).then(() => true, () => false)) {
+      await row.click();
+      await p.locator('#chInput').waitFor();
+      await p.waitForTimeout(500);
+      const ib = await p.locator('#chInput').boundingBox();
+      const vh = await p.evaluate(() => innerHeight);
+      if (!ib || ib.y + ib.height > vh) fail(`[${tag}] büyük yazıda sohbet yazma kutusu ekran dışında (${ib && Math.round(ib.y + ib.height)} / ${vh})`);
+      await p.screenshot({ path: path.join(OUT, `sekme-${tag}-sohbet.png`) });
+    }
+    // Sonraki testler etkilenmesin: büyük yazıyı geri al
+    await p.evaluate(() => api('me.prefs.save', { kind: 'ui', value: { fs: '' } }).catch(() => {}));
+  }
+  if (errors.length === e0) step(`[${tag}] 360 px${big ? ' + büyük yazı' : ''}: ${tabs.length} Nöbet sekmesinin hepsi ekranda (${names.join(', ')}); yan menüde İstekler, İlanlar, Ekstra nöbet; Hesabım sekmeleri ekranda${big ? '; büyük yazıda yan menünün altı ve sohbet yazma kutusu ekranda' : ''}`);
   await c.close();
 }
 
