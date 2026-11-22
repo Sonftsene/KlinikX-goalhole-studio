@@ -69,11 +69,12 @@ try {
   const day = my.find((s) => s.date >= php("echo date('Y-m-d');").trim());
   const ids = JSON.parse(php(`require_once NM_ROOT . '/inc/notify.php'; $o = []; foreach (all("SELECT s.id, s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date = ? AND s.kind = 'shift'", ['${day.date}']) as $r) if (names_match((string)$r['name'], (string)one("SELECT name FROM users WHERE email = 'elif@test.com'")['name'])) $o[] = ['id' => (int)$r['id'], 'name' => $r['name']]; echo json_encode($o);`));
   // O gün takvimde kaç etkinlik var (kişi aynı gün iki listede görünse de takvimde tek etkinliktir)
-  const onDay = events(f.body).filter((e) => e.includes(day.date.replace(/-/g, '') + 'T')).length;
+  const startsOn = (e) => new RegExp('DTSTART[^:\\r\\n]*:' + day.date.replace(/-/g, '') + 'T').test(e); // bitişi o güne düşen önceki gece nöbeti sayılmaz
+  const onDay = events(f.body).filter(startsOn).length;
   php(`foreach (json_decode('${JSON.stringify(ids)}', true) as $r) q('UPDATE roster_shifts SET name = ? WHERE id = ?', ['Takvim Deneme Kişisi', $r['id']]);`);
   f = await feed(url);
   const n1 = events(f.body).length;
-  if (!onDay || n1 !== n0 - onDay || f.body.includes(day.date.replace(/-/g, '') + 'T')) fail(`listeden çıkan nöbet takvimden düşmedi (${n0} → ${n1})`);
+  if (!onDay || n1 !== n0 - onDay || events(f.body).some(startsOn)) fail(`listeden çıkan nöbet takvimden düşmedi (${n0} → ${n1})`);
   php(`foreach (json_decode('${JSON.stringify(ids)}', true) as $r) q('UPDATE roster_shifts SET name = ? WHERE id = ?', [$r['name'], $r['id']]);`);
   f = await feed(url);
   if (events(f.body).length !== n0) fail('liste geri gelince nöbet takvime dönmedi');
