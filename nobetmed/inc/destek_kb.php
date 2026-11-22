@@ -91,7 +91,7 @@ function sp_kb(): array
         ['k' => $Y, 'q' => 'Üye kaydını açmak / kapatmak', 'a' => 'Ayarlar › Güvenlik › Üye kaydı: açık, onaylı ya da yalnız davetle.', 'l' => '#/yonetim/ayarlar/guvenlik', 't' => ['kurulum', 'kullanici'], 'c' => ['role' => 'admin']],
         ['k' => $Y, 'q' => 'Birimin yedeğini almak', 'a' => 'Ayarlar › Yedek.', 'l' => '#/yonetim/ayarlar/yedek', 't' => ['kurulum'], 'c' => ['role' => 'admin']],
         ['k' => $Y, 'q' => 'Kim okudu, kim ne yaptı?', 'a' => 'Yönetim › Okuma raporu ve İşlem günlüğü.', 'l' => '#/yonetim/raporlar', 't' => ['kurulum'], 'c' => ['role' => 'admin']],
-        ['k' => $Y, 'q' => 'Paket, ödeme ve fatura', 'a' => 'Yönetim › Abonelik: paket, bitiş tarihi, ödeme ve fatura bilgileri.', 'l' => '#/abonelik', 't' => ['abonelik'], 'c' => ['role' => 'admin', 'billing' => true]],
+        ['k' => $Y, 'q' => 'Paket, ödeme ve fatura', 'a' => 'Abonelik kişi başınadır: menüde Abonelik sayfasından paket ve süre (1, 3, 12 ay…) seçip kendiniz ödersiniz; bitiş tarihi, ödemeler ve fatura bilgileri de oradadır. Biriminizin tamamı sistem yöneticisince ücretsiz tanımlandıysa ödeme gerekmez.', 'l' => '#/abonelik', 't' => ['abonelik'], 'c' => ['billing' => true]],
         ['k' => $Y, 'q' => 'Bir modül (ör. Mesajlar, Yemek) görünmüyor', 'a' => 'Modülleri hastane ve birim düzeyinde sistem yöneticisi açar. Destek talebiyle hangi modülü istediğinizi yazın.', 'l' => null, 't' => ['kurulum'], 'c' => ['role' => 'admin', 'env' => 'multi']],
 
         // ---- Sunucu (yalnız tek birimli kurulumda birim yöneticisi) ----

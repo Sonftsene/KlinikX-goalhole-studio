@@ -1670,6 +1670,8 @@ button.ch-once { cursor: pointer; border-style: solid; border-color: var(--brand
 .bl-ph { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 16px; }
 .bl-pd { margin: 0; min-height: 36px; }
 .bl-price b { font-size: 22px; }
+.bl-save { color: var(--success, #16a34a); font-weight: 600; }
+.bls-dur .input[data-dm] { text-align: center; }
 .bl-feat { margin: 6px 0 10px; padding: 0 0 0 18px; font-size: 13px; color: var(--text-2); display: grid; gap: 2px; flex: 1; align-content: start; }
 .bl-sum { display: grid; gap: 6px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
 .bl-sum > div { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; } .bl-sum > div span { color: var(--text-2); }

@@ -31,7 +31,7 @@ function sp_topics(): array
             'kullanici' => ['Kullanıcılar, roller ve yetkiler', 'sa', ['role' => 'admin']],
             'liste' => ['Excel / nöbet listesi yükleme', 'sa', ['manage' => 'nobet']],
             'yonetim' => ['Yönettiğim modüller (istek dönemi, çağrı, taraf, rehber…)', 'sa', []],
-            'abonelik' => ['Abonelik ve ödeme', 'sa', ['role' => 'admin', 'billing' => true]],
+            'abonelik' => ['Abonelik ve ödeme', 'sa', ['billing' => true]],
             'giris' => ['Kendi hesabım ve girişim', 'sa', []],
             'bildirim' => ['Bildirim ya da e-posta gelmiyor', 'sa', []],
             'hata' => ['Hata bildirimi', 'sa', []],
@@ -42,6 +42,7 @@ function sp_topics(): array
             'giris' => ['Giriş, şifre ve hesap', 'sa', []],
             'nobet' => ['Nöbetim görünmüyor ya da yanlış', 'unit', ['mod' => 'nobet']],
             'birim' => ['İzin, istek, ilan ve değişimler', 'unit', ['mod' => 'nobet']],
+            'abonelik' => ['Abonelik ve ödeme', 'sa', ['billing' => true]], // abonelik kişi başına: herkes kendi ödemesi için
             'bildirim' => ['Bildirim ya da e-posta gelmiyor', 'sa', []],
             'hata' => ['Uygulama hatası', 'sa', []],
             'oneri' => ['Öneri / yeni özellik isteği', 'sa', []],

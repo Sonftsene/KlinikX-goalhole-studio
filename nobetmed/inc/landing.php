@@ -203,10 +203,13 @@ function lp_plans(): string
         $o = '';
         foreach (bl_plans(true) as $p) {
             $mods = $p['modules'] ? count($p['modules']) . ' modül' : 'Tüm modüller';
-            $o .= '<div class="card price"><h3>' . $e($p['name']) . '</h3><div class="amt">' . ($p['is_free'] ? 'Ücretsiz' : $e(number_format($p['price_m'] / 100, 0, ',', '.')) . ' ₺<span class="muted"> / ay</span>') . '</div>'
-                . '<div class="muted">' . ($p['is_free'] ? 'Temel kullanım için' : 'KDV hariç · yıllık ' . $e(number_format($p['price_y'] / 100, 0, ',', '.')) . ' ₺') . '</div>'
+            $tl = fn($k) => $e(number_format($k / 100, 0, ',', '.')) . ' ₺';
+            $du = $p['durations'];
+            $first = $du[0] ?? null;
+            $o .= '<div class="card price"><h3>' . $e($p['name']) . '</h3><div class="amt">' . ($p['is_free'] || !$first ? 'Ücretsiz' : $tl((int)round($first['net'] / max(1, $first['months']))) . '<span class="muted"> / ay</span>') . '</div>'
+                . '<div class="muted">' . ($p['is_free'] || !$first ? 'Temel kullanım için' : 'Kişi başı · KDV hariç' . implode('', array_map(fn($d) => ' · ' . $e($d['label']) . ' ' . $tl($d['net']), $du))) . '</div>'
                 . ($p['descr'] ? '<p class="muted" style="margin-top:8px">' . $e((string)$p['descr']) . '</p>' : '')
-                . '<ul><li>' . ($p['max_users'] ? (int)$p['max_users'] . ' kişiye kadar' : 'Sınırsız kişi') . '</li><li>' . $e($mods) . '</li></ul></div>';
+                . '<ul><li>Kişi başı abonelik</li><li>' . $e($mods) . '</li></ul></div>';
         }
         if ($o === '') return '';
         return '<section class="lp-sec lp-alt" id="fiyat"><div class="wrap"><h2 class="s">Fiyatlar</h2><p class="lead">' . ($c['trial_on'] === '1' ? (int)$c['trial_days'] . ' gün ücretsiz deneyin; kart bilgisi istenmez, süre bitince kendiliğinden ücretlendirme yapılmaz.' : 'Kendiliğinden yenileme ve gizli ücret yok.') . '</p><div class="grid">' . $o . '</div></div></section>';

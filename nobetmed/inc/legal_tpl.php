@@ -32,7 +32,7 @@ Birimlerin portala yüklediği nöbet listeleri, duyurular ve benzeri içerikler
 - **İsteğe bağlı:** yalnız sizin gördüğünüz fazla mesai ücreti bilgileri, görünüm ve bildirim tercihleri.
 - **Destek taleplerinde:** yazdığınız mesajlar ve isteğe bağlı ekran görüntüsü; talebe kendiliğinden eklenen birim, rol, açık sayfa, uygulama sürümü ve cihaz / tarayıcı türü. Talebi konusuna göre destek ekibi (sistem yöneticisi) ya da birim sorumlusu görür.
 - **Birim açma başvurusunda:** görev bilgisi, cep telefonu ve isteğe bağlı görevlendirme belgesi.
-- **Ödeme yapan birim yöneticileri için:** fatura bilgileri ve ödeme kayıtları. Kart bilgileri ödeme kuruluşunda işlenir, bize ulaşmaz.
+- **Abonelik ödemesi yapan kullanıcılar için:** fatura bilgileri ve ödeme kayıtları. Kart bilgileri ödeme kuruluşunda işlenir, bize ulaşmaz.
 
 Portal hasta verisi işlemek için tasarlanmamıştır. Mesajlara, belgelere ve duyurulara hasta kimlik bilgisi yazmayın.
 
@@ -155,16 +155,16 @@ Adres: {ADRES}
 {VERGI}{MERSIS_SATIR}
 E-posta: {EPOSTA}{TELEFON_SATIR}
 
-**Alıcı:** Ödeme sayfasında fatura bilgilerini giren gerçek ya da tüzel kişi (birim adına ödeme yapan birim yöneticisi).
+**Alıcı:** Ödeme sayfasında fatura bilgilerini giren gerçek ya da tüzel kişi (kendi hesabı için ödeme yapan kullanıcı).
 
 ## Madde 2 — Konu
-Bu sözleşme, alıcının {SITE} adresindeki {MARKA} portalında seçtiği abonelik paketinin, seçilen dönem (aylık ya da yıllık) boyunca biriminde kullanılmasına ilişkin hakların ve yükümlülüklerin, 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği hükümlerine göre belirlenmesidir.
+Bu sözleşme, alıcının {SITE} adresindeki {MARKA} portalında seçtiği abonelik paketinin, seçilen süre (ör. 1 ay, 3 ay, 1 yıl) boyunca kendi hesabında kullanılmasına ilişkin hakların ve yükümlülüklerin, 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği hükümlerine göre belirlenmesidir.
 
 ## Madde 3 — Hizmetin özellikleri ve bedeli
-Paketin içeriği (modüller, kişi sınırı), dönemi ve vergiler dahil toplam bedeli ödeme sayfasında, ödemeden önce gösterilir. Ödeme banka / kredi kartıyla (ödeme kuruluşu aracılığıyla) ya da havale / EFT ile yapılır. Kart bilgileri hizmet sağlayıcıya ulaşmaz.
+Paketin içeriği (modüller), süresi ve vergiler dahil toplam bedeli ödeme sayfasında, ödemeden önce gösterilir. Ödeme banka / kredi kartıyla (ödeme kuruluşu aracılığıyla) ya da havale / EFT ile yapılır. Kart bilgileri hizmet sağlayıcıya ulaşmaz.
 
 ## Madde 4 — İfa
-Hizmet, ödemenin onaylanmasıyla birlikte alıcının birimi için elektronik ortamda derhal kullanıma açılır. Havale / EFT ödemelerinde hizmet, ödemenin hesaba geçtiğinin görülmesiyle açılır. Abonelik dönem sonunda kendiliğinden yenilenmez ve kartınızdan otomatik çekim yapılmaz.
+Hizmet, ödemenin onaylanmasıyla birlikte alıcının hesabı için elektronik ortamda derhal kullanıma açılır. Havale / EFT ödemelerinde hizmet, ödemenin hesaba geçtiğinin görülmesiyle açılır. Abonelik dönem sonunda kendiliğinden yenilenmez ve kartınızdan otomatik çekim yapılmaz.
 
 ## Madde 5 — Cayma hakkı
 Mesafeli Sözleşmeler Yönetmeliği'nin 15. maddesinin 1. fıkrasının (ğ) bendi uyarınca, elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı kullanılamaz. Bununla birlikte iade talepleri İptal ve İade Koşulları'na göre değerlendirilir. Alıcı tacir ise tüketici mevzuatındaki cayma hakkı uygulanmaz.
@@ -189,7 +189,7 @@ TXT,
 Deneme süresi ücretsizdir; deneme bitince kendiliğinden ücretli pakete geçilmez ve kartınızdan çekim yapılmaz.
 
 ## Abonelik iptali
-Abonelik dönem sonunda kendiliğinden yenilenmez. Yenilemek istemezseniz bir şey yapmanız gerekmez; dönem sonuna kadar hizmet sürer. Süre dolunca birim, sistemde tanımlı ise ücretsiz pakete geçer ya da yalnız görüntülenebilir hale gelir; verileriniz silinmez.
+Abonelik dönem sonunda kendiliğinden yenilenmez. Yenilemek istemezseniz bir şey yapmanız gerekmez; dönem sonuna kadar hizmet sürer. Süre dolunca hesabınız ücretsiz pakete geçer (tanımlı değilse yalnız görüntülenebilir hale gelir); verileriniz silinmez.
 
 ## İade
 - İlk ödemenizden sonraki **14 gün** içinde {EPOSTA} adresine yazarak iade isteyebilirsiniz. Tutarın tamamı, ödemenin yapıldığı yönteme (kart ya da banka hesabı) iade edilir.

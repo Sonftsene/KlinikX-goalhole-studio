@@ -454,6 +454,8 @@ Yöneticiler ve sorumlular her zaman görür.
 
 ## 29. Abonelik ve ödeme (4.15)
 
+> **4.32.0'dan itibaren abonelik kişi başınadır** (birim başına değil). Bu bölümdeki “birim” anlatımları için güncel kurallar **§52**'dedir; ödeme yöntemleri, PayTR / iyzico / havale kurulumu aynen geçerlidir.
+
 Tamamı **sistem yöneticisi panelinde, "Abonelik ve ödeme" sekmesinde** yönetilir. Kurulumda her şey kapalıdır; siz açana kadar hiçbir birim bir şey görmez ve kısıtlanmaz. Yalnız çok birimli (SQLite) kurulumda çalışır; tek birimli MySQL kurulumunda abonelik yoktur.
 
 ### Anahtarlar (birbirinden bağımsız)
@@ -976,3 +978,29 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Yazarak:** "28 aralık - 2 ocak izin", "28.12-2.1 izin", "30 kasım boş". Ay adı yazılmayan günler eskisi gibi dönemin ayıdır.
 - **Her gün kendi ayının dönemine düşer:** komşu ayın dönemi açıksa gün oraya yazılır (o ayın panelinde görünür). O ayın dönemi henüz açılmadıysa gün şimdilik bu dönemde bekler; o ay için dönem açılınca kendiliğinden oraya geçer. Kapanmış bir dönemin günlerini üye ekleyemez / değiştiremez (sorumluya yazar).
 - Çizelge hazırlarken onaylı istekler tarihe göre okunur: hangi dönemde yazılmış olursa olsun o ayın çizelgesinde dikkate alınır.
+
+## 52. Kişi bazlı abonelik (4.32.0)
+Abonelik artık **her kişinin kendisine** aittir; birim başına ödeme yoktur. Her kullanıcı kendi paketini ve süresini seçip kendisi öder.
+
+### Kullanıcı (herkes)
+- Menüde **Abonelik** (Genel bölümünde) ve Ayarlar › Genel'de kısa bilgi kartı. Abonelik sayfası açıksa üye, sorumlu, yönetici herkes görür.
+- Sayfada üstte **süre seçici** (ör. Aylık · 3 aylık · Yıllık): seçilen süreye göre her paketin fiyatı, KDV dahil tutarı, aylık karşılığı ve aylığa göre **tasarruf** gösterilir.
+- **Fatura bilgileri:** ad soyad (ya da şirket unvanı), T.C. kimlik no (ya da vergi no), adres, il, telefon, e-posta. Ad ve e-posta hesaptan dolu gelir. Her kişinin fatura bilgisi ve ödemeleri ayrıdır; kimse başkasınınkini görmez.
+- Ödeme yöntemleri (PayTR, iyzico, havale) §29'daki gibidir. Süre, kalan deneme / abonelik süresinin üstüne eklenir.
+- Süre bitince (ek süreden sonra) kişi **ücretsiz pakete** düşer; ücretsiz paket tanımlı değilse yalnız görüntüler. Aynı birimdeki diğer kişiler etkilenmez.
+- Hatırlatmalar (7, 3, 1 gün kala ve bitince) yalnız kişinin kendisine gider.
+
+### Sistem yöneticisi (Sistem paneli › Abonelik ve ödeme)
+- **Paketler › Düzenle › Süreler ve fiyatlar:** istediğiniz kadar süre ekleyin (1–36 ay; hızlı düğmeler 1 ay, 3 ay, 6 ay, 1 yıl), her birine kişi başı fiyat yazın (KDV hariç). Kullanıcı yalnız tanımladığınız süreleri görür. Bir süreyi kaldırmak için satırdaki ✕.
+- **Yeni kişilere otomatik deneme:** açıksa kaydı olmayan kişi ilk girişinde **Deneme süresi (gün)** kutusundaki gün kadar deneme başlatır. Gün sayısını siz belirlersiniz.
+- **Kişilerin abonelikleri:** herkes listelenir (ilk girişte eklenir): ad, e-posta, hastane › birim, paket, süre, bitiş. Ad / e-posta / birim araması ve durum süzgeci (Deneme, Etkin, Ücretsiz, Süresi dolan, Kaydı yok). “İşlemler” ile kişiye özel: Etkinleştir (paket + 1/3/6/12 ay, paketteki diğer süreler ya da belirli tarihe kadar), Deneme, Uzat, Ücretsiz tanımla, Askıya al, Kaydı sıfırla, Geçmiş.
+- **Birimler (birimin tamamı):** bir birimi “Ücretsiz tanımla” ya da “Etkinleştir” ile kapsama alırsanız o birimdeki **herkes** ödemesiz kullanır (kurum sözleşmesi, pilot birim). Kişilerin sayfasında “Biriminizin tamamı kapsama alındı” yazar, uyarı şeridi çıkmaz. Tanım bitince ya da “Kaydı sıfırla” ile herkes kendi aboneliğine döner.
+- **Zorunluluğu açarken** kaydı olmayan kişiler için yine seçim sorulur (deneme / ücretsiz / dokunma). “Süresi dolan kişilere yeniden deneme” düğmesi toplu deneme verir.
+- **Özet:** ücretli etkin kişi, denemede, ücretsiz tanımlı, süresi dolan, kapsama alınan birim, aylığa çevrilmiş tekrarlayan gelir (KDV hariç), bu ay tahsilat, onay bekleyen havale.
+- Ödemeler listesinde ödeyen kişi, birim ve süre (ör. “3 aylık”) yazar.
+
+### Notlar
+- Kişi sınırı artık yoktur (paketler kişi başı ücretlendirildiği için).
+- Eski birim kayıtları silinmez; panelde “Birimler” bölümünde görünür ve birimin tamamı tanımı olarak çalışmaya devam eder (etkin / ücretsiz olduğu sürece).
+- Tanıtım sayfasındaki fiyatlar kişi başı ve tanımlı tüm sürelerle gösterilir.
+

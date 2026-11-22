@@ -37,7 +37,7 @@ function od_paid_note(string $oid): void
     if (!$pay) return;
     $plan = bl_plan((int)$pay['plan_id']);
     $sub = bl_sub((string)$pay['tkey']);
-    bl_unit_notify((string)$pay['tkey'], 'Ödemeniz alındı', ($plan['name'] ?? 'Paket') . ' · ' . (BL_PERIODS[$pay['period']] ?? '') . ' · ' . bl_money((int)$pay['total'])
+    bl_unit_notify((string)$pay['tkey'], 'Ödemeniz alındı', ($plan['name'] ?? 'Paket') . ' · ' . bl_period_label((string)$pay['period']) . ' · ' . bl_money((int)$pay['total'])
         . ' ödemeniz alındı. Abonelik bitişi: ' . ($sub['current_end'] ? date('d.m.Y', strtotime((string)$sub['current_end'])) : '-') . '.');
 }
 

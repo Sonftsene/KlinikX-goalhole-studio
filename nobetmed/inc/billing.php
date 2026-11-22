@@ -5,8 +5,9 @@
  * İlkeler
  *  - Her şey süper yöneticinin elinde: "abonelik sayfası görünsün" ve "ödeme zorunluluğu" ayrı anahtarlar, ikisi de varsayılan KAPALI.
  *    Zorunluluk kapalıyken hiçbir birim kısıtlanmaz (geliştirme ve yayılma dönemi).
- *  - Abonelik birim başınadır; ödemeyi birim yöneticisi (birim sorumlusu) yapar.
- *  - Paketler süper yönetici tarafından düzenlenir: fiyat (KDV hariç, aylık / yıllık), kişi sınırı, açık modüller, ücretsiz paket.
+ *  - Abonelik KİŞİ başınadır (4.32): her kullanıcı kendi aboneliğini öder. Abone anahtarı "birimAnahtarı#u<kullanıcı no>".
+ *    Sistem yöneticisi isterse bir birimin tamamını ücretsiz tanımlar / öder (anahtar yalnız birim anahtarı): o birimdeki herkes kapsanır.
+ *  - Paketler süper yönetici tarafından düzenlenir: süre başına fiyat (KDV hariç; 1, 3, 12 ay ya da istenen ay sayısı), açık modüller, ücretsiz paket.
  *  - Durumlar: none (kaydı yok) · trial (deneme) · active (ücretli) · comp (ücretsiz tanımlandı) · suspended (askıya alındı).
  *    Süresi dolan ücretli abonelik ek süre (grace) boyunca çalışır; sonra ücretsiz pakete düşer, ücretsiz paket yoksa salt okunur olur.
  *  - Ödeme: PayTR (iFrame), iyzico (Checkout Form), havale/EFT (süper yönetici onaylar). Tutar her zaman sunucuda paketten hesaplanır.
@@ -15,7 +16,25 @@
  */
 declare(strict_types=1);
 
-const BL_PERIODS = ['month' => 'Aylık', 'year' => 'Yıllık'];
+const BL_PERIODS = ['month' => 'Aylık', 'year' => 'Yıllık']; // eski kayıtlar; yeni süreler "m<ay>" (m1, m3, m12…)
+
+/** Süre anahtarı → ay sayısı ('month' = 1, 'year' = 12, 'm3' = 3) */
+function bl_months(?string $period): int
+{
+    if ($period === 'year') return 12;
+    if ($period === null || $period === '' || $period === 'month') return 1;
+    return preg_match('/^m(\d{1,2})$/', $period, $m) ? max(1, min(36, (int)$m[1])) : 1;
+}
+function bl_period_label(?string $period): string
+{
+    $n = bl_months($period);
+    return $n === 1 ? 'Aylık' : ($n === 12 ? 'Yıllık' : ($n === 24 ? '2 yıllık' : $n . ' aylık'));
+}
+
+/* ---------------- Abone anahtarı: kişi ya da birim ---------------- */
+function bl_pkey(string $tkey, int $uid): string { return $tkey . '#u' . $uid; }
+function bl_key_tkey(string $key): string { $i = strpos($key, '#'); return $i === false ? $key : substr($key, 0, $i); }
+function bl_key_uid(string $key): ?int { return preg_match('/#u(\d+)$/', $key, $m) ? (int)$m[1] : null; }
 const BL_STATUS_TXT = ['none' => 'Abonelik yok', 'trial' => 'Deneme', 'active' => 'Etkin', 'comp' => 'Ücretsiz (tanımlı)', 'suspended' => 'Askıya alındı'];
 const BL_MODE_TXT = ['none' => 'Abonelik yok', 'open' => 'Kısıtlama yok', 'trial' => 'Deneme', 'active' => 'Etkin', 'grace' => 'Ek süre', 'comp' => 'Ücretsiz (tanımlı)', 'free' => 'Ücretsiz paket', 'expired' => 'Süresi doldu'];
 
@@ -43,6 +62,20 @@ function bl_ensure(): void
     $p->exec('CREATE INDEX IF NOT EXISTS bl_ev_t ON bl_events (tkey, id)');
     // Birim yöneticilerine gidecek bildirimler (başka birimin isteğinden / ödeme dönüşünden): birimin görevi teslim eder
     $p->exec("CREATE TABLE IF NOT EXISTS bl_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, tkey TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, sent_at TEXT NULL)");
+    $cols = fn(string $t) => array_column($p->query('PRAGMA table_info(' . $t . ')')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    if (!in_array('prices', $cols('bl_plans'), true)) {
+        $p->exec('ALTER TABLE bl_plans ADD COLUMN prices TEXT NULL');
+        // 4.32 kişi bazlı: hiç değiştirilmemiş eski (birim fiyatlı) örnek paketler kişi başı örnek fiyatlara geçer; diğerleri aylık / yıllık fiyatıyla kalır
+        $old = ['pro' => [150000, 1500000, [1 => 9900, 3 => 26900, 12 => 99000]], 'kurumsal' => [300000, 3000000, [1 => 14900, 3 => 39900, 12 => 149000]]];
+        foreach ($old as $code => [$pm, $py, $pr]) {
+            $u = $p->prepare('UPDATE bl_plans SET price_m = ?, price_y = ?, prices = ?, updated_at = ? WHERE code = ? AND price_m = ? AND price_y = ?');
+            $u->execute([$pr[1], $pr[12], json_encode($pr), date('Y-m-d H:i:s'), $code, $pm, $py]);
+        }
+        $p->exec('UPDATE bl_plans SET max_users = 0');
+    }
+    $sc = $cols('bl_subs');
+    if (!in_array('name', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN name TEXT NOT NULL DEFAULT ''");
+    if (!in_array('email', $sc, true)) $p->exec("ALTER TABLE bl_subs ADD COLUMN email TEXT NOT NULL DEFAULT ''");
     if (!(int)$p->query('SELECT COUNT(*) FROM bl_plans')->fetchColumn()) bl_seed_plans();
 }
 
@@ -50,14 +83,15 @@ function bl_ensure(): void
 function bl_seed_plans(): void
 {
     $now = now();
+    // Kişi başı örnek fiyatlar (kuruş, KDV hariç): süre => fiyat
     $rows = [
-        ['temel', 'Temel', 'Küçük ekipler için: nöbet listesi, takvim, kim nöbette, duyurular, rehber, yemek listesi.', 0, 0, 15, ['nobet', 'rehber', 'yemek'], 1, 1],
-        ['pro', 'Profesyonel', 'Nöbet değişimi, ilan, devral, eksik personel çağrısı, istekler, mesajlaşma ve arama, bildirimler.', 150000, 1500000, 0, ['nobet', 'taraf', 'istekler', 'ilan', 'eksik', 'gecmis', 'rehber', 'mesaj', 'yemek', 'ucret'], 0, 2],
-        ['kurumsal', 'Kurumsal', 'Tüm modüller: çizelge hazırlama ve otomatik doldurma, hastane ortak belgeleri, raporlar; öncelikli destek.', 300000, 3000000, 0, null, 0, 3],
+        ['temel', 'Temel', 'Ücretsiz: nöbet listesi, takvim, kim nöbette, duyurular, rehber, yemek listesi.', [], 0, ['nobet', 'rehber', 'yemek'], 1, 1],
+        ['pro', 'Profesyonel', 'Nöbet değişimi, ilan, devral, eksik personel çağrısı, istekler, mesajlaşma ve arama, bildirimler.', [1 => 9900, 3 => 26900, 12 => 99000], 0, ['nobet', 'taraf', 'istekler', 'ilan', 'eksik', 'gecmis', 'rehber', 'mesaj', 'yemek', 'ucret'], 0, 2],
+        ['kurumsal', 'Kurumsal', 'Tüm modüller: çizelge hazırlama ve otomatik doldurma, hastane ortak belgeleri, raporlar; öncelikli destek.', [1 => 14900, 3 => 39900, 12 => 149000], 0, null, 0, 3],
     ];
-    foreach ($rows as [$code, $name, $d, $pm, $py, $mu, $mods, $free, $sort]) {
-        m_q('INSERT OR IGNORE INTO bl_plans (code, name, descr, price_m, price_y, max_users, modules, is_free, active, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
-            [$code, $name, $d, $pm, $py, $mu, $mods === null ? null : json_encode($mods), $free, $sort, $now, $now]);
+    foreach ($rows as [$code, $name, $d, $prices, $mu, $mods, $free, $sort]) {
+        m_q('INSERT OR IGNORE INTO bl_plans (code, name, descr, price_m, price_y, prices, max_users, modules, is_free, active, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
+            [$code, $name, $d, (int)($prices[1] ?? 0), (int)($prices[12] ?? 0), $prices ? json_encode($prices) : null, $mu, $mods === null ? null : json_encode($mods), $free, $sort, $now, $now]);
     }
 }
 
@@ -122,7 +156,13 @@ function bl_cfg_set(array $patch): void
 function bl_plan_out(array $p): array
 {
     $mods = $p['modules'] === null || $p['modules'] === '' ? null : array_values((array)json_decode((string)$p['modules'], true));
+    // Süre fiyatları: [ay => kuruş]; eski paketlerde aylık / yıllık fiyattan
+    $pr = [];
+    foreach ((array)json_decode((string)($p['prices'] ?? ''), true) as $mo => $v) if ((int)$mo >= 1 && (int)$mo <= 36 && (int)$v > 0) $pr[(int)$mo] = (int)$v;
+    if (!$pr && (int)$p['is_free'] !== 1) { if ((int)$p['price_m'] > 0) $pr[1] = (int)$p['price_m']; if ((int)$p['price_y'] > 0) $pr[12] = (int)$p['price_y']; }
+    ksort($pr);
     return ['id' => (int)$p['id'], 'code' => $p['code'], 'name' => $p['name'], 'descr' => $p['descr'], 'price_m' => (int)$p['price_m'], 'price_y' => (int)$p['price_y'],
+        'durations' => array_map(fn($mo, $v) => ['months' => $mo, 'period' => 'm' . $mo, 'label' => bl_period_label('m' . $mo), 'net' => $v], array_keys($pr), array_values($pr)),
         'max_users' => (int)$p['max_users'], 'modules' => $mods, 'is_free' => (int)$p['is_free'] === 1, 'active' => (int)$p['active'] === 1, 'sort' => (int)$p['sort']];
 }
 function bl_plans(bool $activeOnly = false): array
@@ -146,7 +186,9 @@ function bl_free_plan(): ?array
 /** Fiyat (kuruş): [net, kdv, toplam] */
 function bl_price(array $plan, string $period): array
 {
-    $net = $period === 'year' ? (int)$plan['price_y'] : (int)$plan['price_m'];
+    $mo = bl_months($period);
+    $net = 0;
+    foreach ($plan['durations'] ?? [] as $d) if ((int)$d['months'] === $mo) $net = (int)$d['net'];
     $kdv = (int)round($net * max(0, min(100, (float)bl_cfg()['kdv'])) / 100);
     return ['net' => $net, 'kdv' => $kdv, 'total' => $net + $kdv];
 }
@@ -158,21 +200,22 @@ function bl_sub(string $tkey): array
 {
     bl_ensure();
     $r = m_one('SELECT * FROM bl_subs WHERE tkey = ?', [$tkey]);
-    return $r ?: ['tkey' => $tkey, 'plan_id' => null, 'status' => 'none', 'period' => null, 'trial_ends' => null, 'current_end' => null, 'started_at' => null, 'note' => '', 'reminded' => '', 'updated_at' => null];
+    return $r ?: ['tkey' => $tkey, 'plan_id' => null, 'status' => 'none', 'period' => null, 'trial_ends' => null, 'current_end' => null, 'started_at' => null, 'note' => '', 'reminded' => '', 'updated_at' => null, 'name' => '', 'email' => ''];
 }
 function bl_sub_put(string $tkey, array $f, string $kind, string $detail, string $who = ''): void
 {
     bl_ensure();
     $cur = bl_sub($tkey);
     $row = array_merge($cur, $f, ['tkey' => $tkey, 'updated_at' => now()]);
-    m_q('INSERT OR REPLACE INTO bl_subs (tkey, plan_id, status, period, trial_ends, current_end, started_at, note, reminded, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [$tkey, $row['plan_id'] !== null ? (int)$row['plan_id'] : null, $row['status'], $row['period'], $row['trial_ends'], $row['current_end'], $row['started_at'], (string)$row['note'], (string)$row['reminded'], $row['updated_at']]);
+    m_q('INSERT OR REPLACE INTO bl_subs (tkey, plan_id, status, period, trial_ends, current_end, started_at, note, reminded, updated_at, name, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$tkey, $row['plan_id'] !== null ? (int)$row['plan_id'] : null, $row['status'], $row['period'], $row['trial_ends'], $row['current_end'], $row['started_at'], (string)$row['note'], (string)$row['reminded'], $row['updated_at'],
+            mb_substr((string)($row['name'] ?? ''), 0, 120), mb_substr((string)($row['email'] ?? ''), 0, 190)]);
     m_q('INSERT INTO bl_events (tkey, kind, detail, who, at) VALUES (?, ?, ?, ?, ?)', [$tkey, $kind, mb_substr($detail, 0, 500), mb_substr($who, 0, 120), now()]);
 }
 function bl_add_period(string $from, string $period, int $n = 1): string
 {
     $d = new DateTime($from);
-    $d->modify('+' . $n . ($period === 'year' ? ' year' : ' month'));
+    $d->modify('+' . (bl_months($period) * $n) . ' month');
     return $d->format('Y-m-d H:i:s');
 }
 function bl_days_left(?string $end): ?int
@@ -200,7 +243,7 @@ function bl_state(string $tkey): array
     $now = date('Y-m-d H:i:s');
     $plan = bl_plan($sub['plan_id'] !== null ? (int)$sub['plan_id'] : null);
     // Kaydı olmayan birim: deneme açıksa ilk bakışta deneme başlar
-    if ($sub['status'] === 'none' && $cfg['trial_on'] === '1' && bl_on()) {
+    if ($sub['status'] === 'none' && $cfg['trial_on'] === '1' && bl_on() && bl_key_uid($tkey) !== null) {
         bl_start_trial($tkey, (int)$cfg['trial_days'], 'otomatik');
         $sub = bl_sub($tkey);
     }
@@ -279,7 +322,7 @@ function bl_pay_mark_paid(string $oid, string $ref, int $amountKurus, string $ra
     $n = m_q("UPDATE bl_payments SET status = 'paid', ref = ?, raw = ?, paid_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'", [$ref, mb_substr($raw, 0, 4000), now(), now(), $p['id']])->rowCount();
     if ($n !== 1) return false;
     $plan = bl_plan((int)$p['plan_id']);
-    bl_extend((string)$p['tkey'], (int)$p['plan_id'], (string)$p['period'], ($plan['name'] ?? 'Paket') . ' · ' . (BL_PERIODS[$p['period']] ?? $p['period']) . ' · ' . bl_money((int)$p['total']) . ' (' . $p['provider'] . ')', $who);
+    bl_extend((string)$p['tkey'], (int)$p['plan_id'], (string)$p['period'], ($plan['name'] ?? 'Paket') . ' · ' . bl_period_label((string)$p['period']) . ' · ' . bl_money((int)$p['total']) . ' (' . $p['provider'] . ')', $who);
     return true;
 }
 function bl_pay_mark_failed(string $oid, string $reason, string $raw): void
@@ -291,7 +334,7 @@ function bl_pay_mark_failed(string $oid, string $reason, string $raw): void
 function bl_pay_out(array $p): array
 {
     $plan = bl_plan((int)$p['plan_id']);
-    return ['id' => (int)$p['id'], 'tkey' => $p['tkey'], 'plan' => $plan['name'] ?? '?', 'plan_id' => (int)$p['plan_id'], 'period' => $p['period'], 'net' => (int)$p['net'], 'kdv' => (int)$p['kdv'],
+    return ['id' => (int)$p['id'], 'tkey' => $p['tkey'], 'plan' => $plan['name'] ?? '?', 'plan_id' => (int)$p['plan_id'], 'period' => $p['period'], 'period_txt' => bl_period_label((string)$p['period']), 'net' => (int)$p['net'], 'kdv' => (int)$p['kdv'],
         'total' => (int)$p['total'], 'provider' => $p['provider'], 'oid' => $p['oid'], 'ref' => $p['ref'], 'status' => $p['status'], 'payer' => $p['payer_name'],
         'created_at' => $p['created_at'], 'paid_at' => $p['paid_at'], 'note' => $p['note'], 'invoice_no' => $p['invoice_no']];
 }
@@ -409,7 +452,7 @@ function bl_unit_notify(string $tkey, string $title, string $body): void
     try {
         bl_ensure();
         m_q('INSERT INTO bl_outbox (tkey, title, body, created_at) VALUES (?, ?, ?, ?)', [$tkey, mb_substr($title, 0, 200), mb_substr($body, 0, 1000), now()]);
-        if (function_exists('bl_outbox_flush') && !empty($GLOBALS['NM_T']) && (string)($GLOBALS['NM_T']['tkey'] ?? '') === $tkey) bl_outbox_flush();
+        if (function_exists('bl_outbox_flush') && !empty($GLOBALS['NM_T']) && (string)($GLOBALS['NM_T']['tkey'] ?? '') === bl_key_tkey($tkey)) bl_outbox_flush();
     } catch (Throwable $e) { error_log('[dupcii] abonelik bildirimi: ' . $e->getMessage()); }
 }
 
@@ -425,6 +468,7 @@ function bl_site(): string
 /** Birimin uygulama adresi (ödeme sonrası dönüş) */
 function bl_unit_url(string $tkey, string $hash = '#/abonelik'): string
 {
+    $tkey = bl_key_tkey($tkey);
     $t = function_exists('nm_tenant_by_key') ? nm_tenant_by_key($tkey) : null;
     return bl_site() . ($t && (int)$t['is_default'] !== 1 ? '?b=' . rawurlencode($tkey) : '') . $hash;
 }

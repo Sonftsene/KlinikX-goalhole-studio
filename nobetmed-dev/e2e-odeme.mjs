@@ -1,4 +1,5 @@
-// Abonelik ve ödeme (4.15) — sahte PayTR ve iyzico sunucusuyla uçtan uca. Gerçek ödeme yapılmaz.
+// Abonelik ve ödeme (4.15; 4.32 kişi bazlı) — sahte PayTR ve iyzico sunucusuyla uçtan uca. Gerçek ödeme yapılmaz.
+// Abonelik kişi başınadır (anahtar "birim#u<kullanıcı>"); sistem yöneticisi bir birimin tamamını da tanımlayabilir.
 // e2e-tenant.mjs ve e2e-hastane.mjs SONRASI aynı sitede çalışır (sistem yöneticisi ve Dahiliye birimi orada açılır).
 // Test, sitenin config.php dosyasına sahte sağlayıcı adreslerini yazar ve sonunda kaldırır; ayarları kapalı duruma döndürür.
 //   node e2e-odeme.mjs http://localhost:8240/ <çıktı klasörü> <site klasörü>
@@ -140,6 +141,11 @@ try {
   const N = await ctx('nil', true);
   await login(N.p, 'nil@test.com', 'NilSifre1234');
   const nilTk = php(`foreach (nm_tenants() as $t) if ($t['name'] === 'Dahiliye') echo $t['tkey'];`).trim();
+  const E = await ctx('elif'); await login(E.p, 'elif@test.com', 'YeniSifre99');
+  // Kişi bazlı abonelik: anahtar "birim#u<kullanıcı no>"
+  const aKey = `${sa.tk}#u${await A.p.evaluate(() => S.me.id)}`;
+  const eKey = `${sa.tk}#u${await E.p.evaluate(() => S.me.id)}`;
+  const addMonths = (s, n) => { const x = new Date(s.replace(' ', 'T')); x.setMonth(x.getMonth() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 
   // ---- 1) Varsayılan: kapalı, kimse etkilenmez ----
   const b0 = await A.p.evaluate(() => S.billing);
@@ -148,9 +154,12 @@ try {
   if (await A.p.locator('#sidebar a[href="#/abonelik"]').count()) fail('kapalıyken menüde Abonelik var');
   let d = await apiCall(SA.p, 'sa.billing');
   if (d.plans.length < 3 || !d.plans.some((p) => p.is_free)) fail('örnek paketler oluşmadı');
-  step('başlangıç: abonelik kapalı (sayfa görünmez, kimse kısıtlanmaz); örnek paketler (Temel ücretsiz, Profesyonel, Kurumsal) hazır');
+  const pro0 = d.plans.find((p) => p.code === 'pro');
+  if (JSON.stringify(pro0.durations.map((x) => x.months)) !== '[1,3,12]') fail('örnek pakette 1 / 3 / 12 aylık süreler yok: ' + JSON.stringify(pro0.durations));
+  if (d.units.some((u) => u.status !== 'none')) fail('birimlere kendiliğinden abonelik tanımlandı');
+  step('başlangıç: abonelik kapalı (sayfa görünmez, kimse kısıtlanmaz); örnek paketler kişi başı 1 / 3 / 12 aylık fiyatlı (Temel ücretsiz, Profesyonel, Kurumsal)');
 
-  // ---- 2) Sistem yöneticisi: sağlayıcılar ve görünürlük ----
+  // ---- 2) Sistem yöneticisi: sağlayıcılar, görünürlük, paket süreleri ----
   if (!/PayTR/.test(await apiErr(SA.p, 'sa.billing.cfg', { cfg: { paytr_on: true } }))) fail('anahtarsız PayTR açılabildi');
   d = await apiCall(SA.p, 'sa.billing.cfg', { cfg: { visible: true, havale_on: true, havale_text: 'Alıcı: Örnek Yazılım · IBAN: TR00 0000 0000 0000 0000 0000 00', paytr_on: true, paytr_test: true, paytr_id: PAYTR.id, paytr_key: PAYTR.key, paytr_salt: PAYTR.salt, iyzico_on: true, iyzico_sandbox: true, iyzico_key: IYZ.key, iyzico_secret: IYZ.secret, kdv: 20, terms: 'MESAFELİ SATIŞ SÖZLEŞMESİ (örnek metin)\nMadde 1 — Taraflar …' } });
   if (d.cfg.paytr_key !== '' || !d.cfg.paytr_key_set || d.cfg.iyzico_secret !== '' || !d.cfg.iyzico_secret_set) fail('gizli anahtarlar panele geri gönderildi');
@@ -161,38 +170,58 @@ try {
   await SA.p.goto(BASE); await SA.p.waitForFunction(() => typeof S !== 'undefined' && S.sa);
   await SA.p.locator('[data-act=sys-tab][data-t=abonelik]').click();
   await SA.p.locator('.bl-stats').waitFor({ timeout: 10000 });
-  // Paneldeki paket düzenleme penceresi
+  // Paneldeki paket penceresi: 1 aylık fiyatı değiştir, 6 aylık süre ekle, 3 aylığı kaldır
   await SA.p.locator(`[data-act=bls-plan][data-id="${pro.id}"]`).click();
-  await SA.p.locator('#blsPlanF [name=price_m]').fill('1.500,00'.replace('.', ''));
+  const rows = SA.p.locator('#blsDur .bls-dur');
+  if ((await rows.count()) !== 3) fail('paket penceresinde 3 süre satırı yok');
+  await rows.nth(0).locator('[data-dp]').fill('150,00');
+  await rows.nth(1).locator('[data-durx]').click();
+  await SA.p.click('.modal [data-dur="6"]');
+  await SA.p.locator('#blsDur .bls-dur').last().locator('[data-dp]').fill('800');
   await SA.p.click('.modal button[form=blsPlanF]');
   await SA.p.getByText('Paket kaydedildi').first().waitFor();
-  if ((await apiCall(SA.p, 'sa.billing')).plans.find((p) => p.id === pro.id).price_m !== 150000) fail('panelden paket fiyatı kaydedilmedi');
+  let pd = (await apiCall(SA.p, 'sa.billing')).plans.find((p) => p.id === pro.id).durations;
+  if (JSON.stringify(pd.map((x) => [x.months, x.net])) !== JSON.stringify([[1, 15000], [6, 80000], [12, 99000]])) fail('panelden paket süreleri kaydedilmedi: ' + JSON.stringify(pd));
+  // 3 aylık süreyi API ile geri ekle (sonraki adımlar için) — istenen ay sayısı (ör. 18) da kabul edilir
+  d = await apiCall(SA.p, 'sa.billing.plan', { ...pro, prices: [{ months: 1, price: '150' }, { months: 3, price: '400' }, { months: 12, price: '990' }, { months: 18, price: '1400' }], all_modules: !pro.modules });
+  pd = d.plans.find((p) => p.id === pro.id).durations;
+  if (pd.map((x) => x.months).join(',') !== '1,3,12,18' || pd[3].label !== '18 aylık') fail('özel süre (18 ay) kaydedilmedi: ' + JSON.stringify(pd));
+  if (!/süre/.test(await apiErr(SA.p, 'sa.billing.plan', { ...pro, prices: [], price_m: 0, price_y: 0, is_free: false, all_modules: true }))) fail('fiyatsız ücretli paket kaydedildi');
   await SA.p.screenshot({ path: path.join(OUT, 'o-sa-panel.png'), fullPage: true });
+  step('paket penceresi: süre başına fiyat (1 ay fiyatı değişti, 3 ay kaldırıldı, 6 ay eklendi); istenen ay sayısı (18 ay) da tanımlanabiliyor; fiyatsız ücretli paket reddedildi');
 
-  // ---- 3) Birim yöneticisi: sayfa, fatura bilgisi ----
+  // ---- 3) Kişi: sayfa, süre seçimi, fatura bilgisi (üye de kendi aboneliğini öder) ----
   await A.p.reload(); await A.p.waitForFunction(() => typeof S !== 'undefined' && S.me && S.billing && S.billing.visible);
   await A.p.goto(BASE + '#/abonelik');
   await A.p.locator('.bl-plan').first().waitFor();
   if (!(await A.p.locator('#sidebar a[href="#/abonelik"]').count())) fail('menüde Abonelik yok');
-  if (!/fatura|unvan/i.test(await apiErr(A.p, 'billing.checkout', { plan_id: pro.id, period: 'month', provider: 'paytr' }))) fail('fatura bilgisi olmadan ödeme başladı');
-  await A.p.fill('[data-form=bl-info] [name=title]', 'Örnek Hastane Yoğun Bakım');
-  await A.p.fill('[data-form=bl-info] [name=tax_no]', '1234567890');
-  await A.p.fill('[data-form=bl-info] [name=tax_office]', 'Merkez');
+  const segs = await A.p.locator('#blPers [data-act=bl-period]').allTextContents();
+  if (segs.join('|') !== 'Aylık|3 aylık|Yıllık|18 aylık') fail('süre seçenekleri yanlış: ' + segs.join('|'));
+  await A.p.click('[data-act=bl-period][data-p=m3]');
+  const saveTxt = await A.p.locator('.bl-plan', { hasText: pro.name }).locator('.bl-save').textContent().catch(() => '');
+  if (!/50,00 ₺ tasarruf/.test(saveTxt)) fail('3 aylıkta aylığa göre tasarruf gösterilmedi: ' + saveTxt);
+  if (!/fatura|ad/i.test(await apiErr(A.p, 'billing.checkout', { plan_id: pro.id, period: 'm1', provider: 'paytr' }))) fail('fatura bilgisi olmadan ödeme başladı');
+  if (!/süre/i.test(await apiErr(A.p, 'billing.checkout', { plan_id: pro.id, period: 'm7', provider: 'havale', accept: true }))) fail('pakette olmayan süreyle ödeme başladı');
+  if ((await A.p.inputValue('[data-form=bl-info] [name=title]')) !== (await A.p.evaluate(() => S.me.name))) fail('fatura adı kişinin adıyla dolmadı');
+  await A.p.fill('[data-form=bl-info] [name=title]', 'Ayşe Test');
+  await A.p.fill('[data-form=bl-info] [name=tax_no]', '10000000146');
   await A.p.fill('[data-form=bl-info] [name=address]', 'Örnek Mah. Deneme Sk. No:1');
   await A.p.fill('[data-form=bl-info] [name=city]', 'Ankara');
   await A.p.fill('[data-form=bl-info] [name=phone]', '05000000000');
   await A.p.click('[data-form=bl-info] button[type=submit]');
   await A.p.getByText('Fatura bilgileri kaydedildi').first().waitFor();
-  const E = await ctx('elif'); await login(E.p, 'elif@test.com', 'YeniSifre99');
-  if (!/yönetici/.test(await apiErr(E.p, 'billing.page'))) fail('üye abonelik sayfasını açabildi');
-  step('birim yöneticisi: paketler ve fatura bilgileri; fatura bilgisi olmadan ödeme başlamaz; üye ödeme sayfasını açamaz');
-  await A.p.goto(BASE + '#/abonelik'); await A.p.locator('.bl-plan').first().waitFor();
+  const ep = await apiCall(E.p, 'billing.page');
+  if (ep.billing.tax_no !== '' || ep.payments.length) fail('üye başka kişinin fatura bilgisini / ödemesini görüyor');
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  if (!(await E.p.locator('#sidebar a[href="#/abonelik"]').count())) fail('üyenin menüsünde Abonelik yok');
+  step('kişi: süre seçimi (Aylık / 3 aylık / Yıllık / 18 aylık), 3 aylıkta tasarruf; fatura bilgisi kişinin adıyla dolu gelir; pakette olmayan süre reddedilir; üye de kendi sayfasını açar, başkasının bilgisini görmez');
   await A.p.screenshot({ path: path.join(OUT, 'o-abonelik.png'), fullPage: true });
 
-  // ---- 4) PayTR: çerçeve içinde öde → bildirim → abonelik uzar ----
+  // ---- 4) PayTR: çerçeve içinde öde → bildirim → kişinin aboneliği uzar ----
+  await A.p.click('[data-act=bl-period][data-p=m1]');
   await A.p.locator(`[data-act=bl-buy][data-id="${pro.id}"]`).click();
   await A.p.locator('.modal input[name=blProv][value=paytr]').check();
-  if (!/sözleşme/i.test(await apiErr(A.p, 'billing.checkout', { plan_id: pro.id, period: 'month', provider: 'paytr' }))) fail('sözleşme onayı olmadan ödeme başladı');
+  if (!/sözleşme/i.test(await apiErr(A.p, 'billing.checkout', { plan_id: pro.id, period: 'm1', provider: 'paytr' }))) fail('sözleşme onayı olmadan ödeme başladı');
   await A.p.locator('#blTerms').check();
   await A.p.click('#blGo');
   const frame = A.p.frameLocator('.bl-frame iframe');
@@ -201,21 +230,23 @@ try {
   await A.p.waitForURL(/#\/abonelik/, { timeout: 15000 });
   await A.p.waitForFunction(() => S.billing && S.billing.plan && S.billing.ends, null, { timeout: 15000 });
   if (FAKE.lastPaytr?.reply !== 'OK') fail('PayTR bildirimine “OK” dönmedi: ' + FAKE.lastPaytr?.reply);
-  let s1 = subOf(sa.tk);
+  const s1 = subOf(aKey);
   const termsNote = php(`echo m_val("SELECT note FROM bl_payments WHERE provider = 'paytr' AND status = 'paid' ORDER BY id DESC LIMIT 1");`);
   if (!/Sözleşme onaylandı/.test(termsNote)) fail('sözleşme onayı ödeme kaydına yazılmadı: ' + termsNote);
-  if (s1.status !== 'active' || +s1.plan_id !== pro.id || s1.period !== 'month') fail('PayTR sonrası abonelik yanlış: ' + JSON.stringify(s1));
+  if (!s1 || s1.status !== 'active' || +s1.plan_id !== pro.id || s1.period !== 'm1') fail('PayTR sonrası abonelik yanlış: ' + JSON.stringify(s1));
+  if (subOf(sa.tk)) fail('kişinin ödemesi birimin tamamına yazıldı');
+  const eb = subOf(eKey);
+  if (eb && eb.status === 'active') fail('Ayşe’nin ödemesi Elif’i de kapsadı');
   const end1 = s1.current_end;
-  // Aynı bildirim tekrar gelir: ikinci kez uzatmaz; sahte imza reddedilir
   const again = await fetch(BASE + 'odeme.php?p=paytr', { method: 'POST', body: new URLSearchParams(FAKE.lastPaytr.post) });
-  if ((await again.text()) !== 'OK' || subOf(sa.tk).current_end !== end1) fail('tekrarlanan PayTR bildirimi aboneliği yeniden uzattı');
+  if ((await again.text()) !== 'OK' || subOf(aKey).current_end !== end1) fail('tekrarlanan PayTR bildirimi aboneliği yeniden uzattı');
   const forged = await fetch(BASE + 'odeme.php?p=paytr', { method: 'POST', body: new URLSearchParams({ ...FAKE.lastPaytr.post, hash: 'AAAA' }) });
   if (forged.status !== 400) fail('sahte imzalı PayTR bildirimi kabul edildi');
-  step(`PayTR: güvenli çerçevede ödeme → imzalı bildirim → Profesyonel aylık etkin (bitiş ${end1.slice(0, 10)}); tekrarlanan bildirim ikinci kez işlenmedi, sahte imza reddedildi`);
+  step(`PayTR: güvenli çerçevede ödeme → imzalı bildirim → yalnız Ayşe’nin aboneliği Profesyonel aylık etkin (bitiş ${end1.slice(0, 10)}); birim ve Elif etkilenmedi; tekrarlanan bildirim işlenmedi, sahte imza reddedildi`);
 
-  // ---- 5) iyzico: ödeme sayfasına git → dönüş → sorgula → uzar ----
+  // ---- 5) iyzico: yıllık → kalan sürenin üstüne 12 ay ----
   await A.p.goto(BASE + '#/abonelik'); await A.p.locator('.bl-plan').first().waitFor();
-  await A.p.click('[data-act=bl-period][data-p=year]');
+  await A.p.click('[data-act=bl-period][data-p=m12]');
   await A.p.locator(`[data-act=bl-buy][data-id="${pro.id}"]`).click();
   await A.p.locator('.modal input[name=blProv][value=iyzico]').check();
   await A.p.locator('#blTerms').check();
@@ -224,91 +255,139 @@ try {
   await A.p.click('#pay');
   await A.p.waitForURL(/#\/abonelik/, { timeout: 15000 });
   await A.p.waitForFunction(() => typeof S !== 'undefined' && S.me);
-  const s2 = subOf(sa.tk);
-  const exp2 = new Date(end1.replace(' ', 'T')); exp2.setFullYear(exp2.getFullYear() + 1);
-  if (s2.period !== 'year' || s2.current_end.slice(0, 10) !== `${exp2.getFullYear()}-${String(exp2.getMonth() + 1).padStart(2, '0')}-${String(exp2.getDate()).padStart(2, '0')}`) fail('iyzico sonrası süre kalan sürenin üstüne eklenmedi: ' + s2.current_end);
-  // Eksik tutar: ödendi sayılmaz
+  const s2 = subOf(aKey);
+  if (s2.period !== 'm12' || s2.current_end.slice(0, 10) !== addMonths(end1, 12)) fail('iyzico sonrası süre kalan sürenin üstüne eklenmedi: ' + s2.current_end);
   FAKE.underpay = true;
-  const ck = await apiCall(A.p, 'billing.checkout', { plan_id: pro.id, period: 'month', provider: 'iyzico', accept: true });
+  const ck = await apiCall(A.p, 'billing.checkout', { plan_id: pro.id, period: 'm1', provider: 'iyzico', accept: true });
   await A.p.goto(ck.url); await A.p.click('#pay'); await A.p.waitForURL(/#\/abonelik/, { timeout: 15000 });
   FAKE.underpay = false;
   const under = JSON.parse(php(`echo json_encode(m_one('SELECT status, note FROM bl_payments WHERE oid = ?', ['${ck.oid}']));`));
-  if (under.status !== 'failed' || subOf(sa.tk).current_end !== s2.current_end) fail('eksik tutarlı ödeme kabul edildi: ' + JSON.stringify(under));
-  step(`iyzico: ödeme sayfası → dönüş → sonuç iyzico’dan imzalı sorguyla doğrulandı; yıllık süre kalan aylığın üstüne eklendi (bitiş ${s2.current_end.slice(0, 10)}); eksik tutar reddedildi`);
+  if (under.status !== 'failed' || subOf(aKey).current_end !== s2.current_end) fail('eksik tutarlı ödeme kabul edildi: ' + JSON.stringify(under));
+  step(`iyzico: ödeme sayfası → dönüş → imzalı sorguyla doğrulandı; yıllık süre kalan aylığın üstüne eklendi (bitiş ${s2.current_end.slice(0, 10)}); eksik tutar reddedildi`);
 
-  // ---- 6) Havale: bekler → sistem yöneticisi onaylar → uzar, birim yöneticisine bildirim ----
-  const hv = await apiCall(A.p, 'billing.checkout', { plan_id: pro.id, period: 'month', provider: 'havale', accept: true });
+  // ---- 6) Havale (3 aylık): bekler → sistem yöneticisi onaylar → uzar, yalnız ödeyen kişiye bildirim ----
+  const hv = await apiCall(A.p, 'billing.checkout', { plan_id: pro.id, period: 'm3', provider: 'havale', accept: true });
   if (hv.kind !== 'havale' || !/IBAN/.test(hv.text)) fail('havale bilgisi gösterilmedi');
+  if (hv.total !== 48000) fail('3 aylık tutar (400 ₺ + %20 KDV) yanlış: ' + hv.total);
   d = await apiCall(SA.p, 'sa.billing');
   if (d.summary.pending_havale < 1) fail('panelde bekleyen havale yok');
   const hp = d.payments.find((p) => p.oid === hv.oid);
+  if (!hp || hp.period_txt !== '3 aylık' || !hp.person) fail('panelde ödeme süresi / kişi bilgisi yok: ' + JSON.stringify(hp));
   d = await apiCall(SA.p, 'sa.billing.pay', { id: hp.id, op: 'paid', ref: 'DEKONT-1' });
-  const s3 = subOf(sa.tk);
-  if (s3.current_end <= s2.current_end) fail('havale onayı aboneliği uzatmadı');
+  const s3 = subOf(aKey);
+  if (s3.current_end.slice(0, 10) !== addMonths(s2.current_end, 3)) fail('havale onayı aboneliği 3 ay uzatmadı: ' + s3.current_end);
   await apiCall(SA.p, 'sa.billing.pay', { id: hp.id, op: 'invoice', invoice_no: 'GIB2026000001' });
   cron();
-  const notes = await apiCall(A.p, 'notif.list', { limit: 30 });
-  if (!(notes.items || []).some((n) => /Ödemeniz alındı/.test(n.title))) fail('birim yöneticisine “Ödemeniz alındı” bildirimi gelmedi');
-  step('havale: kod ile bekleyen ödeme → sistem yöneticisi “ödeme alındı” → abonelik uzadı, fatura no kaydı, birim yöneticisine bildirim (kuyruk → birimin görevi)');
+  const paidN = async (p) => ((await apiCall(p, 'notif.list', { limit: 30 })).items || []).filter((n) => /Ödemeniz alındı/.test(n.title)).length;
+  if (!(await paidN(A.p))) fail('ödeyen kişiye “Ödemeniz alındı” bildirimi gelmedi');
+  if (await paidN(E.p)) fail('ödeme bildirimi başka kişiye de gitti');
+  step('havale (3 aylık 480 ₺): bekleyen ödeme → sistem yöneticisi onayı → 3 ay uzadı, fatura no kaydı; bildirim yalnız ödeyen kişiye');
 
-  // ---- 7) Zorunluluk: deneme, ücretsiz pakete düşme, kişi sınırı, salt okunur, ücretsiz tanımlama ----
-  await apiCall(SA.p, 'sa.billing.sub', { key: nilTk, op: 'reset' });
+  // ---- 7) Zorunluluk: kişiye deneme, ücretsiz pakete düşme, salt okunur, ücretsiz tanımlama, birimin tamamı ----
+  d = await apiCall(SA.p, 'sa.billing');
+  const ap = d.people.find((u) => u.key === aKey);
+  if (!ap || ap.name !== (await A.p.evaluate(() => S.me.name)) || ap.mode !== 'active' || ap.period_txt !== '3 aylık') fail('kişi listesinde Ayşe yok ya da yanlış: ' + JSON.stringify(ap));
+  if (!d.people.some((u) => u.key === eKey)) fail('ilk girişte Elif kişi listesine eklenmedi');
+  await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'reset' });
   d = await apiCall(SA.p, 'sa.billing.cfg', { cfg: { enforce: true, trial_days: 30 }, none_action: 'trial' });
-  if (subOf(nilTk).status !== 'trial') fail('zorunluluk açılırken kaydı olmayan birime deneme başlamadı');
-  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  if ((await N.p.evaluate(() => S.billing.mode)) !== 'trial') fail('Dahiliye denemede görünmüyor');
-  // Askıya al → ücretsiz pakete (Temel) düşer: mesajlaşma kapalı
-  await apiCall(SA.p, 'sa.billing.sub', { key: nilTk, op: 'suspend' });
-  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  const nb = await N.p.evaluate(() => ({ mode: S.billing.mode, chat: modOn('mesaj') }));
-  if (nb.mode !== 'free' || nb.chat) fail('süresi dolan birim ücretsiz pakete düşmedi: ' + JSON.stringify(nb));
-  if (!/kapalı/.test(await apiErr(N.p, 'chat.list'))) fail('ücretsiz pakette mesajlaşma ucu açık');
-  await N.p.locator('#blBar .bl-bar').waitFor({ timeout: 8000 }).catch(() => fail('ücretsiz pakette uyarı şeridi yok'));
-  // Kişi sınırı
-  const temel = d.plans.find((p) => p.is_free);
-  await apiCall(SA.p, 'sa.billing.plan', { ...temel, price_m: 0, price_y: 0, max_users: 1, is_free: true, active: true, all_modules: false });
-  const lim = await apiErr(N.p, 'admin.user.save', { name: 'Deneme Kişi', email: 'deneme.kisi@test.com', role: 'member', status: 'active' });
-  if (!/kişi sınırı/.test(lim) || !lim.startsWith('402')) fail('kişi sınırı uygulanmadı: ' + lim);
-  // Ücretsiz paket yok → salt okunur
-  await apiCall(SA.p, 'sa.billing.plan', { ...temel, name: temel.name, price_m: '10', price_y: '100', max_users: 15, is_free: false, active: false, all_modules: false });
-  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  if (!(await N.p.evaluate(() => S.billing.read_only))) fail('ücretsiz paket yokken birim salt okunur olmadı');
-  const ro = await apiErr(N.p, 'phonebook.save', { name: 'Deneme', number: '1234' });
-  if (!ro.startsWith('402')) fail('salt okunur birimde yazma yapılabildi: ' + ro);
-  if ((await apiErr(N.p, 'posts.list')) !== 'kabul') fail('salt okunur birimde okuma engellendi');
-  if ((await apiErr(N.p, 'billing.page')) !== 'kabul') fail('salt okunur birimde abonelik sayfası açılmadı');
-  await N.p.goto(BASE + '#/'); await N.p.locator('#blBar .bl-bar.danger').waitFor({ timeout: 8000 }).catch(() => fail('salt okunur uyarı şeridi yok'));
-  await N.p.screenshot({ path: path.join(OUT, 'o-salt-okunur.png') });
-  // Ücretsiz tanımla → kısıt yok
-  await apiCall(SA.p, 'sa.billing.sub', { key: nilTk, op: 'comp', note: 'pilot birim' });
-  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  const nc = await N.p.evaluate(() => ({ mode: S.billing.mode, ro: S.billing.read_only, chat: modOn('mesaj') }));
-  if (nc.mode !== 'comp' || nc.ro || !nc.chat) fail('ücretsiz tanımlanan birim kısıtlı kaldı: ' + JSON.stringify(nc));
-  // Ödenmiş birim (Ayşe) zorunlulukta etkin, Profesyonel modülleri: çizelge kapalı
+  if (subOf(eKey).status !== 'trial') fail('zorunluluk açılırken kaydı olmayan kişiye deneme başlamadı');
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  if ((await E.p.evaluate(() => S.billing.mode)) !== 'trial') fail('Elif denemede görünmüyor');
+  // Askıya al → ücretsiz pakete (Temel) düşer: mesajlaşma kapalı; Ayşe (ödemiş) etkilenmez
+  await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'suspend' });
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const nb = await E.p.evaluate(() => ({ mode: S.billing.mode, chat: modOn('mesaj') }));
+  if (nb.mode !== 'free' || nb.chat) fail('süresi dolan kişi ücretsiz pakete düşmedi: ' + JSON.stringify(nb));
+  if (!/kapalı/.test(await apiErr(E.p, 'chat.list'))) fail('ücretsiz pakette mesajlaşma ucu açık');
+  await E.p.locator('#blBar .bl-bar').waitFor({ timeout: 8000 }).catch(() => fail('ücretsiz pakette uyarı şeridi yok'));
   await A.p.reload(); await A.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
-  const ab = await A.p.evaluate(() => ({ mode: S.billing.mode, plan: S.billing.plan && S.billing.plan.name, plan2: modOn('cizelge'), chat: modOn('mesaj') }));
-  if (ab.mode !== 'active' || ab.plan2 || !ab.chat) fail('Profesyonel paket modülleri uygulanmadı: ' + JSON.stringify(ab));
-  step('zorunluluk açık: kaydı olmayan birime deneme; askıya alınan birim ücretsiz pakete düştü (mesajlaşma kapalı, uyarı şeridi), kişi sınırı uygulandı; ücretsiz paket yokken salt okunur (yazma 402, okuma ve ödeme açık); “ücretsiz tanımla” kısıtı kaldırdı; Profesyonel pakette çizelge kapalı');
+  const ab = await A.p.evaluate(() => ({ mode: S.billing.mode, plan2: modOn('cizelge'), chat: modOn('mesaj') }));
+  if (ab.mode !== 'active' || ab.plan2 || !ab.chat) fail('aynı birimde ödeyen kişi etkilendi / Profesyonel modülleri uygulanmadı: ' + JSON.stringify(ab));
+  // Ücretsiz paket yok → salt okunur
+  const temel = d.plans.find((p) => p.is_free);
+  await apiCall(SA.p, 'sa.billing.plan', { ...temel, prices: [{ months: 1, price: '10' }], is_free: false, active: false, all_modules: false });
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  if (!(await E.p.evaluate(() => S.billing.read_only))) fail('ücretsiz paket yokken kişi salt okunur olmadı');
+  const ro = await apiErr(E.p, 'phonebook.save', { name: 'Deneme', number: '1234' });
+  if (!ro.startsWith('402')) fail('salt okunur kişide yazma yapılabildi: ' + ro);
+  if ((await apiErr(E.p, 'posts.list')) !== 'kabul') fail('salt okunur kişide okuma engellendi');
+  if ((await apiErr(E.p, 'billing.page')) !== 'kabul') fail('salt okunur kişide abonelik sayfası açılmadı');
+  await E.p.goto(BASE + '#/'); await E.p.locator('#blBar .bl-bar.danger').waitFor({ timeout: 8000 }).catch(() => fail('salt okunur uyarı şeridi yok'));
+  await E.p.screenshot({ path: path.join(OUT, 'o-salt-okunur.png') });
+  // Ücretsiz tanımla → kısıt yok
+  await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'comp', note: 'pilot kişi' });
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const nc = await E.p.evaluate(() => ({ mode: S.billing.mode, ro: S.billing.read_only, chat: modOn('mesaj') }));
+  if (nc.mode !== 'comp' || nc.ro || !nc.chat) fail('ücretsiz tanımlanan kişi kısıtlı kaldı: ' + JSON.stringify(nc));
+  step('zorunluluk açık: kaydı olmayan kişiye deneme; askıya alınan kişi ücretsiz pakete düştü (mesajlaşma kapalı, şerit), aynı birimde ödeyen kişi etkilenmedi; ücretsiz paket yokken salt okunur (yazma 402, okuma ve ödeme açık); “ücretsiz tanımla” kısıtı kaldırdı');
 
-  // ---- 8) Hatırlatma: bitişe 2 gün kala birim yöneticisine bildirim (bir kez) ----
-  const remN = async () => (await apiCall(A.p, 'notif.list', { limit: 60 })).items.filter((n) => /Aboneliğiniz bitiyor/.test(n.title)).length;
-  const n0 = await remN();
-  php(`m_q("UPDATE bl_subs SET current_end = ?, reminded = '' WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 2 * 86400 - 60), '${sa.tk}']);`);
+  // Birimin tamamı (sponsor): Dahiliye'de herkes kapsanır, kimse ödemez; sıfırlanınca kişi başına döner
+  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const n0b = await N.p.evaluate(() => ({ mode: S.billing.mode, sponsor: S.billing.sponsor }));
+  if (n0b.sponsor) fail('tanımsız birimde sponsor görünüyor');
+  await apiCall(SA.p, 'sa.billing.sub', { key: nilTk, op: 'activate', plan_id: pro.id, period: 'm12', note: 'kurum ödemesi' });
+  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const ns = await N.p.evaluate(() => ({ mode: S.billing.mode, sponsor: S.billing.sponsor, bar: !!document.querySelector('#blBar .bl-bar') }));
+  if (ns.mode !== 'active' || !ns.sponsor || ns.bar) fail('birimin tamamı tanımı kişiyi kapsamadı: ' + JSON.stringify(ns));
+  await N.p.goto(BASE + '#/abonelik'); await N.p.locator('#blSponsor').waitFor({ timeout: 8000 }).catch(() => fail('abonelik sayfasında “biriminiz kapsamda” notu yok'));
+  d = await apiCall(SA.p, 'sa.billing');
+  const du = d.units.find((u) => u.key === nilTk);
+  if (!du || du.mode !== 'active' || du.period_txt !== 'Yıllık') fail('panelde birim tanımı yanlış: ' + JSON.stringify(du));
+  if (d.summary.units_comp < 1) fail('özette kapsama alınan birim sayılmadı');
+  await apiCall(SA.p, 'sa.billing.sub', { key: nilTk, op: 'reset' });
+  await N.p.reload(); await N.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  if (await N.p.evaluate(() => S.billing.sponsor)) fail('birim tanımı sıfırlanınca kişi kendi aboneliğine dönmedi');
+  step('birimin tamamı: sistem yöneticisi Dahiliye’yi yıllık tanımladı → birimdeki kişi ödemeden etkin, şerit yok, sayfada “biriminiz kapsamda”; sıfırlanınca kişi başına döndü');
+
+  // Yeni kişiye otomatik deneme (gün sayısı süper yöneticide)
+  await apiCall(SA.p, 'sa.billing.cfg', { cfg: { trial_on: true, trial_days: 14 } });
+  await apiCall(SA.p, 'sa.billing.sub', { key: eKey, op: 'reset' });
+  await E.p.reload(); await E.p.waitForFunction(() => typeof S !== 'undefined' && S.billing);
+  const et = await E.p.evaluate(() => ({ mode: S.billing.mode, d: S.billing.days_left }));
+  if (et.mode !== 'trial' || et.d < 13 || et.d > 14) fail('yeni kişiye 14 günlük otomatik deneme başlamadı: ' + JSON.stringify(et));
+  step('otomatik deneme: kaydı olmayan kişi ilk girişte 14 günlük (süper yöneticinin seçtiği) denemeye başladı');
+
+  // Panel: kişi listesi ve arama
+  await SA.p.goto(BASE); await SA.p.waitForFunction(() => typeof S !== 'undefined' && S.sa);
+  await SA.p.locator('[data-act=sys-tab][data-t=abonelik]').click();
+  await SA.p.locator('#blsPList .list-row').first().waitFor({ timeout: 10000 });
+  await SA.p.fill('#blsQ', 'elif@');
+  await SA.p.waitForTimeout(200);
+  const pl = await SA.p.locator('#blsPList .list-row').allTextContents();
+  if (pl.length !== 1 || !/elif@test\.com/.test(pl[0])) fail('kişi aramasında Elif tek sonuç değil: ' + pl.join(' | '));
+  await SA.p.fill('#blsQ', '');
+  await SA.p.selectOption('#blsF', 'active');
+  await SA.p.waitForTimeout(200);
+  if (!/ayse@test\.com/.test((await SA.p.locator('#blsPList').textContent()) || '')) fail('“Etkin” süzgecinde Ayşe yok');
+  await SA.p.locator(`#blsPList [data-act=bls-unit][data-k="${aKey}"]`).click();
+  const opts = await SA.p.locator('.modal #bpPer option').allTextContents();
+  if (!opts.includes('18 ay') || !opts.includes('1 yıl') || !opts.includes('Belirli tarihe kadar')) fail('elle etkinleştirmede süreler eksik: ' + opts.join(','));
+  await SA.p.keyboard.press('Escape');
+  await SA.p.screenshot({ path: path.join(OUT, 'o-sa-kisiler.png'), fullPage: true });
+  step('panel: kişi listesi (ad, e-posta, birim, paket, süre), arama ve durum süzgeci; elle etkinleştirmede paket süreleri (18 ay dahil)');
+
+  // ---- 8) Hatırlatma: bitişe 2 gün kala kişinin kendisine bildirim (bir kez) ----
+  const remN = async (p) => (await apiCall(p, 'notif.list', { limit: 60 })).items.filter((n) => /Aboneliğiniz bitiyor/.test(n.title)).length;
+  const n0 = await remN(A.p);
+  php(`m_q("UPDATE bl_subs SET current_end = ?, reminded = '' WHERE tkey = ?", [date('Y-m-d H:i:s', time() + 2 * 86400 - 60), '${aKey}']);`);
   cron(); cron();
-  const n2 = (await remN()) - n0;
+  const n2 = (await remN(A.p)) - n0;
   if (n2 !== 1) fail('bitiş hatırlatması ' + n2 + ' kez geldi (beklenen 1)');
-  else step('hatırlatma: abonelik bitimine 2 gün kala birim yöneticisine bir kez bildirim');
+  if (await remN(E.p)) fail('Ayşe’nin hatırlatması Elif’e de gitti');
+  else step('hatırlatma: abonelik bitimine 2 gün kala yalnız kişinin kendisine bir kez bildirim');
 
   // ---- 9) Telefon görünümü ----
   await N.p.goto(BASE + '#/abonelik').catch(() => {});
+  await N.p.locator('.bl-plan').first().waitFor({ timeout: 8000 }).catch(() => {});
   const w = await N.p.evaluate(() => document.documentElement.scrollWidth);
   if (w > 390) fail(`telefonda abonelik sayfası yatay taşıyor ${w}px`);
+  await N.p.screenshot({ path: path.join(OUT, 'o-abonelik-tel.png'), fullPage: true });
 } catch (e) {
   fail('beklenmeyen hata: ' + (e.stack || e.message));
 } finally {
   // Diğer testler etkilenmesin: zorunluluk ve görünürlük kapalı, Temel ücretsiz paket geri
   try {
-    php(`require_once '${path.join(SITE, 'inc/billing.php')}'; bl_cfg_set(['enforce' => '0', 'visible' => '0', 'trial_on' => '0']); m_q("UPDATE bl_plans SET is_free = 1, active = 1, price_m = 0, price_y = 0, max_users = 15 WHERE code = 'temel'");`);
+    php(`require_once '${path.join(SITE, 'inc/billing.php')}'; bl_cfg_set(['enforce' => '0', 'visible' => '0', 'trial_on' => '0']); m_q("UPDATE bl_plans SET is_free = 1, active = 1, price_m = 0, price_y = 0, prices = NULL, max_users = 0 WHERE code = 'temel'"); m_q("UPDATE bl_plans SET price_m = 9900, price_y = 99000, prices = ? WHERE code = 'pro'", [json_encode([1 => 9900, 3 => 26900, 12 => 99000])]); m_q("DELETE FROM bl_subs");`);
   } catch (e) { fail('ayarlar geri alınamadı: ' + e.message); }
   restoreCfg();
   await browser.close();
