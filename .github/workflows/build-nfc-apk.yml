@@ -1,0 +1,29 @@
+name: Build NFC Kapi APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, ccr-b0cdfc10-kg28nx]
+    paths:
+      - 'nfc/**'
+      - '.github/workflows/build-nfc-apk.yml'
+      - 'settings.gradle'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - run: gradle --no-daemon :nfc:assembleDebug
+      - run: cp nfc/build/outputs/apk/debug/nfc-debug.apk NFC-Kapi-v1.0.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NFC-Kapi-v1.0-APK
+          path: NFC-Kapi-v1.0.apk
