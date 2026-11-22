@@ -1048,3 +1048,28 @@ Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sa
 - **Islak imzalı belge:** imzalandıktan sonra taranmış PDF / fotoğrafı ekleyin; ekip Nöbet listesi sayfasında “İmzalı resmi liste” olarak görür. Kaldırılabilir.
 - Kısayol: Ayarlar › Nöbet › Resmi liste şablonu.
 
+## 55. Liste türleri, gece / %10 hesapları, telefonda çizelge, birim kuralları (4.35.0)
+### Liste türleri (Resmi liste sekmesi)
+- Aynı çizelgeden birden çok resmi liste: ör. **Çalışma listesi** ve **Fazla mesai listesi**. Üstteki **Liste türü** seçiminden geçilir; **Yeni liste türü** ile eklenir, gerekirse silinir (en az bir tür kalır).
+- Her türün kendi adı, başlık satırları, doküman kutusu (doküman no, yayın / revizyon tarihi), imzaları ve sütunları vardır. Logo, günlük saat, gece aralığı ve kod yazımları tüm türler için ortaktır.
+- **Gün sütunları (1–31)** isteğe bağlıdır: kapatılırsa yalnız hesap sütunlu özet liste çıkar.
+- **Hesap sütunları** (Şablon › Hesap sütunları; işaretle, sırala, başlığını değiştir, yeşil vurgula):
+  - Toplam izin = hafta içine düşen izin / rapor günleri × günlük saat (6 gün → 48)
+  - Çalışılması gereken saat = iş günü × günlük saat − toplam izin
+  - Çalışılan saat, Nöbet sayısı, Hafta sonu / tatil saati
+  - Gündüz çalışma saati / Gece mesaisi saati: vardiyanın gece aralığına (varsayılan **20:00–08:00**, şablondan değişir) düşen saatleri gece sayılır; 08-08 = 12 gündüz + 12 gece, 16-08 = 4 + 12, 08-16 = 8 + 0
+  - Fazla mesai = gündüz + gece − gereken
+  - **%10 zamlı ödenmesi gereken saat** = fazla mesainin gece saatlerine düşen kısmı = gece saati ile fazla mesaiden küçük olanı (ör. gece 108, fazla 64 → 64; gece 48, fazla 8 → 8)
+- PDF (tek sayfa), Word ve Excel her tür için çıkar.
+
+### Telefonda çizelge
+- Üst kısım küçüldü: **Kaydet** ve **Yayınla** görünür; Otomatik doldur, Denetle, Yapıştır / CSV ve Kişi ekle **Diğer** menüsünde.
+- Gereken kişi sayıları, kodlar ve birim kuralları katlanır **Çizelge ayarları** bölümünde (telefonda kapalı gelir).
+- Fırça tek satırda yana kayar; ad sütunu dar.
+- Bir hücreyi doldurunca tablo **kaldığınız yerde kalır** (başa dönmez).
+- **Kişi ekle** (tablonun altında ve Diğer menüsünde): birimde olup çizelgede olmayan herkes işaretlenebilir listede, aramayla; birden çok kişi tek seferde eklenir. Hesabı olmayan kişi de adıyla eklenir.
+
+### Birim kuralları (Çizelge ayarları içinde; yönetici ve yayıncı)
+- İki nöbet arası **en fazla N gün boşluk** (ör. 3), nöbet çıkışı en az dinlenme saati, üst üste en fazla çalışma saati. Her birime özgüdür.
+- Çizelge denetimi bu kurallara göre uyarır; otomatik dağıtım, boşluk sınırına gelen kişiye önce nöbet yazar. Nöbet değişimi, ilan ve eksik çağrısı da aynı kurallara uyar (Ayarlar › Nöbet › Nöbet kuralları ile aynı ayar).
+

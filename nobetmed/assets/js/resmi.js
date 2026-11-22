@@ -4,7 +4,7 @@
    Sunucu: inc/mod_resmi.php (plan.changes, plan.mark, plan.tpl.*, plan.signed). */
 'use strict';
 
-const RS2 = { tpl: null, logo: '', names: { org: '', unit: '' }, shared: [], canShare: false, chg: null, chgSel: new Set(), chgKind: '', chgQ: '' };
+const RS2 = { tpl: null, cols: null, typeId: '', logo: '', names: { org: '', unit: '' }, shared: [], canShare: false, chg: null, chgSel: new Set(), chgKind: '', chgQ: '' };
 Object.assign(NM_EXT.audit, { 'plan.changes.delete': 'Çizelge değişiklik kayıtlarını sildi', 'plan.signed': 'İmzalı resmi listeyi ekledi' });
 
 /* ---------------- Kodların yazımı ve saat etkisi ---------------- */
@@ -38,28 +38,57 @@ function rsDayKind(d, hol, half) {
   if (hol && hol[d] !== undefined) return 'off';
   return 'work';
 }
-/** Kişi başı saatler: { ad: { req, work, over } } — Gereken = iş günü × günlük saat − izin / rapor günleri; Çalışılan = vardiya saatleri */
+/** Dakika: "HH:MM" → 0..1440 */
+function rsMin(v) { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; }
+/** Vardiyanın gece aralığına (varsayılan 20:00–08:00) düşen saati */
+function rsNightH(c, tpl) {
+  const total = +(c && c.hours) || 0;
+  if (!total) return 0;
+  const nf = rsMin(tpl.night_from || '20:00'), nt = rsMin(tpl.night_to || '08:00');
+  const win = nf > nt ? [[nf - 1440, nt], [nf, nt + 1440], [nf + 1440, nt + 2880]] : [[nf, nt], [nf + 1440, nt + 1440]];
+  const wlen = (nf > nt ? nt + 1440 - nf : nt - nf) / 60;
+  const s = rsMin(c.start); let e = rsMin(c.end);
+  if (s === null || e === null) return total >= 16 ? Math.min(total, wlen) : 0; // saatsiz kod: 16 saat ve üstü gece içerir
+  if (e <= s) e += 1440;
+  let m = 0;
+  win.forEach(([a, b]) => { m += Math.max(0, Math.min(e, b) - Math.max(s, a)); });
+  return Math.min(total, m / 60);
+}
+/**
+ * Kişi başı saatler: { ad: { req, work, over, izin, day, night, night10, count, wkend, fixed } }
+ *  izin    = hafta içine denk gelen izin / rapor günleri × günlük saat (gerekenden düşen)
+ *  req     = iş günü × günlük saat − izin (elle düzeltme varsa o)
+ *  work    = vardiya saatleri (+ "çalışılmış sayılır" günler);  day / night = gece aralığı dışı / içi
+ *  over    = work − req;  night10 = fazla çalışmanın gece saatlerine düşen kısmı = min(gece, fazla) (%10 zamlı)
+ */
 function rsHours(D, ym, tpl, hol, half) {
   tpl = tpl || RS2.tpl || { day_hours: 8, half_hours: 4 };
   const days = planDays(ym);
   const dh = +tpl.day_hours || 8, hh = +tpl.half_hours || 0;
   const dayH = (d) => { const k = rsDayKind(d, hol, half); return k === 'work' ? dh : k === 'half' ? hh : 0; };
   const base = days.reduce((s, d) => s + dayH(d), 0);
+  const r1 = (x) => Math.round(x * 10) / 10;
   const o = {};
   (D.people || []).forEach((p) => {
-    let req = base, work = 0;
+    let izin = 0, work = 0, night = 0, count = 0, wkend = 0;
     Object.entries((D.cells || {})[p.name] || {}).forEach(([d, code]) => {
       if (d.slice(0, 7) !== ym) return;
       const ef = rsEffect(code, tpl);
       const c = planCode(code);
-      if (ef === 'shift') work += +(c && c.hours) || 0;
-      else if (ef === 'deduct') req -= dayH(d);
+      if (ef === 'shift') {
+        const h = +(c && c.hours) || 0;
+        work += h; night += rsNightH(c, tpl); count++;
+        if (rsDayKind(d, hol, half) === 'off') wkend += h;
+      } else if (ef === 'deduct') izin += dayH(d);
       else if (ef === 'work') work += dayH(d);
     });
+    let req = base - izin;
     const fix = ((D.hfix || {})[p.name] || {}).req;
-    if (fix !== undefined && fix !== null && fix !== '') req = +fix;
-    req = Math.max(0, Math.round(req * 10) / 10); work = Math.round(work * 10) / 10;
-    o[p.name] = { req, work, over: Math.round((work - req) * 10) / 10, fixed: fix !== undefined && fix !== null && fix !== '' };
+    const fixed = fix !== undefined && fix !== null && fix !== '';
+    if (fixed) req = +fix;
+    req = Math.max(0, r1(req)); work = r1(work); night = r1(night);
+    const over = r1(work - req);
+    o[p.name] = { req, work, over, izin: r1(izin), day: r1(work - night), night, night10: r1(Math.max(0, Math.min(night, over))), count, wkend: r1(wkend), fixed };
   });
   return o;
 }
@@ -69,7 +98,7 @@ function rsNum(x) { return Number.isInteger(x) ? String(x) : String(x).replace('
 async function rsLoadTpl(force) {
   if (RS2.tpl && !force) return RS2.tpl;
   const r = await api('plan.tpl.get');
-  RS2.tpl = r.tpl; RS2.logo = r.logo || ''; RS2.names = r.names || RS2.names; RS2.shared = r.shared || []; RS2.canShare = !!r.can_share;
+  RS2.tpl = r.tpl; RS2.cols = r.cols || RS2.cols; RS2.logo = r.logo || ''; RS2.names = r.names || RS2.names; RS2.shared = r.shared || []; RS2.canShare = !!r.can_share;
   return RS2.tpl;
 }
 function rsFill(s, ym) {
@@ -79,23 +108,48 @@ function rsFill(s, ym) {
     .replace(/\{YIL\}/g, String(y)).replace(/\{AY\}/g, up(TR_MONTHS[m - 1])).replace(/\s{2,}/g, ' ').trim();
 }
 
+/* ---------------- Liste türü ---------------- */
+const RS_COLS_DEF = { izin: 'TOPLAM İZİN', req: 'ÇALIŞILMASI GEREKEN SAAT', work: 'ÇALIŞILAN SAAT', day: 'GÜNDÜZ ÇALIŞMA SAATİ', night: 'GECE MESAİSİ SAATİ', night10: '%10 ZAMLI ÖDENMESİ GEREKEN SAAT', over: 'FAZLA MESAİ SAATİ', count: 'NÖBET SAYISI', wkend: 'HAFTA SONU / TATİL SAATİ' };
+function rsTypes() { return (RS2.tpl && RS2.tpl.types) || []; }
+function rsType() {
+  const ts = rsTypes();
+  if (!RS2.typeId) { try { RS2.typeId = localStorage.getItem('nm-rs-type') || ''; } catch (e) { /* */ } }
+  return ts.find((t) => t.id === RS2.typeId) || ts[0] || null;
+}
+function rsColLabel(T, k) { return ((T.labels || {})[k]) || (RS2.cols || RS_COLS_DEF)[k] || k; }
+/** Hesap sütunu değeri (0 → boş; gereken saat ve eksi değerler yazılır) */
+function rsVal(h, k) { const v = h[k]; return v === 0 && k !== 'req' ? '' : rsNum(v); }
+
 /* ---------------- Çıktı modeli (önizleme, yazdır, Word, Excel aynı veriden) ---------------- */
 function rsModel() {
-  const tpl = RS2.tpl, D = PL2.d, ym = PL2.ym;
-  const days = planDays(ym);
+  const tpl = RS2.tpl, T = rsType(), D = PL2.d, ym = PL2.ym;
+  const cols = T.cols || {};
+  const days = cols.days === false ? [] : planDays(ym);
   const hours = rsHours(D, ym, tpl, PL2.hol, PL2.half);
-  const cols = tpl.cols || {};
   const rows = D.people.map((p, i) => ({ no: i + 1, name: p.name, title: p.title || '', cells: days.map((d) => rsPrint(((D.cells || {})[p.name] || {})[d] || '', tpl)), h: hours[p.name] }));
+  const sum = (T.sum || []).filter((k) => RS_COLS_DEF[k]);
   return {
-    tpl, ym, days, rows, cols,
-    lines: (tpl.lines || []).map((l) => rsFill(l, ym)).filter(Boolean),
-    doc: (tpl.doc || []).filter((x) => x.l || x.v),
-    sig: (tpl.sig || []).filter((x) => x.t || x.n),
+    tpl, T, ym, days, rows, cols, sum,
+    labels: Object.fromEntries(sum.map((k) => [k, rsColLabel(T, k)])),
+    hl: new Set(T.hl || []),
+    shade: T.shade !== false,
+    docLabels: !!T.doc_labels,
+    lines: (T.lines || []).map((l) => rsFill(l, ym)).filter(Boolean),
+    doc: (T.doc || []).filter((x) => x.l || x.v),
+    sig: (T.sig || []).filter((x) => x.t || x.n),
     logo: RS2.logo,
     off: days.map((d) => rsDayKind(d, PL2.hol, PL2.half) !== 'work'),
   };
 }
 const RS_DAY_UP = (d) => TR_DAYS[new Date(d + 'T12:00:00').getDay()].toLocaleUpperCase('tr');
+/** Sütun genişlikleri (mm, toplam 279: sağ kenar çizgisi sayfa sınırına denk gelip kırpılmasın) */
+function rsWidths(M) {
+  const noW = M.cols.sira ? 6 : 0, nameW = M.days.length ? 36 : 52, titleW = M.cols.unvan ? (M.days.length ? 22 : 34) : 0;
+  const left = 279 - noW - nameW - titleW;
+  const hW = M.days.length ? 9 : Math.min(34, left / Math.max(1, M.sum.length));
+  const dayW = M.days.length ? Math.max(4.4, (left - M.sum.length * hW) / M.days.length) : 0;
+  return { noW, nameW, titleW, hW, dayW };
+}
 
 /** Önizleme ve yazdırma için HTML (yalnız güvenli kaçışlı metin) */
 function rsDocHtml(M, opts = {}) {
@@ -104,46 +158,47 @@ function rsDocHtml(M, opts = {}) {
   // Tek sayfaya sığdırma: satır yüksekliği ve yazı boyutu kişi sayısına göre
   const rowMm = Math.max(3.4, Math.min(6.2, 118 / Math.max(1, n)));
   const fs = Math.max(4.6, Math.min(7.5, rowMm * 1.15));
-  const nameW = 36, titleW = M.cols.unvan ? 22 : 0, noW = M.cols.sira ? 6 : 0, hW = 9;
-  const extra = ['req', 'work', 'over'].filter((k) => M.cols[k]).length;
-  const dayW = Math.max(4.4, (281 - nameW - titleW - noW - extra * hW) / M.days.length);
+  const W = rsWidths(M);
+  const hasDays = M.days.length > 0;
+  const hc = (k) => `${M.hl.has(k) ? ' hl' : ''}`;
   const head = `<table class="rd-head"><tr>
     <td class="rd-logo">${M.logo ? `<img src="${e(M.logo)}" alt="">` : ''}</td>
     <td class="rd-title">${M.lines.map((l, i) => `<div class="${i === M.lines.length - 1 ? 'rd-t-main' : ''}">${e(l)}</div>`).join('')}</td>
-    <td class="rd-docbox">${M.doc.length ? `<table>${M.doc.map((x) => `<tr>${M.tpl.doc_labels ? `<td class="rd-dl">${e(x.l)}</td>` : ''}<td class="rd-dv">${e(x.v)}</td></tr>`).join('')}</table>` : ''}</td></tr></table>`;
-  const th = `<tr>${M.cols.sira ? '<th class="rd-no" rowspan="2">Sıra<br>No</th>' : ''}<th class="rd-name" rowspan="2">ADI SOYADI</th>${M.cols.unvan ? '<th class="rd-unv" rowspan="2">UNVAN</th>' : ''}
-    ${M.days.map((d, i) => `<th class="rd-dn ${M.tpl.shade && M.off[i] ? 'off' : ''}"><span>${e(RS_DAY_UP(d))}</span></th>`).join('')}
-    ${M.cols.req ? '<th class="rd-hc" rowspan="2"><span>ÇALIŞILMASI GEREKEN SAAT</span></th>' : ''}${M.cols.work ? '<th class="rd-hc" rowspan="2"><span>ÇALIŞILAN SAAT</span></th>' : ''}${M.cols.over ? '<th class="rd-hc" rowspan="2"><span>FAZLA MESAİ SAATİ</span></th>' : ''}</tr>
-    <tr>${M.days.map((d, i) => `<th class="rd-dd ${M.tpl.shade && M.off[i] ? 'off' : ''}">${+d.slice(8)}</th>`).join('')}</tr>`;
+    <td class="rd-docbox">${M.doc.length ? `<table>${M.doc.map((x) => `<tr>${M.docLabels ? `<td class="rd-dl">${e(x.l)}</td>` : ''}<td class="rd-dv">${e(x.v)}</td></tr>`).join('')}</table>` : ''}</td></tr></table>`;
+  const rs = hasDays ? ' rowspan="2"' : '';
+  const th = `<tr>${M.cols.sira ? `<th class="rd-no"${rs}>Sıra<br>No</th>` : ''}<th class="rd-name"${rs}>ADI SOYADI</th>${M.cols.unvan ? `<th class="rd-unv"${rs}>UNVAN</th>` : ''}
+    ${M.days.map((d, i) => `<th class="rd-dn ${M.shade && M.off[i] ? 'off' : ''}"><span>${e(RS_DAY_UP(d))}</span></th>`).join('')}
+    ${M.sum.map((k) => `<th class="rd-hc${hc(k)}"${rs}><span>${e(M.labels[k])}</span></th>`).join('')}</tr>
+    ${hasDays ? `<tr>${M.days.map((d, i) => `<th class="rd-dd ${M.shade && M.off[i] ? 'off' : ''}">${+d.slice(8)}</th>`).join('')}</tr>` : ''}`;
   const body = M.rows.map((r) => `<tr>${M.cols.sira ? `<td class="rd-no">${r.no}</td>` : ''}<td class="rd-name ${r.name.length > 24 ? 'lg' : ''}">${e(r.name.toLocaleUpperCase('tr'))}</td>${M.cols.unvan ? `<td class="rd-unv">${e(r.title.toLocaleUpperCase('tr'))}</td>` : ''}
-    ${r.cells.map((c, i) => `<td class="rd-c ${c.length >= 6 ? 'lg' : ''} ${M.tpl.shade && M.off[i] ? 'off' : ''}">${e(c)}</td>`).join('')}
-    ${M.cols.req ? `<td class="rd-h">${rsNum(r.h.req)}</td>` : ''}${M.cols.work ? `<td class="rd-h">${rsNum(r.h.work)}</td>` : ''}${M.cols.over ? `<td class="rd-h">${r.h.over ? rsNum(r.h.over) : ''}</td>` : ''}</tr>`).join('');
+    ${r.cells.map((c, i) => `<td class="rd-c ${c.length >= 6 ? 'lg' : ''} ${M.shade && M.off[i] ? 'off' : ''}">${e(c)}</td>`).join('')}
+    ${M.sum.map((k) => `<td class="rd-h${hc(k)}">${rsVal(r.h, k)}</td>`).join('')}</tr>`).join('');
   const sig = M.sig.length ? `<table class="rd-sig"><tr>${M.sig.map((s) => `<td><b>${e(s.t.toLocaleUpperCase('tr'))}</b><div class="rd-sn">${e(s.n)}</div><div class="rd-sl"></div></td>`).join('')}</tr></table>` : '';
   const css = `
     .rd{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;box-sizing:border-box}
     .rd *{box-sizing:border-box}
     .rd table{border-collapse:collapse}
-    .rd-head{width:100%;border:1px solid #000;margin-bottom:2mm}
+    .rd-head{width:279mm;max-width:100%;border:1px solid #000;margin-bottom:2mm}
     .rd-head td{border:1px solid #000;vertical-align:middle}
     .rd-logo{width:30mm;text-align:center;padding:1mm}.rd-logo img{max-height:18mm;max-width:27mm}
     .rd-title{text-align:center;font-weight:700;font-size:8.5pt;line-height:1.35}.rd-t-main{font-size:9.5pt}
     .rd-docbox{width:46mm;padding:0}.rd-docbox table{width:100%}.rd-docbox td{border:0;border-bottom:1px solid #000;font-size:6.5pt;padding:.6mm 1.2mm;height:4.4mm}
     .rd-docbox tr:last-child td{border-bottom:0}.rd-dl{border-right:1px solid #000!important;width:45%;font-weight:700}
-    .rd-grid{width:100%;table-layout:fixed;border:1px solid #000}
+    .rd-grid{width:279mm;max-width:100%;table-layout:fixed;border:1px solid #000}
     .rd-grid th,.rd-grid td{border:1px solid #000;text-align:center;padding:0 .3mm;font-size:${fs}pt;height:${rowMm}mm;overflow:hidden;white-space:nowrap}
     .rd-grid th{font-weight:700}
-    .rd-grid .rd-no{width:${noW}mm}.rd-grid .rd-name{width:${nameW}mm;font-weight:700}.rd-grid .rd-unv{width:${titleW}mm;font-weight:700}
     .rd-grid td.rd-name,.rd-grid td.rd-unv{font-size:${Math.max(4.4, fs - .4)}pt}
     .rd-grid .rd-dn{height:16mm;vertical-align:bottom;padding:.4mm 0}.rd-grid .rd-dn span{writing-mode:vertical-rl;text-orientation:upright;font-size:${Math.max(4, Math.min(5.6, fs - .8))}pt;letter-spacing:-.3pt;line-height:1}
     .rd-grid .rd-dd{font-size:${Math.min(7, fs + .3)}pt}
-    .rd-grid .rd-hc{width:${hW}mm;vertical-align:middle}.rd-grid .rd-hc span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:5pt;white-space:normal;line-height:1.1;max-height:30mm;display:inline-block}
-    .rd-grid .off{background:#ececec}
+    .rd-grid th.rd-hc{vertical-align:middle;height:${hasDays ? 'auto' : '34mm'}}.rd-grid .rd-hc span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:${hasDays ? 5 : 6.5}pt;white-space:normal;line-height:1.1;max-height:32mm;display:inline-block}
+    .rd-grid td.rd-h{font-size:${hasDays ? fs : Math.min(9, fs + 1.5)}pt}
+    .rd-grid .off{background:#ececec}.rd-grid .hl{background:#c6efce}.rd-grid td.hl{font-weight:700}
     .rd-grid .rd-c{font-size:${Math.max(4, fs - .9)}pt;letter-spacing:-.2pt}.rd-grid .rd-c.lg{font-size:${Math.max(3.6, fs - 1.9)}pt;letter-spacing:-.35pt}
     .rd-grid td.rd-name.lg{font-size:${Math.max(3.8, fs - 1.6)}pt;letter-spacing:-.2pt}
     .rd-grid td.rd-unv{white-space:normal;line-height:1.05;font-size:${Math.max(4, fs - 1.2)}pt}
-    .rd-sig{width:100%;margin-top:6mm}.rd-sig td{text-align:center;vertical-align:top;font-size:7.5pt;padding:0 6mm}.rd-sig b{display:block}.rd-sn{margin-top:1mm;font-size:7.5pt;min-height:3mm}.rd-sl{height:10mm}
+    .rd-sig{width:279mm;max-width:100%;margin-top:6mm}.rd-sig td{text-align:center;vertical-align:top;font-size:7.5pt;padding:0 6mm}.rd-sig b{display:block}.rd-sn{margin-top:1mm;font-size:7.5pt;min-height:3mm}.rd-sl{height:10mm}
     ${opts.page ? '@page{size:A4 landscape;margin:7mm}html,body{margin:0;background:#fff}' : ''}`;
-  const grid = `<table class="rd-grid"><colgroup>${M.cols.sira ? `<col style="width:${noW}mm">` : ''}<col style="width:${nameW}mm">${M.cols.unvan ? `<col style="width:${titleW}mm">` : ''}${M.days.map(() => `<col style="width:${dayW}mm">`).join('')}${`<col style="width:${hW}mm">`.repeat(extra)}</colgroup>
+  const grid = `<table class="rd-grid"><colgroup>${M.cols.sira ? `<col style="width:${W.noW}mm">` : ''}<col style="width:${W.nameW}mm">${M.cols.unvan ? `<col style="width:${W.titleW}mm">` : ''}${M.days.map(() => `<col style="width:${W.dayW}mm">`).join('')}${M.sum.map(() => `<col style="width:${W.hW}mm">`).join('')}</colgroup>
     <thead>${th}</thead><tbody>${body}</tbody></table>`;
   return `<style>${css}</style><div class="rd">${head}${grid}${sig}</div>`;
 }
@@ -219,7 +274,7 @@ async function rsDocx() {
   const borders = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/></w:tblBorders>';
   const tbl = (grid, rows, o = {}) => `<w:tbl><w:tblPr><w:tblW w:w="${grid.reduce((s, x) => s + x, 0)}" w:type="dxa"/>${o.noBorder ? '' : borders}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${grid.map((g) => `<w:gridCol w:w="${g}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
   const tr = (cells, h, rule) => `<w:tr><w:trPr>${h ? `<w:trHeight w:val="${h}" w:hRule="${rule || 'atLeast'}"/>` : ''}<w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
-  const W = tw(283);
+  const W = tw(281);
   // Başlık: logo | satırlar | doküman kutusu
   const logoW = tw(30), boxW = tw(48), midW = W - logoW - boxW;
   let drawing = '';
@@ -228,28 +283,31 @@ async function rsDocx() {
     const fw = Math.min(wEmu, 27 * 36000), fh = Math.round(fw * img.h / img.w);
     drawing = `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${fw}" cy="${fh}"/><wp:docPr id="1" name="Logo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="logo.${img.ext === 'png' ? 'png' : 'jpg'}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${fw}" cy="${fh}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
   }
-  const box = M.doc.length ? tbl(M.tpl.doc_labels ? [Math.round(boxW * 0.45), boxW - Math.round(boxW * 0.45)] : [boxW],
-    M.doc.map((x) => tr(M.tpl.doc_labels ? [cell(para(x.l, { sz: 12, b: true, jc: 'left' })), cell(para(x.v, { sz: 12, jc: 'left' }))] : [cell(para(x.v, { sz: 12, jc: 'left' }))], 220))) + para('', { sz: 2 }) : para('');
+  const box = M.doc.length ? tbl(M.docLabels ? [Math.round(boxW * 0.45), boxW - Math.round(boxW * 0.45)] : [boxW],
+    M.doc.map((x) => tr(M.docLabels ? [cell(para(x.l, { sz: 12, b: true, jc: 'left' })), cell(para(x.v, { sz: 12, jc: 'left' }))] : [cell(para(x.v, { sz: 12, jc: 'left' }))], 220))) + para('', { sz: 2 }) : para('');
   const head = tbl([logoW, midW, boxW], [tr([cell(drawing ? `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${drawing}</w:p>` : para('')),
     cell(M.lines.map((l, i) => para(l, { b: true, sz: i === M.lines.length - 1 ? 20 : 18 })).join('')), cell(box, { va: 'top' })], 1000)]);
   // Ana tablo
-  const noW = M.cols.sira ? tw(7) : 0, nameW = tw(36), unvW = M.cols.unvan ? tw(22) : 0, hW = tw(9);
-  const hk = ['req', 'work', 'over'].filter((k) => M.cols[k]);
-  const dayW = Math.floor((W - noW - nameW - unvW - hk.length * hW) / M.days.length);
+  const RW = rsWidths(M);
+  const noW = RW.noW ? tw(RW.noW) : 0, nameW = tw(RW.nameW), unvW = RW.titleW ? tw(RW.titleW) : 0, hW = tw(RW.hW);
+  const hk = M.sum;
+  const hasDays = M.days.length > 0;
+  const dayW = hasDays ? Math.floor((W - noW - nameW - unvW - hk.length * hW) / M.days.length) : 0;
   const grid = [...(noW ? [noW] : []), nameW, ...(unvW ? [unvW] : []), ...M.days.map(() => dayW), ...hk.map(() => hW)];
-  const shade = (i) => (M.tpl.shade && M.off[i] ? 'E6E6E6' : '');
-  const hText = { req: 'ÇALIŞILMASI GEREKEN SAAT', work: 'ÇALIŞILAN SAAT', over: 'FAZLA MESAİ SAATİ' };
-  const h1 = tr([...(noW ? [cell(para('Sıra No', { b: true, sz: 12 }), { vm: 'start' })] : []), cell(para('ADI SOYADI', { b: true, sz: 14 }), { vm: 'start' }), ...(unvW ? [cell(para('UNVAN', { b: true, sz: 14 }), { vm: 'start' })] : []),
-    ...M.days.map((d, i) => cell(para(RS_DAY_UP(d), { b: true, sz: 10 }), { dir: 'btLr', fill: shade(i), va: 'bottom' })), ...hk.map((k) => cell(para(hText[k], { b: true, sz: 9 }), { dir: 'btLr', vm: 'start' }))], 1000, 'exact');
-  const h2 = tr([...(noW ? [cell('', { vm: 'cont' })] : []), cell('', { vm: 'cont' }), ...(unvW ? [cell('', { vm: 'cont' })] : []),
-    ...M.days.map((d, i) => cell(para(String(+d.slice(8)), { b: true, sz: 12 }), { fill: shade(i) })), ...hk.map(() => cell('', { vm: 'cont' }))], 260);
+  const shade = (i) => (M.shade && M.off[i] ? 'E6E6E6' : '');
+  const hlf = (k) => (M.hl.has(k) ? 'C6EFCE' : '');
+  const vm = hasDays ? { vm: 'start' } : {};
+  const h1 = tr([...(noW ? [cell(para('Sıra No', { b: true, sz: 12 }), vm)] : []), cell(para('ADI SOYADI', { b: true, sz: 14 }), vm), ...(unvW ? [cell(para('UNVAN', { b: true, sz: 14 }), vm)] : []),
+    ...M.days.map((d, i) => cell(para(RS_DAY_UP(d), { b: true, sz: 10 }), { dir: 'btLr', fill: shade(i), va: 'bottom' })), ...hk.map((k) => cell(para(M.labels[k], { b: true, sz: hasDays ? 9 : 12 }), Object.assign({ dir: 'btLr', fill: hlf(k) }, vm)))], hasDays ? 1000 : 1900, 'exact');
+  const h2 = hasDays ? tr([...(noW ? [cell('', { vm: 'cont' })] : []), cell('', { vm: 'cont' }), ...(unvW ? [cell('', { vm: 'cont' })] : []),
+    ...M.days.map((d, i) => cell(para(String(+d.slice(8)), { b: true, sz: 12 }), { fill: shade(i) })), ...hk.map((k) => cell('', { vm: 'cont', fill: hlf(k) }))], 260) : '';
   const rh = Math.max(200, Math.min(380, Math.round(5800 / Math.max(1, n))));
   const body = M.rows.map((r) => tr([...(noW ? [cell(para(String(r.no)))] : []), cell(para(r.name.toLocaleUpperCase('tr'), { b: true })), ...(unvW ? [cell(para(r.title.toLocaleUpperCase('tr'), { b: true, sz: Math.max(9, sz - 2) }))] : []),
     ...r.cells.map((c, i) => cell(para(c, { sz: Math.max(7, sz - (c.length >= 6 ? 5 : 3)) }), { fill: shade(i), nw: true })),
-    ...hk.map((k) => cell(para(k === 'over' && !r.h.over ? '' : rsNum(r.h[k])))) ], rh, 'exact'));
+    ...hk.map((k) => cell(para(rsVal(r.h, k), { b: M.hl.has(k), sz: hasDays ? sz : sz + 4 }), { fill: hlf(k) })) ], rh, 'exact'));
   const sigs = M.sig.length ? tbl(M.sig.map(() => Math.floor(W / M.sig.length)), [tr(M.sig.map((s) => cell(para(s.t.toLocaleUpperCase('tr'), { b: true, sz: 15 }) + para(s.n, { sz: 15 }) + para('') + para(''), { va: 'top' })))], { noBorder: true }) : '';
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${para('', { sz: 6 })}${tbl(grid, [h1, h2, ...body])}${para('', { sz: 10 })}${sigs}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${para('', { sz: 6 })}${tbl(grid, [h1, ...(h2 ? [h2] : []), ...body])}${para('', { sz: 10 })}${sigs}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const files = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
@@ -267,14 +325,16 @@ async function rsXlsx() {
   const wb = new ExcelJS.Workbook();
   const [y, m] = M.ym.split('-').map(Number);
   const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, margins: { left: 0.25, right: 0.25, top: 0.3, bottom: 0.3, header: 0, footer: 0 } } });
-  const hk = ['req', 'work', 'over'].filter((k) => M.cols[k]);
+  const hk = M.sum;
+  const hasDays = M.days.length > 0;
   const lead = (M.cols.sira ? 1 : 0) + 1 + (M.cols.unvan ? 1 : 0);
-  const total = lead + M.days.length + hk.length;
+  const total = Math.max(4, lead + M.days.length + hk.length);
+  const HL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
   const thin = { style: 'thin', color: { argb: 'FF000000' } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
   // Başlık (1–5. satırlar): logo | başlık | doküman kutusu
-  const docCols = 6;
-  const titleFrom = 4, titleTo = total - docCols;
+  const docCols = total >= 12 ? 6 : 2;
+  const titleFrom = total >= 12 ? 4 : 2, titleTo = total - docCols;
   for (let r = 1; r <= 5; r++) ws.getRow(r).height = 15;
   ws.mergeCells(1, 1, 5, titleFrom - 1);
   ws.mergeCells(1, titleFrom, 5, titleTo);
@@ -282,8 +342,8 @@ async function rsXlsx() {
   tc.value = M.lines.join('\n'); tc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; tc.font = { bold: true, size: 11, name: 'Arial' };
   M.doc.slice(0, 5).forEach((x, i) => {
     const r = i + 1;
-    if (M.tpl.doc_labels) { ws.mergeCells(r, titleTo + 1, r, titleTo + 2); ws.mergeCells(r, titleTo + 3, r, total); ws.getCell(r, titleTo + 1).value = x.l; ws.getCell(r, titleTo + 1).font = { bold: true, size: 8, name: 'Arial' }; ws.getCell(r, titleTo + 3).value = x.v; ws.getCell(r, titleTo + 3).font = { size: 8, name: 'Arial' }; }
-    else { ws.mergeCells(r, titleTo + 1, r, total); ws.getCell(r, titleTo + 1).value = x.v; ws.getCell(r, titleTo + 1).font = { size: 8, name: 'Arial' }; }
+    if (M.docLabels && docCols >= 3) { ws.mergeCells(r, titleTo + 1, r, titleTo + 2); ws.mergeCells(r, titleTo + 3, r, total); ws.getCell(r, titleTo + 1).value = x.l; ws.getCell(r, titleTo + 1).font = { bold: true, size: 8, name: 'Arial' }; ws.getCell(r, titleTo + 3).value = x.v; ws.getCell(r, titleTo + 3).font = { size: 8, name: 'Arial' }; }
+    else { ws.mergeCells(r, titleTo + 1, r, total); ws.getCell(r, titleTo + 1).value = M.docLabels ? `${x.l}: ${x.v}` : x.v; ws.getCell(r, titleTo + 1).font = { size: 8, name: 'Arial' }; }
   });
   for (let r = 1; r <= 5; r++) for (let c = 1; c <= total; c++) ws.getCell(r, c).border = box;
   if (M.logo) {
@@ -296,9 +356,8 @@ async function rsXlsx() {
   }
   // Tablo başlığı (7–8. satırlar)
   const hr = 7;
-  const hText = { req: 'ÇALIŞILMASI GEREKEN SAAT', work: 'ÇALIŞILAN SAAT', over: 'FAZLA MESAİ SAATİ' };
   let c = 1;
-  const merge2 = (txt) => { ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = txt; x.font = { bold: true, size: 8, name: 'Arial' }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c++; };
+  const merge2 = (txt) => { if (hasDays) ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = txt; x.font = { bold: true, size: 8, name: 'Arial' }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c++; };
   if (M.cols.sira) merge2('Sıra No');
   merge2('ADI SOYADI');
   if (M.cols.unvan) merge2('UNVAN');
@@ -306,32 +365,34 @@ async function rsXlsx() {
     const a = ws.getCell(hr, c), b = ws.getCell(hr + 1, c);
     a.value = RS_DAY_UP(d); a.alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom' }; a.font = { bold: true, size: 6, name: 'Arial' };
     b.value = +d.slice(8); b.alignment = { horizontal: 'center' }; b.font = { bold: true, size: 8, name: 'Arial' };
-    if (M.tpl.shade && M.off[i]) [a, b].forEach((x) => { x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }; });
+    if (M.shade && M.off[i]) [a, b].forEach((x) => { x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }; });
     c++;
   });
-  hk.forEach((k) => { ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = hText[k]; x.font = { bold: true, size: 6, name: 'Arial' }; x.alignment = { textRotation: 90, horizontal: 'center', vertical: 'middle', wrapText: true }; c++; });
-  ws.getRow(hr).height = 62; ws.getRow(hr + 1).height = 13;
+  hk.forEach((k) => { if (hasDays) ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = M.labels[k]; x.font = { bold: true, size: hasDays ? 6 : 8, name: 'Arial' }; x.alignment = { textRotation: 90, horizontal: 'center', vertical: 'middle', wrapText: true }; if (M.hl.has(k)) x.fill = HL; c++; });
+  ws.getRow(hr).height = hasDays ? 62 : 110; if (hasDays) ws.getRow(hr + 1).height = 13;
+  const r0 = hr + (hasDays ? 2 : 1);
   M.rows.forEach((r, ri) => {
-    const vals = [...(M.cols.sira ? [r.no] : []), r.name.toLocaleUpperCase('tr'), ...(M.cols.unvan ? [r.title.toLocaleUpperCase('tr')] : []), ...r.cells, ...hk.map((k) => (k === 'over' && !r.h.over ? '' : r.h[k]))];
-    const row = ws.getRow(hr + 2 + ri);
+    const vals = [...(M.cols.sira ? [r.no] : []), r.name.toLocaleUpperCase('tr'), ...(M.cols.unvan ? [r.title.toLocaleUpperCase('tr')] : []), ...r.cells, ...hk.map((k) => (r.h[k] === 0 && k !== 'req' ? '' : r.h[k]))];
+    const row = ws.getRow(r0 + ri);
     vals.forEach((v, i) => {
       const x = row.getCell(i + 1);
-      x.value = v; x.font = { size: 7, name: 'Arial', bold: i < lead && i >= (M.cols.sira ? 1 : 0) }; x.alignment = { horizontal: 'center', vertical: 'middle' };
-      const di = i - lead;
-      if (di >= 0 && di < M.days.length && M.tpl.shade && M.off[di]) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
+      const di = i - lead, si = i - lead - M.days.length;
+      x.value = v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle' };
+      if (di >= 0 && di < M.days.length && M.shade && M.off[di]) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
+      if (si >= 0 && M.hl.has(hk[si])) x.fill = HL;
     });
     row.height = 14;
   });
-  for (let r = hr; r <= hr + 1 + M.rows.length; r++) for (let k = 1; k <= total; k++) ws.getCell(r, k).border = box;
+  for (let r = hr; r < r0 + M.rows.length; r++) for (let k = 1; k <= lead + M.days.length + hk.length; k++) ws.getCell(r, k).border = box;
   // Sütun genişlikleri
   let ci = 1;
   if (M.cols.sira) ws.getColumn(ci++).width = 4;
   ws.getColumn(ci++).width = 24;
   if (M.cols.unvan) ws.getColumn(ci++).width = 11;
   M.days.forEach(() => { ws.getColumn(ci++).width = 4.6; });
-  hk.forEach(() => { ws.getColumn(ci++).width = 5; });
+  hk.forEach(() => { ws.getColumn(ci++).width = hasDays ? 5 : 10; });
   // İmzalar
-  const sr = hr + 3 + M.rows.length;
+  const sr = r0 + 1 + M.rows.length;
   if (M.sig.length) {
     const span = Math.floor(total / M.sig.length);
     M.sig.forEach((s, i) => {
@@ -343,7 +404,7 @@ async function rsXlsx() {
   }
   return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
-function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} resmi liste`; }
+function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} ${((rsType() || {}).name || 'resmi liste').toLocaleLowerCase('tr')}`; }
 
 /* ---------------- Resmi liste sekmesi ---------------- */
 async function rsDocTab(box) {
@@ -359,13 +420,17 @@ function rsDocDraw(box) {
   setHTML(box, html`<div class="stack">
     <div class="card card-pad stack" style="gap:8px">
       <p class="small muted" style="margin:0">Kurumun formu: logo, başlık, doküman kutusu, saatler ve imzalar. Güncel çizelgeden üretilir; değişiklik işaretleri çıktıda görünmez.</p>
+      <div class="row wrap" style="gap:8px;align-items:center"><label class="small muted" for="rsTypeSel">Liste türü</label>
+        <select class="select" id="rsTypeSel" data-change="rs-type" style="width:auto;max-width:100%">${rsTypes().map((x) => html`<option value="${x.id}" ${x.id === M.T.id ? raw('selected') : ''}>${x.name}</option>`)}</select>
+        <button class="btn sm ghost" data-act="rs-type-new">${icon('plus', 'sm')}<span>Yeni liste türü</span></button>
+        ${rsTypes().length > 1 ? html`<button class="btn sm ghost danger" data-act="rs-type-del">${icon('trash', 'sm')}<span>Bu türü sil</span></button>` : ''}</div>
       <div class="row wrap" style="gap:8px">
       <button class="btn sm" data-act="rs-tpl">${icon('sliders', 'sm')}<span>Şablon</span></button>
       <button class="btn sm primary" data-act="rs-print">${icon('file', 'sm')}<span>Yazdır / PDF</span></button>
       <button class="btn sm" data-act="rs-docx">${icon('file', 'sm')}<span>Word</span></button>
       <button class="btn sm" data-act="rs-xlsx">${icon('table', 'sm')}<span>Excel</span></button>
     </div></div>
-    ${!RS2.logo && !(RS2.tpl.doc || []).some((x) => x.v) ? html`<div class="mk-box">${icon('info', 'sm')}<span>Şablon henüz ayarlanmadı: <b>Şablon</b>’dan kurum logosunu, başlık satırlarını, doküman numarası ve tarihini, imza alanlarını girin. Bir kez yapılır.</span></div>` : ''}
+    ${!RS2.logo && !(M.T.doc || []).some((x) => x.v) ? html`<div class="mk-box">${icon('info', 'sm')}<span>Şablon henüz ayarlanmadı: <b>Şablon</b>’dan kurum logosunu, başlık satırlarını, doküman numarası ve tarihini, imza alanlarını girin. Bir kez yapılır.</span></div>` : ''}
     <div class="rs-paper-wrap"><div class="rs-paper" id="rsPaper">${raw(rsDocHtml(M))}</div></div>
     <div class="card card-pad stack" id="rsSigned">
       <div class="row wrap" style="gap:8px;align-items:center"><b class="grow">${icon('checkCircle', 'sm')} Islak imzalı belge</b>
@@ -410,65 +475,118 @@ async function rsLogoFrom(file) {
 ACT['rs-tpl'] = async () => {
   try { await rsLoadTpl(true); } catch (e) { toast(e.message, 'err'); return; } // başka yerde değiştirildiyse eskisiyle ezilmesin
   const t = JSON.parse(JSON.stringify(RS2.tpl));
+  const T = JSON.parse(JSON.stringify(rsType()));
   let logo = RS2.logo;
   const used = [...new Set(Object.values(PL2.d.cells || {}).flatMap((r) => Object.values(r)))].filter(Boolean);
   const codes = PL2.codes.filter((c) => used.includes(c.code) || c.kind !== 'shift');
   const EF = [['deduct', 'Gerekenden düşer'], ['work', 'Çalışılmış sayılır'], ['none', 'Etkisiz']];
+  const CD = RS2.cols || RS_COLS_DEF;
+  const sumKeys = [...(T.sum || []).filter((k) => CD[k]), ...Object.keys(CD).filter((k) => !(T.sum || []).includes(k))];
   const docRow = (x) => html`<div class="row rs-tr" style="gap:6px"><input class="input" data-k="l" value="${x.l}" placeholder="Etiket (ör. Doküman No)" style="max-width:170px"><input class="input grow" data-k="v" value="${x.v}" placeholder="Değer (ör. KY.LS.20)"><button type="button" class="btn ghost icon sm" data-x aria-label="Satırı kaldır">${icon('x', 'sm')}</button></div>`;
   const sigRow = (x) => html`<div class="row rs-tr" style="gap:6px"><input class="input" data-k="t" value="${x.t}" placeholder="Görev (ör. Birim Sorumlusu)"><input class="input grow" data-k="n" value="${x.n}" placeholder="Ad soyad (boş bırakılabilir)"><button type="button" class="btn ghost icon sm" data-x aria-label="İmzayı kaldır">${icon('x', 'sm')}</button></div>`;
-  const m = openModal({ title: 'Resmi liste şablonu', size: 'wide', body: html`<form class="stack" id="rsTplF">
+  const sumRow = (k) => html`<div class="row rs-tr rs-sum" data-sum="${k}" style="gap:6px;align-items:center"><input type="checkbox" data-k="on" ${(T.sum || []).includes(k) ? raw('checked') : ''} aria-label="Listede göster">
+    <input class="input grow" data-k="lab" value="${(T.labels || {})[k] || ''}" placeholder="${CD[k]}" aria-label="Başlık">
+    <label class="tiny" title="Sütunu yeşil vurgula"><input type="checkbox" data-k="hl" ${(T.hl || []).includes(k) ? raw('checked') : ''}> vurgu</label>
+    <button type="button" class="btn ghost icon sm" data-mv="-1" aria-label="Yukarı">${icon('chevL', 'sm')}</button><button type="button" class="btn ghost icon sm" data-mv="1" aria-label="Aşağı">${icon('chevR', 'sm')}</button></div>`;
+  const m = openModal({ title: `Şablon · ${T.name}`, size: 'wide', body: html`<form class="stack" id="rsTplF">
+      <div class="field"><label>Liste türünün adı</label><input class="input" id="rsTName" value="${T.name}" maxlength="60" placeholder="ör. Çalışma listesi, Fazla mesai listesi"></div>
+      <div class="field"><label>Başlık satırları</label><div class="stack" style="gap:6px">${[0, 1, 2, 3].map((i) => html`<input class="input" data-line="${i}" value="${(T.lines || [])[i] || ''}" placeholder="${['T.C. Sağlık Bakanlığı', '{HASTANE}', '{BİRİM} {YIL} {AY} ÇALIŞMA LİSTESİ', '(isteğe bağlı)'][i]}">`)}</div>
+        <span class="hint">Değişkenler: {HASTANE} ${RS2.names.org ? `(${RS2.names.org})` : ''}, {BİRİM} ${RS2.names.unit ? `(${RS2.names.unit})` : ''}, {LİSTE}, {YIL}, {AY}. Son satır büyük yazılır.</span></div>
+      <div class="field"><label>Doküman kutusu (sağ üst)</label><div class="stack" id="rsDoc" style="gap:6px">${(T.doc || []).map(docRow)}</div>
+        <div class="row wrap" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" id="rsDocAdd">${icon('plus', 'sm')}<span>Satır ekle</span></button><label class="small"><input type="checkbox" id="rsDocL" ${T.doc_labels ? raw('checked') : ''}> Etiketleri de yaz</label></div></div>
+      <div class="field"><label>Sütunlar</label><div class="row wrap" style="gap:12px">${[['sira', 'Sıra No'], ['unvan', 'Unvan'], ['days', 'Gün sütunları (1–31)']].map(([k, l]) => html`<label class="small"><input type="checkbox" data-col="${k}" ${(T.cols || {})[k] !== false && ((T.cols || {})[k] || k === 'days') ? raw('checked') : ''}> ${l}</label>`)}
+        <label class="small"><input type="checkbox" id="rsShade" ${T.shade !== false ? raw('checked') : ''}> Hafta sonu ve tatil sütunlarını gölgele</label></div>
+        <span class="hint">Gün sütunları kapatılırsa yalnız hesap sütunlu özet liste çıkar (ör. fazla mesai listesi).</span></div>
+      <div class="field"><label>Hesap sütunları (işaretlileri, bu sırayla)</label><div class="stack" id="rsSum" style="gap:6px">${sumKeys.map(sumRow)}</div>
+        <span class="hint">Gündüz / gece: vardiyanın gece aralığına (aşağıda) düşen saatleri gece sayılır. %10 zamlı: fazla çalışmanın gece saatlerine düşen kısmı (gece saati ile fazla çalışmadan küçük olanı). Toplam izin: hafta içine denk gelen izin / rapor günleri × günlük saat.</span></div>
+      <div class="field"><label>İmza alanları</label><div class="stack" id="rsSig" style="gap:6px">${(T.sig || []).map(sigRow)}</div>
+        <div><button type="button" class="btn sm" id="rsSigAdd" style="margin-top:6px">${icon('plus', 'sm')}<span>İmza ekle</span></button></div></div>
+      <h3 style="font-size:14px;margin:6px 0 0;border-top:1px solid var(--border);padding-top:12px">Tüm liste türleri için</h3>
       <div class="row wrap" style="gap:12px;align-items:center"><div class="rs-logo-prev" id="rsLogoPrev">${logo ? html`<img src="${logo}" alt="Logo">` : html`<span class="tiny faint">Logo yok</span>`}</div>
         <label class="btn sm">${icon('upload', 'sm')}<span>Kurum logosu yükle</span><input type="file" hidden accept="image/png,image/jpeg" id="rsLogoIn"></label>
         <button type="button" class="btn sm ghost" id="rsLogoX">Logoyu kaldır</button></div>
-      <div class="field"><label>Başlık satırları</label><div class="stack" style="gap:6px">${[0, 1, 2, 3].map((i) => html`<input class="input" data-line="${i}" value="${(t.lines || [])[i] || ''}" placeholder="${['T.C. Sağlık Bakanlığı', '{HASTANE}', '{BİRİM} {YIL} {AY} ÇALIŞMA LİSTESİ', '(isteğe bağlı)'][i]}">`)}</div>
-        <span class="hint">Değişkenler: {HASTANE} ${RS2.names.org ? `(${RS2.names.org})` : ''}, {BİRİM} ${RS2.names.unit ? `(${RS2.names.unit})` : ''}, {LİSTE}, {YIL}, {AY}. Son satır büyük yazılır.</span></div>
-      <div class="field"><label>Doküman kutusu (sağ üst)</label><div class="stack" id="rsDoc" style="gap:6px">${(t.doc || []).map(docRow)}</div>
-        <div class="row wrap" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" id="rsDocAdd">${icon('plus', 'sm')}<span>Satır ekle</span></button><label class="small"><input type="checkbox" id="rsDocL" ${t.doc_labels ? raw('checked') : ''}> Etiketleri de yaz</label></div></div>
-      <div class="field"><label>Sütunlar</label><div class="row wrap" style="gap:12px">${[['sira', 'Sıra No'], ['unvan', 'Unvan'], ['req', 'Çalışılması gereken saat'], ['work', 'Çalışılan saat'], ['over', 'Fazla mesai saati']].map(([k, l]) => html`<label class="small"><input type="checkbox" data-col="${k}" ${t.cols[k] ? raw('checked') : ''}> ${l}</label>`)}
-        <label class="small"><input type="checkbox" id="rsShade" ${t.shade ? raw('checked') : ''}> Hafta sonu ve tatil sütunlarını gölgele</label></div></div>
       <div class="grid2"><div class="field"><label>Günlük çalışma saati</label><input class="input" type="number" min="1" max="12" step="0.5" id="rsDayH" value="${t.day_hours}"></div>
         <div class="field"><label>Yarım gün tatilde (arife) gereken saat</label><input class="input" type="number" min="0" max="12" step="0.5" id="rsHalfH" value="${t.half_hours}"></div></div>
+      <div class="grid2"><div class="field"><label>Gece aralığı başlangıcı</label><input class="input" type="time" id="rsNf" value="${t.night_from || '20:00'}"></div>
+        <div class="field"><label>Gece aralığı bitişi</label><input class="input" type="time" id="rsNt" value="${t.night_to || '08:00'}"></div></div>
       <div class="field"><label>Kodların çıktıdaki yazımı ve saat etkisi</label>
         <div class="rs-codes">${codes.map((c) => { const x = (t.codes || {})[c.code] || {}; return html`<div class="row rs-tr" data-code="${c.code}" style="gap:6px;align-items:center"><span class="code-chip tone-${planTone(c.code)}"><b>${c.code}</b></span><span class="small grow ellipsis">${c.label}${c.kind === 'shift' ? ` · ${c.hours || 0} saat` : ''}</span>
           <input class="input" data-k="p" value="${x.p || ''}" placeholder="${rsPrint(c.code, { codes: {} })}" style="max-width:110px" aria-label="Çıktıda yazım">
           ${c.kind === 'shift' ? html`<span class="tiny faint" style="width:150px">Çalışılan saate eklenir</span>` : html`<select class="select" data-k="c" style="width:150px">${EF.map(([k, l]) => html`<option value="${k}" ${(x.c || 'deduct') === k ? raw('selected') : ''}>${l}</option>`)}</select>`}</div>`; })}</div>
         <span class="hint">Boş bırakılan yazımda vardiya saat aralığıyla (08-16, 08-08), izin kısaltmasıyla (Y.İZİN, D.İZNİ, RAPOR) yazılır. “Gerekenden düşer”: hafta içine denk gelen her gün için günlük saat gereken saatten düşülür.</span></div>
-      <div class="field"><label>İmza alanları</label><div class="stack" id="rsSig" style="gap:6px">${(t.sig || []).map(sigRow)}</div>
-        <div><button type="button" class="btn sm" id="rsSigAdd" style="margin-top:6px">${icon('plus', 'sm')}<span>İmza ekle</span></button></div></div>
       ${RS2.canShare ? html`<div class="field"><label>Hastanedeki diğer birimler</label>
-        <label class="small"><input type="checkbox" id="rsShare"> Kaydederken bu şablonu hastanemdeki birimlerle paylaş</label>
+        <label class="small"><input type="checkbox" id="rsShare"> Kaydederken bu şablonu (tüm liste türleriyle) hastanemdeki birimlerle paylaş</label>
         ${RS2.shared.length ? html`<div class="row wrap" style="gap:6px;margin-top:6px"><select class="select" id="rsCopyK" style="width:auto">${RS2.shared.map((x) => html`<option value="${x.key}">${x.unit}</option>`)}</select><button type="button" class="btn sm" id="rsCopy">Bu birimin şablonunu kopyala</button></div>` : html`<span class="hint">Henüz şablon paylaşan birim yok.</span>`}</div>` : ''}
       <div class="form-error hidden" data-err></div></form>`,
     foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="rsTplF">Kaydet</button>` });
   const f = $('#rsTplF', m.el);
   const del = (e) => { const x = e.target.closest('[data-x]'); if (x) x.closest('.rs-tr').remove(); };
   $('#rsDoc', m.el).addEventListener('click', del); $('#rsSig', m.el).addEventListener('click', del);
+  $('#rsSum', m.el).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mv]'); if (!b) return;
+    const row = b.closest('.rs-sum');
+    if (b.dataset.mv === '-1' && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+    else if (b.dataset.mv === '1' && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+  });
   $('#rsDocAdd', m.el).addEventListener('click', () => $('#rsDoc', m.el).insertAdjacentHTML('beforeend', String(docRow({ l: '', v: '' }))));
   $('#rsSigAdd', m.el).addEventListener('click', () => $('#rsSig', m.el).insertAdjacentHTML('beforeend', String(sigRow({ t: '', n: '' }))));
   $('#rsLogoIn', m.el).addEventListener('change', async (e) => { const fl = e.target.files[0]; if (!fl) return; try { logo = await rsLogoFrom(fl); setHTML($('#rsLogoPrev', m.el), html`<img src="${logo}" alt="Logo">`); } catch (er) { toast(er.message, 'err'); } });
   $('#rsLogoX', m.el).addEventListener('click', () => { logo = ''; setHTML($('#rsLogoPrev', m.el), html`<span class="tiny faint">Logo yok</span>`); });
   const cp = $('#rsCopy', m.el);
   if (cp) cp.addEventListener('click', async () => {
-    if (!(await confirmDialog({ title: 'Şablon kopyalansın mı?', text: 'Bu birimin şablonu ve logosu seçilen birimin şablonuyla değişir.', ok: 'Kopyala' }))) return;
+    if (!(await confirmDialog({ title: 'Şablon kopyalansın mı?', text: 'Bu birimin şablonu (tüm liste türleri) ve logosu seçilen birimin şablonuyla değişir.', ok: 'Kopyala' }))) return;
     try { await api('plan.tpl.copy', { key: $('#rsCopyK', m.el).value }); await rsLoadTpl(true); m.close(); toast('Şablon kopyalandı'); rsAfterTpl(); } catch (e) { toast(e.message, 'err'); }
   });
   f.addEventListener('submit', (ev) => {
     ev.preventDefault();
     submitForm(f, async () => {
-      const tpl = {
+      const sumRows = $$('#rsSum .rs-sum', f);
+      const type = Object.assign({}, T, {
+        name: $('#rsTName', f).value.trim() || T.name,
         lines: $$('[data-line]', f).map((i) => i.value.trim()).filter(Boolean),
         doc: $$('#rsDoc .rs-tr', f).map((r) => ({ l: $('[data-k=l]', r).value, v: $('[data-k=v]', r).value })),
         doc_labels: $('#rsDocL', f).checked,
         cols: Object.fromEntries($$('[data-col]', f).map((i) => [i.dataset.col, i.checked])),
-        shade: $('#rsShade', f).checked, day_hours: +$('#rsDayH', f).value || 8, half_hours: +$('#rsHalfH', f).value || 0,
+        shade: $('#rsShade', f).checked,
+        sum: sumRows.filter((r) => $('[data-k=on]', r).checked).map((r) => r.dataset.sum),
+        labels: Object.fromEntries(sumRows.map((r) => [r.dataset.sum, $('[data-k=lab]', r).value.trim()]).filter((x) => x[1])),
+        hl: sumRows.filter((r) => $('[data-k=hl]', r).checked).map((r) => r.dataset.sum),
         sig: $$('#rsSig .rs-tr', f).map((r) => ({ t: $('[data-k=t]', r).value, n: $('[data-k=n]', r).value })),
-        codes: Object.assign({}, RS2.tpl.codes || {}, Object.fromEntries($$('[data-code]', f).map((r) => [r.dataset.code, { p: $('[data-k=p]', r).value.trim(), c: ($('[data-k=c]', r) || {}).value || '' }]))),
-      };
+      });
+      const tpl = Object.assign({}, t, {
+        day_hours: +$('#rsDayH', f).value || 8, half_hours: +$('#rsHalfH', f).value || 0,
+        night_from: $('#rsNf', f).value || '20:00', night_to: $('#rsNt', f).value || '08:00',
+        codes: Object.assign({}, t.codes || {}, Object.fromEntries($$('[data-code]', f).map((r) => [r.dataset.code, { p: $('[data-k=p]', r).value.trim(), c: ($('[data-k=c]', r) || {}).value || '' }]))),
+        types: (t.types || []).map((x) => (x.id === T.id ? type : x)),
+      });
       const r = await api('plan.tpl.save', { tpl, logo, share: !!($('#rsShare', f) || {}).checked });
       RS2.tpl = r.tpl; RS2.logo = r.logo || ''; RS2.shared = r.shared || [];
       m.close(); toast('Şablon kaydedildi'); rsAfterTpl();
     });
   });
+};
+CHANGE['rs-type'] = (el) => { RS2.typeId = el.value; try { localStorage.setItem('nm-rs-type', el.value); } catch (e) { /* */ } rsDocDraw(); };
+ACT['rs-type-new'] = async () => {
+  const name = await promptDialog({ title: 'Yeni liste türü', label: 'Adı (ör. Fazla mesai listesi)', ok: 'Oluştur' });
+  if (!name) return;
+  try {
+    await rsLoadTpl(true);
+    const base = JSON.parse(JSON.stringify(rsType()));
+    const id = 't' + Date.now().toString(36).slice(-6);
+    const type = Object.assign(base, { id, name: name.slice(0, 60), lines: (base.lines || []).map((l) => l.replace(/ÇALIŞMA LİSTESİ/i, name.toLocaleUpperCase('tr'))), sum: ['izin', 'req', 'day', 'night', 'night10', 'over'], hl: ['over'], labels: {} });
+    const r = await api('plan.tpl.save', { tpl: Object.assign({}, RS2.tpl, { types: [...(RS2.tpl.types || []), type] }) });
+    RS2.tpl = r.tpl; RS2.typeId = id; try { localStorage.setItem('nm-rs-type', id); } catch (e) { /* */ }
+    rsDocDraw(); toast('Liste türü oluşturuldu; Şablon’dan sütunlarını ve doküman bilgilerini düzenleyin');
+  } catch (e) { toast(e.message, 'err'); }
+};
+ACT['rs-type-del'] = async () => {
+  const T = rsType();
+  if (!T || rsTypes().length < 2) return;
+  if (!(await confirmDialog({ title: `“${T.name}” silinsin mi?`, text: 'Bu liste türünün başlık, doküman ve sütun ayarları silinir. Çizelge ve diğer türler değişmez.', ok: 'Sil', danger: true }))) return;
+  try {
+    const r = await api('plan.tpl.save', { tpl: Object.assign({}, RS2.tpl, { types: rsTypes().filter((x) => x.id !== T.id) }) });
+    RS2.tpl = r.tpl; RS2.typeId = ''; rsDocDraw(); toast('Liste türü silindi');
+  } catch (e) { toast(e.message, 'err'); }
 };
 function rsAfterTpl() { if (PL2.tab === 'resmi') rsDocDraw(); else if (typeof planDraw === 'function') planDraw(); }
 

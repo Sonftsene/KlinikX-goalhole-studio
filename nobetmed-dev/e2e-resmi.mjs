@@ -172,8 +172,9 @@ try {
   // ---- 6) Şablon ----
   const logo = await A.p.evaluate(() => { const c = document.createElement('canvas'); c.width = 120; c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#c00'; x.beginPath(); x.arc(60, 60, 55, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = 'bold 40px Arial'; x.fillText('ÖR', 28, 75); return c.toDataURL('image/png'); });
   const t0 = (await apiCall(A.p, 'plan.tpl.get')).tpl;
-  await apiCall(A.p, 'plan.tpl.save', { logo, tpl: { ...t0, lines: ['T.C. Örnek Bakanlığı', 'Örnek Şehir Hastanesi', '{BİRİM} {YIL} {AY} ÇALIŞMA LİSTESİ'], doc: [{ l: 'Doküman No', v: 'KY.LS.99' }, { l: 'Yayın Tarihi', v: '01.01.2025' }, { l: 'Revizyon No', v: '0' }],
-    sig: [{ t: 'Birim Sorumlusu', n: 'Ayşe Kaya' }, { t: 'Sağlık Bakım Hizmetleri Müdürü', n: '' }], codes: { [nov.yi]: { p: 'Y.İZİN', c: 'deduct' } } } });
+  const ty0 = { ...t0.types[0], lines: ['T.C. Örnek Bakanlığı', 'Örnek Şehir Hastanesi', '{BİRİM} {YIL} {AY} ÇALIŞMA LİSTESİ'], doc: [{ l: 'Doküman No', v: 'KY.LS.99' }, { l: 'Yayın Tarihi', v: '01.01.2025' }, { l: 'Revizyon No', v: '0' }],
+    sig: [{ t: 'Birim Sorumlusu', n: 'Ayşe Kaya' }, { t: 'Sağlık Bakım Hizmetleri Müdürü', n: '' }] };
+  await apiCall(A.p, 'plan.tpl.save', { logo, tpl: { ...t0, codes: { [nov.yi]: { p: 'Y.İZİN', c: 'deduct' } }, types: [ty0] } });
   await A.p.click('[data-act=pl2-tab][data-t=resmi]');
   await A.p.locator('#rsPaper .rd-grid').waitFor();
   const pv = await A.p.evaluate(() => ({ rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length, people: PL2.d.people.length, html: document.querySelector('#rsPaper').innerHTML, img: !!document.querySelector('#rsPaper .rd-logo img') }));
@@ -186,9 +187,58 @@ try {
   await A.p.locator('#rsDoc .rs-tr').last().locator('[data-k=l]').fill('Revizyon Tarihi');
   await A.p.click('.modal button[form=rsTplF]');
   await expectText(A.p, 'Şablon kaydedildi');
-  if (!(await apiCall(A.p, 'plan.tpl.get')).tpl.doc.some((x) => x.l === 'Revizyon Tarihi')) fail('şablon penceresinden kayıt yapılamadı');
+  if (!(await apiCall(A.p, 'plan.tpl.get')).tpl.types[0].doc.some((x) => x.l === 'Revizyon Tarihi')) fail('şablon penceresinden kayıt yapılamadı');
   await A.p.screenshot({ path: path.join(OUT, 'r-resmi-onizleme.png') });
   step('şablon: logo, 3 başlık satırı, doküman kutusu (KY.LS.99), imzalar, kod yazımı (Y.İZİN); önizleme kişi sayısı kadar satır, değişiklik izi yok; şablon penceresinden satır eklenip kaydedildi');
+
+  // ---- 6b) Gündüz / gece / %10 / toplam izin: kullanıcının tablosundaki satırlarla aynı (Kasım 2026, gece 20:00–08:00) ----
+  const fx = await A.p.evaluate(([c24, c8, yi]) => {
+    const t = { day_hours: 8, half_hours: 4, night_from: '20:00', night_to: '08:00', codes: {} };
+    const D = (n) => `2026-11-${String(n).padStart(2, '0')}`;
+    const mk = (list) => Object.fromEntries(list.map(([n, c]) => [D(n), c]));
+    const cells = {
+      A: mk([...[1, 4, 7, 10, 13, 16, 19, 22, 25].map((n) => [n, c24]), [27, c8], [28, c8]]),
+      B: mk([...[2, 3, 4, 5, 6].map((n) => [n, yi]), ...[8, 11, 14, 17, 20, 23].map((n) => [n, c24]), [25, c8], [26, c8]]),
+      C: mk([...[1, 8, 15, 22].map((n) => [n, c24]), ...[2, 3, 4, 5, 6, 9, 10, 11, 12, 13].map((n) => [n, c8])]),
+    };
+    const h = rsHours({ people: [{ name: 'A' }, { name: 'B' }, { name: 'C' }], cells }, '2026-11', t, {}, []);
+    const pick = (x) => [x.izin, x.req, x.day, x.night, x.night10, x.over].join('/');
+    return { A: pick(h.A), B: pick(h.B), C: pick(h.C) };
+  }, [nov.c24, nov.c8, nov.yi]);
+  const want = { A: '0/168/124/108/64/64', B: '40/128/88/72/32/32', C: '0/168/128/48/8/8' };
+  for (const k of ['A', 'B', 'C']) if (fx[k] !== want[k]) fail(`formül ${k}: ${fx[k]} (beklenen izin/gereken/gündüz/gece/%10/fazla = ${want[k]})`);
+  step('hesaplar kullanıcının tablosuyla aynı: 0/168/124/108/64/64, 40/128/88/72/32/32, 0/168/128/48/8/8 (toplam izin / gereken / gündüz / gece / %10 zamlı / fazla)');
+
+  // Yeni liste türü: fazla mesai listesi (gün sütunsuz özet), kendi doküman numarasıyla
+  await A.p.click('[data-act=rs-type-new]');
+  await A.p.locator('.modal [name=v]').fill('Fazla Mesai Listesi');
+  await A.p.locator('.modal [data-ok]').click();
+  await expectText(A.p, 'Liste türü oluşturuldu');
+  const tp = (await apiCall(A.p, 'plan.tpl.get')).tpl;
+  if (tp.types.length !== 2 || tp.types[1].name !== 'Fazla Mesai Listesi' || tp.types[1].sum.join(',') !== 'izin,req,day,night,night10,over') fail('yeni liste türü oluşmadı: ' + JSON.stringify(tp.types.map((x) => [x.name, x.sum])));
+  const t2 = { ...tp.types[1], cols: { sira: true, unvan: true, days: false }, doc: [{ l: 'Doküman No', v: 'FM.LS.07' }], labels: { izin: 'Topl İzin' }, hl: ['over'] };
+  await apiCall(A.p, 'plan.tpl.save', { tpl: { ...tp, types: [tp.types[0], t2] } });
+  await A.p.click('[data-act=pl2-tab][data-t=grid]'); await A.p.locator('#plGrid').waitFor();
+  await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
+  await A.p.selectOption('#rsTypeSel', t2.id);
+  await A.p.locator('#rsPaper', { hasText: 'FM.LS.07' }).waitFor();
+  const fm = await A.p.evaluate(() => ({ html: document.querySelector('#rsPaper').innerHTML, dn: document.querySelectorAll('#rsPaper .rd-dn').length, hl: document.querySelectorAll('#rsPaper td.hl').length, rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length }));
+  if (fm.dn || !fm.html.includes('Topl İzin') || !fm.html.includes('%10 ZAMLI') || !fm.html.includes('GECE MESAİSİ') || fm.hl !== fm.rows) fail('fazla mesai listesi (özet) yanlış: ' + JSON.stringify({ dn: fm.dn, hl: fm.hl, rows: fm.rows }));
+  const fmPdf = await (async () => { const h = await A.p.evaluate(() => `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body>${rsDocHtml(rsModel(), { page: true })}</body></html>`); const PG2 = await browser.newPage(); await PG2.setContent(h); const b = await PG2.pdf({ preferCSSPageSize: true, printBackground: true }); await PG2.close(); return b; })();
+  fs.writeFileSync(path.join(OUT, 'r-fazla-mesai.pdf'), fmPdf);
+  if ((fmPdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length !== 1) fail('fazla mesai listesi tek sayfa değil');
+  const fmx = Buffer.from(await blobBytes(A.p, 'rsXlsx'));
+  const fxp = path.join(OUT, 'r-fazla-mesai.xlsx'); fs.writeFileSync(fxp, fmx);
+  if (!execFileSync('unzip', ['-p', fxp, 'xl/sharedStrings.xml'], { encoding: 'utf8' }).includes('Topl İzin')) fail('fazla mesai listesi Excel’de sütun başlığı yok');
+  const fmd = Buffer.from(await blobBytes(A.p, 'rsDocx'));
+  const fdp = path.join(OUT, 'r-fazla-mesai.docx'); fs.writeFileSync(fdp, fmd);
+  const fdx = execFileSync('unzip', ['-p', fdp, 'word/document.xml'], { encoding: 'utf8' });
+  execFileSync('python3', ['-c', 'import sys,xml.dom.minidom;xml.dom.minidom.parseString(sys.stdin.buffer.read())'], { input: fdx });
+  if (!fdx.includes('FM.LS.07') || !fdx.includes('C6EFCE')) fail('fazla mesai listesi Word’de doküman no / vurgu yok');
+  await A.p.screenshot({ path: path.join(OUT, 'r-fazla-mesai.png') });
+  await A.p.selectOption('#rsTypeSel', tp.types[0].id);
+  await A.p.locator('#rsPaper', { hasText: 'KY.LS.99' }).waitFor();
+  step('liste türü: “Fazla Mesai Listesi” oluşturuldu (kendi doküman no FM.LS.07, gün sütunsuz özet, Topl İzin / Gereken / Gündüz / Gece / %10 / Fazla, fazla sütunu yeşil); PDF tek sayfa, Excel ve Word üretildi; asıl liste türü değişmedi');
 
   // ---- 7) Tek sayfa PDF, Word, Excel ----
   const docHtml = await A.p.evaluate(() => `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body>${rsDocHtml(rsModel(), { page: true })}</body></html>`);
@@ -274,6 +324,54 @@ try {
   }
   await Am.p.screenshot({ path: path.join(OUT, 'r-resmi-tel.png') });
   step('telefon: Değişiklikler ve Resmi liste sekmelerinde taşma yok (önizleme ekrana sığacak şekilde küçülür)');
+  await Am.p.goto(BASE + `#/cizelge/${ro.id}/${ym}`);
+  await Am.p.locator('#plGrid').waitFor();
+  const mob = await Am.p.evaluate(() => ({ set: document.querySelector('.pl2-set').open, more: getComputedStyle(document.querySelector('.pl2-more')).display !== 'none', auto: getComputedStyle(document.querySelector('[data-act=pl2-auto].pl2-xbtn')).display === 'none', top: document.querySelector('.pl2-wrap').getBoundingClientRect().top + window.scrollY }));
+  if (mob.set || !mob.more || !mob.auto) fail('telefonda üst kısım kompakt değil: ' + JSON.stringify(mob));
+  await Am.p.click('[data-act=pl2-more]');
+  await Am.p.locator('.modal [data-o=pl2-auto]').waitFor();
+  await Am.p.keyboard.press('Escape');
+  const sc = await Am.p.evaluate(([n, d, c]) => {
+    const w = document.querySelector('.pl2-wrap'); w.scrollLeft = 420;
+    const before = w.scrollLeft;
+    PL2.brush = c;
+    document.querySelector(`[data-act=pl2-cell][data-n="${n}"][data-d="${d}"]`).click();
+    const after = document.querySelector('.pl2-wrap').scrollLeft;
+    PL2.brush = null;
+    return { before, after, code: (PL2.d.cells[n] || {})[d] };
+  }, [P, d(20), nov.c8]);
+  if (sc.before < 100 || Math.abs(sc.after - sc.before) > 2 || sc.code !== nov.c8) fail('telefonda hücre doldurunca kaydırma başa döndü: ' + JSON.stringify(sc));
+  await Am.p.screenshot({ path: path.join(OUT, 'r-cizelge-tel.png') });
+  await Am.p.evaluate(() => { PL2.dirty = false; });
+  step(`telefon çizelge: ayarlar katlı, işlemler “Diğer” menüsünde (üstten tabloya ${Math.round(mob.top)} px); hücre doldurunca yatay kaydırma yerinde kaldı (${sc.before} → ${sc.after})`);
+
+  // Masaüstü: toplu kişi ekleme ve birim kuralı (boşluk sınırı)
+  await A.p.click('[data-act=pl2-tab][data-t=grid]'); await A.p.locator('#plGrid').waitFor();
+  // Listeden seçilebilsin diye hesabı olan iki kişi çizelgeden geçici çıkarılır
+  const orig = await A.p.evaluate(() => { const o = JSON.parse(JSON.stringify(PL2.d.people)); const users = new Set((S.people || []).map((p) => avKey(p.name))); let k = 0; PL2.d.people = PL2.d.people.filter((p) => !(users.has(avKey(p.name)) && k++ < 2)); planDraw(); return o; });
+  const n0 = await A.p.evaluate(() => PL2.d.people.length);
+  await A.p.click('#pl2AddBtn');
+  await A.p.locator('#pl2AddName').waitFor();
+  const boxes = await A.p.locator('#pl2AddL input[type=checkbox]').count();
+  for (let i = 0; i < Math.min(2, boxes); i++) await A.p.locator('#pl2AddL input[type=checkbox]').nth(i).check();
+  await A.p.fill('#pl2AddName', 'Toplu Kişi Örnek');
+  await A.p.click('#pl2AddGo');
+  await expectText(A.p, 'kişi eklendi');
+  const n1 = await A.p.evaluate(() => PL2.d.people.length);
+  if (boxes < 2) fail('toplu ekleme listesinde çizelgede olmayan kişiler görünmedi');
+  if (n1 !== n0 + Math.min(2, boxes) + 1) fail(`toplu kişi ekleme: ${n0} → ${n1} (beklenen +${Math.min(2, boxes) + 1})`);
+  const g0 = (await apiCall(A.p, 'plan.get', { roster_id: ro.id, ym })).rules.max_gap;
+  await A.p.fill('#pl2RGap', '3');
+  await A.p.click('[data-act=pl2-rules]');
+  await expectText(A.p, 'Birim kuralları kaydedildi');
+  const g1 = (await apiCall(A.p, 'plan.get', { roster_id: ro.id, ym })).rules.max_gap;
+  const chk = await apiCall(A.p, 'plan.check', { roster_id: ro.id, ym, draft: { people: [{ name: 'Boşluk Deneme' }], cells: { 'Boşluk Deneme': { [d(1)]: nov.c8, [d(6)]: nov.c8 } }, needs: {} } });
+  await apiCall(A.p, 'plan.rules', { max_gap: g0 });
+  if (g1 !== 3 || !chk.issues.some((x) => x.type === 'bosluk' && /en fazla 3 gün/.test(x.msg))) fail('birim kuralı (en fazla 3 gün boşluk) uygulanmadı: ' + JSON.stringify({ g1, iss: chk.issues.slice(0, 3) }));
+  // Diğer testler etkilenmesin: eklenen kişiler çıkarılır, taslak kaydedilir
+  await A.p.evaluate((o) => { PL2.d.people = o; planDirty(); }, orig);
+  await A.p.click('[data-act=pl2-save]'); await expectText(A.p, 'Taslak kaydedildi');
+  step(`toplu kişi ekleme: ${Math.min(2, boxes)} kişi listeden + 1 hesabı olmayan kişi tek seferde eklendi; birim kuralı “iki nöbet arası en fazla 3 gün” kaydedildi ve denetim 4 günlük boşluğu yakaladı (sonra ${g0} gün geri alındı)`);
 } catch (e) {
   fail('beklenmeyen hata: ' + (e.stack || e.message));
 }

@@ -1380,6 +1380,23 @@ a.pb-num svg.i { width: 15px; height: 15px; }
 .pl2-grid td.chg { position: relative; }
 .pl2-grid td.chg::after { content: ''; position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 1.5px var(--surface); pointer-events: none; }
 .pl2-tabs { flex-wrap: wrap; }
+.pl2-more { display: none; }
+.pl2-set > summary { cursor: pointer; padding: 4px 0; list-style-position: inside; }
+.pl2-set[open] > summary { margin-bottom: 8px; }
+.pl2-set .pl2-needs .input, .pl2-rules .input { width: 64px; }
+.pl2-rules { margin-top: 8px; }
+.pl2-addlist { max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+@media (max-width: 760px) {
+  .pl2-xbtn { display: none !important; }
+  .pl2-more { display: inline-flex; }
+  .pl2-head { padding: 10px 12px; gap: 8px; }
+  .pl2-head .pl2-acts .grow { display: none; }
+  .pl2-brush { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: thin; }
+  .pl2-brush > * { flex: 0 0 auto; }
+  .pl2-tabs button span { font-size: 12.5px; }
+  .pl2-grid .pl2-name { min-width: 92px; max-width: 96px; }
+  .pl2-pn { font-size: 11.5px; }
+}
 .pl2-tabs button { display: inline-flex; align-items: center; gap: 5px; }
 .pl2-reqbox { border-top: 1px solid var(--border); padding-top: 10px; }
 .pl2-reqbox .btn.on { background: var(--brand-soft); border-color: var(--brand); }

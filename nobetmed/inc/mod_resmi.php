@@ -206,33 +206,64 @@ function a_plan_mark(): void
 }
 
 /* ---------------- Şablon ---------------- */
-function plan_tpl_default(): array
+/** Hesap sütunları kataloğu (sıra seçilebilir): anahtar => başlık */
+const PLAN_SUM_COLS = ['izin' => 'TOPLAM İZİN', 'req' => 'ÇALIŞILMASI GEREKEN SAAT', 'work' => 'ÇALIŞILAN SAAT', 'day' => 'GÜNDÜZ ÇALIŞMA SAATİ', 'night' => 'GECE MESAİSİ SAATİ',
+    'night10' => '%10 ZAMLI ÖDENMESİ GEREKEN SAAT', 'over' => 'FAZLA MESAİ SAATİ', 'count' => 'NÖBET SAYISI', 'wkend' => 'HAFTA SONU / TATİL SAATİ'];
+
+/** Liste türü (ör. Çalışma listesi, Fazla mesai listesi): başlık, doküman kutusu, sütunlar, imzalar */
+function plan_type_default(string $id = 't1', string $name = 'Çalışma listesi'): array
 {
     return [
+        'id' => $id, 'name' => $name,
         'lines' => ['T.C. Sağlık Bakanlığı', '{HASTANE}', '{BİRİM} {YIL} {AY} ÇALIŞMA LİSTESİ'],
         'doc' => [['l' => 'Doküman No', 'v' => ''], ['l' => 'Yayın Tarihi', 'v' => ''], ['l' => 'Revizyon No', 'v' => ''], ['l' => 'Revizyon Tarihi', 'v' => '']],
         'doc_labels' => true,
-        'cols' => ['sira' => true, 'unvan' => true, 'req' => true, 'work' => true, 'over' => true],
+        'cols' => ['sira' => true, 'unvan' => true, 'days' => true],
+        'sum' => ['req', 'work', 'over'],
+        'labels' => (object)[], 'hl' => [],
         'sig' => [['t' => 'Birim Sorumlusu', 'n' => ''], ['t' => 'Sağlık Bakım Hizmetleri Müdürü', 'n' => '']],
-        'shade' => true, 'day_hours' => 8, 'half_hours' => 4,
-        'codes' => (object)[], // kod => {p: çıktıda yazım, c: 'deduct'|'none'|'work'}
+        'shade' => true,
     ];
+}
+function plan_tpl_default(): array
+{
+    return ['day_hours' => 8, 'half_hours' => 4, 'night_from' => '20:00', 'night_to' => '08:00', 'codes' => (object)[], 'types' => [plan_type_default()]];
+}
+function plan_type_clean(array $t, int $i): array
+{
+    $d = plan_type_default();
+    $str = fn($v, $n) => mb_substr(trim((string)$v), 0, $n);
+    $o = $d;
+    $o['id'] = preg_match('/^[a-z0-9]{1,12}$/', (string)($t['id'] ?? '')) ? (string)$t['id'] : 't' . ($i + 1);
+    $o['name'] = $str($t['name'] ?? '', 60) ?: 'Liste ' . ($i + 1);
+    $o['lines'] = array_slice(array_map(fn($v) => $str($v, 140), array_values((array)($t['lines'] ?? $d['lines']))), 0, 5);
+    $o['doc'] = [];
+    foreach (array_slice((array)($t['doc'] ?? []), 0, 8) as $x) if (is_array($x)) $o['doc'][] = ['l' => $str($x['l'] ?? '', 40), 'v' => $str($x['v'] ?? '', 60)];
+    $o['doc_labels'] = !empty($t['doc_labels']);
+    $c = (array)($t['cols'] ?? []);
+    $o['cols'] = ['sira' => !empty($c['sira']), 'unvan' => !empty($c['unvan']), 'days' => !array_key_exists('days', $c) || !empty($c['days'])];
+    // Eski şablon: cols.req / work / over → hesap sütunları
+    $sum = isset($t['sum']) ? (array)$t['sum'] : array_values(array_filter(['req', 'work', 'over'], fn($k) => !array_key_exists($k, $c) || !empty($c[$k])));
+    $o['sum'] = array_values(array_unique(array_filter(array_map('strval', $sum), fn($k) => isset(PLAN_SUM_COLS[$k]))));
+    $lab = [];
+    foreach ((array)($t['labels'] ?? []) as $k => $v) if (isset(PLAN_SUM_COLS[$k]) && trim((string)$v) !== '') $lab[$k] = $str($v, 60);
+    $o['labels'] = (object)$lab;
+    $o['hl'] = array_values(array_filter(array_map('strval', (array)($t['hl'] ?? [])), fn($k) => isset(PLAN_SUM_COLS[$k])));
+    $o['sig'] = [];
+    foreach (array_slice((array)($t['sig'] ?? []), 0, 4) as $x) if (is_array($x)) $o['sig'][] = ['t' => $str($x['t'] ?? '', 80), 'n' => $str($x['n'] ?? '', 80)];
+    $o['shade'] = !array_key_exists('shade', $t) || !empty($t['shade']);
+    return $o;
 }
 function plan_tpl_clean(array $t): array
 {
     $d = plan_tpl_default();
     $str = fn($v, $n) => mb_substr(trim((string)$v), 0, $n);
+    $hm = fn($v, $def) => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string)$v) ? (string)$v : $def;
     $o = $d;
-    $o['lines'] = array_slice(array_map(fn($v) => $str($v, 140), array_values((array)($t['lines'] ?? $d['lines']))), 0, 5);
-    $o['doc'] = [];
-    foreach (array_slice((array)($t['doc'] ?? []), 0, 8) as $x) if (is_array($x)) $o['doc'][] = ['l' => $str($x['l'] ?? '', 40), 'v' => $str($x['v'] ?? '', 60)];
-    $o['doc_labels'] = !empty($t['doc_labels']);
-    foreach (array_keys($d['cols']) as $c) $o['cols'][$c] = !empty(($t['cols'] ?? [])[$c]);
-    $o['sig'] = [];
-    foreach (array_slice((array)($t['sig'] ?? []), 0, 4) as $x) if (is_array($x)) $o['sig'][] = ['t' => $str($x['t'] ?? '', 80), 'n' => $str($x['n'] ?? '', 80)];
-    $o['shade'] = !empty($t['shade']);
     $o['day_hours'] = max(1, min(12, (float)($t['day_hours'] ?? 8)));
     $o['half_hours'] = max(0, min(12, (float)($t['half_hours'] ?? 4)));
+    $o['night_from'] = $hm($t['night_from'] ?? '', '20:00');
+    $o['night_to'] = $hm($t['night_to'] ?? '', '08:00');
     $codes = [];
     foreach (array_slice((array)($t['codes'] ?? []), 0, 120, true) as $k => $x) {
         if (!is_array($x)) continue;
@@ -240,6 +271,18 @@ function plan_tpl_clean(array $t): array
         $codes[$str($k, 20)] = ['p' => $str($x['p'] ?? '', 14), 'c' => $c];
     }
     $o['codes'] = (object)$codes;
+    // Liste türleri; eski (4.34) tek şablon ilk tür olur
+    $types = isset($t['types']) && is_array($t['types']) ? $t['types'] : [array_merge($t, ['id' => 't1', 'name' => 'Çalışma listesi'])];
+    $o['types'] = [];
+    $ids = [];
+    foreach (array_slice(array_values($types), 0, 8) as $i => $x) {
+        if (!is_array($x)) continue;
+        $ty = plan_type_clean($x, $i);
+        while (isset($ids[$ty['id']])) $ty['id'] .= 'x';
+        $ids[$ty['id']] = 1;
+        $o['types'][] = $ty;
+    }
+    if (!$o['types']) $o['types'] = [plan_type_default()];
     return $o;
 }
 function plan_tpl(): array
@@ -265,7 +308,7 @@ function a_plan_tpl_get(): void
             if (is_array($j)) $shared[] = ['key' => substr((string)$r['k'], 5), 'unit' => (string)($j['unit'] ?? ''), 'at' => (string)($j['at'] ?? '')];
         }
     }
-    out(['tpl' => plan_tpl(), 'logo' => (string)setting('plan_tpl_logo', ''), 'names' => plan_tpl_names(), 'shared' => $shared,
+    out(['tpl' => plan_tpl(), 'cols' => PLAN_SUM_COLS, 'logo' => (string)setting('plan_tpl_logo', ''), 'names' => plan_tpl_names(), 'shared' => $shared,
         'can_share' => function_exists('nm_multi') && nm_multi() && function_exists('hdb') && (bool)hdb()]);
 }
 

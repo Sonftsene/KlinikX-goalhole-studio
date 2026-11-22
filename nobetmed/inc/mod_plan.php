@@ -215,6 +215,7 @@ function a_plan_get(): void
     out(['roster' => ['id' => (int)$r['id'], 'name' => $r['name']], 'ym' => $ym, 'from' => $from, 'draft' => $data, 'joint' => $joint,
         'published' => $dr ? ($dr['status'] ?? '') === 'published' : $from === 'liste', 'published_at' => $dr['published_at'] ?? null, 'synced' => $synced, 'marks' => (object)$marks, 'half' => $half,
         'signed' => function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], $ym) : null,
+        'rules' => function_exists('swap_rules') ? swap_rules() : null,
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
@@ -340,6 +341,13 @@ function a_plan_auto(): void
         }
     }
     $isWe = fn($d) => day_type($d) === 'weekend';
+    // Boşluk sınırı (birim kuralı: iki nöbet arasında en fazla N boş gün): son dolu günden bu yana N gün geçmişse öncelik
+    $gapUrgent = function ($n, $d) use (&$daysOf, $cfg) {
+        $last = null;
+        foreach ($daysOf[$n] as $k => $x) { if ($k < $d) $last = $k; else break; }
+        if ($last === null) return 1;
+        return (int)round((strtotime($d) - strtotime($last)) / 86400) - 1 >= (int)$cfg['max_gap'] ? 0 : 1;
+    };
     $weCount = function ($n) use (&$daysOf, $first, $isWe) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($k >= $first && $x['kind'] === 'shift' && $isWe($k)) $c++; return $c; };
     $hoursOf = function ($n) use (&$daysOf, $first) { $h = 0; foreach ($daysOf[$n] as $d => $x) if ($d >= $first && $x['kind'] === 'shift') $h += (float)($x['hours'] ?? 0); return $h; };
     $last7 = function ($n, $d) use (&$daysOf) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($x['kind'] === 'shift' && $k < $d && $k >= date('Y-m-d', strtotime($d . ' -7 day'))) $c++; return $c; };
@@ -360,11 +368,11 @@ function a_plan_auto(): void
                     ksort($try);
                     if (swap_check($try, [$d], [], $cfg, $n)) continue;
                     // Adalet: ay içinde az saat → (hafta sonu / tatilse) az hafta sonu nöbeti → son 7 günde az nöbet → kura
-                    $cands[] = [$hoursOf($n), $isWe($d) ? $weCount($n) : 0, $last7($n, $d), random_int(0, 1000000), $n];
+                    $cands[] = [$gapUrgent($n, $d), $hoursOf($n), $isWe($d) ? $weCount($n) : 0, $last7($n, $d), random_int(0, 1000000), $n];
                 }
                 if (!$cands) { $unfilled[] = ['date' => $d, 'period' => $per, 'missing' => $need[$per] - $have]; break; }
                 sort($cands);
-                $n = $cands[0][4];
+                $n = $cands[0][5];
                 $daysOf[$n][$d] = $row;
                 ksort($daysOf[$n]);
                 $cells[$n][$d] = $row['code'];
@@ -376,7 +384,21 @@ function a_plan_auto(): void
     out(['cells' => (object)$cells, 'filled' => $filled, 'unfilled' => $unfilled, 'placed' => $placed]);
 }
 
+/** Birim kuralları (çizelge ekranından; yönetici ve yayıncı): değişim / ilan / çağrı / çizelge hepsi bunlara uyar */
+function a_plan_rules(): void
+{
+    $me = need_publisher();
+    set_setting('swap_max_cont', (string)max(8, min(72, (int)(i('max_cont') ?? swap_rules()['max_cont']))));
+    set_setting('swap_max_gap', (string)max(1, min(30, (int)(i('max_gap') ?? swap_rules()['max_gap']))));
+    if (i('rest') !== null) set_setting('rule_rest', (string)max(0, min(48, (int)i('rest'))));
+    if (i('leave_wknd') !== null) set_setting('rule_leave_wknd', (string)max(0, min(10, (int)i('leave_wknd'))));
+    $r = swap_rules();
+    audit($me, 'settings.save', 'Birim kuralları', 'boşluk en fazla ' . $r['max_gap'] . ' gün, üst üste ' . $r['max_cont'] . ' saat, dinlenme ' . $r['rest'] . ' saat');
+    out(['rules' => $r]);
+}
+
 return [
+    'plan.rules' => 'a_plan_rules',
     'plan.get' => 'a_plan_get',
     'plan.save' => 'a_plan_save',
     'plan.check' => 'a_plan_check',
