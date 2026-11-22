@@ -243,6 +243,39 @@ function a_sa_modules_save(): void
 }
 
 // Yöneticiye rol listesi (kullanıcı formunda seçim için)
+/** Bir bölüm bu kişiye neden görünmüyor (görünüyorsa null): birim / hastane ayarı, abonelik paketi, bağlı modül ya da rol */
+function nm_mod_why(string $m, array $u): ?string
+{
+    if (!isset(NM_MODULES[$m])) return null;
+    if (!nm_mod_on($m)) {
+        if (nm_multi()) {
+            try {
+                $t = nm_tenant();
+                $tv = m_val("SELECT on_ FROM module_cfg WHERE scope = 't' AND sid = ? AND module = ?", [(int)$t['id'], $m]);
+                if ($tv !== null && $tv !== false && (int)$tv === 0) return 'biriminizde kapalı (sistem yöneticisi ayarı)';
+                $hv = m_val("SELECT on_ FROM module_cfg WHERE scope = 'h' AND sid = ? AND module = ?", [(int)$t['hospital_id'], $m]);
+                if (($tv === null || $tv === false) && $hv !== null && $hv !== false && (int)$hv === 0) return 'hastanenizde kapalı (sistem yöneticisi ayarı)';
+            } catch (Throwable $e) { /* */ }
+        }
+        if (function_exists('bl_state_cur')) {
+            $bs = bl_state_cur();
+            if (is_array($bs['modules'] ?? null) && !in_array($m, $bs['modules'], true)) return 'abonelik paketinizde yok';
+        }
+        $dep = NM_MODULES[$m][2];
+        if ($dep && !nm_mod_on($dep)) return '“' . NM_MODULES[$dep][0] . '” kapalı olduğu için';
+        return 'biriminizde kapalı';
+    }
+    if (user_perm($u, $m) === 'off') {
+        $rn = !empty($u['role_id']) ? (string)(val('SELECT name FROM roles WHERE id = ?', [(int)$u['role_id']]) ?: '') : '';
+        return $rn !== '' ? '“' . $rn . '” rolünüzde kapalı (birim yöneticisi ayarı)' : 'yetkiniz kapalı';
+    }
+    return null;
+}
+$GLOBALS['NM_BOOT'][] = function (array $me): array {
+    $o = [];
+    foreach (NM_MODULES as $m => $def) { $w = nm_mod_why($m, $me); if ($w !== null) $o[$m] = ['name' => $def[0], 'why' => $w]; }
+    return ['mods_why' => (object)$o];
+};
 $GLOBALS['NM_BOOT'][] = fn(array $me): array => $me['role'] === 'admin' ? ['roles' => array_map(fn($r) => ['id' => (int)$r['id'], 'name' => $r['name']], all('SELECT id, name FROM roles ORDER BY sort, name, id'))] : [];
 
 /* ---------------- Görevler: kapalı modülün zamanlanmış işleri çalışmaz ---------------- */

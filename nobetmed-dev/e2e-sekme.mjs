@@ -99,6 +99,41 @@ try {
     await p.goto(BASE + '#/yonetim/kullanicilar');
     await p.locator(`tr[data-uid="${r.id}"] .badge.warn`, { hasText: 'Nöbet istekleri görünmüyor' }).waitFor({ timeout: 8000 }).catch(() => fail('kullanıcı listesinde “görünmüyor” uyarısı yok'));
     await p.screenshot({ path: path.join(OUT, 'sekme-yonetici-uyari.png') });
+    // Kişinin kendi ekranı: Hesabım › Hesap bilgisi kartı görünmeyen bölümü nedeniyle yazar (Elif'e geçici olarak aynı rol)
+    const el = await p.evaluate(async (rid) => {
+      const e = (await api('admin.users')).users.find((u) => /elif@/i.test(u.email));
+      await api('admin.user.save', { id: e.id, name: e.name, email: e.email, role: e.role, status: e.status, title_id: e.title_id, unit_id: e.unit_id, role_id: rid });
+      return { id: e.id, prev: e.role_id || null };
+    }, r.rid);
+    {
+      const mc = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      await mc.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
+      const mp = await mc.newPage();
+      let ok = false;
+      for (const pw of ['YeniSifre99', 'Sifre1234']) {
+        await mp.goto(BASE);
+        await mp.fill('[data-form=login] [name=email]', 'elif@test.com');
+        await mp.fill('[data-form=login] [name=password]', pw);
+        await mp.click('[data-form=login] button[type=submit]');
+        ok = await mp.waitForFunction(() => typeof S !== 'undefined' && S.me, null, { timeout: 6000 }).then(() => true, () => false);
+        if (ok) break;
+      }
+      await mp.goto(BASE + '#/profil');
+      const txt = await mp.locator('#accInfo').innerText({ timeout: 8000 }).catch(() => '');
+      if (!/Nöbet istekleri/.test(txt) || !/Sekme deneme rolü/.test(txt) || !/Birim:/.test(txt)) fail('Hesap bilgisi kartı görünmeyen bölümü/nedenini yazmadı: ' + txt);
+      await mp.goto(BASE + '#/nobetim');
+      await mp.locator('.hub-tabs a').first().waitFor();
+      if (await mp.locator('.hub-tabs a', { hasText: 'İstekler' }).count()) fail('rolü kapalıyken İstekler sekmesi görünüyor');
+      await mp.goto(BASE + '#/profil');
+      await mp.locator('#accInfo').waitFor();
+      await mp.screenshot({ path: path.join(OUT, 'sekme-hesap-bilgisi.png') });
+      await mc.close();
+    }
+    await p.evaluate(async (x) => {
+      const e = (await api('admin.users')).users.find((u) => u.id === x.id);
+      await api('admin.user.save', { id: e.id, name: e.name, email: e.email, role: e.role, status: e.status, title_id: e.title_id, unit_id: e.unit_id, role_id: x.prev });
+    }, el);
+    step('kişinin kendi ekranı: Hesabım › Hesap bilgisi kartında birimi ve “Nöbet istekleri: … rolünüzde kapalı” nedeni yazdı');
     await p.evaluate(async (x) => {
       const t = (await api('admin.users')).users.find((u) => u.id === x.id);
       await api('admin.user.save', { id: t.id, name: t.name, email: t.email, role: t.role, status: t.status, title_id: t.title_id, unit_id: t.unit_id, role_id: x.prev });

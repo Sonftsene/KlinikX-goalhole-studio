@@ -181,3 +181,5 @@ html.fs-lg .sys { min-height: calc(100dvh / 1.12); }
   html.fs-lg .ch-view { height: calc(100dvh / 1.12 - var(--topbar) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 112px); }
   html.fs-lg .rs-view { height: calc(100dvh / 1.12 - var(--topbar) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 108px); }
 }
+.acc-hid { margin: 4px 0 0; padding-left: 18px; }
+.acc-hid li { margin: 2px 0; }

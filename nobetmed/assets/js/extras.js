@@ -509,6 +509,17 @@ ACT['dir-f'] = (el) => { DIR.filter = el.dataset.f; $$('[data-act=dir-f]').forEa
 /* =================================================================== */
 const PROF_TABS = [['profil', 'Profil', 'user'], ['bildirim', 'Bildirimler', 'bell'], ['guvenlik', 'Güvenlik', 'lock'], ['gorunum', 'Görünüm', 'sun'], ['gonderiler', 'Gönderilerim', 'file']];
 const NMODE_HINT = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' };
+/** Hesap bilgisi: hangi birimdeyim, sürüm, görünmeyen bölümler ve nedeni ("İstekler neden yok?" sorusu için) */
+function accessInfoHtml() {
+  const t = S.tenant || {};
+  const hid = Object.values(S.mods_why || {});
+  return html`<div class="card card-pad stack" id="accInfo"><h3 class="ph">${icon('info', 'sm')} Hesap bilgisi</h3>
+    <div class="small">Birim: <b>${t.name || S.settings.org_name || '—'}</b>${t.hospital ? html` · ${t.hospital}` : ''}</div>
+    <div class="small">Yetki: <b>${ROLE_LABEL[S.me.role] || S.me.role}</b> · Sürüm: <b>${BOOT.v || '?'}</b></div>
+    ${hid.length ? html`<div class="small"><b>Size görünmeyen bölümler:</b><ul class="acc-hid">${hid.map((h) => html`<li><b>${h.name}</b>: ${h.why}</li>`)}</ul></div>`
+      : html`<div class="small muted">Biriminizdeki tüm bölümler size açık.</div>`}
+    <p class="tiny faint">Bir bölüm görünmüyorsa bu kartın ekran görüntüsünü birim yöneticinize gönderin.</p></div>`;
+}
 function renderProfile(view) {
   const me = S.me;
   const r = currentRoute()[1];
@@ -524,6 +535,7 @@ function renderProfile(view) {
     <nav class="seg prof-tabs" role="tablist">${tabs.map(([k, l, ic]) => html`<a class="${tab === k ? 'on' : ''}" href="#/profil/${k}" role="tab">${icon(ic, 'sm')}<span>${l}</span></a>`)}</nav>
     <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
   if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
+  if (tab === 'profil') { const pb = $('#profBody'); if (pb) pb.insertAdjacentHTML(Object.keys(S.mods_why || {}).length ? 'afterbegin' : 'beforeend', fmtVal(accessInfoHtml())); } // görünmeyen bölüm varsa en üstte
   if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
   if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
   if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
