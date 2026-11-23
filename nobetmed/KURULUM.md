@@ -1184,3 +1184,15 @@ Ayarlar › Bildirimler › **Bildirim durumu** (yönetici; uç yayıncıya da a
 - Kişi kişi durum: **Açık** (kaç cihaz), **Açmamış**, **İzni reddetmiş**, **iPhone: ana ekrana eklememiş**, **iPhone: iOS güncel değil**, **Tarayıcı desteklemiyor**, **Bilinmiyor** (bu sürümden beri uygulamayı açmadı), **Hiç giriş yapmamış**; cihaz türü (Android / iPhone / Bilgisayar), son giriş, son hatırlatma.
 - Filtreler (Açık değil, Herkes, duruma göre), kişi arama.
 - **Hatırlat** (tek kişi), **Seçilenlere hatırlat**, **Açmayan herkese hatırlat**: kişiye uygulama içi bildirim ve e-posta (e-posta ayarlıysa) gider; metin kişinin durumuna göre adım adım ne yapacağını yazar (iPhone’da ana ekrana ekleme, reddedilmiş izni yeniden açma, Android pil tasarrufu). Aynı kişiye 12 saatte bir gönderilir; işlem günlüğüne yazılır.
+
+## 63. Menü sekmesi ve yeni Hesabım (4.43.0)
+### Alt çubukta “Menü”
+- Telefonda alt çubuğun son sekmesi herkes için **Menü** (önceden üyede “Hesabım”, yayıncıda “Yönetim”). Yönetimde onay bekleyen varsa Menü’de sayı görünür.
+- Menü ekranı: en üstte kişinin kartı (Hesabım; telefon bildirimi kapalıysa “Bildirim kapalı” uyarısı), altında uygulamanın **tüm bölümleri renkli kutucuklarla** gruplar hâlinde (Genel, Nöbet, Tablolar, Bölümler, Yönetim). İçerik yan menüyle aynıdır; kişinin yetkisi olmayan bölüm görünmez, okunmamış sayıları kutucukta yazar.
+- Ana sayfa, üst çubuk ve yan menü (☰) değişmedi.
+
+### Hesabım
+- **Özet ekranı** (`#/profil`): büyük fotoğraf (dokununca değiştirilir), ad, unvan · birim, yetki.
+- **Yapılacaklar** kartları: bildirimler kapalı (Şimdi aç / Nasıl açılır?), fotoğraf yok, şifre yok, telefon yok. Yapılacak yoksa görünmez.
+- **Kısa liste**: Kişisel bilgiler, E-posta adresi, Bildirimler (Açık / Kapalı), Görünüm, Güvenlik ve şifre, (açıksa) Ücretim, Verilerim, Gönderilerim; altta Hesap bilgisi kartı ve **Çıkış yap**.
+- Her satır **tek işi olan sade bir sayfa** açar; üstte “‹ Hesabım” geri düğmesi. Eski sekme bağlantıları (`#/profil/bildirim`, `#/profil/guvenlik`…) aynen çalışır.

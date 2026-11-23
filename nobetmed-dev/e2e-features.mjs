@@ -104,6 +104,8 @@ if (zw[0] !== 320 || zw[1] !== 180) fail('uzun basınca orijinal fotoğraf açı
 await m.screenshot({ path: path.join(OUT, 'f-avatar-buyuk.png') });
 await m.click('.av-zoom');
 await m.locator('.av-zoom').waitFor({ state: 'detached' });
+await m.goto(BASE + '#/profil/bilgiler');
+await m.locator('[data-form=me-profile]').waitFor();
 await m.fill('[data-form=me-profile] [name=phone]', '0532 111 22 33');
 await m.fill('[data-form=me-profile] [name=extension]', '4412');
 await m.selectOption('[data-form=me-profile] [name=title_id]', { index: 2 });
@@ -116,6 +118,32 @@ await expectText(m, 'Bildirim tercihiniz kaydedildi');
 const me = (await apiCall(m, 'boot')).me;
 if (me.phone !== '0532 111 22 33' || me.notify_mode !== 'digest' || !me.avatar || !me.title_id) fail('profil kaydedilmedi: ' + JSON.stringify(me));
 step('profil: fotoğraf (girişsiz erişim kapalı; uzun basınca kırpılmamış 320×180 hâli tam ekran), ünvan, telefon/dahili, sabah özeti');
+
+// 3b) Alt çubukta “Menü” sekmesi → tüm bölümler kutucuklarla; Hesabım özeti (yapılacaklar + liste) → alt sayfa → geri
+await m.goto(BASE + '#/');
+await m.locator('#bottomNav .bn-menu').click();
+await m.waitForFunction(() => location.hash === '#/menu');
+await m.locator('.mn-page .mn-tile').first().waitFor();
+const mn = await m.evaluate(() => ({ tiles: [...document.querySelectorAll('.mn-tile')].map((a) => a.getAttribute('href')), secs: [...document.querySelectorAll('.mn-sec')].map((x) => x.textContent.trim()), me: !!document.querySelector('.mn-me[href="#/profil"]'), w: document.documentElement.scrollWidth }));
+for (const h of ['#/nobetim', '#/okunacak', '#/telefon']) if (!mn.tiles.includes(h)) fail('menü sekmesinde ' + h + ' yok: ' + mn.tiles.join(' '));
+if (!mn.me || mn.w > 392) fail('menü: hesap kartı / taşma: ' + JSON.stringify({ me: mn.me, w: mn.w }));
+if (!(await m.locator('#bottomNav .bn-menu.on').count())) fail('Menü sekmesi seçili görünmüyor');
+await m.screenshot({ path: path.join(OUT, 'f-menu.png') });
+await m.click('.mn-me');
+await m.locator('.ph-list .ph-row').first().waitFor();
+const hub = await m.evaluate(() => ({ rows: [...document.querySelectorAll('.ph-row')].map((a) => a.getAttribute('href')), tabs: document.querySelectorAll('.prof-tabs').length, out: !!document.querySelector('.ph [data-act=logout]') }));
+for (const h of ['#/profil/bilgiler', '#/profil/eposta', '#/profil/bildirim', '#/profil/gorunum', '#/profil/guvenlik', '#/profil/gonderiler']) if (!hub.rows.includes(h)) fail('Hesabım listesinde ' + h + ' yok');
+if (hub.tabs || !hub.out) fail('Hesabım özeti: eski sekmeler duruyor ya da çıkış yok: ' + JSON.stringify(hub));
+await m.locator('#phTodo .ph-todo').first().waitFor({ timeout: 5000 }).catch(() => {});
+await m.screenshot({ path: path.join(OUT, 'f-hesabim.png') });
+await m.click('.ph-row[href="#/profil/bilgiler"]');
+await m.locator('[data-form=me-profile]').waitFor();
+if ((await m.locator('[data-form=me-email]').count()) || !(await m.locator('.prof-back').count())) fail('Kişisel bilgiler alt sayfası tek iş yapmıyor / geri düğmesi yok');
+await m.click('.prof-back');
+await m.locator('.ph-list').waitFor();
+await m.goto(BASE + '#/profil/profil');
+await m.locator('[data-form=me-profile]').waitFor({ timeout: 5000 }).catch(() => fail('eski #/profil/profil bağlantısı açılmadı'));
+step(`menü sekmesi: ${mn.tiles.length} kutucuk (${mn.secs.join(', ')}), hesap kartı; Hesabım özeti ${hub.rows.length} satır + yapılacaklar + çıkış; alt sayfa tek form, geri düğmesi; eski bağlantı çalışıyor`);
 
 // 4) Rehber: kişi, ara düğmesi, bugün filtresi
 await a.goto(BASE + '#/rehber');
@@ -271,7 +299,7 @@ await P.p.click('[data-tour=next]'); await P.p.click('[data-tour=next]');
 await P.p.click('[data-tour=done]');
 await P.p.locator('.tour').waitFor({ state: 'detached' });
 // Davetle gelen kişi e-postasını değiştirir (yanlış şifre reddedilir)
-await P.p.goto(BASE + '#/profil');
+await P.p.goto(BASE + '#/profil/eposta');
 await P.p.fill('[data-form=me-email] [name=email]', 'davetli2@test.com');
 await P.p.fill('[data-form=me-email] [name=current]', 'yanlis-sifre');
 await P.p.click('[data-form=me-email] button[type=submit]');

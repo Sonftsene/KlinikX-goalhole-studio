@@ -520,7 +520,77 @@ function accessInfoHtml() {
       : html`<div class="small muted">Biriminizdeki tüm bölümler size açık.</div>`}
     <p class="tiny faint">Bir bölüm görünmüyorsa bu kartın ekran görüntüsünü birim yöneticinize gönderin.</p></div>`;
 }
+/** Hesabım satırları: [anahtar, başlık, simge, açıklama] (modüllerin sekmeleri dahil; Gönderilerim en sonda) */
+function profRows() {
+  const me = S.me;
+  const ext = NM_EXT.profileTabs.filter((t) => modOn(t.mod) && (!t.visible || t.visible())).map((t) => [t.key, t.label, t.icon || 'star', t.descr || '']);
+  return [
+    ['bilgiler', 'Kişisel bilgiler', 'user', 'Ad, unvan, telefon, fotoğraf'],
+    ['eposta', 'E-posta adresi', 'mail', me.email || ''],
+    ['bildirim', 'Bildirimler', 'bell', 'Telefon bildirimi, e-posta, sessiz saatler'],
+    ['gorunum', 'Görünüm', 'sun', 'Yazı boyutu, koyu tema, ana sayfam'],
+    ['guvenlik', 'Güvenlik ve şifre', 'lock', 'Şifre, açık oturumlar, QR ile giriş'],
+    ...ext,
+    ['gonderiler', 'Gönderilerim', 'file', ''],
+  ];
+}
+/** Hesabım özeti: fotoğraf, ad, yapılacaklar, kısa liste */
+function renderProfileHub(view) {
+  const me = S.me;
+  setHTML(view, html`<div class="ph" id="profBody">
+    <div class="ph-top">
+      <label class="prof-av ph-av" title="Profil fotoğrafını değiştir" aria-label="Profil fotoğrafını değiştir">${avatar(me.name, 'xl')}<span class="prof-av-edit">${icon('edit', 'sm')}</span><input type="file" accept="image/*" hidden data-change="av-file"></label>
+      <h1 class="ph-name">${me.name}</h1>
+      <div class="small muted">${[titleName(me.title_id), unitName(me.unit_id)].filter(Boolean).join(' · ') || me.email}</div>
+      <span class="badge ${me.role === 'admin' ? 'brand' : me.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[me.role]}</span>
+    </div>
+    <div id="phTodo"></div>
+    <div class="card ph-list">${profRows().map(([k, l, ic, d]) => html`<a class="ph-row" href="#/profil/${k}"><span class="ph-ic">${icon(ic, 'sm')}</span><span class="grow" style="min-width:0"><b>${l}</b>${d ? html`<span class="tiny muted ellipsis" style="display:block">${d}</span>` : ''}</span>${k === 'bildirim' ? html`<span class="badge hidden" id="phPushB"></span>` : ''}${icon('chevR', 'sm')}</a>`)}</div>
+    ${accessInfoHtml()}
+    <button class="btn block ph-out" data-act="logout">${icon('logout', 'sm')}<span>Çıkış yap</span></button>
+  </div>`);
+  phTodoFill();
+}
+/** Yapılacaklar kartları: bildirim kapalı, fotoğraf yok, şifre yok, telefon yok */
+async function phTodoFill() {
+  const me = S.me;
+  let st = 'on';
+  if (S.settings.push_ready && typeof pushState === 'function') { try { st = await pushState(); } catch (e) { st = 'off'; } }
+  const todo = [];
+  if (st !== 'on' && S.settings.push_ready) {
+    todo.push(html`<div class="ph-todo warn">${icon('bell')}<b>${st === 'denied' ? 'Bildirim izni kapalı' : 'Bildirimler kapalı'}</b>
+      ${st === 'off' ? html`<button class="btn sm" data-act="push-on">Şimdi aç</button>` : html`<a class="btn sm" href="#/profil/bildirim">Nasıl açılır?</a>`}</div>`);
+  }
+  if (!me.avatar) todo.push(html`<div class="ph-todo info">${icon('user')}<b>Fotoğraf ekleyin</b><label class="btn sm">Fotoğraf seç<input type="file" accept="image/*" hidden data-change="av-file"></label></div>`);
+  if (!me.has_password) todo.push(html`<div class="ph-todo info">${icon('lock')}<b>Şifre belirleyin</b><a class="btn sm" href="#/profil/guvenlik">Belirle</a></div>`);
+  if (!me.phone) todo.push(html`<div class="ph-todo info">${icon('phone')}<b>Telefonunuzu ekleyin</b><a class="btn sm" href="#/profil/bilgiler">Ekle</a></div>`);
+  const box = $('#phTodo');
+  if (box) setHTML(box, todo.length ? html`<div class="ph-sec">Yapılacaklar</div><div class="ph-todos ${todo.length === 1 ? 'one' : ''}">${todo.slice(0, 4)}</div>` : '');
+  const b = $('#phPushB');
+  if (b && S.settings.push_ready) { b.classList.remove('hidden'); b.className = `badge ${st === 'on' ? 'success' : 'danger'}`; b.textContent = st === 'on' ? 'Açık' : 'Kapalı'; }
+}
 function renderProfile(view) {
+  const me = S.me;
+  let r = currentRoute()[1];
+  if (r === 'profil') r = 'bilgiler'; // eski bağlantı
+  const rows = profRows();
+  const row = rows.find(([k]) => k === r);
+  if (!row) { renderProfileHub(view); return; }
+  const tab = r;
+  setHTML(view, html`
+    <div class="prof-sub"><a class="prof-back" href="#/profil">${icon('chevL', 'sm')}<span>Hesabım</span></a><h1 class="prof-h">${row[1]}</h1></div>
+    <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
+  if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
+  if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
+  if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
+  if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
+  if (tab === 'bildirim' && typeof nbSettingsMount === 'function') nbSettingsMount();
+  if (tab === 'guvenlik' && typeof qrSecMount === 'function') qrSecMount();
+  const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
+  if (ext && ext.mount) { try { ext.mount(); } catch (e) { /* */ } }
+}
+/** Eski sekmeli düzen (kullanılmıyor; Hesabım artık özet + alt sayfalar) */
+function renderProfileTabs(view) {
   const me = S.me;
   const r = currentRoute()[1];
   const tabs = profTabs();
@@ -553,6 +623,8 @@ function profileTabHtml(tab) {
   const me = S.me;
   const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
   if (ext) return ext.html();
+  if (tab === 'bilgiler') return raw(fmtVal(profileTabHtml('profil')).split('<!--eposta-->')[0]);
+  if (tab === 'eposta') return raw(fmtVal(profileTabHtml('profil')).split('<!--eposta-->')[1] || '');
   if (tab === 'profil') return html`
     <div class="card card-pad stack">
       <h3 class="ph">Profil fotoğrafı</h3>
@@ -580,7 +652,7 @@ function profileTabHtml(tab) {
       <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" data-change="ct-vis" data-k="email" ${contactPref().email ? raw('checked') : ''}><span class="track"></span></span><span class="grow small">E-posta adresim ekip arkadaşlarıma görünsün</span></label>
       <div class="form-error hidden" data-err></div>
       <div><button class="btn primary" type="submit">Kaydet</button></div>
-    </form>
+    </form>${raw('<!--eposta-->')}
     <form class="card card-pad stack" data-form="me-email">
       <h3 class="ph">E-posta adresi</h3>
       <p class="small muted">Giriş ve bildirimler için kullanılır. Şu anki adres: <b>${me.email}</b></p>

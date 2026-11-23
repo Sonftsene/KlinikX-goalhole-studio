@@ -111,8 +111,34 @@ function renderNav() {
     ${modOn('nobet') ? tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0) : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0)}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
-    ${isPublisherBase() ? tab('#/yonetim', icon('inbox'), 'Yönetim', r[0] === 'yonetim', pendingAdmin) : tab('#/profil', icon('user'), 'Hesabım', r[0] === 'profil', 0)}`);
+    ${tab('#/menu', icon('grid'), 'Menü', ['menu', 'profil', 'yonetim'].includes(r[0]), isPublisherBase() ? pendingAdmin : 0, 'bn-menu')}`);
 }
+
+/* ---------------- Menü sekmesi: tüm bölümler kutucuklarla (yan menüyle aynı yetkiler; içeriği ondan üretilir) ---------------- */
+const MN_TONES = ['ind', 'teal', 'amb', 'rose', 'vio', 'grn'];
+NM_EXT.routes.menu = (view) => {
+  renderNav();
+  const groups = [];
+  let cur = { t: 'Genel', items: [] };
+  groups.push(cur);
+  [...(($('#sidebar') || {}).children || [])].forEach((el) => {
+    if (el.classList.contains('nav-sec')) { cur = { t: el.textContent.trim(), items: [] }; groups.push(cur); return; }
+    if (!el.classList.contains('nav-item')) return;
+    const href = el.getAttribute('href');
+    if (!href || href === '#/') return;
+    const ic = el.firstElementChild;
+    const cnt = el.querySelector('.count');
+    cur.items.push({ href, ic: ic && !ic.classList.contains('grow') ? ic.outerHTML : '', label: ((el.querySelector('.grow') || el).textContent || '').trim(), count: cnt ? cnt.textContent.trim() : '' });
+  });
+  const me = S.me;
+  setHTML(view, html`<div class="mn-page">
+    <h1 class="mn-h">Menü</h1>
+    <a class="mn-me" href="#/profil">${avatar(me.name, 'lg')}<span class="grow" style="min-width:0"><b class="ellipsis" style="display:block">${me.name}</b><span class="small muted">Hesabım, bildirimler, ayarlar</span></span><span class="badge danger hidden" id="mnPush">Bildirim kapalı</span>${icon('chevR', 'sm')}</a>
+    ${groups.filter((g) => g.items.length).map((g) => html`<div class="mn-sec">${g.t}</div>
+      <div class="mn-grid">${g.items.map((it, i) => html`<a class="mn-tile" href="${it.href}"><span class="mn-ic t-${MN_TONES[i % MN_TONES.length]}">${raw(it.ic)}</span><span class="mn-l">${it.label}</span>${it.count ? html`<span class="mn-c">${it.count}</span>` : ''}</a>`)}</div>`)}
+  </div>`);
+  if (S.settings.push_ready && typeof pushState === 'function') pushState().then((st) => { const b = $('#mnPush'); if (b && st !== 'on') b.classList.remove('hidden'); }).catch(() => {});
+};
 
 ACT.go = (el) => { location.hash = el.dataset.href; };
 ACT['nav-open'] = () => { const sh = $('#shell'); if (!sh || sh.classList.contains('nav-open')) return; sh.classList.add('nav-open'); ovOpen(() => sh.classList.remove('nav-open'), () => sh.classList.contains('nav-open') && document.body.contains(sh)); };
