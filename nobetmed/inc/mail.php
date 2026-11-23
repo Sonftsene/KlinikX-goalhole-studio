@@ -32,24 +32,90 @@ function event_on(string $event): bool
 
 /* ---------------- Şablon ---------------- */
 
-function mail_template(string $title, array $lines, ?string $button = null, ?string $url = null): array
+/* ---------------- Tasarım (Ayarlar › Bildirimler › E-posta tasarımı) ---------------- */
+
+const MAIL_STYLES = ['kurumsal', 'sade', 'modern', 'resmi', 'bant'];
+/** Birimin e-posta tasarımı; $over verilirse (önizleme) kayıtlı tasarımın üzerine */
+function mail_design(?array $over = null): array
+{
+    $j = $over ?? (json_decode((string)setting('mail_design', ''), true) ?: []);
+    $j = is_array($j) ? $j : [];
+    $acc = (string)($j['accent'] ?? '');
+    return [
+        'style' => in_array($j['style'] ?? '', MAIL_STYLES, true) ? $j['style'] : 'kurumsal',
+        'accent' => preg_match('/^#[0-9a-fA-F]{6}$/', $acc) ? strtolower($acc) : '#0b7a75',
+        'logo_w' => max(24, min(240, (int)($j['logo_w'] ?? 120))),
+        'logo_align' => ($j['logo_align'] ?? '') === 'center' ? 'center' : 'left',
+        'show_name' => !array_key_exists('show_name', $j) || !empty($j['show_name']),
+        'footer' => mb_substr(trim((string)($j['footer'] ?? '')), 0, 300),
+    ];
+}
+/** E-postadaki logo: önce e-posta logosu, yoksa site logosu (SVG değilse); tam adres */
+function mail_logo_url(): ?string
+{
+    if (!function_exists('brand_url')) return null;
+    $u = brand_url('mail_logo');
+    if (!$u) { $f = (string)setting('brand_logo', ''); if ($f !== '' && !preg_match('/\.(svg|ico)$/i', $f)) $u = brand_url('logo'); }
+    return $u ? base_url() . $u : null;
+}
+/** Açık renkli vurgu üzerinde yazı koyu olsun */
+function mail_on_color(string $hex): string
+{
+    $r = hexdec(substr($hex, 1, 2)); $g = hexdec(substr($hex, 3, 2)); $b = hexdec(substr($hex, 5, 2));
+    return (0.299 * $r + 0.587 * $g + 0.114 * $b) > 170 ? '#13233a' : '#ffffff';
+}
+
+function mail_template(string $title, array $lines, ?string $button = null, ?string $url = null, ?array $design = null): array
 {
     $org = (string)($GLOBALS['NM_MAIL_ORG'] ?? setting('org_name', 'Klinik Portalı'));
     $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $d = mail_design($design);
+    $st = $d['style']; $acc = $d['accent']; $on = mail_on_color($acc);
+    $serif = $st === 'resmi';
+    $font = $serif ? 'Georgia,Cambria,\'Times New Roman\',serif' : '-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif';
+    $logoUrl = $design !== null && isset($design['_logo']) ? (string)$design['_logo'] : mail_logo_url();
+    $align = $st === 'modern' || $st === 'resmi' ? 'center' : $d['logo_align'];
+    $logo = $logoUrl
+        ? '<img src="' . $e($logoUrl) . '" width="' . $d['logo_w'] . '" alt="' . $e($org) . '" style="display:' . ($align === 'center' ? 'block;margin:0 auto' : 'inline-block') . ';width:' . $d['logo_w'] . 'px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none">'
+        : '<span style="display:inline-block;background:' . ($st === 'bant' ? '#ffffff' : $acc) . ';color:' . ($st === 'bant' ? $acc : $on) . ';border-radius:8px;padding:6px 12px;font-size:17px;font-weight:800;letter-spacing:-.02em">' . $e($org) . '</span>';
+    $name = $d['show_name'] && $logoUrl ? '<div style="margin-top:' . ($align === 'center' ? '8' : '6') . 'px;font-size:' . ($serif ? '13px;letter-spacing:.12em;text-transform:uppercase' : '13px') . ';font-weight:600;color:' . ($st === 'bant' ? $on : '#5b6b77') . '">' . $e($org) . '</div>' : '';
+    $txt = $serif ? '#2a2a2a' : '#24343b';
     $body = '';
-    foreach ($lines as $l) $body .= '<p style="margin:0 0 12px;font-size:15px;line-height:1.55;color:#24343b">' . nl2br($e($l)) . '</p>';
+    foreach ($lines as $l) $body .= '<p style="margin:0 0 12px;font-size:' . ($serif ? '16px' : '15px') . ';line-height:1.6;color:' . $txt . '">' . nl2br($e($l)) . '</p>';
+    $rad = ['kurumsal' => '8px', 'sade' => '6px', 'modern' => '999px', 'resmi' => '2px', 'bant' => '8px'][$st];
+    $btnBlock = $st === 'modern' ? 'display:block;text-align:center' : 'display:inline-block';
     $btn = $button && $url
-        ? '<p style="margin:22px 0 6px"><a href="' . $e($url) . '" style="display:inline-block;background:#0b7a75;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:10px">' . $e($button) . '</a></p>'
+        ? '<p style="margin:22px 0 6px"><a href="' . $e($url) . '" style="' . $btnBlock . ';background:' . $acc . ';color:' . $on . ';text-decoration:none;font-weight:700;font-size:15px;padding:13px 24px;border-radius:' . $rad . '">' . $e($button) . '</a></p>'
         : '';
-    $html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>'
-        . '<body style="margin:0;background:#f2f5f6;font-family:Segoe UI,Arial,sans-serif">'
-        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f5f6;padding:24px 12px"><tr><td align="center">'
-        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;border:1px solid #e1e8ea">'
-        . '<tr><td style="padding:18px 24px;border-bottom:1px solid #e9eef0"><span style="display:inline-block;background:#1a1f3d;border-radius:10px;padding:6px 12px;font-size:17px;font-weight:800;letter-spacing:-.03em;color:#ffffff">dupc<span style="color:#b49bff">ii</span></span> <span style="font-size:13px;color:#6b7c84">· ' . $e($org) . '</span></td></tr>'
-        . '<tr><td style="padding:24px"><h1 style="margin:0 0 14px;font-size:19px;line-height:1.35;color:#0f1b21">' . $e($title) . '</h1>' . $body . $btn . '</td></tr>'
-        . '<tr><td style="padding:14px 24px;border-top:1px solid #e9eef0;font-size:12px;color:#8a989f">Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portaldaki Hesabım sayfasından değiştirebilirsiniz.</td></tr>'
+    $foot = ($d['footer'] !== '' ? nl2br($e($d['footer'])) . '<br>' : '') . 'Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portaldaki Hesabım sayfasından değiştirebilirsiniz.';
+    $h1 = '<h1 style="margin:0 0 14px;font-family:' . $font . ';font-size:' . ($st === 'modern' ? '22px;text-align:center' : ($serif ? '21px' : '19px')) . ';line-height:1.35;font-weight:' . ($serif ? '700' : '800') . ';color:#0f1b21">' . $e($title) . '</h1>';
+    $bg = ['kurumsal' => '#f2f5f6', 'sade' => '#ffffff', 'modern' => '#eef1f5', 'resmi' => '#f6f4ee', 'bant' => '#f2f5f6'][$st];
+    $card = [
+        'kurumsal' => 'background:#ffffff;border-radius:12px;border:1px solid #e1e8ea;border-top:4px solid ' . $acc,
+        'sade' => 'background:#ffffff',
+        'modern' => 'background:#ffffff;border-radius:18px;border:1px solid #e3e8ef',
+        'resmi' => 'background:#ffffff;border:1px solid #d9d4c7',
+        'bant' => 'background:#ffffff;border-radius:12px;border:1px solid #e1e8ea;overflow:hidden',
+    ][$st];
+    $headStyle = [
+        'kurumsal' => 'padding:20px 28px;border-bottom:1px solid #e9eef0;text-align:' . $align,
+        'sade' => 'padding:8px 4px 18px;border-bottom:1px solid #e5e7eb;text-align:' . $align,
+        'modern' => 'padding:30px 28px 6px;text-align:center',
+        'resmi' => 'padding:26px 28px 18px;text-align:center;border-bottom:3px double ' . $acc,
+        'bant' => 'padding:22px 28px;background:' . $acc . ';text-align:' . $align,
+    ][$st];
+    $logoWrap = $st === 'bant' && $logoUrl ? '<span style="display:inline-block;background:#ffffff;border-radius:10px;padding:8px 12px">' . $logo . '</span>' : $logo;
+    $pad = $st === 'sade' ? '22px 4px' : '26px 28px';
+    $footStyle = $st === 'sade' ? 'padding:16px 4px;border-top:1px solid #e5e7eb' : ($st === 'resmi' ? 'padding:16px 28px;border-top:1px solid #e6e1d4;font-style:italic' : 'padding:16px 28px;border-top:1px solid #e9eef0');
+    $html = '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="light"></head>'
+        . '<body style="margin:0;padding:0;background:' . $bg . ';font-family:' . $font . '">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' . $bg . ';padding:28px 12px"><tr><td align="center">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;' . $card . '">'
+        . '<tr><td style="' . $headStyle . '">' . $logoWrap . $name . '</td></tr>'
+        . '<tr><td style="padding:' . $pad . ';font-family:' . $font . '">' . $h1 . $body . $btn . '</td></tr>'
+        . '<tr><td style="' . $footStyle . ';font-size:12px;line-height:1.5;color:#8a989f;font-family:' . $font . '">' . $foot . '</td></tr>'
         . '</table></td></tr></table></body></html>';
-    $text = $title . "\n\n" . implode("\n\n", $lines) . ($button && $url ? "\n\n$button: $url" : '') . "\n\n— " . $org;
+    $text = $title . "\n\n" . implode("\n\n", $lines) . ($button && $url ? "\n\n$button: $url" : '') . "\n\n— " . $org . ($d['footer'] !== '' ? "\n" . $d['footer'] : '');
     return [$html, $text];
 }
 

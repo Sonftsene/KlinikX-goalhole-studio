@@ -1213,3 +1213,17 @@ Ayarlar › Bildirimler › **Bildirim durumu** (yönetici; uç yayıncıya da a
 - Koyu temada Menü kutucukları ve Hesabım listesi düzeltildi.
 - Fotoğrafı kırpılmamış hâli olmayan kişiye Hesabım’da “Fotoğrafınızı yeniden yükleyin” kartı.
 - Güvenlik: fotoğraf yüklerken kırpılmamış hâl önizlemede gösterilir ve kişi isterse kaydedilmez; kartı açılmış kurayı başlatan üye silemez (yalnız yönetici / yayıncı), saatte en çok 30 kura; otomatik doldurmada süre sınırı her adımda denetlenir.
+
+## 65. E-posta tasarımı (4.45.0)
+Ayarlar › Bildirimler › **E-posta tasarımı** (yönetici). Bildirim, hatırlatma, davet ve diğer bütün e-postalar bu tasarımla gider.
+- **Stil**: Kurumsal (üstte renkli çizgi), Sade (kartsız), Modern (ortalanmış logo, geniş düğme), Resmi yazı (tırnaklı yazı, çift çizgi), Renkli başlık (başlık bandı kurum renginde).
+- **Kurum rengi**: hazır renkler ya da istediğiniz renk (düğme ve vurgular; açık renkte yazı kendiliğinden koyu olur).
+- **Logo**: PNG, JPG ya da SVG yükleyin; e-posta programları SVG göstermediği için PNG’ye çevrilir. **Genişlik** 24–240 px, **hizası** sola / ortaya, isteğe bağlı logonun altında kurum adı. Ayrı e-posta logosu yoksa site logosu (SVG değilse) kullanılır.
+- **Alt bilgi**: adres, birim, dahili gibi bir satır.
+- **Önizleme** (telefon / bilgisayar genişliği) seçerken anında değişir; **Deneme e-postası** kayıtlı tasarımla gönderir.
+- Logo e-postada sitenin herkese açık adresinden yüklenir (giriş gerekmez); bazı e-posta programları ilk açılışta “resimleri göster” diye sorabilir.
+
+### Gmail’de gönderen resmi
+Gelen kutusundaki yuvarlak resmi e-postanın içi değil gönderen adres belirler:
+1. **Gmail / Google Workspace adresiyle** gönderiliyorsa o Google hesabına profil fotoğrafı koyun.
+2. **Kendi alan adınızla** (ör. Hostinger e-postası) gönderiliyorsa **BIMI** gerekir: SPF + DKIM + DMARC (`p=quarantine` ya da `reject`), kare **SVG Tiny P/S** logo ve `default._bimi` DNS kaydı. **Gmail ayrıca ücretli marka sertifikası (VMC ya da CMC) ister**; Yahoo / AOL sertifikasız gösterir. Kart içindeki “Gmail’de gönderen resmi neden yok?” bölümü alan adınıza göre kayıtları yazar.

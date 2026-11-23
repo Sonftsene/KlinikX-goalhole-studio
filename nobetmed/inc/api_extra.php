@@ -747,7 +747,7 @@ function a_me_email(): void
 
 /* ---------------- Marka: özel logo, favicon ve logo boyutu ---------------- */
 
-const BRAND_KINDS = ['logo', 'logo_dark', 'icon', 'icon192', 'icon512'];
+const BRAND_KINDS = ['logo', 'logo_dark', 'icon', 'icon192', 'icon512', 'mail_logo'];
 
 function brand_dir(): string
 {
@@ -793,6 +793,7 @@ function a_brand_save(): void
         $bin = base64_decode($m[2], true);
         if ($bin === false || strlen($bin) > 2 * 1048576) fail('Görsel en fazla 2 MB olabilir.');
         $ext = ['png' => 'png', 'jpeg' => 'jpg', 'webp' => 'webp', 'svg+xml' => 'svg', 'x-icon' => 'ico', 'vnd.microsoft.icon' => 'ico'][$m[1]];
+        if ($kind === 'mail_logo' && !in_array($ext, ['png', 'jpg'], true)) fail('E-posta logosu PNG ya da JPG olmalı (e-posta programları SVG göstermez).');
         if ($ext === 'svg') {
             // SVG: yalnızca görsel olarak gösterilir; betik/olay içeren dosya kabul edilmez
             if (!preg_match('/<svg[\s>]/i', $bin) || preg_match('/<script|\son[a-z]+\s*=|javascript:|<foreignObject/i', $bin)) fail('Bu SVG dosyası kullanılamıyor (betik içeriyor).');

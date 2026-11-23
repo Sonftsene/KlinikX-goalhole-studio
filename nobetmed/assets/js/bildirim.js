@@ -517,3 +517,94 @@ ACT['nbs-remind-all'] = async (el) => {
   if (!(await confirmDialog({ title: `${ids.length} kişiye hatırlatma gönderilsin mi?`, text: `Telefon bildirimi açık olmayan herkese uygulama içi bildirim${NBS.d.mail_ready ? ' ve e-posta' : ''} gider; durumuna göre ne yapacağı adım adım yazar.`, ok: 'Gönder' }))) return;
   nbsRemind(ids, el);
 };
+
+/* ---------------- Yönetici: E-posta tasarımı (Ayarlar › Bildirimler) ---------------- */
+const MD = { d: null, logo: null, siteLogo: null, domain: '', t: 0, wide: false };
+const MD_STYLES = [['kurumsal', 'Kurumsal', 'Üstte renkli çizgi, beyaz kart'], ['sade', 'Sade', 'Kartsız, ince çizgiler'], ['modern', 'Modern', 'Ortalanmış logo, geniş düğme'], ['resmi', 'Resmi yazı', 'Tırnaklı yazı, çift çizgi'], ['bant', 'Renkli başlık', 'Başlık bandı kurum renginde']];
+const MD_COLORS = ['#0b7a75', '#1d4ed8', '#0f172a', '#b91c1c', '#7c3aed', '#047857', '#c2410c', '#be185d'];
+NM_EXT.settingsCards.push({
+  sec: 'bildirim', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="bildirim" id="mdCard"><h3 style="font-size:15px">${icon('palette', 'sm')} E-posta tasarımı</h3><div class="skel" style="height:14px;width:55%"></div></div>`,
+  mount: () => mdLoad(),
+});
+async function mdLoad(keepDesign) {
+  const c = $('#mdCard'); if (!c) return;
+  try { const r = await api('mail.design.get'); if (!keepDesign || !MD.d) MD.d = r.design; MD.logo = r.logo; MD.siteLogo = r.site_logo; MD.domain = r.domain || ''; } catch (e) { setHTML(c, html`<p class="small muted">${e.message}</p>`); return; }
+  mdDraw();
+}
+function mdDraw() {
+  const c = $('#mdCard'); if (!c || !MD.d) return;
+  const d = MD.d;
+  const thumb = (k) => { const a = d.accent; const top = { kurumsal: html`<span style="height:3px;background:${a}"></span><span class="md-tl"></span>`, sade: html`<span class="md-tl" style="margin-top:4px"></span><span style="height:1px;background:#e5e7eb"></span>`, modern: html`<span class="md-tl" style="margin:6px auto 0"></span>`, resmi: html`<span class="md-tl" style="margin:5px auto 2px"></span><span style="height:3px;border-top:1px solid ${a};border-bottom:1px solid ${a}"></span>`, bant: html`<span style="height:14px;background:${a}"></span>` }[k];
+    return html`<span class="md-th md-${k}">${top}<span class="md-l"></span><span class="md-l s"></span><span class="md-b" style="background:${a};border-radius:${k === 'modern' ? '9px' : k === 'resmi' ? '1px' : '3px'};${k === 'modern' ? 'width:80%;margin:6px auto 0' : ''}"></span></span>`; };
+  setHTML(c, html`<div class="row between wrap"><h3 style="font-size:15px;margin:0">${icon('palette', 'sm')} E-posta tasarımı</h3><span class="tiny faint">Bildirim, hatırlatma ve davet e-postalarının görünümü</span></div>
+    <div class="md-wrap">
+      <div class="stack" style="gap:12px;min-width:0">
+        <div><div class="ph-sec">Stil</div><div class="md-styles">${MD_STYLES.map(([k, l, s]) => html`<button type="button" class="md-st ${d.style === k ? 'on' : ''}" data-act="md-style" data-k="${k}" aria-pressed="${d.style === k ? 'true' : 'false'}">${thumb(k)}<b>${l}</b><span class="tiny faint">${s}</span></button>`)}</div></div>
+        <div><div class="ph-sec">Kurum rengi</div><div class="row wrap" style="gap:6px;align-items:center">${MD_COLORS.map((x) => html`<button type="button" class="md-col ${d.accent === x ? 'on' : ''}" data-act="md-col" data-c="${x}" style="background:${x}" aria-label="Renk ${x}"></button>`)}<label class="md-col md-pick" title="Başka renk"><input type="color" value="${d.accent}" data-change="md-colin" aria-label="Başka renk">${icon('plus', 'sm')}</label></div></div>
+        <div><div class="ph-sec">Logo</div>
+          <div class="row wrap" style="gap:10px;align-items:center">
+            <span class="md-logo">${MD.logo ? html`<img src="${MD.logo}" alt="E-posta logosu">` : MD.siteLogo ? html`<span class="tiny faint">Site logosu kullanılıyor</span>` : html`<span class="tiny faint">Logo yok · kurum adı yazılır</span>`}</span>
+            <label class="btn sm">${icon('upload', 'sm')}<span>${MD.logo ? 'Değiştir' : 'Logo yükle'}</span><input type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml" data-change="md-logo"></label>
+            ${MD.logo ? html`<button type="button" class="btn sm ghost danger" data-act="md-logo-x">Kaldır</button>` : ''}</div>
+          <label class="small" style="display:flex;align-items:center;gap:10px;margin-top:10px">Genişlik <input type="range" min="24" max="240" step="2" value="${d.logo_w}" data-input="md-w" style="flex:1"><b id="mdW" style="width:52px;text-align:right">${d.logo_w} px</b></label>
+          <div class="row wrap" style="gap:8px;margin-top:8px;align-items:center"><span class="small muted">Hizası</span>
+            <div class="seg">${[['left', 'Sola'], ['center', 'Ortaya']].map(([k, l]) => html`<button type="button" class="${d.logo_align === k ? 'on' : ''}" data-act="md-align" data-k="${k}" ${d.style === 'modern' || d.style === 'resmi' ? raw('disabled title="Bu stilde logo ortadadır"') : ''}>${l}</button>`)}</div>
+            <label class="small row" style="gap:6px;align-items:center"><input type="checkbox" data-change="md-name" ${d.show_name ? raw('checked') : ''}> Logonun altında kurum adı</label></div></div>
+        <div class="field"><label for="mdFoot">Alt bilgi (isteğe bağlı)</label><textarea class="textarea" id="mdFoot" rows="2" maxlength="300" data-input="md-foot" placeholder="ör. Şehir Hastanesi · Yoğun Bakım Ünitesi · Dahili 4412">${d.footer}</textarea></div>
+        <div class="row wrap" style="gap:8px"><button type="button" class="btn primary" data-act="md-save">Tasarımı kaydet</button><button type="button" class="btn" data-act="mail-test">${icon('send', 'sm')}<span>Deneme e-postası</span></button></div>
+      </div>
+      <div class="md-prev"><div class="row between" style="align-items:center;margin-bottom:6px"><span class="small muted">Önizleme</span>
+        <div class="seg"><button type="button" class="${MD.wide ? '' : 'on'}" data-act="md-wide" data-w="0">Telefon</button><button type="button" class="${MD.wide ? 'on' : ''}" data-act="md-wide" data-w="1">Bilgisayar</button></div></div>
+        <div class="md-frame ${MD.wide ? 'wide' : ''}"><iframe id="mdIf" title="E-posta önizlemesi" sandbox="" loading="lazy"></iframe></div></div>
+    </div>
+    <details class="md-bimi"><summary class="small"><b>Gmail’de gönderen resmi (profil fotoğrafı) neden yok?</b></summary>
+      <div class="small stack" style="gap:6px;margin-top:8px">
+        <p style="margin:0">Gelen kutusundaki yuvarlak resmi e-postanın içi değil, gönderen adres belirler. Uygulama bunu tek başına değiştiremez; iki yol var:</p>
+        <p style="margin:0"><b>1. Gmail / Google Workspace adresiyle gönderiyorsanız:</b> o Google hesabına profil fotoğrafı (logonuz) koyun; alıcılar kısa süre içinde onu görür.</p>
+        <p style="margin:0"><b>2. Kendi alan adınızla gönderiyorsanız${MD.domain ? html` (${MD.domain})` : ''}: BIMI.</b> Alan adınızın DNS’ine şu kayıtlar eklenir (Hostinger: hPanel › Alan adları › DNS):</p>
+        <ul style="margin:0 0 0 18px"><li>SPF ve DKIM (e-posta sağlayıcınızın verdiği kayıtlar; Hostinger e-postada genelde hazırdır)</li>
+          <li>DMARC: <code>_dmarc${MD.domain ? '.' + MD.domain : ''}</code> TXT <code>v=DMARC1; p=quarantine; rua=mailto:dmarc@${MD.domain || 'alanadiniz.com'}</code></li>
+          <li>BIMI: <code>default._bimi${MD.domain ? '.' + MD.domain : ''}</code> TXT <code>v=BIMI1; l=https://…/logo.svg; a=https://…/sertifika.pem</code></li></ul>
+        <p style="margin:0">Logo kare, <b>SVG Tiny P/S</b> biçiminde olmalı (tasarımcınız hazırlar). <b>Gmail</b> ayrıca ücretli bir marka sertifikası (VMC ya da CMC) ister; Yahoo, AOL ve bazı diğerleri sertifikasız da gösterir.</p>
+      </div></details>`);
+  mdPreview();
+}
+function mdPreview() {
+  clearTimeout(MD.t);
+  MD.t = setTimeout(async () => {
+    const f = $('#mdIf'); if (!f) return;
+    try { const r = await api('mail.preview', { design: MD.d }); f.srcdoc = r.html; } catch (e) { /* */ }
+  }, 250);
+}
+function mdSet(patch, redraw) { Object.assign(MD.d, patch); if (redraw) mdDraw(); else mdPreview(); }
+ACT['md-style'] = (el) => mdSet({ style: el.dataset.k }, true);
+ACT['md-col'] = (el) => mdSet({ accent: el.dataset.c }, true);
+CHANGE['md-colin'] = (el) => mdSet({ accent: el.value.toLowerCase() }, true);
+ACT['md-align'] = (el) => mdSet({ logo_align: el.dataset.k }, true);
+ACT['md-wide'] = (el) => { MD.wide = el.dataset.w === '1'; $$('#mdCard [data-act=md-wide]').forEach((b) => b.classList.toggle('on', b === el)); const fr = $('#mdCard .md-frame'); if (fr) fr.classList.toggle('wide', MD.wide); };
+CHANGE['md-w'] = (el) => { const v = +el.value; const w = $('#mdW'); if (w) w.textContent = v + ' px'; mdSet({ logo_w: v }); };
+CHANGE['md-name'] = (el) => mdSet({ show_name: el.checked });
+CHANGE['md-foot'] = (el) => mdSet({ footer: el.value });
+ACT['md-save'] = (el) => busy(el, async () => { try { const r = await api('mail.design.save', { design: MD.d }); MD.d = r.design; toast('E-posta tasarımı kaydedildi'); } catch (e) { toast(e.message, 'err'); } });
+/** Logo: e-posta programları SVG göstermediği için PNG’ye çevrilir (en çok 600 px genişlik; kenar boşluğu korunur) */
+CHANGE['md-logo'] = async (el) => {
+  const file = el.files && el.files[0]; el.value = '';
+  if (!file) return;
+  if (file.size > 8 * 1048576) { toast('Görsel çok büyük (en çok 8 MB)', 'err'); return; }
+  try {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = () => no(new Error('Görsel açılamadı. PNG, JPG ya da SVG deneyin.')); img.src = url; });
+    const iw = img.naturalWidth || 600, ih = img.naturalHeight || 200;
+    const k = Math.min(1, 600 / iw);
+    const cv = document.createElement('canvas'); cv.width = Math.max(8, Math.round(iw * k)); cv.height = Math.max(8, Math.round(ih * k));
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    URL.revokeObjectURL(url);
+    let data = cv.toDataURL('image/png');
+    if (data.length > 2700000) data = cv.toDataURL('image/jpeg', 0.9);
+    await api('brand.save', { mail_logo: data });
+    await mdLoad(true); toast('E-posta logosu yüklendi');
+  } catch (e) { toast(e.message, 'err'); }
+};
+ACT['md-logo-x'] = async () => { try { await api('brand.save', { mail_logo: '' }); await mdLoad(true); toast('E-posta logosu kaldırıldı'); } catch (e) { toast(e.message, 'err'); } };

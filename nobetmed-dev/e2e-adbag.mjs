@@ -104,6 +104,32 @@ try {
   if (e3 === 'kabul') fail('kartı açılmış kura başlatan üye tarafından silindi');
   if ((await err(A.p, 'kura.delete', { id: d.id })) !== 'kabul') fail('yönetici kurayı silemedi');
   step('kura: kartı açılmış kurayı başlatan üye silemedi (adalet), yönetici sildi');
+
+  // 7) E-posta tasarımı: stil + renk + logo (PNG’ye çevrilir) + genişlik → kaydet; önizlemede görünür; logo girişsiz açılır
+  await A.p.goto(BASE + '#/yonetim/ayarlar/bildirim');
+  await A.p.locator('#mdCard .md-styles').waitFor({ timeout: 10000 });
+  await A.p.click('#mdCard [data-act=md-style][data-k=bant]');
+  await A.p.click('#mdCard [data-act=md-col][data-c="#1d4ed8"]');
+  await A.p.setInputFiles('#mdCard input[data-change=md-logo]', path.join(path.dirname(new URL(import.meta.url).pathname), 'fixture.png'));
+  await expectText(A.p, 'E-posta logosu yüklendi');
+  await A.p.locator('#mdCard .md-logo img').waitFor();
+  await A.p.evaluate(() => { const r = document.querySelector('#mdCard [data-input=md-w]'); r.value = '90'; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await A.p.click('#mdCard [data-act=md-save]');
+  await expectText(A.p, 'E-posta tasarımı kaydedildi');
+  const md = await call(A.p, 'mail.design.get');
+  if (md.design.style !== 'bant' || md.design.accent !== '#1d4ed8' || md.design.logo_w !== 90 || !md.logo) fail('e-posta tasarımı kaydedilmedi: ' + JSON.stringify(md.design));
+  const pv = (await call(A.p, 'mail.preview', { design: md.design })).html;
+  if (!/<img src="http[^"]+action=brand&amp;f=mail_logo/.test(pv) || !pv.includes('width="90"') || !pv.includes('#1d4ed8')) fail('önizlemede logo / renk / genişlik yok');
+  await A.p.waitForFunction(() => { const f = document.getElementById('mdIf'); return f && /Yarın nöbetiniz var/.test(f.srcdoc || ''); }, null, { timeout: 8000 }).catch(() => fail('önizleme çerçevesi dolmadı'));
+  await A.p.waitForTimeout(600);
+  await A.p.locator('#mdCard').screenshot({ path: path.join(OUT, 'adbag-eposta.png') });
+  const anon = await browser.newContext();
+  const lr = await anon.request.get(BASE + md.logo);
+  if (lr.status() !== 200 || !/image\/png/.test(lr.headers()['content-type'] || '')) fail('e-posta logosu girişsiz açılmıyor: ' + lr.status());
+  await anon.close();
+  await call(A.p, 'mail.design.save', { design: {} });
+  await call(A.p, 'brand.save', { mail_logo: '' });
+  step('e-posta tasarımı: “Renkli başlık” stili, mavi, logo (PNG) 90 px → kaydedildi; önizlemede logo, renk ve genişlik var; logo girişsiz açılıyor (e-posta programları için); varsayılana dönüldü');
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }
