@@ -119,10 +119,16 @@ try {
   step('ayarlar: sırayla çekenler (Ayşe K., Burak D.) açılan kartlara yazıldı; “en çok 2 kart” sonrası kura bitti, 3. kart açılmadı; “kim çekiyor?” adı kartın altına yazıldı');
 
   // ---- 6) Hepsini birden kipi ----
-  await A.p.fill('#krItems', 'A\nB\nC\nD');
+  // Ekran kapanınca liste sayfası yeniden çizilir; yazı o ana denk gelirse kaybolur — yazılanı doğrula
+  await A.p.locator('#krStage').waitFor({ state: 'detached' });
+  for (let k = 0; k < 6; k++) { await A.p.fill('#krItems', 'A\nB\nC\nD'); await A.p.waitForTimeout(250); if ((await A.p.evaluate(() => KR.items)) === 'A\nB\nC\nD') break; }
   await A.p.evaluate(() => { KR.opts.ask = false; KR.opts.mode = 'list'; });
   await A.p.click('[data-act=kr-start]');
-  await A.p.locator('.modal .kr-res .list-row').nth(3).waitFor({ timeout: 20000 });
+  try { await A.p.locator('.modal .kr-res .list-row').nth(3).waitFor({ timeout: 20000 }); } catch (e) {
+    await A.p.screenshot({ path: path.join(OUT, 'FAIL-kura-liste.png') });
+    console.log('KR:', JSON.stringify(await A.p.evaluate(() => ({ items: KR.items, opts: KR.opts, draw: KR.draw && { id: KR.draw.id, st: KR.draw.status, n: KR.draw.cards.length, open: KR.draw.cards.filter((c) => c.open).length, mode: KR.draw.opts.mode }, stage: !!document.querySelector('#krStage'), modals: [...document.querySelectorAll('.modal')].map((m) => m.innerText.slice(0, 120)) }))));
+    throw e;
+  }
   await A.p.locator('.modal [data-close]').last().click();
   await A.p.click('[data-act=kr-stage-close]');
   await A.p.evaluate(() => { KR.opts.mode = 'cards'; krSaveOpts(); });
