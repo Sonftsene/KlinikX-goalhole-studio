@@ -95,6 +95,27 @@ try {
   await M.p.evaluate(() => api('me.prefs.save', { kind: 'ui', value: { push_nag: true } }));
   step('bildirimler kapalıysa ana sayfada uyarı (Bildirimleri aç / Daha sonra); “Daha sonra” → ertesi gün yeniden; Hesabım › Bildirimler’den günlük hatırlatma kapatıldı; açık kişide çıkmıyor');
 
+  // Bildirim durumu: üyenin cihazı durumunu bildirir; yönetici listede görür, hatırlatır (uygulama içi bildirim), 12 saat kuralı; üye listeyi göremez
+  await M.p.evaluate(() => { NB.psSent = ''; return nbReportState(); });
+  const st1 = (await A.p.evaluate(() => api('notif.status'))).people.find((p) => p.name === 'Elif Yılmaz');
+  if (!st1 || st1.state === 'on' || st1.state === 'unknown' || st1.state === 'never') fail('üyenin bildirim durumu kaydedilmedi: ' + JSON.stringify(st1));
+  await A.p.goto(BASE + '#/yonetim/ayarlar/bildirim');
+  await A.p.locator('#nbStatus .nbs-list').waitFor();
+  const row = A.p.locator('#nbStatus .list-row', { hasText: 'Elif Yılmaz' });
+  await row.waitFor();
+  await A.p.locator('#nbStatus').screenshot({ path: path.join(OUT, 'anasayfa-bildirim-durumu.png') });
+  await row.locator('[data-act=nbs-remind]').click();
+  await A.p.getByText('1 kişiye hatırlatma gönderildi').first().waitFor();
+  const got = await M.p.evaluate(() => api('live', { since: '2000-01-01 00:00:00' }).then((r) => (r.items || []).map((x) => x.title)));
+  if (!got.includes('Telefon bildirimlerini açın')) fail('hatırlatma üyeye ulaşmadı: ' + JSON.stringify(got));
+  const again = await A.p.evaluate((id) => api('notif.remind', { ids: [id] }), st1.id);
+  if (again.sent !== 0 || again.skipped !== 1) fail('12 saat içinde ikinci hatırlatma engellenmedi: ' + JSON.stringify(again));
+  const st2 = (await A.p.evaluate(() => api('notif.status'))).people.find((p) => p.name === 'Elif Yılmaz');
+  if (!st2.reminded_at || st2.reminds !== 1) fail('hatırlatma kaydı tutulmadı: ' + JSON.stringify(st2));
+  const mSt = await M.p.evaluate(() => api('notif.status').then(() => 'kabul', (e) => e.status));
+  if (mSt === 'kabul') fail('üye bildirim durumu listesini görebildi');
+  step(`bildirim durumu: Elif’in cihazı “${st1.state}” bildirdi; yönetici listede gördü, “Hatırlat” → Elif’e uygulama içi bildirim; 12 saat içinde ikinci hatırlatma engellendi; üye listeyi göremiyor`);
+
   // Temizlik: varsayılanı kaldır
   await A.p.evaluate(() => api('home.default.save', { home: null }));
   if ((await A.p.evaluate(() => api('boot'))).home_default !== null) fail('varsayılan kaldırılamadı');

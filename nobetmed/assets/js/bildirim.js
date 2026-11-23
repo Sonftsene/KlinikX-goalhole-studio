@@ -423,3 +423,97 @@ ACT['nbp-save'] = (el) => busy(el, async () => {
   } catch (e) { toast(e.message, 'err'); }
 });
 NM_EXT.audit['notif.policy'] = 'Bildirim politikasını değiştirdi';
+NM_EXT.audit['notif.remind'] = 'Bildirim açma hatırlatması gönderdi';
+
+/* ---------------- Bu cihazın bildirim durumu sunucuya (yöneticinin “Bildirim durumu” listesi için) ---------------- */
+function nbPlatform() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua) || (typeof _nmIsIOS === 'function' && _nmIsIOS())) return 'iphone';
+  if (/Android/.test(ua)) return 'android';
+  if (/Windows|Macintosh|Linux|CrOS/.test(ua)) return 'masaustu';
+  return 'diger';
+}
+async function nbReportState() {
+  if (!S.me || S.me.sa_virtual || !S.settings || !S.settings.push_ready || typeof pushState !== 'function') return;
+  let st = 'off';
+  try { st = await pushState(); } catch (e) { st = 'off'; }
+  if (st === 'unsupported' && typeof pushSupportInfo === 'function') {
+    const why = pushSupportInfo().reason || '';
+    st = /16\.4/.test(why) ? 'ios_old' : /Ana Ekrana/i.test(why) ? 'ios_install' : 'unsupported';
+  }
+  const pl = nbPlatform();
+  const key = st + '|' + pl;
+  if (NB.psSent === key) return;
+  NB.psSent = key;
+  try { await api('notif.pstate', { state: st, platform: pl }); } catch (e) { NB.psSent = ''; }
+}
+// Bildirim açılıp kapatılınca durum yeniden bildirilir
+document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-act*="push"]'); if (b) setTimeout(() => nbReportState(), 4000); }, true);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(() => nbReportState(), 2500); });
+setTimeout(() => nbReportState(), 6000);
+
+/* ---------------- Yönetici / yayıncı: Bildirim durumu (kimde açık, kim açmamış ve neden) ---------------- */
+const NBS = { d: null, f: 'noton', q: '', sel: new Set() };
+const NBS_L = {
+  on: ['Açık', 'success'], off: ['Açmamış', 'warn'], denied: ['İzni reddetmiş', 'danger'], ios_install: ['iPhone: ana ekrana eklememiş', 'warn'],
+  ios_old: ['iPhone: iOS güncel değil', 'danger'], unsupported: ['Tarayıcı desteklemiyor', 'info'], unknown: ['Bilinmiyor', 'info'], never: ['Hiç giriş yapmamış', 'info'],
+};
+const NBS_PL = { android: 'Android', iphone: 'iPhone', masaustu: 'Bilgisayar', diger: '' };
+NM_EXT.settingsCards.push({
+  sec: 'bildirim', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="bildirim" id="nbStatus"><h3 style="font-size:15px">${icon('users', 'sm')} Bildirim durumu</h3><div class="skel" style="height:14px;width:50%"></div></div>`,
+  mount: () => nbStatusLoad(),
+});
+async function nbStatusLoad() {
+  const c = $('#nbStatus'); if (!c) return;
+  try { NBS.d = await api('notif.status'); } catch (e) { setHTML(c, html`<p class="small muted">${e.message}</p>`); return; }
+  NBS.sel = new Set();
+  nbStatusDraw();
+}
+function nbStatusDraw() {
+  const c = $('#nbStatus'); if (!c || !NBS.d) return;
+  const all = NBS.d.people;
+  const cnt = {};
+  all.forEach((p) => { cnt[p.state] = (cnt[p.state] || 0) + 1; });
+  const notOn = all.filter((p) => p.state !== 'on');
+  const q = trLower(NBS.q.trim());
+  const list = all.filter((p) => (NBS.f === 'all' || (NBS.f === 'noton' ? p.state !== 'on' : p.state === NBS.f)) && (!q || trLower(p.name).includes(q)));
+  const chip = (k, l, n) => html`<button type="button" class="chip-btn ${NBS.f === k ? 'on' : ''}" data-act="nbs-f" data-f="${k}">${l} <b>${n}</b></button>`;
+  const pct = all.length ? Math.round(((cnt.on || 0) / all.length) * 100) : 0;
+  setHTML(c, html`<div class="row wrap" style="gap:8px;align-items:center"><h3 style="font-size:15px;margin:0" class="grow">${icon('users', 'sm')} Bildirim durumu</h3>
+      <button type="button" class="btn sm ghost" data-act="nbs-reload">${icon('history', 'sm')}<span>Yenile</span></button></div>
+    <div class="nb-stat"><div><b>${cnt.on || 0}</b> / ${all.length} kişide telefon bildirimi açık · <b>${notOn.length}</b> kişi açmamış</div><div class="nb-meter"><span style="width:${pct}%"></span></div></div>
+    <p class="tiny faint" style="margin:0">Uygulamayı açan her cihaz kendi durumunu bildirir. “Hatırlat” kişiye uygulama içi bildirim${NBS.d.mail_ready ? ' ve e-posta' : ''} gönderir; durumuna göre (iPhone’da ana ekrana ekleme, reddedilmiş izni yeniden açma, pil tasarrufu) adım adım ne yapacağı yazar. Aynı kişiye 12 saatte bir gönderilir.</p>
+    <div class="row wrap" style="gap:6px">${chip('noton', 'Açık değil', notOn.length)}${chip('all', 'Herkes', all.length)}${Object.keys(NBS_L).filter((k) => cnt[k]).map((k) => chip(k, NBS_L[k][0], cnt[k]))}</div>
+    <div class="row wrap" style="gap:8px;align-items:center"><input class="input" type="search" placeholder="Kişi ara" value="${NBS.q}" data-input="nbs-q" style="flex:1;min-width:150px">
+      <button type="button" class="btn sm" data-act="nbs-remind-sel" ${NBS.sel.size ? '' : raw('disabled')}>${icon('bell', 'sm')}<span>Seçilenlere hatırlat${NBS.sel.size ? ` (${NBS.sel.size})` : ''}</span></button>
+      ${notOn.length ? html`<button type="button" class="btn sm primary" data-act="nbs-remind-all">${icon('bell', 'sm')}<span>Açmayan herkese hatırlat (${notOn.length})</span></button>` : ''}</div>
+    <div class="list nbs-list">${list.length ? list.map((p) => { const L = NBS_L[p.state] || [p.state, 'info']; return html`<div class="list-row" style="gap:10px;align-items:center">
+      ${p.state !== 'on' ? html`<input type="checkbox" data-change="nbs-sel" data-id="${p.id}" ${NBS.sel.has(p.id) ? raw('checked') : ''} aria-label="${p.name}: seç">` : html`<span style="width:16px"></span>`}
+      ${avatar(p.name, 'sm')}
+      <div class="grow" style="min-width:0"><b class="small">${p.name}</b>
+        <div class="tiny faint">${[p.state === 'on' ? `${p.devices} cihaz` : '', NBS_PL[p.platform] || '', p.seen ? 'son giriş ' + fmtRel(p.seen) : 'hiç giriş yok', p.reminded_at ? `hatırlatıldı ${fmtRel(p.reminded_at)}${p.reminds > 1 ? ` (${p.reminds}. kez)` : ''}` : '', !p.email ? 'e-posta yok' : ''].filter(Boolean).join(' · ')}</div></div>
+      <span class="badge ${L[1]}">${L[0]}</span>
+      ${p.state !== 'on' ? html`<button type="button" class="btn sm ghost" data-act="nbs-remind" data-id="${p.id}">Hatırlat</button>` : ''}</div>`; }) : html`<div class="list-row small muted">${NBS.f === 'noton' ? 'Herkeste telefon bildirimi açık.' : 'Kimse yok.'}</div>`}</div>`);
+}
+ACT['nbs-reload'] = () => nbStatusLoad();
+ACT['nbs-f'] = (el) => { NBS.f = el.dataset.f; nbStatusDraw(); };
+CHANGE['nbs-q'] = (el) => { NBS.q = el.value; clearTimeout(NBS.t); NBS.t = setTimeout(() => { nbStatusDraw(); const i = $('#nbStatus [data-input=nbs-q]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); };
+CHANGE['nbs-sel'] = (el) => { const id = +el.dataset.id; if (el.checked) NBS.sel.add(id); else NBS.sel.delete(id); nbStatusDraw(); };
+async function nbsRemind(ids, el) {
+  if (!ids.length) return;
+  await busy(el, async () => {
+    try {
+      const r = await api('notif.remind', { ids });
+      toast(r.sent ? `${r.sent} kişiye hatırlatma gönderildi${r.mailed ? ` (${r.mailed} e-posta)` : ''}${r.skipped ? ` · ${r.skipped} kişiye son 12 saatte zaten gönderilmişti` : ''}` : (r.skipped ? 'Bu kişilere son 12 saatte zaten hatırlatma gönderildi' : 'Seçilenlerde bildirim zaten açık'));
+      await nbStatusLoad();
+    } catch (e) { toast(e.message, 'err'); }
+  });
+}
+ACT['nbs-remind'] = (el) => nbsRemind([+el.dataset.id], el);
+ACT['nbs-remind-sel'] = (el) => nbsRemind([...NBS.sel], el);
+ACT['nbs-remind-all'] = async (el) => {
+  const ids = NBS.d.people.filter((p) => p.state !== 'on').map((p) => p.id);
+  if (!(await confirmDialog({ title: `${ids.length} kişiye hatırlatma gönderilsin mi?`, text: `Telefon bildirimi açık olmayan herkese uygulama içi bildirim${NBS.d.mail_ready ? ' ve e-posta' : ''} gider; durumuna göre ne yapacağı adım adım yazar.`, ok: 'Gönder' }))) return;
+  nbsRemind(ids, el);
+};

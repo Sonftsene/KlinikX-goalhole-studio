@@ -392,6 +392,97 @@ function a_notif_policy_save(): void
     out();
 }
 
+/* ---------------- Bildirim durumu: kimde telefon bildirimi açık, kim açmamış (ve neden) ---------------- */
+
+const NB_PSTATES = ['on', 'off', 'denied', 'unsupported', 'ios_install', 'ios_old'];
+const NB_PLATFORMS = ['android', 'iphone', 'masaustu', 'diger'];
+function nb_ps_ensure(): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (setting('ps_schema', '') === '1') return;
+    $end = DB_DRIVER === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+    db()->exec("CREATE TABLE IF NOT EXISTS push_state (user_id INT NOT NULL PRIMARY KEY, state VARCHAR(12) NOT NULL, platform VARCHAR(12) NOT NULL DEFAULT '', updated_at VARCHAR(19) NOT NULL, reminded_at VARCHAR(19) NULL, reminds INT NOT NULL DEFAULT 0)$end");
+    set_setting('ps_schema', '1');
+}
+/** Cihaz kendi durumunu bildirir (uygulama her açıldığında ve bildirim açılıp kapatılınca) */
+function a_notif_pstate(): void
+{
+    $me = need_user();
+    if (!empty($me['sa_virtual'])) out();
+    $st = s('state', 12); $pl = s('platform', 12);
+    if (!in_array($st, NB_PSTATES, true)) fail('Geçersiz durum.');
+    if (!in_array($pl, NB_PLATFORMS, true)) $pl = 'diger';
+    nb_ps_ensure();
+    $r = one('SELECT state, platform, updated_at FROM push_state WHERE user_id = ?', [$me['id']]);
+    // Başka cihazda açıksa “kapalı” bilgisi açık durumu ezmesin (kişi telefonunda açtı, bilgisayardan girdi)
+    if ($r && $r['state'] === 'on' && $st !== 'on' && (int)val('SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?', [$me['id']]) > 0) out();
+    if ($r && $r['state'] === $st && $r['platform'] === $pl && strtotime((string)$r['updated_at']) > time() - 3600) out();
+    if ($r) q('UPDATE push_state SET state = ?, platform = ?, updated_at = ? WHERE user_id = ?', [$st, $pl, now(), $me['id']]);
+    else q('INSERT INTO push_state (user_id, state, platform, updated_at, reminds) VALUES (?, ?, ?, ?, 0)', [$me['id'], $st, $pl, now()]);
+    out();
+}
+/** Yönetici / yayıncı: herkesin bildirim durumu */
+function a_notif_status(): void
+{
+    need_publisher();
+    nb_ps_ensure();
+    $ps = [];
+    foreach (all('SELECT * FROM push_state') as $r) $ps[(int)$r['user_id']] = $r;
+    $dev = [];
+    foreach (all('SELECT user_id, COUNT(*) AS n, MAX(last_ok) AS last_ok FROM push_subscriptions GROUP BY user_id') as $r) $dev[(int)$r['user_id']] = $r;
+    $out = [];
+    foreach (all("SELECT id, name, email, last_seen_at FROM users WHERE status = 'active' ORDER BY name") as $u) {
+        $id = (int)$u['id']; $p = $ps[$id] ?? null; $d = $dev[$id] ?? null;
+        $st = $d && (int)$d['n'] > 0 ? 'on' : ($p ? ($p['state'] === 'on' ? 'off' : $p['state']) : ($u['last_seen_at'] ? 'unknown' : 'never'));
+        $out[] = ['id' => $id, 'name' => $u['name'], 'email' => (string)$u['email'] !== '', 'state' => $st, 'platform' => $p['platform'] ?? '', 'devices' => $d ? (int)$d['n'] : 0,
+            'last_ok' => $d['last_ok'] ?? null, 'seen' => $u['last_seen_at'], 'state_at' => $p['updated_at'] ?? null, 'reminded_at' => $p['reminded_at'] ?? null, 'reminds' => (int)($p['reminds'] ?? 0)];
+    }
+    out(['people' => $out, 'mail_ready' => function_exists('mail_ready') && mail_ready(), 'push_ready' => push_ready()]);
+}
+/** Kişinin durumuna göre ne yapması gerektiği (hatırlatma metni) */
+function nb_ps_steps(string $st, string $pl): array
+{
+    if ($st === 'ios_install') return ['iPhone’da bildirim için uygulamayı ana ekrana eklemelisiniz:', '1) Safari’de siteyi açın, alttaki Paylaş düğmesine dokunun.', '2) “Ana Ekrana Ekle”yi seçin.', '3) Ana ekrandaki simgeden uygulamayı açın; Hesabım › Bildirimler › “Bildirimleri aç”a dokunun.'];
+    if ($st === 'ios_old') return ['Bildirimler için iPhone’unuzun iOS 16.4 ya da daha yeni olması gerekiyor.', 'Ayarlar › Genel › Yazılım Güncelleme’den güncelleyin, sonra uygulamayı ana ekrandan açıp bildirimleri açın.'];
+    if ($st === 'denied') return $pl === 'iphone'
+        ? ['Bu cihazda bildirim izni kapatılmış. Açmak için:', 'Ayarlar › Bildirimler › listede uygulamayı bulun › “Bildirimlere İzin Ver”i açın.']
+        : ['Bu cihazda bildirim izni reddedilmiş. Yeniden açmak için:', 'Uygulamayı açın, adres çubuğundaki kilit / ayar simgesine dokunun › İzinler › Bildirimler › İzin ver.', 'Ana ekrana eklediyseniz: telefon Ayarlar › Uygulamalar › Chrome (ya da uygulama) › Bildirimler › açın.', 'Sonra Hesabım › Bildirimler › “Bildirimleri aç”a dokunun.'];
+    if ($st === 'unsupported') return ['Kullandığınız tarayıcı anlık bildirimi desteklemiyor.', 'Telefonunuzda güncel Chrome (Android) ya da Safari (iPhone, ana ekrana ekleyerek) ile açın, sonra Hesabım › Bildirimler › “Bildirimleri aç”a dokunun.'];
+    return ['Telefonunuzda uygulamayı açın, Hesabım › Bildirimler › “Bildirimleri aç”a dokunun ve izin isteğine “İzin ver” deyin.', 'Android’de pil tasarrufu bildirimi geciktirebilir: Ayarlar › Pil › Chrome için “Kısıtlama yok” seçin (Samsung’da Chrome’u “Uyutulan uygulamalar”dan çıkarın).'];
+}
+/** Seçilen kişilere bildirimi açmaları için hatırlatma: uygulama içi bildirim + e-posta (12 saatte bir) */
+function a_notif_remind(): void
+{
+    $me = need_publisher();
+    nb_ps_ensure();
+    $ids = array_values(array_unique(array_filter(array_map('intval', array_slice(arr('ids'), 0, 2000)))));
+    if (!$ids) fail('Kişi seçin.');
+    $in = implode(',', $ids);
+    $ps = [];
+    foreach (all("SELECT * FROM push_state WHERE user_id IN ($in)") as $r) $ps[(int)$r['user_id']] = $r;
+    $hasDev = [];
+    foreach (all("SELECT DISTINCT user_id FROM push_subscriptions WHERE user_id IN ($in)") as $r) $hasDev[(int)$r['user_id']] = 1;
+    $sent = 0; $skipped = 0; $mailed = 0; $on = 0;
+    foreach (all("SELECT * FROM users WHERE status = 'active' AND id IN ($in)") as $u) {
+        $id = (int)$u['id']; $p = $ps[$id] ?? null;
+        if (isset($hasDev[$id])) { $on++; continue; }
+        if ($p && $p['reminded_at'] && strtotime((string)$p['reminded_at']) > time() - 12 * 3600) { $skipped++; continue; }
+        $st = $p ? ($p['state'] === 'on' ? 'off' : (string)$p['state']) : 'off';
+        $steps = nb_ps_steps($st, (string)($p['platform'] ?? ''));
+        $title = 'Telefon bildirimlerini açın';
+        $body = $me['name'] . ' nöbet değişikliği, çağrı ve mesajlardan anında haberdar olmanız için telefon bildirimlerini açmanızı istiyor.';
+        $mailed += notify_users([$u], 'notif_remind', $title, $body, '#/profil/bildirim',
+            ['subject' => $title, 'heading' => $title, 'lines' => array_merge([$body], $steps), 'button' => 'Bildirim ayarlarını aç'], 'always');
+        if ($p) q('UPDATE push_state SET reminded_at = ?, reminds = reminds + 1 WHERE user_id = ?', [now(), $id]);
+        else q('INSERT INTO push_state (user_id, state, platform, updated_at, reminded_at, reminds) VALUES (?, ?, ?, ?, ?, 1)', [$id, 'off', '', now(), now()]);
+        $sent++;
+    }
+    if ($sent) audit($me, 'notif.remind', $sent . ' kişi', $mailed ? $mailed . ' e-posta' : 'yalnız uygulama içi');
+    out(['sent' => $sent, 'mailed' => $mailed, 'skipped' => $skipped, 'already_on' => $on]);
+}
+
 /* ---------------- Service worker uçları (GET/POST, X-NM-SW başlığıyla) ---------------- */
 
 function nb_sw_guard(): ?array
@@ -494,4 +585,7 @@ return [
     'notif.device.test' => 'a_notif_device_test',
     'notif.policy.get' => 'a_notif_policy_get',
     'notif.policy.save' => 'a_notif_policy_save',
+    'notif.pstate' => 'a_notif_pstate',
+    'notif.status' => 'a_notif_status',
+    'notif.remind' => 'a_notif_remind',
 ];

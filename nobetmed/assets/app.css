@@ -2000,3 +2000,7 @@ html.kr-open, html.kr-open body { overflow: hidden; }
 .av-zoom-x { position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .15); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
 .av-zoom-n { position: absolute; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom)); text-align: center; color: #fff; font-weight: 600; font-size: 15px; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
 @keyframes avz { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+
+/* Bildirim durumu listesi */
+.nbs-list { max-height: 60vh; overflow: auto; }
+.nbs-list .badge { flex: none; }

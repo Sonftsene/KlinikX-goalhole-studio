@@ -1177,3 +1177,10 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
 - **Yalnız ayarları kaydet** ya da **Kaydet ve uygula**. Ayarlar birim geneldir; otomatik doldurma da aynı ayarlara uyar (hafta sonu izni, boşluk kodu).
 - Çizelgede elle girilen istekler (hücreye dokun › istek) de aynı şekilde işlenir.
 - Not: onaylanan istek çizelge açıldığında işlenir; liste daha önce yayınlandıysa değişikliğin ekibe gitmesi için yeniden **Yayınla**.
+
+## 62. Bildirim durumu listesi (4.42.0)
+Ayarlar › Bildirimler › **Bildirim durumu** (yönetici; uç yayıncıya da açık):
+- Uygulamayı açan her cihaz kendi durumunu bildirir (uygulama açılınca, öne gelince ve bildirim açılıp kapatılınca).
+- Kişi kişi durum: **Açık** (kaç cihaz), **Açmamış**, **İzni reddetmiş**, **iPhone: ana ekrana eklememiş**, **iPhone: iOS güncel değil**, **Tarayıcı desteklemiyor**, **Bilinmiyor** (bu sürümden beri uygulamayı açmadı), **Hiç giriş yapmamış**; cihaz türü (Android / iPhone / Bilgisayar), son giriş, son hatırlatma.
+- Filtreler (Açık değil, Herkes, duruma göre), kişi arama.
+- **Hatırlat** (tek kişi), **Seçilenlere hatırlat**, **Açmayan herkese hatırlat**: kişiye uygulama içi bildirim ve e-posta (e-posta ayarlıysa) gider; metin kişinin durumuna göre adım adım ne yapacağını yazar (iPhone’da ana ekrana ekleme, reddedilmiş izni yeniden açma, Android pil tasarrufu). Aynı kişiye 12 saatte bir gönderilir; işlem günlüğüne yazılır.
