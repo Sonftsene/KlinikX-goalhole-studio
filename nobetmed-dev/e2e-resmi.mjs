@@ -372,6 +372,27 @@ try {
   await A.p.evaluate(() => { PL2.d.people = PL2.d.people.filter((p) => p.name !== 'Deniz Deneme'); delete PL2.d.cells['Deniz Deneme']; planDirty(); planDraw(); return planSave(true); });
   step(`unvan: kişi menüsünden hazır unvan (çip) seçildi, unvanı boş ${emptyT.length - 1} kişiye de verildi, varsayılan yapıldı ve hatırlandı; yeni eklenen kişiye kendiliğinden “Hemşire”; toplu Unvanlar penceresi çalışıyor`);
 
+  // Kişi adını düzenleme: nöbetler, unvan ve saat düzeltmesi yeni ada taşınır; aynı ad reddedilir; Geri al döner
+  const rn0 = await A.p.evaluate(() => { const p = PL2.d.people.find((x) => Object.keys(PL2.d.cells[x.name] || {}).length); return { n: p.name, t: p.title, cells: JSON.stringify(PL2.d.cells[p.name]), other: PL2.d.people.find((x) => x.name !== p.name).name }; });
+  const RN = rn0.n + ' Düzeltme';
+  await A.p.click(`[data-act=pl2-pmenu][data-n="${rn0.n}"]`);
+  await A.p.locator('.modal [data-o=rename]').click();
+  await A.p.locator('#pl2RnIn').fill(rn0.other.toLocaleUpperCase('tr'));
+  await A.p.click('.modal button[form=pl2RnF]');
+  await expectText(A.p, 'zaten çizelgede');
+  await A.p.locator('#pl2RnIn').fill(RN);
+  await A.p.click('.modal button[form=pl2RnF]');
+  await expectText(A.p, `Ad değiştirildi: ${RN}`);
+  const rn1 = await A.p.evaluate(([o, nn]) => ({ old: PL2.d.cells[o] !== undefined || PL2.d.people.some((p) => p.name === o), cells: JSON.stringify(PL2.d.cells[nn]), t: (PL2.d.people.find((p) => p.name === nn) || {}).title, btn: !!document.querySelector(`[data-act=pl2-pmenu][data-n="${nn}"]`) }), [rn0.n, RN]);
+  if (rn1.old || rn1.cells !== rn0.cells || rn1.t !== rn0.t || !rn1.btn) fail('ad düzenleme: ' + JSON.stringify(rn1).slice(0, 200));
+  await A.p.evaluate(() => planSave(true));
+  const rs1 = await apiCall(A.p, 'plan.get', { roster_id: ro.id, ym });
+  if (!rs1.draft.people.some((p) => p.name === RN) || JSON.stringify(rs1.draft.cells[RN]) !== rn0.cells) fail('yeni ad kaydedilmedi');
+  await A.p.click('[data-act=pl2-undo]');
+  if (!(await A.p.evaluate((o) => PL2.d.people.some((p) => p.name === o) && Object.keys(PL2.d.cells[o] || {}).length > 0, rn0.n))) fail('ad değişikliği geri alınamadı');
+  await A.p.evaluate(() => planSave(true));
+  step(`kişi adı düzenlendi (“${rn0.n}” → “${RN}”): nöbetleri ve unvanı yeni ada taşındı, kaydedildi; aynı ad reddedildi; Geri al ile eski ada döndü`);
+
   await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
 
   // ---- 7) Tek sayfa PDF, Word, Excel ----

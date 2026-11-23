@@ -1145,3 +1145,7 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
   - “Unvanı boş olan N kişiye de ver” ve “Yeni eklenen kişilere bu unvan kendiliğinden verilsin” seçenekleri.
 - **⋯ › Unvanlar (toplu seç)**: herkes tek ekranda; seçilen unvanı “boş olanlara” ya da “hepsine” verin; yeni eklenenler için varsayılan unvan.
 - Kişiye verilen unvan **hatırlanır**: sonraki aylarda, başka listede ya da kişi yeniden eklendiğinde kendiliğinden gelir. Unvanı olmayan yeni kişiye (Kişi ekle, yapıştır, yeni ay çizelgesi) varsayılan unvan yazılır.
+
+### Kişi adını düzenleme (4.39.1)
+- Çizelgede kişinin adına dokunun › **Adını düzenle**. Nöbetleri, istekleri, saat düzeltmesi ve unvanı yeni ada taşınır; aynı adla ikinci kişi olamaz; **Geri al** ile dönülür.
+- Kişinin portaldaki hesabıyla eşleşme ada göre yapılır: yazım hatasını düzeltirken hesaptaki adla aynı yazın.

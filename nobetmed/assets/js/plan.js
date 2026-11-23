@@ -293,6 +293,7 @@ ACT['pl2-pmenu'] = (el) => {
   const p0 = PL2.d.people.find((p) => p.name === n) || {};
   const fx = (PL2.d.hfix[n] || {}).req;
   const m = openModal({ title: n, size: 'narrow', body: html`<div class="list">
+    <button type="button" class="list-row" data-o="rename" style="width:100%;border:0;background:none;text-align:left">${icon('user', 'sm')}<span>Adını düzenle</span></button>
     <button type="button" class="list-row" data-o="title" style="width:100%;border:0;background:none;text-align:left">${icon('edit', 'sm')}<span>Unvan: <b>${p0.title || '—'}</b></span></button>
     <button type="button" class="list-row" data-o="up" style="width:100%;border:0;background:none;text-align:left">${icon('chevL', 'sm')}<span>Sırada yukarı taşı</span></button>
     <button type="button" class="list-row" data-o="down" style="width:100%;border:0;background:none;text-align:left">${icon('chevR', 'sm')}<span>Sırada aşağı taşı</span></button>
@@ -307,6 +308,11 @@ ACT['pl2-pmenu'] = (el) => {
     if (o === 'title') {
       m.close();
       planTitlePick(n);
+      return;
+    }
+    if (o === 'rename') {
+      m.close();
+      planRenameAsk(n);
       return;
     }
     if (o === 'hfix') {
@@ -365,6 +371,36 @@ function planTitlePick(n) {
     m.close();
     if (def && v) await planTitleDef(v); else if (!def && PL2.titles.def && trLower(PL2.titles.def) === trLower(v)) await planTitleDef('');
     planDirty(); planDraw(); toast(k ? `Unvan verildi (${k + 1} kişi)` : 'Unvan kaydedildi');
+  });
+}
+/** Kişinin adını değiştir: çizelgedeki bütün kayıtları yeni ada taşınır (Geri al ile dönülebilir) */
+function planRename(oldN, nu) {
+  const D = PL2.d;
+  const p = D.people.find((x) => x.name === oldN);
+  if (!p || oldN === nu) return false;
+  planSnap(`${oldN} adını değiştirme`);
+  p.name = nu;
+  ['cells', 'reqs', 'hfix'].forEach((k) => { if (D[k] && D[k][oldN] !== undefined) { D[k][nu] = D[k][oldN]; delete D[k][oldN]; } });
+  if (PL2.marks && PL2.marks[oldN]) { PL2.marks[nu] = PL2.marks[oldN]; delete PL2.marks[oldN]; }
+  if (p.title) planTitleRemember(nu, p.title);
+  return true;
+}
+function planRenameAsk(n) {
+  const m = openModal({ title: 'Adını düzenle', size: 'narrow', body: html`<form class="stack" id="pl2RnF">
+    <div class="field"><label for="pl2RnIn">Ad soyad</label><input class="input" id="pl2RnIn" maxlength="120" value="${n}" autocomplete="off" required></div>
+    <p class="tiny faint" style="margin:0">Çizelgedeki nöbetleri, istekleri ve unvanı yeni ada taşınır. Kişinin portaldaki hesabıyla eşleşme ada göre yapılır; yazım hatasını düzeltirken hesaptaki adla aynı yazın.</p>
+    <div class="form-error hidden" data-err id="pl2RnErr"></div></form>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="pl2RnF">Kaydet</button>` });
+  const inp = $('#pl2RnIn', m.el);
+  setTimeout(() => { inp.focus(); inp.select(); }, 50);
+  $('#pl2RnF', m.el).addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const nu = inp.value.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const err = (t) => { const e = $('#pl2RnErr', m.el); setHTML(e, t); e.classList.remove('hidden'); };
+    if (nu.length < 2) return err('Ad en az 2 harf olmalı.');
+    if (nu !== n && PL2.d.people.some((p) => p.name !== n && trLower(p.name) === trLower(nu))) return err('Bu adla bir kişi zaten çizelgede.');
+    m.close();
+    if (planRename(n, nu)) { planDirty(); PL2.chk = null; planDraw(); toast(`Ad değiştirildi: ${nu}`); }
   });
 }
 /** Toplu unvan düzenleme: herkes tek ekranda; seçilen unvanı boşlara / herkese ver; varsayılan unvan */

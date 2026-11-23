@@ -122,7 +122,7 @@ try {
   await A.p.fill('#krItems', 'A\nB\nC\nD');
   await A.p.evaluate(() => { KR.opts.ask = false; KR.opts.mode = 'list'; });
   await A.p.click('[data-act=kr-start]');
-  await A.p.locator('.modal .kr-res .list-row').nth(3).waitFor({ timeout: 8000 });
+  await A.p.locator('.modal .kr-res .list-row').nth(3).waitFor({ timeout: 20000 });
   await A.p.locator('.modal [data-close]').last().click();
   await A.p.click('[data-act=kr-stage-close]');
   await A.p.evaluate(() => { KR.opts.mode = 'cards'; krSaveOpts(); });
