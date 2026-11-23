@@ -209,6 +209,8 @@ function a_plan_get(): void
     if ($dr && ($dr['status'] ?? '') === 'published' && function_exists('pc_sync_draft')) {
         try { [$data, $synced] = pc_sync_draft((int)$r['id'], $ym, $data); } catch (Throwable $e) { error_log('[dupcii] çizelge güncel hâl: ' . $e->getMessage()); }
     }
+    if (isset($data['people']) && is_array($data['people'])) $data['people'] = plan_titles_fill($data['people']);
+    $pt = plan_titles();
     $marks = [];
     if (function_exists('pc_marks')) { try { pc_sync((int)$r['id'], $ym); $marks = pc_marks((int)$r['id'], $ym); } catch (Throwable $e) { error_log('[dupcii] çizelge değişiklikleri: ' . $e->getMessage()); } }
     $hol = [];
@@ -220,10 +222,67 @@ function a_plan_get(): void
         'published' => $dr ? ($dr['status'] ?? '') === 'published' : $from === 'liste', 'published_at' => $dr['published_at'] ?? null, 'synced' => $synced, 'marks' => (object)$marks, 'half' => $half,
         'signed' => function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], $ym) : null,
         'rules' => function_exists('swap_rules') ? swap_rules() : null,
+        'titles' => ['known' => plan_titles_known($data['people'] ?? []), 'def' => $pt['def'], 'map' => (object)$pt['m']],
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
         ], plan_dict()))]);
+}
+
+/* ---------------- Unvanlar: kişiye verilen unvan hatırlanır; yeni eklenenlere varsayılan unvan ---------------- */
+function plan_titles(): array
+{
+    $j = json_decode((string)setting('plan_titles', ''), true);
+    return ['m' => is_array($j['m'] ?? null) ? $j['m'] : [], 'def' => (string)($j['def'] ?? '')];
+}
+function plan_titles_put(array $t): void
+{
+    if (count($t['m']) > 2000) $t['m'] = array_slice($t['m'], -2000, null, true);
+    set_setting('plan_titles', json_encode(['m' => (object)$t['m'], 'def' => $t['def']], JSON_UNESCAPED_UNICODE));
+}
+/** Taslaktaki unvanları kişi adına göre hatırla (bir sonraki ayda ve başka listede kendiliğinden gelir) */
+function plan_titles_learn(array $people): void
+{
+    $t = plan_titles(); $ch = false;
+    foreach ($people as $p) {
+        $tt = trim((string)($p['title'] ?? '')); $k = tr_lower(trim((string)($p['name'] ?? '')));
+        if ($tt === '' || $k === '' || ($t['m'][$k] ?? null) === $tt) continue;
+        $t['m'][$k] = mb_substr($tt, 0, 80); $ch = true;
+    }
+    if ($ch) plan_titles_put($t);
+}
+/** Unvanı boş kişilere: hatırlanan unvan, yoksa varsayılan unvan */
+function plan_titles_fill(array $people): array
+{
+    $t = plan_titles();
+    foreach ($people as $i => $p) {
+        if (!is_array($p) || trim((string)($p['title'] ?? '')) !== '') continue;
+        $v = $t['m'][tr_lower(trim((string)($p['name'] ?? '')))] ?? $t['def'];
+        if ($v !== '') $people[$i]['title'] = $v;
+    }
+    return $people;
+}
+/** Seçilebilecek unvanlar: tanımlı unvanlar (Yönetim › Ünvanlar) + daha önce yazılanlar */
+function plan_titles_known(array $people): array
+{
+    $t = plan_titles(); $o = [];
+    $add = function ($v) use (&$o) { $v = trim((string)$v); if ($v !== '' && !isset($o[tr_lower($v)])) $o[tr_lower($v)] = $v; };
+    try { foreach (all('SELECT name FROM titles ORDER BY sort, name') as $r) $add($r['name']); } catch (Throwable $e) { /* tablo yoksa */ }
+    foreach ($t['m'] as $v) $add($v);
+    foreach ($people as $p) if (is_array($p)) $add($p['title'] ?? '');
+    if ($t['def'] !== '') $add($t['def']);
+    $l = array_values($o);
+    usort($l, fn($a, $b) => strcmp(tr_lower($a), tr_lower($b)));
+    return $l;
+}
+function a_plan_titles(): void
+{
+    $me = need_publisher();
+    $t = plan_titles();
+    if (array_key_exists('def', $GLOBALS['IN'])) $t['def'] = mb_substr(trim(s('def')), 0, 80);
+    plan_titles_put($t);
+    audit($me, 'settings.save', 'Çizelge unvanları', $t['def'] !== '' ? 'varsayılan: ' . $t['def'] : 'varsayılan yok');
+    out(['titles' => ['known' => plan_titles_known([]), 'def' => $t['def'], 'map' => (object)$t['m']]]);
 }
 
 function a_plan_save(): void
@@ -232,6 +291,7 @@ function a_plan_save(): void
     $r = plan_roster((int)i('roster_id'));
     $ym = plan_ym();
     $data = plan_clean(arr('draft'), $ym);
+    try { plan_titles_learn($data['people'] ?? []); } catch (Throwable $e) { error_log('[dupcii] unvan hatırlama: ' . $e->getMessage()); }
     $j = json_encode($data, JSON_UNESCAPED_UNICODE);
     if (one('SELECT id FROM plan_drafts WHERE roster_id = ? AND ym = ?', [$r['id'], $ym])) q('UPDATE plan_drafts SET data = ?, updated_by = ?, updated_at = ? WHERE roster_id = ? AND ym = ?', [$j, $me['id'], now(), $r['id'], $ym]);
     else q('INSERT INTO plan_drafts (roster_id, ym, data, status, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)', [$r['id'], $ym, $j, 'draft', $me['id'], now()]);
@@ -485,6 +545,7 @@ function a_plan_rules(): void
 
 return [
     'plan.rules' => 'a_plan_rules',
+    'plan.titles' => 'a_plan_titles',
     'plan.get' => 'a_plan_get',
     'plan.save' => 'a_plan_save',
     'plan.check' => 'a_plan_check',

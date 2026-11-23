@@ -65,6 +65,8 @@ async function planLoad() {
   PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null; PL2.joint = !!r.joint;
   PL2.rules = r.rules || null;
   PL2.undo = [];
+  PL2.titles = r.titles || { known: [], def: '', map: {} };
+  if (!PL2.titles.map || Array.isArray(PL2.titles.map)) PL2.titles.map = {};
   PL2.half = r.half || []; PL2.marks = r.marks && !Array.isArray(r.marks) ? r.marks : {}; PL2.signed = r.signed || null; PL2.published = !!r.published; PL2.synced = r.synced || 0;
   PL2.d.cells = PL2.d.cells && !Array.isArray(PL2.d.cells) ? PL2.d.cells : {};
   PL2.d.reqs = PL2.d.reqs && !Array.isArray(PL2.d.reqs) ? PL2.d.reqs : {};
@@ -304,7 +306,7 @@ ACT['pl2-pmenu'] = (el) => {
     const i = PL2.d.people.findIndex((p) => p.name === n);
     if (o === 'title') {
       m.close();
-      promptDialog({ title: `${n} · unvan`, label: 'Unvan (resmi listede yazar)', value: p0.title || '', ok: 'Kaydet' }).then((v) => { if (v === null || v === undefined) return; PL2.d.people[i].title = String(v).trim().slice(0, 80); planDirty(); planDraw(); });
+      planTitlePick(n);
       return;
     }
     if (o === 'hfix') {
@@ -326,8 +328,73 @@ ACT['pl2-pmenu'] = (el) => {
     planDirty(); m.close(); planDraw();
   });
 };
+/* ---------------- Unvanlar: daha önce eklenenlerden seç; kişiye verilen unvan hatırlanır; yeni eklenenlere varsayılan ---------------- */
+const planTitleFor = (name) => { const t = PL2.titles || {}; return ((t.map || {})[trLower(String(name || '').trim())]) || t.def || ''; };
+function planTitleKnown(extra) {
+  const o = new Map();
+  [...((PL2.titles || {}).known || []), ...PL2.d.people.map((p) => p.title), ...(extra || [])].forEach((t) => { t = String(t || '').trim(); if (t && !o.has(trLower(t))) o.set(trLower(t), t); });
+  return [...o.values()].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+/** Varsayılan unvan (yeni eklenen kişilere) değişince sunucuya yaz */
+async function planTitleDef(v) {
+  if ((PL2.titles.def || '') === v) return;
+  try { const r = await api('plan.titles', { def: v }); PL2.titles = Object.assign(PL2.titles, { def: r.titles.def, known: r.titles.known }); } catch (e) { toast(e.message, 'err'); }
+}
+function planTitleRemember(name, t) { if (t) PL2.titles.map[trLower(String(name).trim())] = t; }
+function planTitlePick(n) {
+  const i = PL2.d.people.findIndex((p) => p.name === n); if (i < 0) return;
+  const cur = PL2.d.people[i].title || '';
+  const known = planTitleKnown();
+  const empty = PL2.d.people.filter((p) => !String(p.title || '').trim() && p.name !== n).length;
+  const m = openModal({ title: `${n} · unvan`, size: 'narrow', body: html`<div class="stack">
+    ${known.length ? html`<div><div class="tiny faint" style="margin-bottom:6px">Daha önce eklenen unvanlar — dokunun:</div><div class="row wrap" style="gap:6px" id="pl2TChips">${known.map((t) => html`<button type="button" class="chip-btn ${trLower(t) === trLower(cur) ? 'on' : ''}" data-t="${t}" aria-pressed="${trLower(t) === trLower(cur) ? 'true' : 'false'}">${t}</button>`)}</div></div>` : ''}
+    <div class="field"><label for="pl2TIn">Unvan (resmi listede yazar)</label><input class="input" id="pl2TIn" list="pl2TDL" maxlength="80" value="${cur}" placeholder="Listeden seçin ya da yeni unvan yazın" autocomplete="off"><datalist id="pl2TDL">${known.map((t) => html`<option value="${t}"></option>`)}</datalist></div>
+    ${empty ? html`<label class="small row" style="gap:8px;align-items:center"><input type="checkbox" id="pl2TAll"> Unvanı boş olan ${empty} kişiye de ver</label>` : ''}
+    <label class="small row" style="gap:8px;align-items:center"><input type="checkbox" id="pl2TDef" ${PL2.titles.def && trLower(PL2.titles.def) === trLower(cur) ? raw('checked') : ''}> Yeni eklenen kişilere bu unvan kendiliğinden verilsin</label>
+    <p class="tiny faint" style="margin:0">Kişiye verilen unvan hatırlanır: sonraki aylarda ve kişi yeniden eklendiğinde kendiliğinden gelir.</p></div>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" id="pl2TGo">Kaydet</button>` });
+  const inp = $('#pl2TIn', m.el);
+  const ch = $('#pl2TChips', m.el);
+  if (ch) ch.addEventListener('click', (ev) => { const b = ev.target.closest('[data-t]'); if (!b) return; inp.value = b.dataset.t; $$('[data-t]', ch).forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); });
+  $('#pl2TGo', m.el).addEventListener('click', async () => {
+    const v = inp.value.trim().slice(0, 80);
+    PL2.d.people[i].title = v; planTitleRemember(n, v);
+    let k = 0;
+    if (($('#pl2TAll', m.el) || {}).checked && v) PL2.d.people.forEach((p) => { if (!String(p.title || '').trim()) { p.title = v; planTitleRemember(p.name, v); k++; } });
+    const def = $('#pl2TDef', m.el).checked;
+    m.close();
+    if (def && v) await planTitleDef(v); else if (!def && PL2.titles.def && trLower(PL2.titles.def) === trLower(v)) await planTitleDef('');
+    planDirty(); planDraw(); toast(k ? `Unvan verildi (${k + 1} kişi)` : 'Unvan kaydedildi');
+  });
+}
+/** Toplu unvan düzenleme: herkes tek ekranda; seçilen unvanı boşlara / herkese ver; varsayılan unvan */
+ACT['pl2-titles'] = () => {
+  const known = planTitleKnown();
+  const m = openModal({ title: 'Unvanlar', body: html`<div class="stack">
+    <datalist id="pl2TDL2">${known.map((t) => html`<option value="${t}"></option>`)}</datalist>
+    ${known.length ? html`<div class="row wrap" style="gap:6px" id="pl2TBChips">${known.map((t) => html`<button type="button" class="chip-btn" data-t="${t}">${t}</button>`)}</div>` : ''}
+    <div class="row wrap" style="gap:8px;align-items:center"><input class="input" id="pl2TBulk" list="pl2TDL2" maxlength="80" placeholder="Unvan seçin / yazın" style="flex:1;min-width:160px" autocomplete="off">
+      <button type="button" class="btn sm" id="pl2TEmpty">Boş olanlara ver</button><button type="button" class="btn sm" id="pl2TEvery">Hepsine ver</button></div>
+    <div class="list pl2-tlist">${PL2.d.people.map((p, i) => html`<div class="list-row" style="gap:8px"><span class="grow small" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${p.name}</span><input class="input" data-i="${i}" list="pl2TDL2" maxlength="80" value="${p.title || ''}" style="width:48%;min-width:130px" autocomplete="off" aria-label="${p.name}: unvan"></div>`)}</div>
+    <div class="field"><label for="pl2TDefIn">Yeni eklenen kişilere varsayılan unvan</label><input class="input" id="pl2TDefIn" list="pl2TDL2" maxlength="80" value="${PL2.titles.def || ''}" placeholder="Boş: verilmez" autocomplete="off">
+      <div class="tiny faint" style="margin-top:4px">Kişi ekle, yapıştır ve yeni ay çizelgesinde unvanı olmayan kişiye kendiliğinden yazılır.</div></div></div>`,
+  foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" id="pl2TSave">Kaydet</button>` });
+  const ins = () => $$('.pl2-tlist input[data-i]', m.el);
+  const bc = $('#pl2TBChips', m.el);
+  if (bc) bc.addEventListener('click', (ev) => { const b = ev.target.closest('[data-t]'); if (!b) return; $('#pl2TBulk', m.el).value = b.dataset.t; $$('[data-t]', bc).forEach((x) => x.classList.toggle('on', x === b)); });
+  const bulk = (all) => { const v = $('#pl2TBulk', m.el).value.trim(); if (!v) { toast('Önce unvanı seçin ya da yazın', 'err'); return; } ins().forEach((x) => { if (all || !x.value.trim()) x.value = v; }); };
+  $('#pl2TEmpty', m.el).addEventListener('click', () => bulk(false));
+  $('#pl2TEvery', m.el).addEventListener('click', () => bulk(true));
+  $('#pl2TSave', m.el).addEventListener('click', async () => {
+    ins().forEach((x) => { const p = PL2.d.people[+x.dataset.i]; if (!p) return; p.title = x.value.trim().slice(0, 80); planTitleRemember(p.name, p.title); });
+    const def = $('#pl2TDefIn', m.el).value.trim().slice(0, 80);
+    m.close();
+    await planTitleDef(def);
+    planDirty(); planDraw(); toast('Unvanlar kaydedildi');
+  });
+};
 ACT['pl2-more'] = () => {
-  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-clear', 'trash', 'Temizle (tümü / yalnız nöbetler)'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle']];
+  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-clear', 'trash', 'Temizle (tümü / yalnız nöbetler)'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle'], ['pl2-titles', 'user', 'Unvanlar (toplu seç)']];
   const m = openModal({ title: 'Çizelge işlemleri', size: 'narrow', body: html`<div class="list">${items.map(([a, ic, l]) => html`<button type="button" class="list-row" data-o="${a}" style="width:100%;border:0;background:none;text-align:left">${icon(ic, 'sm')}<span>${l}</span></button>`)}
     ${PL2.joint ? html`<a class="list-row" href="#/cizelge/taraflar/${PL2.ym}" data-close>${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}</div>` });
   m.el.addEventListener('click', (ev) => {
@@ -364,12 +431,12 @@ ACT['pl2-addp'] = () => {
   const L = $('#pl2AddL', m.el);
   if (L) L.addEventListener('change', cnt);
   $('#pl2AddGo', m.el).addEventListener('click', () => {
-    const picked = $$('#pl2AddL input:checked', m.el).map((i) => ({ name: i.value, title: i.dataset.t || '' }));
+    const picked = $$('#pl2AddL input:checked', m.el).map((i) => ({ name: i.value, title: i.dataset.t || planTitleFor(i.value) }));
     const nm = $('#pl2AddName', m.el).value.trim();
     if (nm) {
       if (nm.length < 3) { setHTML($('#pl2AddErr', m.el), 'Ad soyad en az 3 harf olmalı.'); $('#pl2AddErr', m.el).classList.remove('hidden'); return; }
       if (have.has(avKey(nm))) { setHTML($('#pl2AddErr', m.el), 'Bu kişi zaten çizelgede.'); $('#pl2AddErr', m.el).classList.remove('hidden'); return; }
-      picked.push({ name: nm, title: '' });
+      picked.push({ name: nm, title: planTitleFor(nm) });
     }
     if (!picked.length) { setHTML($('#pl2AddErr', m.el), 'Listeden kişi seçin ya da ad yazın.'); $('#pl2AddErr', m.el).classList.remove('hidden'); return; }
     picked.forEach((p) => { if (!PL2.d.people.some((x) => avKey(x.name) === avKey(p.name))) PL2.d.people.push(p); });
@@ -421,7 +488,7 @@ ACT['pl2-import'] = () => {
     const rep = $('#pl2Replace', m.el).checked;
     planSnap('yapıştırma');
     res.people.forEach((n) => {
-      if (!PL2.d.people.some((p) => avKey(p.name) === avKey(n))) PL2.d.people.push({ name: n, title: '' });
+      if (!PL2.d.people.some((p) => avKey(p.name) === avKey(n))) PL2.d.people.push({ name: n, title: planTitleFor(n) });
       const real = PL2.d.people.find((p) => avKey(p.name) === avKey(n)).name;
       if (rep) PL2.d.cells[real] = {};
       Object.entries(res.cells[n] || {}).forEach(([d, c]) => planSetCell(real, d, c));

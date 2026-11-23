@@ -177,7 +177,7 @@ try {
   await apiCall(A.p, 'plan.tpl.save', { logo, tpl: { ...t0, codes: { [nov.yi]: { p: 'Y.İZİN', c: 'deduct' } }, types: [ty0] } });
   await A.p.click('[data-act=pl2-tab][data-t=resmi]');
   await A.p.locator('#rsPaper .rd-grid').waitFor();
-  const pv = await A.p.evaluate(() => ({ rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length, people: PL2.d.people.length, html: document.querySelector('#rsPaper').innerHTML, img: !!document.querySelector('#rsPaper .rd-logo img') }));
+  const pv = await A.p.evaluate(() => ({ rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length, people: PL2.d.people.length, html: document.querySelector('#rsPaper').innerHTML.replace(/<br>/g, ' '), img: !!document.querySelector('#rsPaper .rd-logo img') }));
   if (pv.rows !== pv.people || !pv.img || !pv.html.includes('KY.LS.99') || !pv.html.includes('Örnek Şehir Hastanesi') || !pv.html.includes('Y.İZİN') || !pv.html.includes('ÇALIŞILMASI GEREKEN SAAT')) fail('önizleme eksik: ' + JSON.stringify({ rows: pv.rows, people: pv.people, img: pv.img }));
   if (/\bchg\b|pl2-c|Değişim:|Devir:/.test(pv.html)) fail('önizlemede değişiklik izi var');
   // Şablon penceresi açılıp kaydedilebiliyor
@@ -190,6 +190,33 @@ try {
   if (!(await apiCall(A.p, 'plan.tpl.get')).tpl.types[0].doc.some((x) => x.l === 'Revizyon Tarihi')) fail('şablon penceresinden kayıt yapılamadı');
   await A.p.screenshot({ path: path.join(OUT, 'r-resmi-onizleme.png') });
   step('şablon: logo, 3 başlık satırı, doküman kutusu (KY.LS.99), imzalar, kod yazımı (Y.İZİN); önizleme kişi sayısı kadar satır, değişiklik izi yok; şablon penceresinden satır eklenip kaydedildi');
+
+  // Sütun genişlikleri: unvan daraltılır, ad genişletilir → önizleme hemen değişir, şablona kaydedilir; Word ve Excel aynı genişlik
+  await A.p.click('#rsCw summary');
+  const cw0 = await A.p.evaluate(() => rsWidths(rsModel()));
+  await A.p.locator('#rsCw-unvan').fill('14');
+  await A.p.locator('#rsCw-unvan').press('Tab');
+  await A.p.click('[data-act=rs-cw][data-k=name][data-d="1"]');
+  await expectText(A.p, 'Sütun genişlikleri kaydedildi');
+  const ctw1 = (await apiCall(A.p, 'plan.tpl.get')).tpl.types[0].widths || {};
+  const cw1 = await A.p.evaluate(() => ({ W: rsWidths(rsModel()), col: [...document.querySelectorAll('#rsPaper .rd-grid col')].map((c) => c.style.width) }));
+  if (ctw1.unvan !== 14 || ctw1.name !== cw0.nameW + 1 || parseFloat(cw1.col[2]) !== 14 || Math.abs(parseFloat(cw1.col[1]) - (cw0.nameW + 1)) > 0.01 || !(cw1.W.dayW > cw0.dayW)) fail('sütun genişliği ayarı: ' + JSON.stringify({ ctw1, col: cw1.col.slice(0, 4), d0: cw0.dayW, d1: cw1.W.dayW }));
+  await A.p.locator('#rsCw').screenshot({ path: path.join(OUT, 'r-genislik.png') });
+  const cwx = path.join(OUT, 'r-genislik.xlsx'); fs.writeFileSync(cwx, Buffer.from(await blobBytes(A.p, 'rsXlsx')));
+  const cwd = path.join(OUT, 'r-genislik.docx'); fs.writeFileSync(cwd, Buffer.from(await blobBytes(A.p, 'rsDocx')));
+  const xcols = [...execFileSync('unzip', ['-p', cwx, 'xl/worksheets/sheet1.xml'], { encoding: 'utf8' }).matchAll(/<col min="(\d+)" max="\d+" width="([\d.]+)"/g)].map((m) => +m[2]);
+  const dgrid = [...execFileSync('unzip', ['-p', cwd, 'word/document.xml'], { encoding: 'utf8' }).split('<w:tbl>')[2].matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => +m[1]);
+  if (Math.abs(xcols[2] - (14 * 96 / 25.4) / 7) > 0.02 || Math.abs(dgrid[2] - 14 * 56.693) > 2) fail('Word / Excel sütun genişliği önizlemeyle aynı değil: ' + JSON.stringify({ x: xcols.slice(0, 4), d: dgrid.slice(0, 4) }));
+  await A.p.click('[data-act=rs-cw-auto]');
+  await A.p.locator('#rsCw', { hasText: 'elle ayarlı' }).waitFor();
+  const cwa = await A.p.evaluate(() => ({ T: rsType().widths, W: rsWidths(rsModel()) }));
+  if (!(cwa.T.name >= 18 && cwa.T.unvan >= 10 && cwa.W.dayW >= 4.4)) fail('yazıya göre sığdır: ' + JSON.stringify(cwa));
+  await A.p.click('[data-act=rs-cw-def]');
+  await A.p.locator('#rsCw', { hasText: 'otomatik' }).waitFor();
+  await expectText(A.p, 'Sütun genişlikleri kaydedildi');
+  await A.p.waitForTimeout(900);
+  if (Object.keys((await apiCall(A.p, 'plan.tpl.get')).tpl.types[0].widths || {}).length) fail('varsayılan genişliğe dönülmedi');
+  step(`sütun genişlikleri: unvan 14 mm, ad ${cw0.nameW + 1} mm yapıldı → önizleme anında, gün sütunu ${cw0.dayW.toFixed(1)} → ${cw1.W.dayW.toFixed(1)} mm; şablona kaydedildi; Word ve Excel aynı genişlikte; “yazıya göre sığdır” ve “varsayılan” çalışıyor`);
 
   // ---- 6b) Gündüz / gece / %10 / toplam izin: kullanıcının tablosundaki satırlarla aynı (Kasım 2026, gece 20:00–08:00) ----
   const fx = await A.p.evaluate(([c24, c8, yi]) => {
@@ -222,14 +249,14 @@ try {
   await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
   await A.p.selectOption('#rsTypeSel', t2.id);
   await A.p.locator('#rsPaper', { hasText: 'FM.LS.07' }).waitFor();
-  const fm = await A.p.evaluate(() => ({ html: document.querySelector('#rsPaper').innerHTML, dn: document.querySelectorAll('#rsPaper .rd-dn').length, hl: document.querySelectorAll('#rsPaper td.hl').length, rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length }));
+  const fm = await A.p.evaluate(() => ({ html: document.querySelector('#rsPaper').innerHTML.replace(/<br>/g, ' '), dn: document.querySelectorAll('#rsPaper .rd-dn').length, hl: document.querySelectorAll('#rsPaper td.hl').length, rows: document.querySelectorAll('#rsPaper .rd-grid tbody tr').length }));
   if (fm.dn || !fm.html.includes('Topl İzin') || !fm.html.includes('%10 ZAMLI') || !fm.html.includes('GECE MESAİSİ') || fm.hl !== fm.rows) fail('fazla mesai listesi (özet) yanlış: ' + JSON.stringify({ dn: fm.dn, hl: fm.hl, rows: fm.rows }));
   const fmPdf = await (async () => { const h = await A.p.evaluate(() => `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body>${rsDocHtml(rsModel(), { page: true })}</body></html>`); const PG2 = await browser.newPage(); await PG2.setContent(h); const b = await PG2.pdf({ preferCSSPageSize: true, printBackground: true }); await PG2.close(); return b; })();
   fs.writeFileSync(path.join(OUT, 'r-fazla-mesai.pdf'), fmPdf);
   if ((fmPdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length !== 1) fail('fazla mesai listesi tek sayfa değil');
   const fmx = Buffer.from(await blobBytes(A.p, 'rsXlsx'));
   const fxp = path.join(OUT, 'r-fazla-mesai.xlsx'); fs.writeFileSync(fxp, fmx);
-  if (!execFileSync('unzip', ['-p', fxp, 'xl/sharedStrings.xml'], { encoding: 'utf8' }).includes('Topl İzin')) fail('fazla mesai listesi Excel’de sütun başlığı yok');
+  if (!execFileSync('unzip', ['-p', fxp, 'xl/sharedStrings.xml'], { encoding: 'utf8' }).replace(/\s*\n\s*/g, ' ').includes('Topl İzin')) fail('fazla mesai listesi Excel’de sütun başlığı yok');
   const fmd = Buffer.from(await blobBytes(A.p, 'rsDocx'));
   const fdp = path.join(OUT, 'r-fazla-mesai.docx'); fs.writeFileSync(fdp, fmd);
   const fdx = execFileSync('unzip', ['-p', fdp, 'word/document.xml'], { encoding: 'utf8' });
@@ -310,6 +337,41 @@ try {
   if ((await snap()) !== before) fail('art arda geri al çizelgeyi eski hâline döndürmedi');
   step('kolay düzenleme: “yalnız nöbetleri temizle” (izin / rapor kaldı), “tüm çizelgeyi temizle”, kişinin nöbetlerini temizle, günü temizle; her biri Geri al ile aynen geri döndü');
 
+  // Unvan: daha önce eklenen unvanlardan seç, unvanı boş olanlara da ver, yeni eklenene kendiliğinden; toplu düzenleme
+  const emptyT = await A.p.evaluate(() => PL2.d.people.filter((p) => !p.title).map((p) => p.name));
+  if (!emptyT.length) fail('unvan testi için unvanı boş kişi yok');
+  await A.p.click(`[data-act=pl2-pmenu][data-n="${emptyT[0]}"]`);
+  await A.p.locator('.modal [data-o=title]').click();
+  await A.p.locator('#pl2TChips [data-t="Hemşire"]').click();
+  if ((await A.p.locator('#pl2TIn').inputValue()) !== 'Hemşire') fail('unvan çipi seçilmedi');
+  if (await A.p.locator('#pl2TAll').count()) await A.p.check('#pl2TAll');
+  await A.p.check('#pl2TDef');
+  await A.p.locator('.modal').last().screenshot({ path: path.join(OUT, 'r-unvan.png') });
+  await A.p.click('#pl2TGo');
+  await expectText(A.p, emptyT.length > 1 ? 'Unvan verildi' : 'Unvan kaydedildi');
+  const tt = await A.p.evaluate(() => ({ e: PL2.d.people.filter((p) => !p.title).length, def: PL2.titles.def }));
+  if (tt.e || tt.def !== 'Hemşire') fail('unvan herkese / varsayılan olarak verilmedi: ' + JSON.stringify(tt));
+  await A.p.evaluate(() => planSave(true));
+  const pg = await apiCall(A.p, 'plan.get', { roster_id: ro.id, ym });
+  if (pg.titles.def !== 'Hemşire' || !pg.titles.known.includes('Hemşire') || !Object.values(pg.titles.map).includes('Hemşire')) fail('unvan hatırlanmadı: ' + JSON.stringify(pg.titles).slice(0, 300));
+  // Yeni eklenen kişiye varsayılan unvan kendiliğinden
+  await A.p.evaluate(() => ACT['pl2-addp']());
+  await A.p.locator('#pl2AddName').fill('Deniz Deneme');
+  await A.p.click('#pl2AddGo');
+  await expectText(A.p, '1 kişi eklendi');
+  if ((await A.p.evaluate(() => (PL2.d.people.find((p) => p.name === 'Deniz Deneme') || {}).title)) !== 'Hemşire') fail('yeni eklenen kişiye varsayılan unvan verilmedi');
+  // Toplu: Unvanlar penceresi
+  await A.p.evaluate(() => ACT['pl2-titles']());
+  const di = await A.p.evaluate(() => PL2.d.people.findIndex((p) => p.name === 'Deniz Deneme'));
+  await A.p.locator(`.pl2-tlist input[data-i="${di}"]`).fill('Ebe');
+  await A.p.locator('#pl2TDefIn').fill('');
+  await A.p.click('#pl2TSave');
+  await expectText(A.p, 'Unvanlar kaydedildi');
+  const t3 = await A.p.evaluate(() => ({ d: (PL2.d.people.find((p) => p.name === 'Deniz Deneme') || {}).title, def: PL2.titles.def }));
+  if (t3.d !== 'Ebe' || t3.def !== '') fail('toplu unvan düzenleme: ' + JSON.stringify(t3));
+  await A.p.evaluate(() => { PL2.d.people = PL2.d.people.filter((p) => p.name !== 'Deniz Deneme'); delete PL2.d.cells['Deniz Deneme']; planDirty(); planDraw(); return planSave(true); });
+  step(`unvan: kişi menüsünden hazır unvan (çip) seçildi, unvanı boş ${emptyT.length - 1} kişiye de verildi, varsayılan yapıldı ve hatırlandı; yeni eklenen kişiye kendiliğinden “Hemşire”; toplu Unvanlar penceresi çalışıyor`);
+
   await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
 
   // ---- 7) Tek sayfa PDF, Word, Excel ----
@@ -323,6 +385,28 @@ try {
   await PG.close();
   // Kalabalık birim: 20 ve 30 kişi de tek sayfaya sığmalı
   // LibreOffice ile basılınca kaç sayfa (Word / Excel çıktısının A4'e sığması); soffice yoksa denetim atlanır
+  const soPdf = (file) => {
+    try {
+      const dir = fs.mkdtempSync(path.join(OUT, 'so-'));
+      execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', dir, file], { stdio: 'ignore', timeout: 120000 });
+      const f = fs.readdirSync(dir).find((x) => x.endsWith('.pdf'));
+      return f ? path.join(dir, f) : null;
+    } catch (e) { return null; }
+  };
+  // Sayfadaki tablonun kutusu (mm): koyu dikey / yatay çizgilerin sınırları
+  const BOX_PY = `import sys, subprocess, tempfile, os
+from PIL import Image
+d = tempfile.mkdtemp(); out = []
+for pdf in sys.argv[1:]:
+    subprocess.run(['pdftoppm', '-r', '100', '-gray', '-png', '-f', '1', '-l', '1', pdf, os.path.join(d, 'x')], check=True)
+    f = [x for x in os.listdir(d) if x.startswith('x')][0]
+    im = Image.open(os.path.join(d, f)).convert('L'); os.remove(os.path.join(d, f))
+    w, h = im.size; px = im.load()
+    cols = [x for x in range(w) if sum(1 for y in range(0, h, 2) if px[x, y] < 128) > h * 0.125]
+    rows = [y for y in range(h) if sum(1 for x in range(0, w, 2) if px[x, y] < 128) > w * 0.25]
+    out.append([round(v / 100 * 25.4, 1) for v in (cols[0], cols[-1], rows[0], rows[-1])])
+print(out)`;
+  const pdfBoxes = (...pdfs) => { try { return JSON.parse(execFileSync('python3', ['-I', '-c', BOX_PY, ...pdfs], { encoding: 'utf8', timeout: 60000 })); } catch (e) { return null; } };
   const soPages = (file) => {
     try {
       const dir = fs.mkdtempSync(path.join(OUT, 'so-'));
@@ -334,6 +418,7 @@ try {
     } catch (e) { return null; }
   };
   // Kalabalık birim: 20 ve 30 kişi, uzun ad ve unvan — PDF, Word ve Excel A4 yatay tek sayfa, hücrede taşan yazı yok
+  const parity = [];
   for (const N of [20, 30]) {
     const big = await A.p.evaluate(async ([N, c24, c8, yi]) => {
       const keep = PL2.d;
@@ -348,12 +433,13 @@ try {
       PL2.d = keep;
       return { h, dx, xx };
     }, [N, nov.c24, nov.c8, nov.yi]);
+    fs.writeFileSync(path.join(OUT, `r-resmi-${N}.html`), big.h);
     const PB = await browser.newPage();
     await PB.setContent(big.h, { waitUntil: 'load' });
     const over = await PB.evaluate(() => [...document.querySelectorAll('.rd-grid td')].filter((td) => td.scrollWidth > td.clientWidth + 1 || td.scrollHeight > td.clientHeight + 2).map((td) => td.textContent.trim()).slice(0, 5));
     if (over.length) fail(`${N} kişilik resmi listede hücreden taşan yazı: ${over.join(' | ')}`);
     const pb = await PB.pdf({ preferCSSPageSize: true, printBackground: true });
-    if (N === 20) fs.writeFileSync(path.join(OUT, 'r-resmi-20.pdf'), pb);
+    fs.writeFileSync(path.join(OUT, `r-resmi-${N}.pdf`), pb);
     const pn = (pb.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
     if (pn !== 1) fail(`${N} kişilik resmi liste ${pn} sayfa (tek sayfa olmalı)`);
     await PB.close();
@@ -363,8 +449,16 @@ try {
       const r = soPages(f);
       if (r && (r.pages !== 1 || !r.land)) fail(`${N} kişilik ${t} çıktısı A4 yatay tek sayfa değil: ${JSON.stringify(r)}`);
     }
+    // Göründüğü gibi: Word çıktısında tablonun yeri ve boyu PDF ile aynı (±1,5 mm)
+    const wp = soPdf(dF), bx = wp ? pdfBoxes(path.join(OUT, `r-resmi-${N}.pdf`), wp) : null;
+    if (bx) {
+      const [h, w] = bx;
+      if (h.some((v, i) => Math.abs(v - w[i]) > 1.5)) fail(`${N} kişilik Word çıktısı PDF ile aynı görünmüyor (tablo kutusu mm): PDF ${h.join('/')} · Word ${w.join('/')}`);
+      const f1 = (v) => v.toFixed(1).replace('.', ',');
+      parity.push(`${N} kişi: PDF ${f1(h[1] - h[0])}×${f1(h[3] - h[2])} mm, Word ${f1(w[1] - w[0])}×${f1(w[3] - w[2])} mm`);
+    }
   }
-  step('kalabalık birim (20 ve 30 kişi, uzun ad ve unvan): PDF, Word ve Excel A4 yatay tek sayfa; hücrelerden taşan yazı yok');
+  step(`kalabalık birim (20 ve 30 kişi, uzun ad ve unvan): PDF, Word ve Excel A4 yatay tek sayfa; hücrelerden taşan yazı yok; ${parity.length ? 'Word = PDF (' + parity.join('; ') + ')' : 'görünüş karşılaştırması atlandı (LibreOffice / PIL yok)'}`);
   const docx = Buffer.from(await blobBytes(A.p, 'rsDocx'));
   const dpath = path.join(OUT, 'r-resmi.docx'); fs.writeFileSync(dpath, docx);
   execFileSync('unzip', ['-tq', dpath]);
@@ -378,7 +472,7 @@ try {
   const xlsx = Buffer.from(await blobBytes(A.p, 'rsXlsx'));
   const xpath = path.join(OUT, 'r-resmi.xlsx'); fs.writeFileSync(xpath, xlsx);
   execFileSync('unzip', ['-tq', xpath]);
-  const ss = execFileSync('unzip', ['-p', xpath, 'xl/sharedStrings.xml'], { encoding: 'utf8' });
+  const ss = execFileSync('unzip', ['-p', xpath, 'xl/sharedStrings.xml'], { encoding: 'utf8' }).replace(/\s*\n\s*/g, ' ');
   if (!ss.includes('KY.LS.99') || !ss.includes('ÇALIŞILMASI GEREKEN SAAT') || !ss.includes('SELİN ÖRNEK')) fail('Excel çıktısı eksik');
   if (!execFileSync('unzip', ['-l', xpath], { encoding: 'utf8' }).includes('xl/media/')) fail('Excel çıktısında logo yok');
   const dlb = A.p.waitForEvent('download');

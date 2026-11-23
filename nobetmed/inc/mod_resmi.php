@@ -252,6 +252,11 @@ function plan_type_clean(array $t, int $i): array
     $o['sig'] = [];
     foreach (array_slice((array)($t['sig'] ?? []), 0, 4) as $x) if (is_array($x)) $o['sig'][] = ['t' => $str($x['t'] ?? '', 80), 'n' => $str($x['n'] ?? '', 80)];
     $o['shade'] = !array_key_exists('shade', $t) || !empty($t['shade']);
+    // Sütun genişlikleri (mm; 0 / yok = otomatik)
+    $lim = ['no' => [4, 15], 'name' => [15, 90], 'unvan' => [8, 60], 'h' => [5, 40]];
+    $w = [];
+    foreach ($lim as $k => [$lo, $hi]) { $v = (float)(((array)($t['widths'] ?? []))[$k] ?? 0); if ($v > 0) $w[$k] = round(max($lo, min($hi, $v)) * 2) / 2; }
+    $o['widths'] = (object)$w;
     return $o;
 }
 function plan_tpl_clean(array $t): array

@@ -1128,3 +1128,20 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
 - Fazla çalışanın **otomatik yazılan** nöbeti az çalışana geçer. 24 saatlik nöbet bütün olarak ya da **08-16 / 16-08 parçalarına bölünerek** paylaştırılır (ör. 08-16 bir kişide kalır, 16-08 diğerine geçer); hangisi farkı daha çok kapatıyorsa o seçilir.
 - Gün gün gündüz / gece ihtiyacı hiç azalmaz; birim kuralları (24 saatten sonra dinlenme, iki nöbet arası en çok boşluk, art arda gün) her iki kişi için de denetlenir.
 - Elle yazılan hücrelere, isteklere ve izinlere dokunulmaz. Sonuç mesajında kaç değişiklik yapıldığı yazar; beğenmezseniz **Geri al**.
+
+## 59. Resmi liste: göründüğü gibi Word / Excel, sütun genişlikleri, unvan seçimi (4.39.0)
+### Word ve Excel, ekranda ve PDF’te göründüğü gibi
+- Önizleme, Yazdır / PDF, Word ve Excel artık **aynı ölçülerden** üretilir: her sütun genişliği (mm), satır yüksekliği, yazı boyutu (0,5 punto adımlı) ve satır kırılımı bir kez hesaplanır, üç çıktı da birebir kullanır.
+- Yazılar kendiliğinden kaydırılmaz; iki satıra inen unvan ve sütun başlıkları her çıktıda aynı yerden bölünür. Gün adları her çıktıda harf harf alt alta, hesap sütunu başlıkları aşağıdan yukarı yazılır.
+- Word’de “yazıyı sığdır” (harfleri esneten) özelliği kaldırıldı; hücre ölçüleri PDF ile aynıdır (20 ve 30 kişilik listede tablo PDF ile ±0,2 mm aynı çıktı).
+- Excel’de sütun genişlikleri ve satır yükseklikleri milimetreden hesaplanır; başlık kutusu (logo / başlık / doküman kutusu) ve imzalar tablo sütunlarına oturur. Not: LibreOffice Excel sütun birimini biraz geniş yorumlar; orada sayfa yine tek parça ama yaklaşık %5 küçük basılır. Microsoft Excel’de ölçüler aynıdır.
+
+### Sütun genişlikleri
+- Resmi liste sekmesinde **Sütun genişlikleri**: Sıra No, Adı soyadı, Unvan ve hesap sütunları için − / + ya da milimetre yazarak. Daraltılan sütunun yeri gün sütunlarına kalır; önizleme hemen değişir, liste türüne kaydedilir (her liste türünün kendi genişlikleri olur).
+- **Yazıya göre sığdır**: en uzun ad ve unvana göre genişlik. **Varsayılan**: otomatik genişliğe döner.
+
+### Unvanlar
+- Çizelgede kişinin adına dokunun › **Unvan**: daha önce eklenen unvanlar (Yönetim › Ünvanlar’daki tanımlar ve daha önce yazılanlar) dokunarak seçilir; yeni unvan da yazılabilir.
+  - “Unvanı boş olan N kişiye de ver” ve “Yeni eklenen kişilere bu unvan kendiliğinden verilsin” seçenekleri.
+- **⋯ › Unvanlar (toplu seç)**: herkes tek ekranda; seçilen unvanı “boş olanlara” ya da “hepsine” verin; yeni eklenenler için varsayılan unvan.
+- Kişiye verilen unvan **hatırlanır**: sonraki aylarda, başka listede ya da kişi yeniden eklendiğinde kendiliğinden gelir. Unvanı olmayan yeni kişiye (Kişi ekle, yapıştır, yeni ay çizelgesi) varsayılan unvan yazılır.

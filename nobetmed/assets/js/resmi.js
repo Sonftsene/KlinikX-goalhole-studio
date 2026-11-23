@@ -142,73 +142,207 @@ function rsModel() {
   };
 }
 const RS_DAY_UP = (d) => TR_DAYS[new Date(d + 'T12:00:00').getDay()].toLocaleUpperCase('tr');
-/** Yazının sütuna sığacağı punto (Arial ortalama karakter ≈ 0,6 em; büyük harfte ≈ 0,68 em) */
-function rsFitPt(text, mm, basePt, minPt = 3.2) {
-  const t = String(text || '');
-  if (!t) return basePt;
-  const em = /[a-zçğıöşü]/.test(t) ? 0.58 : 0.68;
-  return Math.max(minPt, Math.min(basePt, ((mm - 1) * 2.835) / (t.length * em)));
+
+/* ---------------- Ortak ölçüler: önizleme, PDF, Word ve Excel aynı sayılarla çizilir ----------------
+ * Her sütun genişliği, satır yüksekliği, yazı boyutu (0,5 punto adımlı) ve satır kırılımı burada bir kez
+ * hesaplanır; üç çıktı da bu sayıları birebir kullanır (yazı kendiliğinden kaydırılmaz, satır sonları açıkça yazılır). */
+const RS_W = 279;      // tablo genişliği (mm): A4 yatay 297 − 2 × 7 mm kenar boşluğu − 4 mm pay
+const RS_H = 191;      // kullanılabilir yükseklik (mm): 210 − 2 × 7 − 5 mm pay (çizgiler, yuvarlama)
+const RS_LH = 1.15;    // satır aralığı (Arial “tek satır”: Word, Excel ve tarayıcıda aynı)
+const RS_PAD = 0.9;    // hücre iç boşluğu toplamı (mm; sağ + sol)
+const rsF5 = (pt) => Math.max(1, Math.floor(pt * 2 + 1e-6) / 2);
+const RS_AW = (() => {
+  const m = {};
+  const set = (s, w) => { for (const c of s) m[c] = w; };
+  set('ABEKPSVXYŞ', 0.667); set('CDHNRUÇÜ', 0.722); set('GOQĞÖ', 0.778); set('FTZ', 0.611); set('Iİ', 0.278); set('J', 0.5); set('L', 0.556); set('M', 0.833); set('W', 0.944);
+  set('0123456789', 0.556); set(' ', 0.278); set('.,:;/!', 0.278); set('-()', 0.333); set('%', 0.889); set('+=<>', 0.584);
+  set('abcdeghknopqsuvxyzçğöşü', 0.556); set('fjrtı', 0.3); set('il', 0.222); set('mw', 0.833);
+  return m;
+})();
+/** Yazının Arial’da em cinsinden genişliği (kalın yazı ≈ %6 geniş, %4 güvenlik payı) */
+function rsEm(t, bold) { let w = 0; for (const ch of String(t == null ? '' : t)) w += RS_AW[ch] || 0.62; return w * (bold ? 1.06 : 1) * 1.04; }
+const rsTextMm = (t, pt, bold) => (rsEm(t, bold) * pt) / 2.835;
+/** Tek satırda sütuna sığan punto (0,5 adımlı; üst sınır base) */
+function rsFit(t, mm, base, bold, min = 3) { const em = rsEm(t, bold); return rsF5(Math.max(min, em ? Math.min(base, ((mm - RS_PAD) * 2.835) / em) : base)); }
+/** Kelimeleri k satıra en kısa uzun satırla böl */
+function rsSplit(words, k, bold) {
+  let best = null;
+  const rec = (i, left, acc) => {
+    if (left === 1) { const l = acc.concat([words.slice(i).join(' ')]); const mx = Math.max(...l.map((x) => rsEm(x, bold))); if (!best || mx < best.mx) best = { l, mx }; return; }
+    for (let j = i + 1; j <= words.length - left + 1; j++) rec(j, left - 1, acc.concat([words.slice(i, j).join(' ')]));
+  };
+  rec(0, k, []);
+  return best.l;
 }
-/** Sütun genişlikleri (mm, toplam 279: sağ kenar çizgisi sayfa sınırına denk gelip kırpılmasın) */
+/** Yazıyı en çok maxLines satıra böl: satır uzunluğu len mm, satırların dizildiği yön across mm; en büyük puntoyu veren bölüm */
+function rsWrap(text, len, across, base, bold, maxLines = 2, min = 3) {
+  const t = String(text == null ? '' : text).trim();
+  const words = t.split(/\s+/).filter(Boolean);
+  const hp = (k) => rsF5(((across - 0.5) * 2.835) / (k * RS_LH));
+  let best = { lines: [t], pt: Math.max(min, Math.min(rsFit(t, len, base, bold, min), hp(1))) };
+  for (let k = 2; k <= Math.min(maxLines, words.length); k++) {
+    const lines = rsSplit(words, k, bold);
+    const pt = Math.max(min, Math.min(...lines.map((l) => rsFit(l, len, base, bold, min)), hp(k)));
+    if (pt > best.pt + 0.01) best = { lines, pt };
+  }
+  return best;
+}
+/** Sütun genişlikleri (mm). Şablondaki elle ayar (T.widths) önce gelir; gün sütunları kalan genişliği paylaşır. */
 function rsWidths(M) {
-  const noW = M.cols.sira ? 6 : 0, nameW = M.days.length ? 36 : 52, titleW = M.cols.unvan ? (M.days.length ? 22 : 34) : 0;
-  const left = 279 - noW - nameW - titleW;
-  const hW = M.days.length ? 9 : Math.min(34, left / Math.max(1, M.sum.length));
-  const dayW = M.days.length ? Math.max(4.4, (left - M.sum.length * hW) / M.days.length) : 0;
-  return { noW, nameW, titleW, hW, dayW };
+  const hasDays = M.days.length > 0, u = (M.T && M.T.widths) || {};
+  const pick = (k, def) => (+u[k] > 0 ? +u[k] : def);
+  const noW = M.cols.sira ? pick('no', 6) : 0;
+  let nameW = pick('name', hasDays ? 36 : 52), titleW = M.cols.unvan ? pick('unvan', hasDays ? 22 : 34) : 0;
+  let hW = M.sum.length ? pick('h', hasDays ? 9 : 0) : 0;
+  if (!hasDays) {
+    if (!hW) hW = Math.min(34, (RS_W - noW - nameW - titleW) / Math.max(1, M.sum.length));
+    nameW = Math.max(12, RS_W - noW - titleW - hW * M.sum.length);
+    return { noW, nameW, titleW, hW, dayW: 0, auto: { name: true } };
+  }
+  const fixed = noW + nameW + titleW + hW * M.sum.length;
+  let dayW = (RS_W - fixed) / M.days.length;
+  const minDay = 4.4;
+  if (dayW < minDay) { const k = (RS_W - minDay * M.days.length - noW) / (fixed - noW); nameW *= k; titleW *= k; hW *= k; dayW = minDay; }
+  return { noW, nameW, titleW, hW, dayW, auto: {} };
+}
+/** “Yazıya göre sığdır”: ad, unvan ve hesap sütunu en uzun yazıya göre (mm) */
+function rsAutoWidths(M) {
+  const hasDays = M.days.length > 0;
+  const n = Math.max(1, M.rows.length);
+  const rowMm = Math.max(3, Math.min(6.2, 118 / n)), fs = rsF5(Math.max(4.5, Math.min(7.5, rowMm * 1.15)));
+  const nm = Math.max(rsTextMm('ADI SOYADI', 7, true), ...M.rows.map((r) => rsTextMm(r.name.toLocaleUpperCase('tr'), fs))) + RS_PAD + 0.6;
+  const un = Math.max(rsTextMm('UNVAN', 7, true), ...M.rows.map((r) => { const w = String(r.title || '').toLocaleUpperCase('tr').split(/\s+/).filter(Boolean); if (!w.length) return 0; const l = w.length > 1 ? rsSplit(w, 2, false) : w; return Math.max(...l.map((x) => rsTextMm(x, fs - 0.5))); })) + RS_PAD + 0.6;
+  const hv = Math.max(...M.rows.flatMap((r) => M.sum.map((k) => rsTextMm(rsVal(r.h, k), hasDays ? fs : Math.min(9, fs + 1.5), true))), 0) + RS_PAD + 1;
+  const r1 = (x) => Math.round(x * 2) / 2;
+  return { no: 6, name: r1(Math.min(80, Math.max(18, nm))), unvan: r1(Math.min(60, Math.max(10, un))), h: hasDays ? r1(Math.min(20, Math.max(6, hv))) : 0 };
+}
+
+/** Bütün çıktıların ortak yerleşimi */
+function rsLayout(M) {
+  const hasDays = M.days.length > 0;
+  const W = rsWidths(M);
+  const cols = [...(M.cols.sira ? [W.noW] : []), W.nameW, ...(M.cols.unvan ? [W.titleW] : []), ...M.days.map(() => W.dayW), ...M.sum.map(() => W.hW)];
+  const C = cols.length;
+  const edges = [0];
+  cols.forEach((w) => edges.push(edges[edges.length - 1] + w));
+  const total = edges[C];
+  const near = (x, lo, hi) => { let b = Math.max(0, Math.min(lo, hi)); for (let i = lo; i <= hi; i++) if (Math.abs(edges[i] - x) < Math.abs(edges[b] - x)) b = i; return b; };
+  // Başlık kutusu sütunları tablonun sütun sınırlarına oturur (Excel’de aynı hücreler birleşir)
+  // Logo kutusu en az ~18 mm, doküman kutusu en az ~30 mm olacak sütun sınırı (yoksa en yakını)
+  const nearMin = (x, lo, hi, ok) => { const c = []; for (let i = lo; i <= hi; i++) if (ok(i)) c.push(i); if (!c.length) return near(x, lo, hi); return c.reduce((b, i) => (Math.abs(edges[i] - x) < Math.abs(edges[b] - x) ? i : b), c[0]); };
+  const logoC = C >= 3 ? nearMin(30, 1, C - 2, (i) => edges[i] >= 18 && edges[i] <= 70) : 0;
+  const boxC = C >= 2 ? nearMin(total - 46, logoC + 1, C - 1, (i) => total - edges[i] >= 30 && total - edges[i] <= 90) : C;
+  const split = M.docLabels && boxC <= C - 2;
+  const lblC = split ? near(edges[boxC] + (total - edges[boxC]) * 0.45, boxC + 1, C - 1) : boxC;
+  const N = Math.max(1, M.doc.length);
+  const head = { N, logoC, boxC, lblC, split, logoW: edges[logoC], midW: edges[boxC] - edges[logoC], boxW: total - edges[boxC], lblW: edges[lblC] - edges[boxC], valW: total - edges[lblC] };
+  head.lines = M.lines.map((l, i) => ({ t: l, pt: rsFit(l, head.midW - 3, i === M.lines.length - 1 ? 9.5 : 8.5, true, 5) }));
+  const linesMm = head.lines.reduce((a, x) => a + (x.pt * RS_LH) / 2.835, 0);
+  head.mm = Math.max(18, N * 4.4, linesMm + 3);
+  head.rowMm = head.mm / N;
+  head.logoBox = { w: Math.max(4, head.logoW - 3), h: Math.max(4, Math.min(18, head.mm - 3)) };
+  const docPt = (t, mm, b) => Math.min(rsFit(t, mm, 6.5, b, 3.5), rsF5(((head.rowMm - 0.6) * 2.835) / RS_LH));
+  head.doc = M.doc.map((x) => (split ? { l: x.l, v: x.v, lp: docPt(x.l, head.lblW, true), vp: docPt(x.v, head.valW, false) } : { v: M.docLabels ? (x.l && x.v ? `${x.l}: ${x.v}` : x.l || x.v) : x.v, vp: docPt(M.docLabels ? `${x.l}: ${x.v}` : x.v, head.boxW, false) }));
+  // Tablo başlığı
+  const dnPt = hasDays ? rsF5(Math.min(4.5, ((W.dayW - RS_PAD) * 2.835) / 0.85)) : 0;
+  const maxL = hasDays ? Math.max(...M.days.map((d) => RS_DAY_UP(d).length)) : 0;
+  const dnMm = hasDays ? Math.ceil(((maxL * dnPt * RS_LH) / 2.835 + 1.5) * 2) / 2 : 0;
+  const sigMm = M.sig.length ? 6 + 4 + 4 + 10 : 0;
+  const n = Math.max(1, M.rows.length);
+  // Satır yüksekliği: sayfaya sığacak kadar (kişi sayısına göre)
+  const ddGuess = 4.5;
+  const avail = RS_H - head.mm - 2 - (hasDays ? dnMm + ddGuess : 34) - sigMm;
+  const rowMm = Math.floor(Math.max(3, Math.min(6.2, avail / n)) * 10) / 10;
+  const fs = rsF5(Math.max(4.5, Math.min(7.5, rowMm * 1.15)));
+  const ddMm = hasDays ? Math.max(3.8, Math.min(ddGuess, rowMm)) : 0;
+  const hdrMm = hasDays ? dnMm + ddMm : 34;
+  const hdr = {
+    dnMm, ddMm, mm: hdrMm, dnPt,
+    ddPt: hasDays ? Math.min(rsF5(Math.min(7, fs + 0.5)), rsFit('31', W.dayW, 7, true)) : 0,
+    no: M.cols.sira ? rsWrap('Sıra No', W.noW, hdrMm, 6, true, 2) : null,
+    name: rsFit('ADI SOYADI', W.nameW, 7, true),
+    unvan: M.cols.unvan ? rsFit('UNVAN', W.titleW, 7, true) : 0,
+    sum: M.sum.map((k) => rsWrap(M.labels[k], hdrMm - 1.5, W.hW, hasDays ? 5.5 : 7, true, 4)),
+  };
+  const hPt = hasDays ? fs : Math.min(9, fs + 1.5);
+  const rows = M.rows.map((r) => {
+    const nm = r.name.toLocaleUpperCase('tr'), un = r.title.toLocaleUpperCase('tr');
+    return {
+      no: String(r.no), noPt: M.cols.sira ? rsFit(String(r.no), W.noW, fs) : 0,
+      name: nm, namePt: rsFit(nm, W.nameW, fs),
+      unvan: M.cols.unvan ? rsWrap(un, W.titleW, rowMm, fs - 0.5, false, 2) : null,
+      cells: r.cells.map((c) => ({ t: c, pt: rsFit(c, W.dayW, fs - 0.5) })),
+      h: M.sum.map((k) => { const t = rsVal(r.h, k); return { t, pt: rsFit(t, W.hW, hPt, M.hl.has(k)) }; }),
+    };
+  });
+  // İmzalar: tablo genişliği imza sayısına bölünür, sınırlar sütun sınırlarına oturur
+  const sig = [];
+  if (M.sig.length) {
+    const S = Math.min(M.sig.length, C);
+    let prev = 0;
+    for (let k = 1; k <= S; k++) {
+      const e = k === S ? C : near((k * total) / S, prev + 1, C - (S - k));
+      const w = edges[e] - edges[prev];
+      const s = M.sig[k - 1];
+      sig.push({ c0: prev, c1: e, w, t: s.t.toLocaleUpperCase('tr'), tp: rsFit(s.t.toLocaleUpperCase('tr'), w - 6, 7.5, true, 4), n: s.n, np: rsFit(s.n, w - 6, 7.5, false, 4) });
+      prev = e;
+    }
+  }
+  return { W, cols, C, edges, total, head, hdr, rows, rowMm, fs, sig, sigRows: [6, 4, 4, 10], gap: 2 };
 }
 
 /** Önizleme ve yazdırma için HTML (yalnız güvenli kaçışlı metin) */
 function rsDocHtml(M, opts = {}) {
-  const e = esc;
-  const n = M.rows.length;
-  // Tek sayfaya sığdırma: satır yüksekliği ve yazı boyutu kişi sayısına göre
-  const rowMm = Math.max(3.4, Math.min(6.2, 118 / Math.max(1, n)));
-  const fs = Math.max(4.6, Math.min(7.5, rowMm * 1.15));
-  const W = rsWidths(M);
-  const hasDays = M.days.length > 0;
-  const hc = (k) => `${M.hl.has(k) ? ' hl' : ''}`;
-  const head = `<table class="rd-head"><tr>
-    <td class="rd-logo">${M.logo ? `<img src="${e(M.logo)}" alt="">` : ''}</td>
-    <td class="rd-title">${M.lines.map((l, i) => `<div class="${i === M.lines.length - 1 ? 'rd-t-main' : ''}">${e(l)}</div>`).join('')}</td>
-    <td class="rd-docbox">${M.doc.length ? `<table>${M.doc.map((x) => `<tr>${M.docLabels ? `<td class="rd-dl">${e(x.l)}</td>` : ''}<td class="rd-dv">${e(x.v)}</td></tr>`).join('')}</table>` : ''}</td></tr></table>`;
+  const e = esc, L = rsLayout(M), H = L.head, hasDays = M.days.length > 0;
+  const mm = (x) => `${(+x).toFixed(2)}mm`;
+  const lines = (a) => a.map(e).join('<br>');
+  const off = (i) => (M.shade && M.off[i] ? ' off' : '');
+  const hl = (k) => (M.hl.has(k) ? ' hl' : '');
+  // Başlık: logo | satırlar | doküman kutusu (Word ve Excel’de aynı ızgara)
+  const hcols = [H.logoW, H.midW, ...(H.split ? [H.lblW, H.valW] : H.boxW ? [H.boxW] : [])].filter((w) => w > 0);
+  const logoImg = M.logo ? `<img src="${e(M.logo)}" alt="" style="max-width:${mm(H.logoBox.w)};max-height:${mm(H.logoBox.h)}">` : '';
+  const hrows = [];
+  for (let r = 0; r < H.N; r++) {
+    const x = H.doc[r];
+    const first = r === 0 ? `${H.logoW ? `<td class="rd-logo" rowspan="${H.N}">${logoImg}</td>` : ''}<td class="rd-title" rowspan="${H.N}">${H.lines.map((l) => `<div style="font-size:${l.pt}pt">${e(l.t)}</div>`).join('')}</td>` : '';
+    const box = !H.boxW ? '' : H.split ? `<td class="rd-dl" style="font-size:${x ? x.lp : 6.5}pt">${x ? e(x.l) : ''}</td><td class="rd-dv" style="font-size:${x ? x.vp : 6.5}pt">${x ? e(x.v) : ''}</td>` : `<td class="rd-dv" style="font-size:${x ? x.vp : 6.5}pt">${x ? e(x.v) : ''}</td>`;
+    hrows.push(`<tr style="height:${mm(H.rowMm)}">${first}${box}</tr>`);
+  }
+  const head = `<table class="rd-head" style="width:${mm(L.total)}"><colgroup>${hcols.map((w) => `<col style="width:${mm(w)}">`).join('')}</colgroup>${hrows.join('')}</table>`;
   const rs = hasDays ? ' rowspan="2"' : '';
-  const th = `<tr>${M.cols.sira ? `<th class="rd-no"${rs}>Sıra<br>No</th>` : ''}<th class="rd-name"${rs}>ADI SOYADI</th>${M.cols.unvan ? `<th class="rd-unv"${rs}>UNVAN</th>` : ''}
-    ${M.days.map((d, i) => `<th class="rd-dn ${M.shade && M.off[i] ? 'off' : ''}"><span>${e(RS_DAY_UP(d))}</span></th>`).join('')}
-    ${M.sum.map((k) => `<th class="rd-hc${hc(k)}"${rs}><span>${e(M.labels[k])}</span></th>`).join('')}</tr>
-    ${hasDays ? `<tr>${M.days.map((d, i) => `<th class="rd-dd ${M.shade && M.off[i] ? 'off' : ''}">${+d.slice(8)}</th>`).join('')}</tr>` : ''}`;
-  const fz = (t, mm, base) => `font-size:${rsFitPt(t, mm, base).toFixed(2)}pt`;
-  const unvPt = (t) => { const half = Math.ceil(String(t || '').length / 2) + 1; return Math.min(Math.max(4, fs - 1.2), rowMm / 0.78, rsFitPt('X'.repeat(half), W.titleW, 9)); };
-  const body = M.rows.map((r) => { const nm = r.name.toLocaleUpperCase('tr'), un = r.title.toLocaleUpperCase('tr'); return `<tr>${M.cols.sira ? `<td class="rd-no">${r.no}</td>` : ''}<td class="rd-name" style="${fz(nm, W.nameW, Math.max(4.4, fs - .4))}">${e(nm)}</td>${M.cols.unvan ? `<td class="rd-unv" style="font-size:${unvPt(un).toFixed(2)}pt">${e(un)}</td>` : ''}
-    ${r.cells.map((c, i) => `<td class="rd-c ${M.shade && M.off[i] ? 'off' : ''}" style="${fz(c, W.dayW, Math.max(4, fs - .9))}">${e(c)}</td>`).join('')}
-    ${M.sum.map((k) => `<td class="rd-h${hc(k)}">${rsVal(r.h, k)}</td>`).join('')}</tr>`; }).join('');
-  const sig = M.sig.length ? `<table class="rd-sig"><tr>${M.sig.map((s) => `<td><b>${e(s.t.toLocaleUpperCase('tr'))}</b><div class="rd-sn">${e(s.n)}</div><div class="rd-sl"></div></td>`).join('')}</tr></table>` : '';
+  const hd = L.hdr;
+  const th1 = `<tr style="height:${mm(hasDays ? hd.dnMm : hd.mm)}">${M.cols.sira ? `<th class="rd-no"${rs} style="font-size:${hd.no.pt}pt">${lines(hd.no.lines)}</th>` : ''}<th class="rd-name"${rs} style="font-size:${hd.name}pt">ADI SOYADI</th>${M.cols.unvan ? `<th class="rd-unv"${rs} style="font-size:${hd.unvan}pt">UNVAN</th>` : ''}`
+    + M.days.map((d, i) => `<th class="rd-dn${off(i)}" style="font-size:${hd.dnPt}pt">${lines([...RS_DAY_UP(d)])}</th>`).join('')
+    + M.sum.map((k, i) => `<th class="rd-hc${hl(k)}"${rs}><div class="rd-rot" style="font-size:${hd.sum[i].pt}pt;width:${mm(hd.mm - 1.5)}">${lines(hd.sum[i].lines)}</div></th>`).join('') + '</tr>';
+  const th2 = hasDays ? `<tr style="height:${mm(hd.ddMm)}">${M.days.map((d, i) => `<th class="rd-dd${off(i)}" style="font-size:${hd.ddPt}pt">${+d.slice(8)}</th>`).join('')}</tr>` : '';
+  const body = L.rows.map((r) => `<tr style="height:${mm(L.rowMm)}">${M.cols.sira ? `<td class="rd-no" style="font-size:${r.noPt}pt">${r.no}</td>` : ''}<td class="rd-name" style="font-size:${r.namePt}pt">${e(r.name)}</td>${r.unvan ? `<td class="rd-unv" style="font-size:${r.unvan.pt}pt">${lines(r.unvan.lines)}</td>` : ''}`
+    + r.cells.map((c, i) => `<td class="rd-c${off(i)}" style="font-size:${c.pt}pt">${e(c.t)}</td>`).join('')
+    + r.h.map((x, i) => `<td class="rd-h${hl(M.sum[i])}" style="font-size:${x.pt}pt">${e(x.t)}</td>`).join('') + '</tr>').join('');
+  const sig = L.sig.length ? `<table class="rd-sig" style="width:${mm(L.total)};margin-top:${mm(L.sigRows[0])}"><colgroup>${L.sig.map((s) => `<col style="width:${mm(s.w)}">`).join('')}</colgroup>
+    <tr style="height:${mm(L.sigRows[1])}">${L.sig.map((s) => `<td><b style="font-size:${s.tp}pt">${e(s.t)}</b></td>`).join('')}</tr>
+    <tr style="height:${mm(L.sigRows[2])}">${L.sig.map((s) => `<td style="font-size:${s.np}pt">${e(s.n)}</td>`).join('')}</tr>
+    <tr style="height:${mm(L.sigRows[3])}">${L.sig.map(() => '<td></td>').join('')}</tr></table>` : '';
   const css = `
-    .rd{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;box-sizing:border-box}
+    .rd{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;box-sizing:border-box;width:${mm(L.total)};line-height:${RS_LH}}
     .rd *{box-sizing:border-box}
-    .rd table{border-collapse:collapse}
-    .rd-head{width:279mm;max-width:100%;border:1px solid #000;margin-bottom:2mm}
-    .rd-head td{border:1px solid #000;vertical-align:middle}
-    .rd-logo{width:30mm;text-align:center;vertical-align:middle;padding:1mm;line-height:0}.rd-logo img{display:block;margin:0 auto;max-height:18mm;max-width:27mm}
-    .rd-title{text-align:center;font-weight:700;font-size:8.5pt;line-height:1.35;overflow-wrap:anywhere;padding:0 2mm}.rd-t-main{font-size:9.5pt}
-    .rd-docbox{width:46mm;padding:0}.rd-docbox table{width:100%}.rd-docbox td{border:0;border-bottom:1px solid #000;font-size:6.5pt;padding:.6mm 1.2mm;height:4.4mm;overflow-wrap:anywhere}
-    .rd-docbox tr:last-child td{border-bottom:0}.rd-dl{border-right:1px solid #000!important;width:45%;font-weight:700}
-    .rd-grid{width:279mm;max-width:100%;table-layout:fixed;border:1px solid #000}
-    .rd-grid th,.rd-grid td{border:1px solid #000;text-align:center;padding:0 .3mm;font-size:${fs}pt;height:${rowMm}mm;overflow:hidden;white-space:nowrap}
+    .rd table{border-collapse:collapse;table-layout:fixed}
+    .rd td,.rd th{padding:0 ${mm(RS_PAD / 2)};overflow:hidden;white-space:nowrap;text-align:center;vertical-align:middle;line-height:${RS_LH}}
+    .rd-head{margin-bottom:${mm(L.gap)}}
+    .rd-head td{border:1px solid #000}
+    .rd-logo{line-height:0!important}.rd-logo img{display:block;margin:0 auto}
+    .rd-title{font-weight:700}
+    .rd-head .rd-dl,.rd-head .rd-dv{text-align:left}.rd-dl{font-weight:700}
+    .rd-grid{width:${mm(L.total)};border:1px solid #000}
+    .rd-grid th,.rd-grid td{border:1px solid #000}
     .rd-grid th{font-weight:700}
-    .rd-grid td.rd-name,.rd-grid td.rd-unv{font-size:${Math.max(4.4, fs - .4)}pt}
-    .rd-grid .rd-dn{height:16mm;vertical-align:bottom;padding:.4mm 0}.rd-grid .rd-dn span{writing-mode:vertical-rl;text-orientation:upright;font-size:${Math.max(4, Math.min(5.6, fs - .8))}pt;letter-spacing:-.3pt;line-height:1}
-    .rd-grid .rd-dd{font-size:${Math.min(7, fs + .3)}pt}
-    .rd-grid th.rd-hc{vertical-align:middle;height:${hasDays ? 'auto' : '34mm'}}.rd-grid .rd-hc span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:${hasDays ? 5 : 6.5}pt;white-space:normal;line-height:1.1;max-height:32mm;display:inline-block}
-    .rd-grid td.rd-h{font-size:${hasDays ? fs : Math.min(9, fs + 1.5)}pt}
-    .rd-grid .off{background:#ececec}.rd-grid .hl{background:#c6efce}.rd-grid td.hl{font-weight:700}
-    .rd-grid .rd-c{font-size:${Math.max(4, fs - .9)}pt;letter-spacing:-.2pt}.rd-grid .rd-c.lg{font-size:${Math.max(3.6, fs - 1.9)}pt;letter-spacing:-.35pt}
-    .rd-grid td.rd-name.lg{font-size:${Math.max(3.8, fs - 1.6)}pt;letter-spacing:-.2pt}
-    .rd-grid td.rd-unv{white-space:normal;line-height:1.05;font-size:${Math.max(4, fs - 1.2)}pt}
-    .rd-sig{width:279mm;max-width:100%;margin-top:6mm}.rd-sig td{text-align:center;vertical-align:top;font-size:7.5pt;padding:0 6mm;overflow-wrap:anywhere}.rd-sig b{display:block}.rd-sn{margin-top:1mm;font-size:7.5pt;min-height:3mm}.rd-sl{height:10mm}
+    .rd-grid .rd-dn{vertical-align:bottom;padding-bottom:.5mm}
+    .rd-grid .rd-hc{padding:0}.rd-rot{display:inline-block;transform:rotate(-90deg);white-space:nowrap;text-align:center}
+    .rd-grid .rd-hc{position:relative}.rd-grid .rd-hc .rd-rot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-90deg)}
+    .rd-grid .off{background:#e6e6e6}.rd-grid .hl{background:#c6efce}.rd-grid td.hl{font-weight:700}
+    .rd-sig td{text-align:center;vertical-align:top}.rd-sig b{font-weight:700}
     ${opts.page ? '@page{size:A4 landscape;margin:7mm}html,body{margin:0;background:#fff}' : ''}`;
-  const grid = `<table class="rd-grid"><colgroup>${M.cols.sira ? `<col style="width:${W.noW}mm">` : ''}<col style="width:${W.nameW}mm">${M.cols.unvan ? `<col style="width:${W.titleW}mm">` : ''}${M.days.map(() => `<col style="width:${W.dayW}mm">`).join('')}${M.sum.map(() => `<col style="width:${W.hW}mm">`).join('')}</colgroup>
-    <thead>${th}</thead><tbody>${body}</tbody></table>`;
+  const grid = `<table class="rd-grid"><colgroup>${L.cols.map((w) => `<col style="width:${mm(w)}">`).join('')}</colgroup>
+    <thead>${th1}${th2}</thead><tbody>${body}</tbody></table>`;
   return `<style>${css}</style><div class="rd">${head}${grid}${sig}</div>`;
 }
 
@@ -271,57 +405,70 @@ async function rsImgInfo(dataUrl) {
   return { ext: m[1] === 'png' ? 'png' : 'jpeg', u8, b64: m[2], w: img.naturalWidth || 100, h: img.naturalHeight || 100 };
 }
 async function rsDocx() {
-  const M = rsModel();
+  const M = rsModel(), L = rsLayout(M), H = L.head, hd = L.hdr, hasDays = M.days.length > 0;
   const img = await rsImgInfo(M.logo);
   const X = rsXml;
-  const tw = (mm) => Math.round(mm * 56.7); // twip
-  const n = M.rows.length;
-  const sz = Math.max(9, Math.min(14, Math.round(260 / Math.max(10, n)))); // yarım punto
-  // Türkçe karakterler: yazı tipi tüm alanlarda Arial, dil tr-TR (görüntüleyici Türkçe harfi olmayan yazı tipine geçmesin)
-  const run = (t, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>${o.b ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="${o.sz || sz}"/><w:szCs w:val="${o.sz || sz}"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr><w:t xml:space="preserve">${X(String(t == null ? '' : t).normalize('NFC'))}</w:t></w:r>`;
-  const para = (t, o = {}) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${o.jc || 'center'}"/></w:pPr>${Array.isArray(t) ? t.join('') : run(t, o)}</w:p>`;
-  const cell = (inner, o = {}) => `<w:tc><w:tcPr>${o.w ? `<w:tcW w:w="${o.w}" w:type="dxa"/>` : ''}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ''}${o.vm ? `<w:vMerge${o.vm === 'start' ? ' w:val="restart"' : ''}/>` : ''}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}${o.dir ? `<w:textDirection w:val="${o.dir}"/>` : ''}${o.nw ? '<w:noWrap/>' : ''}${o.fit ? '<w:tcFitText/>' : ''}<w:vAlign w:val="${o.va || 'center'}"/><w:tcMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tcMar></w:tcPr>${inner || para('')}</w:tc>`;
-  const borders = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/></w:tblBorders>';
-  const tbl = (grid, rows, o = {}) => `<w:tbl><w:tblPr><w:tblW w:w="${grid.reduce((s, x) => s + x, 0)}" w:type="dxa"/>${o.noBorder ? '' : borders}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${grid.map((g) => `<w:gridCol w:w="${g}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
-  const tr = (cells, h, rule) => `<w:tr><w:trPr>${h ? `<w:trHeight w:val="${h}" w:hRule="${rule || 'atLeast'}"/>` : ''}<w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
-  const W = tw(281);
+  const tw = (mm) => Math.round(mm * 56.693); // twip
+  const hp = (pt) => Math.round(pt * 2); // yarım punto (ölçüler 0,5 punto adımlı)
+  // Türkçe karakterler: yazı tipi tüm alanlarda Arial, dil tr-TR
+  const run = (t, pt, b) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>${b ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="${hp(pt)}"/><w:szCs w:val="${hp(pt)}"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr><w:t xml:space="preserve">${X(String(t == null ? '' : t).normalize('NFC'))}</w:t></w:r>`;
+  const brk = '<w:r><w:br/></w:r>';
+  const pPr = (jc) => `<w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${jc || 'center'}"/></w:pPr>`;
+  /** Tek paragraf; satırlar açık satır sonuyla (hiçbir yazı kendiliğinden kaydırılmaz) */
+  const para = (lines, pt, b, jc) => `<w:p>${pPr(jc)}${(Array.isArray(lines) ? lines : [lines]).map((l) => run(l, pt, b)).join(brk)}</w:p>`;
+  const spacer = (mm) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.max(20, Math.round(mm * 56.693))}" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:sz w:val="2"/></w:rPr><w:t></w:t></w:r></w:p>`;
+  const padT = tw(RS_PAD / 2);
+  const cell = (inner, o = {}) => `<w:tc><w:tcPr>${o.w ? `<w:tcW w:w="${o.w}" w:type="dxa"/>` : ''}${o.span > 1 ? `<w:gridSpan w:val="${o.span}"/>` : ''}${o.vm ? `<w:vMerge${o.vm === 'start' ? ' w:val="restart"' : ''}/>` : ''}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}${o.dir ? `<w:textDirection w:val="${o.dir}"/>` : ''}${o.nw ? '<w:noWrap/>' : ''}<w:vAlign w:val="${o.va || 'center'}"/><w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="${padT}" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="${padT}" w:type="dxa"/></w:tcMar></w:tcPr>${inner || para('', 1)}</w:tc>`;
+  const bd = (v) => `<w:top w:val="${v}" w:sz="6" w:color="000000"/><w:left w:val="${v}" w:sz="6" w:color="000000"/><w:bottom w:val="${v}" w:sz="6" w:color="000000"/><w:right w:val="${v}" w:sz="6" w:color="000000"/><w:insideH w:val="${v}" w:sz="6" w:color="000000"/><w:insideV w:val="${v}" w:sz="6" w:color="000000"/>`;
+  const tbl = (grid, rows, o = {}) => `<w:tbl><w:tblPr><w:tblW w:w="${grid.reduce((s, x) => s + x, 0)}" w:type="dxa"/><w:tblInd w:w="0" w:type="dxa"/><w:tblBorders>${bd(o.noBorder ? 'nil' : 'single')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="${padT}" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="${padT}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${grid.map((g) => `<w:gridCol w:w="${g}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
+  const tr = (cells, mm) => `<w:tr><w:trPr><w:trHeight w:val="${tw(mm)}" w:hRule="exact"/><w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
+  // Twip ızgarası: yuvarlama farkı birikmesin diye sınırlardan
+  const gridOf = (edges) => edges.slice(1).map((x, i) => tw(x) - tw(edges[i]));
   // Başlık: logo | satırlar | doküman kutusu
-  const logoW = tw(30), boxW = tw(48), midW = W - logoW - boxW;
   let drawing = '';
   if (img) {
-    const hEmu = 18 * 36000, wEmu = Math.round(hEmu * img.w / img.h);
-    const fw = Math.min(wEmu, 27 * 36000), fh = Math.round(fw * img.h / img.w);
+    const sc = Math.min(H.logoBox.w / img.w, H.logoBox.h / img.h);
+    const fw = Math.round(img.w * sc * 36000), fh = Math.round(img.h * sc * 36000);
     drawing = `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${fw}" cy="${fh}"/><wp:docPr id="1" name="Logo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="logo.${img.ext === 'png' ? 'png' : 'jpg'}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${fw}" cy="${fh}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
   }
-  const box = M.doc.length ? tbl(M.docLabels ? [Math.round(boxW * 0.45), boxW - Math.round(boxW * 0.45)] : [boxW],
-    M.doc.map((x) => tr(M.docLabels ? [cell(para(x.l, { sz: 12, b: true, jc: 'left' })), cell(para(x.v, { sz: 12, jc: 'left' }))] : [cell(para(x.v, { sz: 12, jc: 'left' }))], 220))) + para('', { sz: 2 }) : para('');
-  const head = tbl([logoW, midW, boxW], [tr([cell(drawing ? `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>${drawing}</w:p>` : para(''), { va: 'center' }),
-    cell(M.lines.map((l, i) => para(l, { b: true, sz: i === M.lines.length - 1 ? 20 : 18 })).join('')), cell(box, { va: 'top' })], 1000)]);
+  const hEdges = [0, H.logoW, H.logoW + H.midW, ...(H.split ? [H.logoW + H.midW + H.lblW] : []), ...(H.boxW ? [L.total] : [])].filter((x, i, a) => i === 0 || x > a[i - 1]);
+  const hGrid = gridOf(hEdges);
+  const headRows = [];
+  for (let r = 0; r < H.N; r++) {
+    const x = H.doc[r];
+    const vm = H.N > 1 ? (r === 0 ? 'start' : 'cont') : '';
+    const cs = [];
+    if (H.logoW) cs.push(cell(r === 0 && drawing ? `<w:p>${pPr('center')}${drawing}</w:p>` : '', { vm }));
+    cs.push(cell(r === 0 ? H.lines.map((l) => para(l.t, l.pt, true)).join('') || para('', 1) : '', { vm }));
+    if (H.boxW) {
+      if (H.split) cs.push(cell(x ? para(x.l, x.lp, true, 'left') : ''), cell(x ? para(x.v, x.vp, false, 'left') : ''));
+      else cs.push(cell(x ? para(x.v, x.vp, false, 'left') : ''));
+    }
+    headRows.push(tr(cs, H.rowMm));
+  }
+  const head = tbl(hGrid, headRows);
   // Ana tablo
-  const RW = rsWidths(M);
-  const noW = RW.noW ? tw(RW.noW) : 0, nameW = tw(RW.nameW), unvW = RW.titleW ? tw(RW.titleW) : 0, hW = tw(RW.hW);
-  const hk = M.sum;
-  const hasDays = M.days.length > 0;
-  const dayW = hasDays ? Math.floor((W - noW - nameW - unvW - hk.length * hW) / M.days.length) : 0;
-  const grid = [...(noW ? [noW] : []), nameW, ...(unvW ? [unvW] : []), ...M.days.map(() => dayW), ...hk.map(() => hW)];
+  const grid = gridOf(L.edges);
   const shade = (i) => (M.shade && M.off[i] ? 'E6E6E6' : '');
   const hlf = (k) => (M.hl.has(k) ? 'C6EFCE' : '');
-  const vm = hasDays ? { vm: 'start' } : {};
-  const h1 = tr([...(noW ? [cell(para('Sıra No', { b: true, sz: 12 }), vm)] : []), cell(para('ADI SOYADI', { b: true, sz: 14 }), vm), ...(unvW ? [cell(para('UNVAN', { b: true, sz: 14 }), vm)] : []),
-    ...M.days.map((d, i) => cell(para(RS_DAY_UP(d), { b: true, sz: 10 }), { dir: 'btLr', fill: shade(i), va: 'bottom' })), ...hk.map((k) => cell(para(M.labels[k], { b: true, sz: hasDays ? 9 : 12 }), Object.assign({ dir: 'btLr', fill: hlf(k) }, vm)))], hasDays ? 1000 : 1900, 'exact');
-  const h2 = hasDays ? tr([...(noW ? [cell('', { vm: 'cont' })] : []), cell('', { vm: 'cont' }), ...(unvW ? [cell('', { vm: 'cont' })] : []),
-    ...M.days.map((d, i) => cell(para(String(+d.slice(8)), { b: true, sz: 12 }), { fill: shade(i) })), ...hk.map((k) => cell('', { vm: 'cont', fill: hlf(k) }))], 260) : '';
-  const rh = Math.max(200, Math.min(380, Math.round(5800 / Math.max(1, n))));
-  const hp = (t, mm, base, min = 7) => Math.max(min, Math.min(base, Math.floor(2 * rsFitPt(t, mm, base / 2, min / 2))));
-  const body = M.rows.map((r) => { const nm = r.name.toLocaleUpperCase('tr'), un = r.title.toLocaleUpperCase('tr'); return tr([...(noW ? [cell(para(String(r.no)))] : []), cell(para(nm, { b: true, sz: hp(nm, RW.nameW, sz) }), { nw: true, fit: true }), ...(unvW ? [cell(para(un, { b: true, sz: hp('X'.repeat(Math.ceil(un.length / 2) + 1), RW.titleW, Math.max(9, sz - 2)) }))] : []),
-    ...r.cells.map((c, i) => cell(para(c, { sz: hp(c, RW.dayW, Math.max(7, sz - 3)) }), { fill: shade(i), nw: true, fit: true })),
-    ...hk.map((k) => cell(para(rsVal(r.h, k), { b: M.hl.has(k), sz: hasDays ? sz : sz + 4 }), { fill: hlf(k), nw: true, fit: true })) ], rh, 'exact'); });
-  const sigs = M.sig.length ? tbl(M.sig.map(() => Math.floor(W / M.sig.length)), [tr(M.sig.map((s) => cell(para(s.t.toLocaleUpperCase('tr'), { b: true, sz: 15 }) + para(s.n, { sz: 15 }) + para('') + para(''), { va: 'top' })))], { noBorder: true }) : '';
+  const vm1 = hasDays ? { vm: 'start' } : {};
+  const h1 = tr([...(M.cols.sira ? [cell(para(hd.no.lines, hd.no.pt, true), vm1)] : []), cell(para('ADI SOYADI', hd.name, true), Object.assign({ nw: true }, vm1)), ...(M.cols.unvan ? [cell(para('UNVAN', hd.unvan, true), Object.assign({ nw: true }, vm1))] : []),
+    ...M.days.map((d, i) => cell(para([...RS_DAY_UP(d)], hd.dnPt, true), { fill: shade(i), va: 'bottom' })),
+    ...M.sum.map((k, i) => cell(para(hd.sum[i].lines, hd.sum[i].pt, true), Object.assign({ dir: 'btLr', fill: hlf(k) }, vm1)))], hasDays ? hd.dnMm : hd.mm);
+  const h2 = hasDays ? tr([...(M.cols.sira ? [cell('', { vm: 'cont' })] : []), cell('', { vm: 'cont' }), ...(M.cols.unvan ? [cell('', { vm: 'cont' })] : []),
+    ...M.days.map((d, i) => cell(para(String(+d.slice(8)), hd.ddPt, true), { fill: shade(i), nw: true })), ...M.sum.map((k) => cell('', { vm: 'cont', fill: hlf(k) }))], hd.ddMm) : '';
+  const body = L.rows.map((r) => tr([...(M.cols.sira ? [cell(para(r.no, r.noPt), { nw: true })] : []), cell(para(r.name, r.namePt), { nw: true }), ...(r.unvan ? [cell(para(r.unvan.lines, r.unvan.pt))] : []),
+    ...r.cells.map((c, i) => cell(para(c.t, c.pt), { fill: shade(i), nw: true })),
+    ...r.h.map((x, i) => cell(para(x.t, x.pt, M.hl.has(M.sum[i])), { fill: hlf(M.sum[i]), nw: true }))], L.rowMm));
+  const sigs = L.sig.length ? spacer(L.sigRows[0]) + tbl(gridOf([0, ...L.sig.map((s) => L.edges[s.c1])]), [
+    tr(L.sig.map((s) => cell(para(s.t, s.tp, true), { va: 'top' })), L.sigRows[1]),
+    tr(L.sig.map((s) => cell(para(s.n, s.np), { va: 'top' })), L.sigRows[2]),
+    tr(L.sig.map(() => cell('')), L.sigRows[3])], { noBorder: true }) : '';
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${para('', { sz: 6 })}${tbl(grid, [h1, ...(h2 ? [h2] : []), ...body])}${para('', { sz: 10 })}${sigs}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${spacer(L.gap)}${tbl(grid, [h1, ...(h2 ? [h2] : []), ...body])}${sigs}${spacer(0.4)}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const files = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`],
-    ['word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="20" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`],
+    ['word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="${padT}" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="${padT}" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`],
     ['word/settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:defaultTabStop w:val="708"/><w:characterSpacingControl w:val="doNotCompress"/><w:themeFontLang w:val="tr-TR"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`],
     ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${X(rsFileBase())}</dc:title><dc:language>tr-TR</dc:language><dc:creator>dupcii</dc:creator></cp:coreProperties>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`],
@@ -332,105 +479,107 @@ async function rsDocx() {
   return rsZip(files);
 }
 
-/* ---------------- Excel (.xlsx) ---------------- */
+/* ---------------- Excel (.xlsx): aynı ölçüler — sütun genişliği mm’den, satır yüksekliği mm’den ---------------- */
 async function rsXlsx() {
-  const M = rsModel();
+  const M = rsModel(), L = rsLayout(M), H = L.head, hd = L.hdr, hasDays = M.days.length > 0;
   await loadVendor('exceljs');
   const wb = new ExcelJS.Workbook();
   const [y, m] = M.ym.split('-').map(Number);
-  const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true, margins: { left: 0.28, right: 0.28, top: 0.3, bottom: 0.3, header: 0, footer: 0 } } });
-  const hk = M.sum;
-  const hasDays = M.days.length > 0;
-  const lead = (M.cols.sira ? 1 : 0) + 1 + (M.cols.unvan ? 1 : 0);
-  const total = Math.max(4, lead + M.days.length + hk.length);
-  const HL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+  const mar = 7 / 25.4;
+  const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { properties: { defaultRowHeight: 12 }, views: [{ showGridLines: false }], pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true, margins: { left: mar, right: mar, top: mar, bottom: mar, header: 0, footer: 0 } } });
   wb.creator = 'dupcii'; wb.title = rsFileBase();
-  // Sütun genişlikleri (karakter) — logo yerleşimi de bunlarla hesaplanır
-  const colW = [...(M.cols.sira ? [4] : []), 24, ...(M.cols.unvan ? [14] : []), ...M.days.map(() => 4.6), ...hk.map(() => (hasDays ? 5 : 10))];
-  while (colW.length < total) colW.push(6);
-  const pxW = (w) => Math.floor(w * 7 + 5);
+  const C = L.C;
+  const pxOf = (mm) => (mm * 96) / 25.4;
+  const ptOf = (mm) => Math.round(mm * 2.8346 * 100) / 100;
+  // Sütun genişliği: Excel birimi = piksel / 7 (varsayılan yazı tipinin rakam genişliği)
+  L.cols.forEach((w, i) => { ws.getColumn(i + 1).width = Math.round((pxOf(w) / 7) * 1000) / 1000; });
   const thin = { style: 'thin', color: { argb: 'FF000000' } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
-  // Başlık (1–5. satırlar): logo | başlık | doküman kutusu
-  const docCols = total >= 14 ? 8 : 2;
-  const titleFrom = total >= 12 ? 4 : 2, titleTo = total - docCols;
-  for (let r = 1; r <= 5; r++) ws.getRow(r).height = 15;
-  ws.mergeCells(1, 1, 5, titleFrom - 1);
-  ws.mergeCells(1, titleFrom, 5, titleTo);
-  const tc = ws.getCell(1, titleFrom);
-  tc.value = M.lines.join('\n'); tc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; tc.font = { bold: true, size: 11, name: 'Arial' };
-  M.doc.slice(0, 5).forEach((x, i) => {
-    const r = i + 1;
-    const fit = { vertical: 'middle', horizontal: 'left', shrinkToFit: true, indent: 0 };
-    if (M.docLabels && docCols >= 4) {
-      const half = titleTo + Math.ceil(docCols / 2);
-      ws.mergeCells(r, titleTo + 1, r, half); ws.mergeCells(r, half + 1, r, total);
-      const lc = ws.getCell(r, titleTo + 1), vc = ws.getCell(r, half + 1);
-      lc.value = x.l; lc.font = { bold: true, size: 8, name: 'Arial' }; lc.alignment = fit;
-      vc.value = x.v; vc.font = { size: 8, name: 'Arial' }; vc.alignment = fit;
-    } else { ws.mergeCells(r, titleTo + 1, r, total); const c1 = ws.getCell(r, titleTo + 1); c1.value = M.docLabels ? `${x.l}: ${x.v}` : x.v; c1.font = { size: 8, name: 'Arial' }; c1.alignment = fit; }
-  });
-  for (let r = 1; r <= 5; r++) for (let c = 1; c <= total; c++) ws.getCell(r, c).border = box;
-  if (M.logo) {
+  const F = (pt, b) => ({ name: 'Arial', size: pt, bold: !!b });
+  const fillOf = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+  const merge = (r1, c1, r2, c2) => { if (r1 !== r2 || c1 !== c2) ws.mergeCells(r1, c1, r2, c2); };
+  const put = (r, c, v, o = {}) => { const x = ws.getCell(r, c); x.value = typeof v === 'string' ? v.normalize('NFC') : v; x.font = F(o.pt || 6, o.b); x.alignment = Object.assign({ horizontal: 'center', vertical: 'middle', wrapText: !!o.wrap }, o.al || {}); if (o.fill) x.fill = fillOf(o.fill); return x; };
+  // 1) Başlık: N satır
+  let row = 1;
+  for (let r = 0; r < H.N; r++) ws.getRow(row + r).height = ptOf(H.rowMm);
+  if (H.logoC > 0) merge(row, 1, row + H.N - 1, H.logoC);
+  merge(row, H.logoC + 1, row + H.N - 1, H.boxC);
+  const tc = ws.getCell(row, H.logoC + 1);
+  tc.value = { richText: H.lines.map((l, i) => ({ text: (i ? '\n' : '') + String(l.t).normalize('NFC'), font: F(l.pt, true) })) };
+  tc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  for (let r = 0; r < H.N; r++) {
+    const x = H.doc[r];
+    if (H.boxC >= C) break;
+    if (H.split) {
+      merge(row + r, H.boxC + 1, row + r, H.lblC); merge(row + r, H.lblC + 1, row + r, C);
+      if (x) { put(row + r, H.boxC + 1, x.l, { pt: x.lp, b: true, al: { horizontal: 'left' } }); put(row + r, H.lblC + 1, x.v, { pt: x.vp, al: { horizontal: 'left' } }); }
+    } else {
+      merge(row + r, H.boxC + 1, row + r, C);
+      if (x) put(row + r, H.boxC + 1, x.v, { pt: x.vp, al: { horizontal: 'left' } });
+    }
+  }
+  for (let r = row; r < row + H.N; r++) for (let c = 1; c <= C; c++) ws.getCell(r, c).border = box;
+  if (M.logo && H.logoC > 0) {
     const img = await rsImgInfo(M.logo);
     if (img) {
       const id = wb.addImage({ base64: img.b64, extension: img.ext === 'png' ? 'png' : 'jpeg' });
-      // Logo: birleşik logo hücresinin (1–5. satır, ilk sütunlar) tam ortasına
-      const areaW = colW.slice(0, titleFrom - 1).reduce((a, w) => a + pxW(w), 0), areaH = 5 * 20;
-      const sc = Math.min((areaW - 10) / img.w, (areaH - 10) / img.h);
-      const iw = Math.max(1, Math.round(img.w * sc)), ih = Math.max(1, Math.round(img.h * sc));
-      let x = (areaW - iw) / 2, col = 0;
-      while (col < titleFrom - 2 && x >= pxW(colW[col])) { x -= pxW(colW[col]); col++; }
-      ws.addImage(id, { tl: { col: col + x / pxW(colW[col]), row: (areaH - ih) / 2 / 20 }, ext: { width: iw, height: ih } });
+      const sc = Math.min(H.logoBox.w / img.w, H.logoBox.h / img.h);
+      const iwMm = img.w * sc, ihMm = img.h * sc;
+      // Logo hücresinin tam ortası (sütun ve satır içindeki kesirli konum)
+      let x = (H.logoW - iwMm) / 2, col = 0;
+      while (col < H.logoC - 1 && x >= L.cols[col]) { x -= L.cols[col]; col++; }
+      let yy = (H.mm - ihMm) / 2, rr = 0;
+      while (rr < H.N - 1 && yy >= H.rowMm) { yy -= H.rowMm; rr++; }
+      ws.addImage(id, { tl: { nativeCol: col, nativeColOff: Math.round(x * 36000), nativeRow: rr, nativeRowOff: Math.round(yy * 36000) }, ext: { width: pxOf(iwMm), height: pxOf(ihMm) }, editAs: 'oneCell' });
     }
   }
-  // Tablo başlığı (7–8. satırlar)
-  const hr = 7;
+  row += H.N;
+  ws.getRow(row).height = ptOf(L.gap); row++;
+  // 2) Tablo başlığı
+  const hr = row;
   let c = 1;
-  const merge2 = (txt) => { if (hasDays) ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = txt; x.font = { bold: true, size: 8, name: 'Arial' }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c++; };
-  if (M.cols.sira) merge2('Sıra No');
-  merge2('ADI SOYADI');
-  if (M.cols.unvan) merge2('UNVAN');
+  const lead = (txt, pt) => { if (hasDays) merge(hr, c, hr + 1, c); put(hr, c, txt, { pt, b: true, wrap: true }); c++; };
+  if (M.cols.sira) lead(hd.no.lines.join('\n'), hd.no.pt);
+  lead('ADI SOYADI', hd.name);
+  if (M.cols.unvan) lead('UNVAN', hd.unvan);
   M.days.forEach((d, i) => {
-    const a = ws.getCell(hr, c), b = ws.getCell(hr + 1, c);
-    a.value = RS_DAY_UP(d); a.alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom' }; a.font = { bold: true, size: 6, name: 'Arial' };
-    b.value = +d.slice(8); b.alignment = { horizontal: 'center' }; b.font = { bold: true, size: 8, name: 'Arial' };
-    if (M.shade && M.off[i]) [a, b].forEach((x) => { x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }; });
+    const f = M.shade && M.off[i] ? 'FFE6E6E6' : '';
+    put(hr, c, [...RS_DAY_UP(d)].join('\n'), { pt: hd.dnPt, b: true, wrap: true, fill: f, al: { vertical: 'bottom' } });
+    put(hr + 1, c, +d.slice(8), { pt: hd.ddPt, b: true, fill: f });
     c++;
   });
-  hk.forEach((k) => { if (hasDays) ws.mergeCells(hr, c, hr + 1, c); const x = ws.getCell(hr, c); x.value = M.labels[k]; x.font = { bold: true, size: hasDays ? 6 : 8, name: 'Arial' }; x.alignment = { textRotation: 90, horizontal: 'center', vertical: 'middle', wrapText: true }; if (M.hl.has(k)) x.fill = HL; c++; });
-  ws.getRow(hr).height = hasDays ? 62 : 110; if (hasDays) ws.getRow(hr + 1).height = 13;
-  const r0 = hr + (hasDays ? 2 : 1);
-  M.rows.forEach((r, ri) => {
-    const vals = [...(M.cols.sira ? [r.no] : []), r.name.toLocaleUpperCase('tr'), ...(M.cols.unvan ? [r.title.toLocaleUpperCase('tr')] : []), ...r.cells, ...hk.map((k) => (r.h[k] === 0 && k !== 'req' ? '' : r.h[k]))];
-    const row = ws.getRow(r0 + ri);
-    vals.forEach((v, i) => {
-      const x = row.getCell(i + 1);
-      const di = i - lead, si = i - lead - M.days.length;
-      const wrapU = M.cols.unvan && i === lead - 1;
-      x.value = typeof v === 'string' ? v.normalize('NFC') : v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: wrapU, shrinkToFit: !wrapU };
-      if (di >= 0 && di < M.days.length && M.shade && M.off[di]) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
-      if (si >= 0 && M.hl.has(hk[si])) x.fill = HL;
-    });
-    row.height = M.cols.unvan && r.title.length > 16 ? 20 : 14;
+  M.sum.forEach((k, i) => { if (hasDays) merge(hr, c, hr + 1, c); put(hr, c, hd.sum[i].lines.join('\n'), { pt: hd.sum[i].pt, b: true, wrap: true, fill: M.hl.has(k) ? 'FFC6EFCE' : '', al: { textRotation: 90 } }); c++; });
+  ws.getRow(hr).height = ptOf(hasDays ? hd.dnMm : hd.mm);
+  if (hasDays) ws.getRow(hr + 1).height = ptOf(hd.ddMm);
+  row = hr + (hasDays ? 2 : 1);
+  // 3) Kişiler
+  const r0 = row;
+  L.rows.forEach((r) => {
+    let k = 1;
+    if (M.cols.sira) put(row, k++, +r.no, { pt: r.noPt });
+    put(row, k++, r.name, { pt: r.namePt });
+    if (r.unvan) put(row, k++, r.unvan.lines.join('\n'), { pt: r.unvan.pt, wrap: r.unvan.lines.length > 1 });
+    r.cells.forEach((x, i) => put(row, k++, x.t, { pt: x.pt, fill: M.shade && M.off[i] ? 'FFE6E6E6' : '' }));
+    r.h.forEach((x, i) => { const key = M.sum[i]; const v = x.t === '' ? '' : (Number.isFinite(+String(x.t).replace(',', '.')) ? +String(x.t).replace(',', '.') : x.t); put(row, k++, v, { pt: x.pt, b: M.hl.has(key), fill: M.hl.has(key) ? 'FFC6EFCE' : '' }); });
+    ws.getRow(row).height = ptOf(L.rowMm);
+    row++;
   });
-  for (let r = hr; r < r0 + M.rows.length; r++) for (let k = 1; k <= lead + M.days.length + hk.length; k++) ws.getCell(r, k).border = box;
-  // Sütun genişlikleri
-  colW.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  // İmzalar
-  const sr = r0 + 1 + M.rows.length;
-  if (M.sig.length) {
-    const span = Math.floor(total / M.sig.length);
-    M.sig.forEach((s, i) => {
-      const a = 1 + i * span, b = i === M.sig.length - 1 ? total : a + span - 1;
-      ws.mergeCells(sr, a, sr, b); ws.mergeCells(sr + 1, a, sr + 1, b);
-      const t = ws.getCell(sr, a); t.value = s.t.toLocaleUpperCase('tr'); t.font = { bold: true, size: 8, name: 'Arial' }; t.alignment = { horizontal: 'center' };
-      const nn = ws.getCell(sr + 1, a); nn.value = s.n; nn.font = { size: 8, name: 'Arial' }; nn.alignment = { horizontal: 'center' };
+  for (let r = hr; r < row; r++) for (let k = 1; k <= C; k++) ws.getCell(r, k).border = box;
+  // 4) İmzalar
+  if (L.sig.length) {
+    ws.getRow(row).height = ptOf(L.sigRows[0]); row++;
+    const sr = row;
+    L.sig.forEach((s) => {
+      merge(sr, s.c0 + 1, sr, s.c1); merge(sr + 1, s.c0 + 1, sr + 1, s.c1);
+      put(sr, s.c0 + 1, s.t, { pt: s.tp, b: true, al: { vertical: 'top' } });
+      put(sr + 1, s.c0 + 1, s.n, { pt: s.np, al: { vertical: 'top' } });
     });
+    ws.getRow(sr).height = ptOf(L.sigRows[1]); ws.getRow(sr + 1).height = ptOf(L.sigRows[2]); ws.getRow(sr + 2).height = ptOf(L.sigRows[3]);
+    row = sr + 3;
   }
-  // Yazdırma alanı: başlık, tablo ve imzalar tek A4 sayfasında (Excel “sayfaya sığdır”)
+  // Yazdırma alanı: başlık, tablo ve imzalar tek A4 sayfasında
   const colL = (n) => { let t = ''; while (n > 0) { const r = (n - 1) % 26; t = String.fromCharCode(65 + r) + t; n = Math.floor((n - 1) / 26); } return t; };
-  ws.pageSetup.printArea = `A1:${colL(total)}${sr + (M.sig.length ? 3 : 0)}`;
+  ws.pageSetup.printArea = `A1:${colL(C)}${row - 1}`;
   return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} ${((rsType() || {}).name || 'resmi liste').toLocaleLowerCase('tr')}`; }
@@ -459,6 +608,7 @@ function rsDocDraw(box) {
       <button class="btn sm" data-act="rs-docx">${icon('file', 'sm')}<span>Word</span></button>
       <button class="btn sm" data-act="rs-xlsx">${icon('table', 'sm')}<span>Excel</span></button>
     </div></div>
+    ${rsCwHtml(M)}
     ${!RS2.logo && !(M.T.doc || []).some((x) => x.v) ? html`<div class="mk-box">${icon('info', 'sm')}<span>Şablon henüz ayarlanmadı: <b>Şablon</b>’dan kurum logosunu, başlık satırlarını, doküman numarası ve tarihini, imza alanlarını girin. Bir kez yapılır.</span></div>` : ''}
     <div class="rs-paper-wrap"><div class="rs-paper" id="rsPaper">${raw(rsDocHtml(M))}</div></div>
     <div class="card card-pad stack" id="rsSigned">
@@ -467,6 +617,8 @@ function rsDocDraw(box) {
         ${sg ? html`<button class="btn sm ghost danger" data-act="rs-signed-x">Kaldır</button>` : ''}</div>
       <div class="small muted">${sg ? html`<a href="${sg.url}" target="_blank" rel="noopener">${sg.name}</a> · ${fmtRel(sg.at)}${sg.by ? ' · ' + sg.by : ''} — ekip listeyi açınca görür.` : 'İmzalandıktan sonra PDF ya da fotoğrafını ekleyin; ekip nöbet listesi sayfasında “İmzalı resmi liste” olarak görür.'}</div>
     </div></div>`);
+  const cwd = $('#rsCw', box);
+  if (cwd) cwd.addEventListener('toggle', () => { RS2.cwOpen = cwd.open; });
   // Önizleme kâğıdı ekrana sığsın
   const fit = () => { const w = $('.rs-paper-wrap', box), p = $('#rsPaper', box); if (!w || !p) return; const s = Math.min(1, (w.clientWidth - 2) / p.offsetWidth); p.style.transform = `scale(${s})`; w.style.height = Math.ceil(p.offsetHeight * s) + 'px'; };
   requestAnimationFrame(fit);
@@ -617,6 +769,54 @@ ACT['rs-type-del'] = async () => {
     RS2.tpl = r.tpl; RS2.typeId = ''; rsDocDraw(); toast('Liste türü silindi');
   } catch (e) { toast(e.message, 'err'); }
 };
+/* ---------------- Sütun genişlikleri (liste türüne kaydedilir; PDF, Word ve Excel aynı) ---------------- */
+const RS_CW = [['no', 'Sıra No', 4, 15], ['name', 'Adı soyadı', 15, 90], ['unvan', 'Unvan', 8, 60], ['h', 'Hesap sütunları', 5, 40]];
+function rsCwHtml(M) {
+  const W = rsWidths(M), cur = { no: W.noW, name: W.nameW, unvan: W.titleW, h: W.hW };
+  const show = { no: M.cols.sira, name: !W.auto.name, unvan: M.cols.unvan, h: M.sum.length > 0 };
+  const set = (M.T.widths || {});
+  return html`<details class="card card-pad rs-cw" id="rsCw" ${RS2.cwOpen ? raw('open') : ''}>
+    <summary class="row" style="gap:6px;align-items:center;cursor:pointer">${icon('sliders', 'sm')}<b class="grow">Sütun genişlikleri</b><span class="tiny faint" id="rsCwMode">${Object.keys(set).some((k) => +set[k] > 0) ? 'elle ayarlı' : 'otomatik'}</span></summary>
+    <p class="tiny faint" style="margin:6px 0 8px">Milimetre (A4 yatay tablo 279 mm). Daralttığınız sütunun yeri gün sütunlarına kalır; PDF, Word ve Excel aynı genişlikle çıkar.</p>
+    <div class="rs-cw-grid">${RS_CW.filter(([k]) => show[k]).map(([k, l, lo, hi]) => html`<label class="small" for="rsCw-${k}">${l}</label>
+      <div class="row" style="gap:4px;align-items:center"><button type="button" class="btn sm icon" data-act="rs-cw" data-k="${k}" data-d="-1" aria-label="${l}: daralt">−</button>
+      <input class="input" id="rsCw-${k}" type="number" inputmode="decimal" min="${lo}" max="${hi}" step="0.5" value="${Math.round(cur[k] * 10) / 10}" data-change="rs-cw-in" data-k="${k}" style="width:76px;text-align:center">
+      <button type="button" class="btn sm icon" data-act="rs-cw" data-k="${k}" data-d="1" aria-label="${l}: genişlet">+</button></div>`)}
+      ${M.days.length ? html`<span class="small muted">Gün sütunu</span><span class="small" id="rsCwDay"><b>${(Math.round(W.dayW * 10) / 10).toString().replace('.', ',')} mm</b> <span class="tiny faint">(kalan genişlik)</span></span>` : ''}</div>
+    <div class="row wrap" style="gap:8px;margin-top:8px"><button type="button" class="btn sm" data-act="rs-cw-auto">${icon('star', 'sm')}<span>Yazıya göre sığdır</span></button>
+      <button type="button" class="btn sm ghost" data-act="rs-cw-def">Varsayılan</button></div>
+  </details>`;
+}
+/** Genişlik değişince önizleme anında yenilenir, şablon kısa süre sonra kaydedilir */
+function rsCwApply(widths) {
+  const T = rsType(); if (!T) return;
+  T.widths = widths;
+  RS2.cwOpen = true;
+  const M = rsModel();
+  const p = $('#rsPaper');
+  if (p) { p.innerHTML = rsDocHtml(M); if (RS2.onResize) RS2.onResize(); }
+  const cw = $('#rsCw');
+  const md = $('#rsCwMode'); if (md) md.textContent = Object.keys(widths || {}).some((k) => +widths[k] > 0) ? 'elle ayarlı' : 'otomatik';
+  if (cw) { const W = rsWidths(M), cur = { no: W.noW, name: W.nameW, unvan: W.titleW, h: W.hW }; Object.keys(cur).forEach((k) => { const i = $(`#rsCw-${k}`); if (i && document.activeElement !== i) i.value = Math.round(cur[k] * 10) / 10; }); const d = $('#rsCwDay'); if (d) d.firstElementChild.textContent = `${(Math.round(W.dayW * 10) / 10).toString().replace('.', ',')} mm`; }
+  RS2.cwSave = RS2.cwSave || debounce(async () => { try { const r = await api('plan.tpl.save', { tpl: RS2.tpl }); RS2.tpl = r.tpl; toast('Sütun genişlikleri kaydedildi'); } catch (e) { toast(e.message, 'err'); } }, 700);
+  RS2.cwSave();
+}
+const rsCwCur = () => { const W = rsWidths(rsModel()); return { no: W.noW, name: W.nameW, unvan: W.titleW, h: W.hW }; };
+ACT['rs-cw'] = (el) => {
+  const k = el.dataset.k, d = +el.dataset.d, def = RS_CW.find((x) => x[0] === k);
+  const T = rsType(); const w = Object.assign({}, (T && T.widths) || {});
+  w[k] = Math.max(def[2], Math.min(def[3], Math.round((rsCwCur()[k] + d) * 2) / 2));
+  rsCwApply(w);
+};
+CHANGE['rs-cw-in'] = (el) => {
+  const k = el.dataset.k, def = RS_CW.find((x) => x[0] === k), v = parseFloat(String(el.value).replace(',', '.'));
+  if (!Number.isFinite(v)) return;
+  const T = rsType(); const w = Object.assign({}, (T && T.widths) || {});
+  w[k] = Math.max(def[2], Math.min(def[3], Math.round(v * 2) / 2));
+  rsCwApply(w);
+};
+ACT['rs-cw-auto'] = () => { const M = rsModel(); rsCwApply(rsAutoWidths(M)); rsDocDraw(); };
+ACT['rs-cw-def'] = () => { rsCwApply({}); rsDocDraw(); };
 function rsAfterTpl() { if (PL2.tab === 'resmi') rsDocDraw(); else if (typeof planDraw === 'function') planDraw(); }
 
 /* ---------------- Değişiklikler sekmesi ---------------- */
