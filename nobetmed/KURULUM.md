@@ -1164,3 +1164,16 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
 - Uygulamanın her yerinde (üst çubuk, rehber, sohbet, kişi listeleri) profil fotoğrafına **basılı tutunca** fotoğraf tam ekran açılır; dokununca ya da geri tuşuyla kapanır.
 - Fotoğrafın **kırpılmamış hâli** gösterilir: 4.40.0’dan sonra yüklenen fotoğrafların orijinal oranlı hâli (en çok 1600 px) ayrıca saklanır. Daha önce yüklenen fotoğraflarda kare hâli büyütülür; kişi fotoğrafını yeniden yüklerse orijinali de görünür.
 - Fotoğraflar yalnız giriş yapmış kişilere açıktır (orijinal hâl dahil).
+
+## 61. Onaylı istekleri çizelgeye ekleme (4.41.0)
+Çizelgenin üstünde **İstekler (N)** düğmesi (telefonda **⋯ › Onaylı istekleri ekle**); N, henüz çizelgeye işlenmemiş istek sayısıdır. Pencerede ayarlar ve önizleme bulunur:
+- **Kendiliğinden ekle** (varsayılan açık): çizelge her açıldığında yeni onaylanan istekler yazılır, geri çekilen / reddedilenlerin yazdığı hücreler silinir; ekranda kaç değişiklik yapıldığı yazar ve **Geri al** ile dönülebilir.
+- **Yıllık izin isteği için kod**: izin / rapor kodlarından biri ya da “Yazma”. (Çizelge ayarlarındaki “İzin kodu” ile aynıdır.)
+- **Boşluk isteği için kod**: bir kodla işaretleyin ya da “Boş bırak” (o güne yalnız nöbet yazılmaz).
+- **Yıllık izni hafta sonu ve tatile de yaz**: kapalıysa yalnız iş günlerine yazılır.
+- **Geri çekilen / reddedilen isteği çizelgeden de sil**: yalnız isteğin yazdığı hücre silinir; elle değiştirdiğiniz hücreye dokunulmaz.
+- **İstek dolu bir güne denk gelirse**: “Dokunma, listede göster” ya da “İsteği yaz (nöbet silinir)”.
+- **Önizleme**: bu aydaki istek günü sayısı, yazılacak / silinecek hücreler ve dolu güne denk gelenlerin listesi (kişi · gün · mevcut → yeni kod).
+- **Yalnız ayarları kaydet** ya da **Kaydet ve uygula**. Ayarlar birim geneldir; otomatik doldurma da aynı ayarlara uyar (hafta sonu izni, boşluk kodu).
+- Çizelgede elle girilen istekler (hücreye dokun › istek) de aynı şekilde işlenir.
+- Not: onaylanan istek çizelge açıldığında işlenir; liste daha önce yayınlandıysa değişikliğin ekibe gitmesi için yeniden **Yayınla**.

@@ -407,6 +407,53 @@ try {
   await A.p.evaluate(() => { PL2.d.people = PL2.d.people.filter((p) => p.name !== 'Deniz Deneme'); delete PL2.d.cells['Deniz Deneme']; planDirty(); planDraw(); return planSave(true); });
   step(`unvan: kişi menüsünden hazır unvan (çip) seçildi, unvanı boş ${emptyT.length - 1} kişiye de verildi, varsayılan yapıldı ve hatırlandı; yeni eklenen kişiye kendiliğinden “Hemşire”; toplu Unvanlar penceresi çalışıyor`);
 
+  // Onaylı istekler çizelgeye: istek girilir → onaylanır → çizelge açılınca kendiliğinden yazılır (hafta sonuna yazılmaz);
+  // ayar penceresinde “hafta sonuna da yaz” → uygulanır; istek reddedilince yazdığı hücre silinir
+  await apiCall(A.p, 'plan.rqopts', { opts: { auto: true, izin_we: false, bos_code: '', conflict: 'skip', remove: true } });
+  await A.p.evaluate(() => planSave(true));
+  const RQ = await A.p.evaluate(() => {
+    const acc = new Set((S.people || []).map((p) => avKey(p.name)));
+    const p = PL2.d.people.find((x) => acc.has(avKey(x.name)) && !planOutside(x.name));
+    const row = PL2.d.cells[p.name] || {}, own = PL2.d.reqs[p.name] || {};
+    const free = planDays(PL2.ym).filter((d) => !row[d] && !own[d] && !Object.keys(planReqFor(p.name)).includes(d));
+    return { n: p.name, wd: free.find((d) => !planWe(d)), we: free.find((d) => planWe(d)), lc: PL2.d.leave_code };
+  });
+  if (!RQ.wd || !RQ.we || !RQ.lc) fail('istek testi için boş gün / izin kodu yok: ' + JSON.stringify(RQ));
+  const pers = (await apiCall(A.p, 'req.periods')).periods.filter((p) => p.ym === ym);
+  let PID = (pers.find((p) => +p.roster_id === +ro.id) || pers.find((p) => !p.roster_id) || {}).id;
+  if (!PID) PID = (await apiCall(A.p, 'req.period.save', { ym, roster_id: ro.id, deadline: `${ym}-10`, note: '', status: 'open' })).id;
+  const mine0 = await apiCall(A.p, 'req.mine', { period_id: PID, name: RQ.n });
+  const keepItems = (mine0.items || []).map((x) => ({ date: x.date, kind: x.kind, note: x.note || '' }));
+  const sv = await apiCall(A.p, 'req.save', { period_id: PID, name: RQ.n, items: [...keepItems, { date: RQ.wd, kind: 'izin' }, { date: RQ.we, kind: 'izin' }] });
+  const ids = sv.items.filter((x) => x.date === RQ.wd || x.date === RQ.we).map((x) => x.id);
+  await apiCall(A.p, 'req.decide', { ids, status: 'approved' });
+  await A.p.evaluate(() => planLoad());
+  await expectText(A.p, 'onaylı istek değişikliği çizelgeye işlendi');
+  const r1 = await A.p.evaluate((R) => ({ wd: (PL2.d.cells[R.n] || {})[R.wd], we: (PL2.d.cells[R.n] || {})[R.we], w: (PL2.d.rqw[R.n] || {})[R.wd] }), RQ);
+  if (r1.wd !== RQ.lc || r1.we || r1.w !== 'izin') fail('onaylı istek kendiliğinden yazılmadı: ' + JSON.stringify(r1));
+  // Ayar penceresi: hafta sonuna da yaz → önizleme → uygula
+  await A.p.evaluate(() => ACT['pl2-reqs']());
+  await A.p.locator('#pl2RqPrev').waitFor();
+  await A.p.locator('#pl2RqF [data-k=izin_we]').check({ force: true });
+  await A.p.locator('#pl2RqPrev', { hasText: '1 hücre yazılacak' }).waitFor();
+  await A.p.screenshot({ path: path.join(OUT, 'r-istekler.png') });
+  await A.p.click('#pl2RqGo');
+  await A.p.locator('#pl2RqF').waitFor({ state: 'detached' });
+  await A.p.waitForFunction((R) => (PL2.d.cells[R.n] || {})[R.we] === R.lc, RQ, { timeout: 8000 }).catch(() => {});
+  const r2 = await A.p.evaluate((R) => (PL2.d.cells[R.n] || {})[R.we], RQ);
+  if (r2 !== RQ.lc || !(await apiCall(A.p, 'plan.get', { roster_id: ro.id, ym })).rq_opts.izin_we) fail('hafta sonu izni ayarı uygulanmadı / kaydedilmedi: ' + r2);
+  await A.p.evaluate(() => planSave(true));
+  // Reddedilen istek çizelgeden silinir
+  await apiCall(A.p, 'req.decide', { ids, status: 'rejected', reason: 'deneme' });
+  await A.p.evaluate(() => planLoad());
+  await expectText(A.p, 'onaylı istek değişikliği çizelgeye işlendi');
+  const r3 = await A.p.evaluate((R) => ({ wd: (PL2.d.cells[R.n] || {})[R.wd], we: (PL2.d.cells[R.n] || {})[R.we], w: PL2.d.rqw[R.n] }), RQ);
+  if (r3.wd || r3.we || (r3.w && (r3.w[RQ.wd] || r3.w[RQ.we]))) fail('reddedilen isteğin hücresi silinmedi: ' + JSON.stringify(r3));
+  await apiCall(A.p, 'req.save', { period_id: PID, name: RQ.n, items: keepItems });
+  await apiCall(A.p, 'plan.rqopts', { opts: { izin_we: false } });
+  await A.p.evaluate(() => planSave(true));
+  step(`onaylı istekler: ${RQ.n} için 2 yıllık izin isteği onaylandı → çizelge açılınca iş gününe ${RQ.lc} kendiliğinden yazıldı, hafta sonuna yazılmadı; “hafta sonuna da yaz” ayarıyla eklendi (önizleme 1 hücre); istekler reddedilince çizelgeden silindi`);
+
   // Kişi adını düzenleme: nöbetler, unvan ve saat düzeltmesi yeni ada taşınır; aynı ad reddedilir; Geri al döner
   const rn0 = await A.p.evaluate(() => { const p = PL2.d.people.find((x) => Object.keys(PL2.d.cells[x.name] || {}).length); return { n: p.name, t: p.title, cells: JSON.stringify(PL2.d.cells[p.name]), other: PL2.d.people.find((x) => x.name !== p.name).name }; });
   const RN = rn0.n + ' Düzeltme';

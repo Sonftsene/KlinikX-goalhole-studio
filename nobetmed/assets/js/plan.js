@@ -73,6 +73,8 @@ async function planLoad() {
   PL2.d.reqs = PL2.d.reqs && !Array.isArray(PL2.d.reqs) ? PL2.d.reqs : {};
   PL2.d.outside = PL2.d.outside && !Array.isArray(PL2.d.outside) ? PL2.d.outside : {};
   PL2.d.xtra = PL2.d.xtra && !Array.isArray(PL2.d.xtra) ? PL2.d.xtra : {};
+  PL2.d.rqw = PL2.d.rqw && !Array.isArray(PL2.d.rqw) ? PL2.d.rqw : {};
+  PL2.rqo = r.rq_opts || { auto: true, izin_we: false, bos_code: '', conflict: 'skip', remove: true };
   PL2.d.hfix = PL2.d.hfix && !Array.isArray(PL2.d.hfix) ? PL2.d.hfix : {};
   if (!PL2.d.mode) PL2.d.mode = 'split';
   if (!PL2.d.full_code) PL2.d.full_code = (PL2.codes.find((c) => c.kind === 'shift' && +c.hours >= 24 && c.start && c.start === c.end) || PL2.codes.find((c) => c.kind === 'shift' && +c.hours >= 24) || {}).code || '';
@@ -84,10 +86,114 @@ async function planLoad() {
   if (!PL2.d.day_code) PL2.d.day_code = (shiftCodes.find((c) => c.start === '08:00' && c.end === '16:00') || shiftCodes[0] || {}).code || '';
   if (!PL2.d.night_code) PL2.d.night_code = (shiftCodes.find((c) => c.start === '16:00' && c.end === '08:00') || shiftCodes[1] || {}).code || '';
   PL2.info = r.from === 'liste' ? 'Taslak yoktu; listede bu ayın nöbetleri bulundu ve çizelgeye alındı.' : r.from === 'bos' ? 'Yeni çizelge: nöbete dahil kişiler eklendi.' : (r.updated_at ? `Taslak · son kayıt ${fmtRel(r.updated_at)}${r.updated_by ? ' · ' + r.updated_by : ''}` : '');
+  // Onaylı istekler kendiliğinden çizelgeye (ayar açıksa): yeni onaylananlar yazılır, geri çekilenlerin yazdığı hücreler silinir
+  PL2.rqInfo = '';
+  if (PL2.rqo.auto) {
+    const P = planReqPlan(PL2.rqo);
+    const n = P.add.length + (PL2.rqo.conflict === 'replace' ? P.rep.length : 0) + (PL2.rqo.remove ? P.rem.length : 0);
+    if (n) {
+      planSnap('istekleri çizelgeye işleme');
+      planReqApply(P, PL2.rqo);
+      planDirty();
+      PL2.rqInfo = `${n} onaylı istek değişikliği çizelgeye işlendi`;
+    }
+    if (PL2.rqo.conflict !== 'replace' && P.rep.length) PL2.rqInfo += `${PL2.rqInfo ? ' · ' : ''}${P.rep.length} istek dolu güne denk geliyor (İstekler’den bakın)`;
+  }
   planDraw();
+  if (PL2.rqInfo) toast(PL2.rqInfo);
   clearInterval(PL2.timer);
   PL2.timer = setInterval(() => { if (!$('#plGrid')) { clearInterval(PL2.timer); return; } if (PL2.dirty) planSave(true); }, 20000);
 }
+/* ---------------- Onaylı istekleri çizelgeye işleme ---------------- */
+/** Kişinin istekleri: onaylı (İstekler) + çizelgede elle girilen */
+function planReqAll(n) { return Object.assign({}, planReqFor(n), PL2.d.reqs[n] || {}); }
+function planReqCode(k, o) { return k === 'izin' ? PL2.d.leave_code || '' : (o.bos_code || ''); }
+/** Ne değişecek: add (boş güne), rep (dolu gün: [ad, gün, kod, tür, mevcut]), rem (geri çekilen isteğin hücresi), mark (zaten aynı kod) */
+function planReqPlan(o) {
+  const P = { add: [], rep: [], rem: [], mark: [], days: 0 };
+  const days = new Set(planDays(PL2.ym));
+  PL2.d.people.forEach((p) => {
+    const n = p.name, rq = planReqAll(n), row = PL2.d.cells[n] || {}, w = PL2.d.rqw[n] || {};
+    Object.entries(rq).forEach(([d, k]) => {
+      if (!days.has(d)) return;
+      P.days++;
+      const code = planReqCode(k, o);
+      if (!code) return;
+      if (k === 'izin' && !o.izin_we && planWe(d)) return;
+      const cur = row[d] || '';
+      if (cur === code) { if (w[d] !== k) P.mark.push([n, d, k]); return; }
+      if (cur) { if (w[d] && planReqCode(w[d], o) === cur) P.add.push([n, d, code, k]); else P.rep.push([n, d, code, k, cur]); return; }
+      P.add.push([n, d, code, k]);
+    });
+    Object.entries(w).forEach(([d, k]) => {
+      if (rq[d] === k) return;
+      if (row[d] && row[d] === planReqCode(k, o)) P.rem.push([n, d, k]); else P.rem.push([n, d, k, 'iz']); // yalnız iz silinir
+    });
+  });
+  return P;
+}
+function planReqApply(P, o, withRep) {
+  const setW = (n, d, k) => { const w = PL2.d.rqw[n] || (PL2.d.rqw[n] = {}); w[d] = k; };
+  P.add.forEach(([n, d, code, k]) => { planSetCell(n, d, code); setW(n, d, k); });
+  if (withRep || o.conflict === 'replace') P.rep.forEach(([n, d, code, k]) => { planSetCell(n, d, code); setW(n, d, k); });
+  P.mark.forEach(([n, d, k]) => setW(n, d, k));
+  if (o.remove) P.rem.forEach(([n, d, k, onlyMark]) => { if (!onlyMark) planSetCell(n, d, ''); const w = PL2.d.rqw[n]; if (w) { delete w[d]; if (!Object.keys(w).length) delete PL2.d.rqw[n]; } });
+}
+/** İstekler penceresi: ayarlar + önizleme + uygula */
+ACT['pl2-reqs'] = () => {
+  const o = Object.assign({}, PL2.rqo);
+  let lc = PL2.d.leave_code || '';
+  const other = PL2.codes.filter((c) => c.kind !== 'shift');
+  const m = openModal({ title: 'Onaylı istekleri çizelgeye ekle', body: html`<div class="stack" id="pl2RqF">
+    <p class="small muted" style="margin:0">İstekler bölümünde onaylanan (ve çizelgede elle girilen) yıllık izin ve boşluk istekleri çizelgeye yazılır. Boşluk isteği olan güne otomatik doldurma zaten nöbet yazmaz.</p>
+    <label class="switch"><input type="checkbox" data-k="auto" ${o.auto ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Kendiliğinden ekle</b><span>Çizelge her açıldığında yeni onaylanan istekler yazılır; geri çekilenler silinir.</span></span></label>
+    <div class="grid2">
+      <div class="field"><label for="pl2RqIzin">Yıllık izin isteği için kod</label><select class="select" id="pl2RqIzin"><option value="">Yazma</option>${other.map((c) => html`<option value="${c.code}" ${c.code === lc ? raw('selected') : ''}>${c.code}${c.label ? ' · ' + c.label : ''}</option>`)}</select></div>
+      <div class="field"><label for="pl2RqBos">Boşluk isteği için kod</label><select class="select" id="pl2RqBos"><option value="">Boş bırak (yalnız nöbet yazılmaz)</option>${other.map((c) => html`<option value="${c.code}" ${c.code === o.bos_code ? raw('selected') : ''}>${c.code}${c.label ? ' · ' + c.label : ''}</option>`)}</select></div>
+    </div>
+    <label class="switch"><input type="checkbox" data-k="izin_we" ${o.izin_we ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Yıllık izni hafta sonu ve tatile de yaz</b><span>Kapalıysa yalnız iş günlerine yazılır (izin günü sayımı gibi).</span></span></label>
+    <label class="switch"><input type="checkbox" data-k="remove" ${o.remove ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Geri çekilen / reddedilen isteği çizelgeden de sil</b><span>Yalnız isteğin yazdığı hücre silinir; elle değiştirdiğiniz hücreye dokunulmaz.</span></span></label>
+    <div class="field"><label>İstek dolu bir güne denk gelirse</label>
+      <div class="row wrap" style="gap:12px"><label class="small"><input type="radio" name="pl2RqC" value="skip" ${o.conflict !== 'replace' ? raw('checked') : ''}> Dokunma, listede göster</label><label class="small"><input type="radio" name="pl2RqC" value="replace" ${o.conflict === 'replace' ? raw('checked') : ''}> İsteği yaz (nöbet silinir)</label></div></div>
+    <div class="card card-pad" id="pl2RqPrev" style="background:var(--surface-2)"></div>
+  </div>`, foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn" id="pl2RqSave">Yalnız ayarları kaydet</button><button class="btn primary" id="pl2RqGo">Kaydet ve uygula</button>` });
+  const read = () => {
+    $$('[data-k]', m.el).forEach((x) => { o[x.dataset.k] = x.checked; });
+    o.bos_code = $('#pl2RqBos', m.el).value;
+    o.conflict = ($('[name=pl2RqC]:checked', m.el) || {}).value === 'replace' ? 'replace' : 'skip';
+    lc = $('#pl2RqIzin', m.el).value;
+  };
+  const prev = () => {
+    read();
+    const keep = PL2.d.leave_code; PL2.d.leave_code = lc;
+    const P = planReqPlan(o);
+    PL2.d.leave_code = keep;
+    const dl = (d) => dateLabel(d).replace(/ \d{4}$/, '');
+    const kn = (k) => (k === 'izin' ? 'yıllık izin' : 'boşluk');
+    setHTML($('#pl2RqPrev', m.el), html`<div class="small"><b>Bu ay ${P.days} istek günü</b> · ${P.add.length} hücre yazılacak${o.remove && P.rem.length ? html` · ${P.rem.length} geri çekilen istek silinecek` : ''}${P.rep.length ? html` · <b style="color:var(--warn-text,#b45309)">${P.rep.length} dolu güne denk geliyor</b> (${o.conflict === 'replace' ? 'istek yazılacak' : 'dokunulmayacak'})` : ''}</div>
+      ${P.rep.length ? html`<div class="list" style="margin-top:6px;max-height:150px;overflow:auto">${P.rep.slice(0, 40).map(([n, d, code, k, cur]) => html`<div class="list-row small" style="gap:6px"><span class="grow">${n} · ${dl(d)}</span><span class="tiny faint">${kn(k)}: ${cur} → ${code}</span></div>`)}</div>` : ''}
+      ${!P.days ? html`<div class="tiny faint" style="margin-top:4px">Bu ay için onaylı ya da elle girilen istek yok.</div>` : ''}`);
+    return P;
+  };
+  m.el.addEventListener('change', prev);
+  prev();
+  const save = async () => {
+    read();
+    try { const r = await api('plan.rqopts', { opts: { auto: o.auto, izin_we: o.izin_we, bos_code: o.bos_code, conflict: o.conflict, remove: o.remove } }); PL2.rqo = r.rq_opts; } catch (e) { toast(e.message, 'err'); return false; }
+    if (lc !== PL2.d.leave_code) { PL2.d.leave_code = lc; planDirty(); }
+    return true;
+  };
+  $('#pl2RqSave', m.el).addEventListener('click', async () => { if (await save()) { m.close(); planDraw(); toast('İstek ayarları kaydedildi'); } });
+  $('#pl2RqGo', m.el).addEventListener('click', async () => {
+    if (!(await save())) return;
+    const P = planReqPlan(PL2.rqo);
+    const n = P.add.length + (PL2.rqo.conflict === 'replace' ? P.rep.length : 0) + (PL2.rqo.remove ? P.rem.length : 0);
+    m.close();
+    if (n || P.mark.length) { planSnap('istekleri çizelgeye işleme'); planReqApply(P, PL2.rqo); planDirty(); }
+    planDraw();
+    toast(n ? `${n} istek değişikliği çizelgeye işlendi${P.rep.length && PL2.rqo.conflict !== 'replace' ? ` · ${P.rep.length} dolu güne dokunulmadı` : ''}` : 'Çizelge istekler ile zaten uyumlu');
+  });
+};
 /* ---------------- Nöbet dışı (sorumlu / işaretli) kişiler ----------------
  * Otomatik doldurmaya girmez, günün gereken kişi sayısına sayılmaz; kendi saati ayrı hesaplanır.
  * Varsayılan: Sorumlular listesi + Kurallar’daki “hesaplara dahil edilmeyenler”; kişi menüsünden değiştirilir.
@@ -166,6 +272,7 @@ function planDraw() {
         ${PL2.joint ? html`<a class="btn sm pl2-xbtn" href="#/cizelge/taraflar/${PL2.ym}">${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}
         <button class="btn sm pl2-xbtn" data-act="pl2-import">${icon('upload', 'sm')}<span>Yapıştır / CSV</span></button>
         <button class="btn sm pl2-xbtn" data-act="pl2-check">${icon('shield', 'sm')}<span>Denetle</span></button>
+        <button class="btn sm pl2-xbtn" data-act="pl2-reqs">${icon('inbox', 'sm')}<span>İstekler${(() => { const P = PL2.rqo ? planReqPlan(PL2.rqo) : null; const k = P ? P.add.length + P.rep.length : 0; return k ? ` (${k})` : ''; })()}</span></button>
         <button class="btn sm pl2-xbtn" data-act="pl2-clear">${icon('trash', 'sm')}<span>Temizle</span></button>
         <button class="btn sm pl2-xbtn" data-act="pl2-auto">${icon('star', 'sm')}<span>Otomatik doldur</span></button>
         ${(PL2.undo || []).length ? html`<button class="btn sm" data-act="pl2-undo" title="Son toplu işlemi geri al: ${PL2.undo[PL2.undo.length - 1].label}">${icon('history', 'sm')}<span>Geri al</span></button>` : ''}
@@ -303,7 +410,7 @@ ACT['pl2-cell'] = (el) => {
     if (q) {
       const row = PL2.d.reqs[n] || (PL2.d.reqs[n] = {});
       if (q.dataset.rq) row[d] = q.dataset.rq; else delete row[d];
-      if (q.dataset.rq === 'izin' && !cur && PL2.d.leave_code) planSetCell(n, d, PL2.d.leave_code);
+      if (q.dataset.rq === 'izin' && !cur && PL2.d.leave_code) { planSetCell(n, d, PL2.d.leave_code); const w = PL2.d.rqw[n] || (PL2.d.rqw[n] = {}); w[d] = 'izin'; }
       planDirty(); m.close(); planDraw(); return;
     }
     const b = ev.target.closest('[data-c]'); if (!b) return;
@@ -428,7 +535,7 @@ function planRename(oldN, nu) {
   if (!p || oldN === nu) return false;
   planSnap(`${oldN} adını değiştirme`);
   p.name = nu;
-  ['cells', 'reqs', 'hfix', 'outside', 'xtra'].forEach((k) => { if (D[k] && D[k][oldN] !== undefined) { D[k][nu] = D[k][oldN]; delete D[k][oldN]; } });
+  ['cells', 'reqs', 'hfix', 'outside', 'xtra', 'rqw'].forEach((k) => { if (D[k] && D[k][oldN] !== undefined) { D[k][nu] = D[k][oldN]; delete D[k][oldN]; } });
   if (PL2.marks && PL2.marks[oldN]) { PL2.marks[nu] = PL2.marks[oldN]; delete PL2.marks[oldN]; }
   if (p.title) planTitleRemember(nu, p.title);
   return true;
@@ -478,7 +585,7 @@ ACT['pl2-titles'] = () => {
   });
 };
 ACT['pl2-more'] = () => {
-  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-clear', 'trash', 'Temizle (tümü / yalnız nöbetler)'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle'], ['pl2-titles', 'user', 'Unvanlar (toplu seç)']];
+  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-reqs', 'inbox', 'Onaylı istekleri ekle'], ['pl2-clear', 'trash', 'Temizle (tümü / yalnız nöbetler)'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle'], ['pl2-titles', 'user', 'Unvanlar (toplu seç)']];
   const m = openModal({ title: 'Çizelge işlemleri', size: 'narrow', body: html`<div class="list">${items.map(([a, ic, l]) => html`<button type="button" class="list-row" data-o="${a}" style="width:100%;border:0;background:none;text-align:left">${icon(ic, 'sm')}<span>${l}</span></button>`)}
     ${PL2.joint ? html`<a class="list-row" href="#/cizelge/taraflar/${PL2.ym}" data-close>${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}</div>` });
   m.el.addEventListener('click', (ev) => {
@@ -541,6 +648,7 @@ ACT['pl2-auto'] = async (el) => {
       const r = await api('plan.auto', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
       planSnap('otomatik doldurma');
       PL2.d.cells = r.cells && !Array.isArray(r.cells) ? r.cells : {};
+      if (r.rqw && !Array.isArray(r.rqw)) PL2.d.rqw = r.rqw;
       planDirty();
       PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
       planDraw();

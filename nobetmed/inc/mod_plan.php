@@ -131,7 +131,13 @@ function plan_clean(array $in, string $ym): array
         if (!isset($names[$n]) || !is_array($row)) continue;
         foreach ($row as $d => $v) if (isset($days[$d])) $xtra[$n][$d] = $v ? 1 : 0;
     }
-    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix, 'outside' => (object)$outside, 'xtra' => (object)$xtra,
+    // İsteğin yazdığı hücreler [ad => [tarih => 'izin'|'bosluk']] (istek geri çekilirse silinebilsin diye)
+    $rqw = [];
+    foreach ((array)($in['rqw'] ?? []) as $n => $row) {
+        if (!isset($names[$n]) || !is_array($row)) continue;
+        foreach ($row as $d => $k) if (isset($days[$d]) && in_array($k, ['izin', 'bosluk'], true)) $rqw[$n][$d] = $k;
+    }
+    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix, 'outside' => (object)$outside, 'xtra' => (object)$xtra, 'rqw' => (object)$rqw,
         'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20),
         'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20),
         // Dağıtım biçimi (4.36): 'split' gündüz / gece ayrı · '24' önce 24 saatlik nöbet, kalan gündüz / gece ayrı
@@ -190,6 +196,37 @@ function plan_prev_for(array $prev, string $name): array
     if (isset($prev[$k])) return $prev[$k]['days'];
     foreach ($prev as $p) if (names_match($p['name'], $name)) return $p['days'];
     return [];
+}
+
+/**
+ * Onaylı isteklerin çizelgeye işlenmesi (birim ayarı):
+ *  auto: çizelge açılınca yeni onaylanan istekler kendiliğinden yazılır; izin_we: yıllık izin hafta sonu / tatile de yazılır;
+ *  bos_code: boşluk isteği günü bu kodla işaretlenir ('' = boş bırakılır, yalnız nöbet yazılmaz); conflict: dolu güne denk gelirse
+ *  'skip' (dokunma, uyar) | 'replace' (isteği yaz); remove: geri çekilen / reddedilen isteğin yazdığı hücre silinir.
+ */
+function plan_rq_opts(): array
+{
+    $j = json_decode((string)setting('plan_rq', ''), true);
+    $j = is_array($j) ? $j : [];
+    return [
+        'auto' => !array_key_exists('auto', $j) || !empty($j['auto']),
+        'izin_we' => !empty($j['izin_we']),
+        'bos_code' => mb_substr(trim((string)($j['bos_code'] ?? '')), 0, 20),
+        'conflict' => ($j['conflict'] ?? '') === 'replace' ? 'replace' : 'skip',
+        'remove' => !array_key_exists('remove', $j) || !empty($j['remove']),
+    ];
+}
+function a_plan_rqopts(): void
+{
+    $me = need_publisher();
+    $o = plan_rq_opts();
+    $in = arr('opts');
+    foreach (['auto', 'izin_we', 'remove'] as $k) if (array_key_exists($k, $in)) $o[$k] = !empty($in[$k]);
+    if (array_key_exists('bos_code', $in)) $o['bos_code'] = mb_substr(trim((string)$in['bos_code']), 0, 20);
+    if (array_key_exists('conflict', $in)) $o['conflict'] = $in['conflict'] === 'replace' ? 'replace' : 'skip';
+    set_setting('plan_rq', json_encode($o, JSON_UNESCAPED_UNICODE));
+    audit($me, 'settings.save', 'İsteklerin çizelgeye işlenmesi', ($o['auto'] ? 'kendiliğinden' : 'elle') . ($o['izin_we'] ? ', hafta sonuna da izin' : '') . ($o['bos_code'] !== '' ? ', boşluk: ' . $o['bos_code'] : '') . ', çakışma: ' . ($o['conflict'] === 'replace' ? 'isteği yaz' : 'dokunma'));
+    out(['rq_opts' => $o]);
 }
 
 /** Onaylı istekler: [ad => [tarih => 'bosluk'|'izin']] */
@@ -256,6 +293,7 @@ function a_plan_get(): void
         'rules' => function_exists('swap_rules') ? swap_rules() : null,
         'titles' => ['known' => plan_titles_known($data['people'] ?? []), 'def' => $pt['def'], 'map' => (object)$pt['m']],
         'outside_default' => plan_outside_names($data['people'] ?? []),
+        'rq_opts' => plan_rq_opts(),
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
@@ -437,15 +475,20 @@ function a_plan_auto(): void
     foreach ($people as $n) $reqOf[$n] = plan_req_for($reqs, $n, (array)$data['reqs']);
     // 1) İstekler: yıllık izin isteği olan boş günlere izin kodu (seçildiyse); boşluk isteği olan güne nöbet yazılmaz
     $leaveCode = $data['leave_code'];
+    $rqo = plan_rq_opts();
+    $rqw = array_map(fn($x) => (array)$x, (array)($data['rqw'] ?? []));
     $placed = 0;
-    if ($leaveCode !== '' && plan_row($leaveCode, $dict)['kind'] !== 'shift') {
-        foreach ($people as $n) foreach ($reqOf[$n] as $d => $k) {
-            if ($k !== 'izin' || isset($cells[$n][$d]) || substr((string)$d, 0, 7) !== $ym) continue;
-            $cells[$n][$d] = $leaveCode;
-            $daysOf[$n][$d] = plan_row($leaveCode, $dict);
-            ksort($daysOf[$n]);
-            $placed++;
-        }
+    $codeFor = ['izin' => $leaveCode !== '' && plan_row($leaveCode, $dict)['kind'] !== 'shift' ? $leaveCode : '',
+        'bosluk' => $rqo['bos_code'] !== '' && plan_row($rqo['bos_code'], $dict)['kind'] !== 'shift' ? $rqo['bos_code'] : ''];
+    foreach ($people as $n) foreach ($reqOf[$n] as $d => $k) {
+        $code = $codeFor[$k] ?? '';
+        if ($code === '' || isset($cells[$n][$d]) || substr((string)$d, 0, 7) !== $ym) continue;
+        if ($k === 'izin' && !$rqo['izin_we'] && day_type((string)$d) === 'weekend') continue;
+        $cells[$n][$d] = $code;
+        $daysOf[$n][$d] = plan_row($code, $dict);
+        ksort($daysOf[$n]);
+        $rqw[$n][$d] = $k;
+        $placed++;
     }
     $isWe = fn($d) => day_type($d) === 'weekend';
     // Boşluk sınırı (birim kuralı: iki nöbet arasında en fazla N boş gün): son dolu günden bu yana N gün geçmişse öncelik
@@ -573,7 +616,7 @@ function a_plan_auto(): void
             $balanced++;
         }
     }
-    out(['cells' => (object)$cells, 'filled' => $filled, 'full' => $full, 'unfilled' => $unfilled, 'placed' => $placed, 'balanced' => $balanced]);
+    out(['cells' => (object)$cells, 'rqw' => (object)$rqw, 'filled' => $filled, 'full' => $full, 'unfilled' => $unfilled, 'placed' => $placed, 'balanced' => $balanced]);
 }
 
 /** Birim kuralları (çizelge ekranından; yönetici ve yayıncı): değişim / ilan / çağrı / çizelge hepsi bunlara uyar */
@@ -592,6 +635,7 @@ function a_plan_rules(): void
 return [
     'plan.rules' => 'a_plan_rules',
     'plan.titles' => 'a_plan_titles',
+    'plan.rqopts' => 'a_plan_rqopts',
     'plan.get' => 'a_plan_get',
     'plan.save' => 'a_plan_save',
     'plan.check' => 'a_plan_check',
