@@ -142,6 +142,13 @@ function rsModel() {
   };
 }
 const RS_DAY_UP = (d) => TR_DAYS[new Date(d + 'T12:00:00').getDay()].toLocaleUpperCase('tr');
+/** Yazının sütuna sığacağı punto (Arial ortalama karakter ≈ 0,6 em; büyük harfte ≈ 0,68 em) */
+function rsFitPt(text, mm, basePt, minPt = 3.2) {
+  const t = String(text || '');
+  if (!t) return basePt;
+  const em = /[a-zçğıöşü]/.test(t) ? 0.58 : 0.68;
+  return Math.max(minPt, Math.min(basePt, ((mm - 1) * 2.835) / (t.length * em)));
+}
 /** Sütun genişlikleri (mm, toplam 279: sağ kenar çizgisi sayfa sınırına denk gelip kırpılmasın) */
 function rsWidths(M) {
   const noW = M.cols.sira ? 6 : 0, nameW = M.days.length ? 36 : 52, titleW = M.cols.unvan ? (M.days.length ? 22 : 34) : 0;
@@ -170,9 +177,11 @@ function rsDocHtml(M, opts = {}) {
     ${M.days.map((d, i) => `<th class="rd-dn ${M.shade && M.off[i] ? 'off' : ''}"><span>${e(RS_DAY_UP(d))}</span></th>`).join('')}
     ${M.sum.map((k) => `<th class="rd-hc${hc(k)}"${rs}><span>${e(M.labels[k])}</span></th>`).join('')}</tr>
     ${hasDays ? `<tr>${M.days.map((d, i) => `<th class="rd-dd ${M.shade && M.off[i] ? 'off' : ''}">${+d.slice(8)}</th>`).join('')}</tr>` : ''}`;
-  const body = M.rows.map((r) => `<tr>${M.cols.sira ? `<td class="rd-no">${r.no}</td>` : ''}<td class="rd-name ${r.name.length > 24 ? 'lg' : ''}">${e(r.name.toLocaleUpperCase('tr'))}</td>${M.cols.unvan ? `<td class="rd-unv">${e(r.title.toLocaleUpperCase('tr'))}</td>` : ''}
-    ${r.cells.map((c, i) => `<td class="rd-c ${c.length >= 6 ? 'lg' : ''} ${M.shade && M.off[i] ? 'off' : ''}">${e(c)}</td>`).join('')}
-    ${M.sum.map((k) => `<td class="rd-h${hc(k)}">${rsVal(r.h, k)}</td>`).join('')}</tr>`).join('');
+  const fz = (t, mm, base) => `font-size:${rsFitPt(t, mm, base).toFixed(2)}pt`;
+  const unvPt = (t) => { const half = Math.ceil(String(t || '').length / 2) + 1; return Math.min(Math.max(4, fs - 1.2), rowMm / 0.78, rsFitPt('X'.repeat(half), W.titleW, 9)); };
+  const body = M.rows.map((r) => { const nm = r.name.toLocaleUpperCase('tr'), un = r.title.toLocaleUpperCase('tr'); return `<tr>${M.cols.sira ? `<td class="rd-no">${r.no}</td>` : ''}<td class="rd-name" style="${fz(nm, W.nameW, Math.max(4.4, fs - .4))}">${e(nm)}</td>${M.cols.unvan ? `<td class="rd-unv" style="font-size:${unvPt(un).toFixed(2)}pt">${e(un)}</td>` : ''}
+    ${r.cells.map((c, i) => `<td class="rd-c ${M.shade && M.off[i] ? 'off' : ''}" style="${fz(c, W.dayW, Math.max(4, fs - .9))}">${e(c)}</td>`).join('')}
+    ${M.sum.map((k) => `<td class="rd-h${hc(k)}">${rsVal(r.h, k)}</td>`).join('')}</tr>`; }).join('');
   const sig = M.sig.length ? `<table class="rd-sig"><tr>${M.sig.map((s) => `<td><b>${e(s.t.toLocaleUpperCase('tr'))}</b><div class="rd-sn">${e(s.n)}</div><div class="rd-sl"></div></td>`).join('')}</tr></table>` : '';
   const css = `
     .rd{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;box-sizing:border-box}
@@ -181,8 +190,8 @@ function rsDocHtml(M, opts = {}) {
     .rd-head{width:279mm;max-width:100%;border:1px solid #000;margin-bottom:2mm}
     .rd-head td{border:1px solid #000;vertical-align:middle}
     .rd-logo{width:30mm;text-align:center;vertical-align:middle;padding:1mm;line-height:0}.rd-logo img{display:block;margin:0 auto;max-height:18mm;max-width:27mm}
-    .rd-title{text-align:center;font-weight:700;font-size:8.5pt;line-height:1.35}.rd-t-main{font-size:9.5pt}
-    .rd-docbox{width:46mm;padding:0}.rd-docbox table{width:100%}.rd-docbox td{border:0;border-bottom:1px solid #000;font-size:6.5pt;padding:.6mm 1.2mm;height:4.4mm}
+    .rd-title{text-align:center;font-weight:700;font-size:8.5pt;line-height:1.35;overflow-wrap:anywhere;padding:0 2mm}.rd-t-main{font-size:9.5pt}
+    .rd-docbox{width:46mm;padding:0}.rd-docbox table{width:100%}.rd-docbox td{border:0;border-bottom:1px solid #000;font-size:6.5pt;padding:.6mm 1.2mm;height:4.4mm;overflow-wrap:anywhere}
     .rd-docbox tr:last-child td{border-bottom:0}.rd-dl{border-right:1px solid #000!important;width:45%;font-weight:700}
     .rd-grid{width:279mm;max-width:100%;table-layout:fixed;border:1px solid #000}
     .rd-grid th,.rd-grid td{border:1px solid #000;text-align:center;padding:0 .3mm;font-size:${fs}pt;height:${rowMm}mm;overflow:hidden;white-space:nowrap}
@@ -196,7 +205,7 @@ function rsDocHtml(M, opts = {}) {
     .rd-grid .rd-c{font-size:${Math.max(4, fs - .9)}pt;letter-spacing:-.2pt}.rd-grid .rd-c.lg{font-size:${Math.max(3.6, fs - 1.9)}pt;letter-spacing:-.35pt}
     .rd-grid td.rd-name.lg{font-size:${Math.max(3.8, fs - 1.6)}pt;letter-spacing:-.2pt}
     .rd-grid td.rd-unv{white-space:normal;line-height:1.05;font-size:${Math.max(4, fs - 1.2)}pt}
-    .rd-sig{width:279mm;max-width:100%;margin-top:6mm}.rd-sig td{text-align:center;vertical-align:top;font-size:7.5pt;padding:0 6mm}.rd-sig b{display:block}.rd-sn{margin-top:1mm;font-size:7.5pt;min-height:3mm}.rd-sl{height:10mm}
+    .rd-sig{width:279mm;max-width:100%;margin-top:6mm}.rd-sig td{text-align:center;vertical-align:top;font-size:7.5pt;padding:0 6mm;overflow-wrap:anywhere}.rd-sig b{display:block}.rd-sn{margin-top:1mm;font-size:7.5pt;min-height:3mm}.rd-sl{height:10mm}
     ${opts.page ? '@page{size:A4 landscape;margin:7mm}html,body{margin:0;background:#fff}' : ''}`;
   const grid = `<table class="rd-grid"><colgroup>${M.cols.sira ? `<col style="width:${W.noW}mm">` : ''}<col style="width:${W.nameW}mm">${M.cols.unvan ? `<col style="width:${W.titleW}mm">` : ''}${M.days.map(() => `<col style="width:${W.dayW}mm">`).join('')}${M.sum.map(() => `<col style="width:${W.hW}mm">`).join('')}</colgroup>
     <thead>${th}</thead><tbody>${body}</tbody></table>`;
@@ -271,7 +280,7 @@ async function rsDocx() {
   // Türkçe karakterler: yazı tipi tüm alanlarda Arial, dil tr-TR (görüntüleyici Türkçe harfi olmayan yazı tipine geçmesin)
   const run = (t, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>${o.b ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="${o.sz || sz}"/><w:szCs w:val="${o.sz || sz}"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr><w:t xml:space="preserve">${X(String(t == null ? '' : t).normalize('NFC'))}</w:t></w:r>`;
   const para = (t, o = {}) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${o.jc || 'center'}"/></w:pPr>${Array.isArray(t) ? t.join('') : run(t, o)}</w:p>`;
-  const cell = (inner, o = {}) => `<w:tc><w:tcPr>${o.w ? `<w:tcW w:w="${o.w}" w:type="dxa"/>` : ''}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ''}${o.vm ? `<w:vMerge${o.vm === 'start' ? ' w:val="restart"' : ''}/>` : ''}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}${o.dir ? `<w:textDirection w:val="${o.dir}"/>` : ''}${o.nw ? '<w:noWrap/>' : ''}<w:vAlign w:val="${o.va || 'center'}"/><w:tcMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tcMar></w:tcPr>${inner || para('')}</w:tc>`;
+  const cell = (inner, o = {}) => `<w:tc><w:tcPr>${o.w ? `<w:tcW w:w="${o.w}" w:type="dxa"/>` : ''}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ''}${o.vm ? `<w:vMerge${o.vm === 'start' ? ' w:val="restart"' : ''}/>` : ''}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}${o.dir ? `<w:textDirection w:val="${o.dir}"/>` : ''}${o.nw ? '<w:noWrap/>' : ''}${o.fit ? '<w:tcFitText/>' : ''}<w:vAlign w:val="${o.va || 'center'}"/><w:tcMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tcMar></w:tcPr>${inner || para('')}</w:tc>`;
   const borders = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/></w:tblBorders>';
   const tbl = (grid, rows, o = {}) => `<w:tbl><w:tblPr><w:tblW w:w="${grid.reduce((s, x) => s + x, 0)}" w:type="dxa"/>${o.noBorder ? '' : borders}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${grid.map((g) => `<w:gridCol w:w="${g}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
   const tr = (cells, h, rule) => `<w:tr><w:trPr>${h ? `<w:trHeight w:val="${h}" w:hRule="${rule || 'atLeast'}"/>` : ''}<w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
@@ -303,9 +312,10 @@ async function rsDocx() {
   const h2 = hasDays ? tr([...(noW ? [cell('', { vm: 'cont' })] : []), cell('', { vm: 'cont' }), ...(unvW ? [cell('', { vm: 'cont' })] : []),
     ...M.days.map((d, i) => cell(para(String(+d.slice(8)), { b: true, sz: 12 }), { fill: shade(i) })), ...hk.map((k) => cell('', { vm: 'cont', fill: hlf(k) }))], 260) : '';
   const rh = Math.max(200, Math.min(380, Math.round(5800 / Math.max(1, n))));
-  const body = M.rows.map((r) => tr([...(noW ? [cell(para(String(r.no)))] : []), cell(para(r.name.toLocaleUpperCase('tr'), { b: true })), ...(unvW ? [cell(para(r.title.toLocaleUpperCase('tr'), { b: true, sz: Math.max(9, sz - 2) }))] : []),
-    ...r.cells.map((c, i) => cell(para(c, { sz: Math.max(7, sz - (c.length >= 6 ? 5 : 3)) }), { fill: shade(i), nw: true })),
-    ...hk.map((k) => cell(para(rsVal(r.h, k), { b: M.hl.has(k), sz: hasDays ? sz : sz + 4 }), { fill: hlf(k) })) ], rh, 'exact'));
+  const hp = (t, mm, base, min = 7) => Math.max(min, Math.min(base, Math.floor(2 * rsFitPt(t, mm, base / 2, min / 2))));
+  const body = M.rows.map((r) => { const nm = r.name.toLocaleUpperCase('tr'), un = r.title.toLocaleUpperCase('tr'); return tr([...(noW ? [cell(para(String(r.no)))] : []), cell(para(nm, { b: true, sz: hp(nm, RW.nameW, sz) }), { nw: true, fit: true }), ...(unvW ? [cell(para(un, { b: true, sz: hp('X'.repeat(Math.ceil(un.length / 2) + 1), RW.titleW, Math.max(9, sz - 2)) }))] : []),
+    ...r.cells.map((c, i) => cell(para(c, { sz: hp(c, RW.dayW, Math.max(7, sz - 3)) }), { fill: shade(i), nw: true, fit: true })),
+    ...hk.map((k) => cell(para(rsVal(r.h, k), { b: M.hl.has(k), sz: hasDays ? sz : sz + 4 }), { fill: hlf(k), nw: true, fit: true })) ], rh, 'exact'); });
   const sigs = M.sig.length ? tbl(M.sig.map(() => Math.floor(W / M.sig.length)), [tr(M.sig.map((s) => cell(para(s.t.toLocaleUpperCase('tr'), { b: true, sz: 15 }) + para(s.n, { sz: 15 }) + para('') + para(''), { va: 'top' })))], { noBorder: true }) : '';
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${para('', { sz: 6 })}${tbl(grid, [h1, ...(h2 ? [h2] : []), ...body])}${para('', { sz: 10 })}${sigs}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
@@ -328,7 +338,7 @@ async function rsXlsx() {
   await loadVendor('exceljs');
   const wb = new ExcelJS.Workbook();
   const [y, m] = M.ym.split('-').map(Number);
-  const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, margins: { left: 0.25, right: 0.25, top: 0.3, bottom: 0.3, header: 0, footer: 0 } } });
+  const ws = wb.addWorksheet(`${TR_MONTHS[m - 1].toLocaleUpperCase('tr')} ${y}`, { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true, margins: { left: 0.28, right: 0.28, top: 0.3, bottom: 0.3, header: 0, footer: 0 } } });
   const hk = M.sum;
   const hasDays = M.days.length > 0;
   const lead = (M.cols.sira ? 1 : 0) + 1 + (M.cols.unvan ? 1 : 0);
@@ -342,7 +352,7 @@ async function rsXlsx() {
   const thin = { style: 'thin', color: { argb: 'FF000000' } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
   // Başlık (1–5. satırlar): logo | başlık | doküman kutusu
-  const docCols = total >= 12 ? 6 : 2;
+  const docCols = total >= 14 ? 8 : 2;
   const titleFrom = total >= 12 ? 4 : 2, titleTo = total - docCols;
   for (let r = 1; r <= 5; r++) ws.getRow(r).height = 15;
   ws.mergeCells(1, 1, 5, titleFrom - 1);
@@ -351,8 +361,14 @@ async function rsXlsx() {
   tc.value = M.lines.join('\n'); tc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; tc.font = { bold: true, size: 11, name: 'Arial' };
   M.doc.slice(0, 5).forEach((x, i) => {
     const r = i + 1;
-    if (M.docLabels && docCols >= 3) { ws.mergeCells(r, titleTo + 1, r, titleTo + 2); ws.mergeCells(r, titleTo + 3, r, total); ws.getCell(r, titleTo + 1).value = x.l; ws.getCell(r, titleTo + 1).font = { bold: true, size: 8, name: 'Arial' }; ws.getCell(r, titleTo + 3).value = x.v; ws.getCell(r, titleTo + 3).font = { size: 8, name: 'Arial' }; }
-    else { ws.mergeCells(r, titleTo + 1, r, total); ws.getCell(r, titleTo + 1).value = M.docLabels ? `${x.l}: ${x.v}` : x.v; ws.getCell(r, titleTo + 1).font = { size: 8, name: 'Arial' }; }
+    const fit = { vertical: 'middle', horizontal: 'left', shrinkToFit: true, indent: 0 };
+    if (M.docLabels && docCols >= 4) {
+      const half = titleTo + Math.ceil(docCols / 2);
+      ws.mergeCells(r, titleTo + 1, r, half); ws.mergeCells(r, half + 1, r, total);
+      const lc = ws.getCell(r, titleTo + 1), vc = ws.getCell(r, half + 1);
+      lc.value = x.l; lc.font = { bold: true, size: 8, name: 'Arial' }; lc.alignment = fit;
+      vc.value = x.v; vc.font = { size: 8, name: 'Arial' }; vc.alignment = fit;
+    } else { ws.mergeCells(r, titleTo + 1, r, total); const c1 = ws.getCell(r, titleTo + 1); c1.value = M.docLabels ? `${x.l}: ${x.v}` : x.v; c1.font = { size: 8, name: 'Arial' }; c1.alignment = fit; }
   });
   for (let r = 1; r <= 5; r++) for (let c = 1; c <= total; c++) ws.getCell(r, c).border = box;
   if (M.logo) {
@@ -391,7 +407,8 @@ async function rsXlsx() {
     vals.forEach((v, i) => {
       const x = row.getCell(i + 1);
       const di = i - lead, si = i - lead - M.days.length;
-      x.value = typeof v === 'string' ? v.normalize('NFC') : v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: M.cols.unvan && i === lead - 1 };
+      const wrapU = M.cols.unvan && i === lead - 1;
+      x.value = typeof v === 'string' ? v.normalize('NFC') : v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: wrapU, shrinkToFit: !wrapU };
       if (di >= 0 && di < M.days.length && M.shade && M.off[di]) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
       if (si >= 0 && M.hl.has(hk[si])) x.fill = HL;
     });
@@ -411,6 +428,9 @@ async function rsXlsx() {
       const nn = ws.getCell(sr + 1, a); nn.value = s.n; nn.font = { size: 8, name: 'Arial' }; nn.alignment = { horizontal: 'center' };
     });
   }
+  // Yazdırma alanı: başlık, tablo ve imzalar tek A4 sayfasında (Excel “sayfaya sığdır”)
+  const colL = (n) => { let t = ''; while (n > 0) { const r = (n - 1) % 26; t = String.fromCharCode(65 + r) + t; n = Math.floor((n - 1) / 26); } return t; };
+  ws.pageSetup.printArea = `A1:${colL(total)}${sr + (M.sig.length ? 3 : 0)}`;
   return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} ${((rsType() || {}).name || 'resmi liste').toLocaleLowerCase('tr')}`; }

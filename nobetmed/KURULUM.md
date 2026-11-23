@@ -1081,4 +1081,9 @@ Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sa
   - Adalet sırası, istekler, birim kuralları (24 saatten sonra dinlenme, boşluk sınırı) ve elle yazılan hücreler aynen geçerli; 24 saat için kurala uyan kimse yoksa ihtiyaç gündüz / gece koduyla denenir.
 - 24 saat kodu, gündüzü ve geceyi tam kapsayan bir vardiya olmalı (08-08 gibi); seçilmezse otomatik doldurma uyarır.
 - **Resmi liste çıktıları (4.36.0):** logo, logo hücresinin tam ortasında (önizleme / PDF, Word, Excel). Word belgesine Türkçe dil (tr-TR) ve varsayılan yazı tipi (Arial) tanımı eklendi; Türkçe harfler (Ç, Ğ, İ, Ö, Ş, Ü, ı) her görüntüleyicide doğru çıkar. Excel’de uzun unvanlar hücrede alt satıra geçer.
+- **A4’e uygunluk (4.36.0):** indirilen her çıktı A4 yatay tek sayfadır ve hiçbir yazı hücreden taşmaz:
+  - PDF / yazdır: satır yüksekliği kişi sayısına göre ayarlanır; her hücrenin yazısı (ad, unvan, kod) kendi sütun genişliğine göre küçültülür, kesilmez.
+  - Word: hücrelerde “yazıyı sığdır” (Word’ün kendi özelliği) ve hesaplanmış punto; sayfa A4 yatay, kenar boşluğu 7 mm.
+  - Excel: “sayfaya sığdır” (1 × 1 sayfa), yazdırma alanı başlık + tablo + imzalar, hücrelerde “sığdırmak için küçült”, unvan alt satıra geçer, doküman kutusu etiketleri sığar.
+  - 20 ve 30 kişilik, uzun ad ve unvanlı çizelgeyle denendi (PDF, Word ve Excel tek sayfa).
 

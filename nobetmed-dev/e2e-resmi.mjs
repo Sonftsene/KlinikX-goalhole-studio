@@ -274,26 +274,49 @@ try {
   if (pages !== 1) fail(`resmi liste PDF ${pages} sayfa (tek sayfa olmalı)`);
   await PG.close();
   // Kalabalık birim: 20 ve 30 kişi de tek sayfaya sığmalı
+  // LibreOffice ile basılınca kaç sayfa (Word / Excel çıktısının A4'e sığması); soffice yoksa denetim atlanır
+  const soPages = (file) => {
+    try {
+      const dir = fs.mkdtempSync(path.join(OUT, 'so-'));
+      execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', dir, file], { stdio: 'ignore', timeout: 120000 });
+      const pdfF = fs.readdirSync(dir).find((f) => f.endsWith('.pdf'));
+      const info = execFileSync('pdfinfo', [path.join(dir, pdfF)], { encoding: 'utf8' });
+      const m = /Pages:\s+(\d+)/.exec(info); const sz = /Page size:\s+([\d.]+) x ([\d.]+)/.exec(info);
+      return { pages: m ? +m[1] : 0, land: sz ? +sz[1] > +sz[2] : false };
+    } catch (e) { return null; }
+  };
+  // Kalabalık birim: 20 ve 30 kişi, uzun ad ve unvan — PDF, Word ve Excel A4 yatay tek sayfa, hücrede taşan yazı yok
   for (const N of [20, 30]) {
-    const big = await A.p.evaluate(([N, c24, c8]) => {
+    const big = await A.p.evaluate(async ([N, c24, c8, yi]) => {
       const keep = PL2.d;
       const days = planDays(PL2.ym);
-      const people = Array.from({ length: N }, (_, i) => ({ name: `Örnek Kişi ${i + 1} Uzunsoyadlıoğlu`, title: i % 3 ? 'Hemşire' : 'Sorumlu Hemşire' }));
+      const people = Array.from({ length: N }, (_, i) => ({ name: `Örnek Kişi ${i + 1} Uzunsoyadlıoğlu Çağlayangil`, title: i % 3 ? 'Hemşire' : 'Sorumlu Hemşire Yardımcısı' }));
       const cells = {};
-      people.forEach((p, i) => { cells[p.name] = {}; days.forEach((d, k) => { if ((k + i) % 3 === 0) cells[p.name][d] = k % 2 ? c24 : c8; }); });
+      people.forEach((p, i) => { cells[p.name] = {}; days.forEach((d, k) => { if ((k + i) % 3 === 0) cells[p.name][d] = k % 2 ? c24 : (k % 5 ? c8 : yi); }); });
       PL2.d = { people, cells, reqs: {}, hfix: {} };
       const h = `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body>${rsDocHtml(rsModel(), { page: true })}</body></html>`;
+      const dx = Array.from(new Uint8Array(await (await rsDocx()).arrayBuffer()));
+      const xx = Array.from(new Uint8Array(await (await rsXlsx()).arrayBuffer()));
       PL2.d = keep;
-      return h;
-    }, [N, nov.c24, nov.c8]);
+      return { h, dx, xx };
+    }, [N, nov.c24, nov.c8, nov.yi]);
     const PB = await browser.newPage();
-    await PB.setContent(big, { waitUntil: 'load' });
+    await PB.setContent(big.h, { waitUntil: 'load' });
+    const over = await PB.evaluate(() => [...document.querySelectorAll('.rd-grid td')].filter((td) => td.scrollWidth > td.clientWidth + 1 || td.scrollHeight > td.clientHeight + 2).map((td) => td.textContent.trim()).slice(0, 5));
+    if (over.length) fail(`${N} kişilik resmi listede hücreden taşan yazı: ${over.join(' | ')}`);
     const pb = await PB.pdf({ preferCSSPageSize: true, printBackground: true });
     if (N === 20) fs.writeFileSync(path.join(OUT, 'r-resmi-20.pdf'), pb);
     const pn = (pb.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
     if (pn !== 1) fail(`${N} kişilik resmi liste ${pn} sayfa (tek sayfa olmalı)`);
     await PB.close();
+    const dF = path.join(OUT, `r-resmi-${N}.docx`), xF = path.join(OUT, `r-resmi-${N}.xlsx`);
+    fs.writeFileSync(dF, Buffer.from(big.dx)); fs.writeFileSync(xF, Buffer.from(big.xx));
+    for (const [f, t] of [[dF, 'Word'], [xF, 'Excel']]) {
+      const r = soPages(f);
+      if (r && (r.pages !== 1 || !r.land)) fail(`${N} kişilik ${t} çıktısı A4 yatay tek sayfa değil: ${JSON.stringify(r)}`);
+    }
   }
+  step('kalabalık birim (20 ve 30 kişi, uzun ad ve unvan): PDF, Word ve Excel A4 yatay tek sayfa; hücrelerden taşan yazı yok');
   const docx = Buffer.from(await blobBytes(A.p, 'rsDocx'));
   const dpath = path.join(OUT, 'r-resmi.docx'); fs.writeFileSync(dpath, docx);
   execFileSync('unzip', ['-tq', dpath]);
