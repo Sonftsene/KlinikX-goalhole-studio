@@ -656,19 +656,31 @@ async function makeAvatarData(file) {
   let q = 0.86;
   let data = cv.toDataURL('image/jpeg', q);
   while (data.length > 450000 && q > 0.4) { q -= 0.15; data = cv.toDataURL('image/jpeg', q); }
-  return data;
+  // Kırpılmamış hâl (uzun basınca büyük gösterilir): en çok 1600 px, ~1,5 MB
+  let orig = '';
+  try {
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const ow = Math.max(16, Math.round(bmp.width * k)), oh = Math.max(16, Math.round(bmp.height * k));
+    const oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+    const ox = oc.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.fillStyle = '#fff'; ox.fillRect(0, 0, ow, oh);
+    ox.drawImage(bmp, 0, 0, ow, oh);
+    let oq = 0.85; orig = oc.toDataURL('image/jpeg', oq);
+    while (orig.length > 2000000 && oq > 0.4) { oq -= 0.15; orig = oc.toDataURL('image/jpeg', oq); }
+    if (orig.length > 4600000) orig = '';
+  } catch (e) { orig = ''; }
+  return { data, orig };
 }
 CHANGE['av-file'] = async (el) => {
   const file = el.files && el.files[0];
   el.value = '';
   if (!file) return;
-  let data;
-  try { data = await makeAvatarData(file); } catch (e) { toast(e.message, 'err'); return; }
+  let data, orig;
+  try { ({ data, orig } = await makeAvatarData(file)); } catch (e) { toast(e.message, 'err'); return; }
   const m = openModal({ title: 'Profil fotoğrafı', size: 'narrow', body: html`<div class="av-preview"><img src="${data}" alt="Önizleme"></div><p class="small muted" style="text-align:center;margin-top:10px">Fotoğrafınız böyle görünecek.</p>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
   m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     try {
-      const r = await api('me.avatar', { data });
+      const r = await api('me.avatar', { data, orig });
       S.me.avatar = r.avatar;
       m.close();
       refreshMeEverywhere();

@@ -1149,3 +1149,18 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
 ### Kişi adını düzenleme (4.39.1)
 - Çizelgede kişinin adına dokunun › **Adını düzenle**. Nöbetleri, istekleri, saat düzeltmesi ve unvanı yeni ada taşınır; aynı adla ikinci kişi olamaz; **Geri al** ile dönülür.
 - Kişinin portaldaki hesabıyla eşleşme ada göre yapılır: yazım hatasını düzeltirken hesaptaki adla aynı yazın.
+
+## 60. Nöbet dışı kişiler (sorumlu) ve profil fotoğrafını büyütme (4.40.0)
+### Çizelgede nöbet dışı (sorumlu) kişiler
+- **Varsayılan olarak nöbet dışı**: Blok yerleşimindeki **Sorumlular** listesindekiler ve Kurallar’daki **hesaplara dahil edilmeyenler**. Çizelgede kişinin adına dokunup **Nöbet dışı (sorumlu): evet / hayır** ile kişi kişi değiştirilir (o ayın çizelgesine kaydedilir).
+- Nöbet dışı kişi:
+  - **Otomatik doldurmaya girmez** (saat eşitlemeye de girmez).
+  - Kendi mesaisi (ör. hafta içi 08-16) **günün gereken kişi sayısına sayılmaz**; hasta bakan kişi sayısı yalnız diğerlerinden hesaplanır. Otomatik doldurma ve Denetle buna göre eksik günü bulur.
+  - Kendi saatleri (gereken / çalışılan / fazla mesai, resmi liste) ayrı hesaplanır; “iki nöbet arası en çok boşluk” uyarısı aranmaz.
+  - Satırı mor işaretli, adının altında “nöbet dışı” yazar.
+- **Ek nöbet**: nöbet dışı kişiye elle yazılan **gece kapsayan** (16-08, 08-08) ya da **hafta sonu / tatil** nöbeti kendiliğinden ek nöbet sayılır ve gereken kişi sayısına eklenir (hücrede mor çerçeve). Hücreye dokununca çıkan **Ek nöbet — gereken kişi sayısına say** kutusuyla her hücre ayrıca açılıp kapatılabilir (ör. hafta içi gündüz ek nöbeti saymak için işaretleyin).
+
+### Profil fotoğrafına uzun basınca büyütme
+- Uygulamanın her yerinde (üst çubuk, rehber, sohbet, kişi listeleri) profil fotoğrafına **basılı tutunca** fotoğraf tam ekran açılır; dokununca ya da geri tuşuyla kapanır.
+- Fotoğrafın **kırpılmamış hâli** gösterilir: 4.40.0’dan sonra yüklenen fotoğrafların orijinal oranlı hâli (en çok 1600 px) ayrıca saklanır. Daha önce yüklenen fotoğraflarda kare hâli büyütülür; kişi fotoğrafını yeniden yüklerse orijinali de görünür.
+- Fotoğraflar yalnız giriş yapmış kişilere açıktır (orijinal hâl dahil).

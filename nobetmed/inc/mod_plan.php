@@ -16,6 +16,30 @@ function pl_excluded_name(string $name): bool
     return function_exists('rules_is_excluded') && rules_is_excluded($name);
 }
 
+/**
+ * Nöbet dışı kişi (sorumlu / işaretli): otomatik doldurmaya girmez, günün gereken kişi sayısına sayılmaz, saat eşitlemeye girmez;
+ * kendi saatleri ayrı hesaplanır. Varsayılan: Sorumlular listesi (Blok yerleşimi) + hesaplara dahil edilmeyenler (Kurallar);
+ * çizelgede kişi kişi değiştirilebilir (draft.outside).
+ */
+function plan_outside_default(string $name): bool
+{
+    return pl_excluded_name($name) || (function_exists('pl_is_team_member') && pl_is_team_member($name));
+}
+function plan_outside(array $data, string $name): bool
+{
+    $o = (array)($data['outside'] ?? []);
+    return array_key_exists($name, $o) ? (bool)$o[$name] : plan_outside_default($name);
+}
+/** Hücre günün kapsamasına sayılır mı: nöbet dışı kişide yalnız “ek nöbet” (varsayılan: gece kapsayan ya da hafta sonu / tatil nöbeti; elle değiştirilebilir) */
+function plan_counts(array $data, string $name, string $d, array $row, ?bool $outside = null): bool
+{
+    if (($row['kind'] ?? 'shift') !== 'shift') return false;
+    if (!($outside ?? plan_outside($data, $name))) return true;
+    $x = ((array)(((array)($data['xtra'] ?? []))[$name] ?? []))[$d] ?? null;
+    if ($x !== null) return (bool)$x;
+    return shift_cover($row)['night'] >= 0.5 || day_type($d) === 'weekend';
+}
+
 function plan_dict(): array
 {
     if (function_exists('gs_load_parser')) gs_load_parser();
@@ -99,7 +123,15 @@ function plan_clean(array $in, string $ym): array
     // Resmi listede kişi başı saat düzeltmesi (ör. arife yarım günü): [ad => ['req' => saat]]
     $hfix = [];
     foreach ((array)($in['hfix'] ?? []) as $n => $x) if (isset($names[$n]) && is_array($x) && isset($x['req']) && is_numeric($x['req'])) $hfix[$n] = ['req' => max(0, min(400, round((float)$x['req'], 1)))];
-    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix,
+    // Nöbet dışı işareti (kişi kişi; yoksa varsayılan) ve nöbet dışı kişinin ek nöbet hücreleri [ad => [tarih => 0|1]]
+    $outside = [];
+    foreach ((array)($in['outside'] ?? []) as $n => $v) if (isset($names[$n])) $outside[$n] = (bool)$v;
+    $xtra = [];
+    foreach ((array)($in['xtra'] ?? []) as $n => $row) {
+        if (!isset($names[$n]) || !is_array($row)) continue;
+        foreach ($row as $d => $v) if (isset($days[$d])) $xtra[$n][$d] = $v ? 1 : 0;
+    }
+    return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix, 'outside' => (object)$outside, 'xtra' => (object)$xtra,
         'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20),
         'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20),
         // Dağıtım biçimi (4.36): 'split' gündüz / gece ayrı · '24' önce 24 saatlik nöbet, kalan gündüz / gece ayrı
@@ -223,6 +255,7 @@ function a_plan_get(): void
         'signed' => function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], $ym) : null,
         'rules' => function_exists('swap_rules') ? swap_rules() : null,
         'titles' => ['known' => plan_titles_known($data['people'] ?? []), 'def' => $pt['def'], 'map' => (object)$pt['m']],
+        'outside_default' => plan_outside_names($data['people'] ?? []),
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,
@@ -285,6 +318,16 @@ function a_plan_titles(): void
     out(['titles' => ['known' => plan_titles_known([]), 'def' => $t['def'], 'map' => (object)$t['m']]]);
 }
 
+/** Varsayılan olarak nöbet dışı olanlar: taslaktaki kişilerden + Sorumlular / hesaplara dahil edilmeyenler listesindeki adlar (yeni eklenecekler için) */
+function plan_outside_names(array $people): array
+{
+    $o = [];
+    foreach ($people as $p) if (is_array($p) && plan_outside_default((string)($p['name'] ?? ''))) $o[] = (string)$p['name'];
+    if (function_exists('pl_team')) foreach (pl_team()['members'] as $m) $o[] = (string)$m;
+    if (function_exists('rules_excluded_list')) foreach (rules_excluded_list() as $x) $o[] = (string)$x['name'];
+    return array_values(array_unique($o));
+}
+
 function a_plan_save(): void
 {
     $me = need_publisher();
@@ -327,6 +370,7 @@ function plan_check(array $data, string $ym, ?int $rid = null): array
     $hours = [];
     foreach ($data['people'] as $p) {
         $name = $p['name'];
+        $out = plan_outside($data, $name);
         $days = plan_prev_for($prev, $name) + plan_person_days((array)($cells[$name] ?? []), $dict);
         ksort($days);
         $req = plan_req_for($reqs, $name, (array)($data['reqs'] ?? []));
@@ -334,15 +378,14 @@ function plan_check(array $data, string $ym, ?int $rid = null): array
         foreach ($days as $d => $row) {
             if ($row['kind'] !== 'shift' || $d < $first) continue;
             $h += (float)($row['hours'] ?? 0);
-            $cv = shift_cover($row);
-            $cov[$d]['day'] += $cv['day']; $cov[$d]['night'] += $cv['night'];
+            if (isset($cov[$d]) && plan_counts($data, $name, $d, $row, $out)) { $cv = shift_cover($row); $cov[$d]['day'] += $cv['day']; $cov[$d]['night'] += $cv['night']; }
             if (isset($req[$d])) $issues[] = ['name' => $name, 'date' => $d, 'type' => 'istek', 'msg' => $name . ' bu gün için ' . ($req[$d] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteği onaylanmış'];
             $e = swap_check($days, [$d], [], $cfg, $name);
             if ($e) $issues[] = ['name' => $name, 'date' => $d, 'type' => 'kural', 'msg' => $e];
         }
         $hours[$name] = round($h, 1);
-        // Uzun boşluk: dolu günler (nöbet, izin, rapor) arası
-        $occ = array_keys($days);
+        // Uzun boşluk: dolu günler (nöbet, izin, rapor) arası — nöbet dışı kişide aranmaz
+        $occ = $out ? [] : array_keys($days);
         for ($k = 1; $k < count($occ); $k++) {
             $gap = (int)round((strtotime($occ[$k]) - strtotime($occ[$k - 1])) / 86400) - 1;
             if ($gap > $cfg['max_gap'] && $occ[$k] >= $first) $issues[] = ['name' => $name, 'date' => max($first, date('Y-m-d', strtotime($occ[$k - 1] . ' +1 day'))), 'type' => 'bosluk', 'msg' => "$name için $gap günlük boşluk (en fazla {$cfg['max_gap']} gün)"];
@@ -427,11 +470,14 @@ function a_plan_auto(): void
         $fcov = shift_cover($fRow);
         if ($fRow['kind'] !== 'shift' || $fcov['day'] < 0.99 || $fcov['night'] < 0.99) fail('Seçilen 24 saat kodu gündüzü ve geceyi tam kapsamalı (ör. 08-08).');
     }
-    $haveOf = function ($d, $per) use (&$daysOf, $people) { $h = 0.0; foreach ($people as $n) if (isset($daysOf[$n][$d])) $h += shift_cover($daysOf[$n][$d])[$per]; return $h; };
-    $pick = function ($d, $row) use (&$daysOf, $people, $reqOf, $cfg, $gapUrgent, $hoursOf, $isWe, $weCount, $last7) {
+    $outOf = [];
+    foreach ($people as $n) $outOf[$n] = plan_outside($data, $n);
+    // Günün kapsaması: nöbet dışı kişinin yalnız ek nöbeti sayılır
+    $haveOf = function ($d, $per) use (&$daysOf, $people, $data, $outOf) { $h = 0.0; foreach ($people as $n) if (isset($daysOf[$n][$d]) && plan_counts($data, $n, $d, $daysOf[$n][$d], $outOf[$n])) $h += shift_cover($daysOf[$n][$d])[$per]; return $h; };
+    $pick = function ($d, $row) use (&$daysOf, $people, $reqOf, $cfg, $gapUrgent, $hoursOf, $isWe, $weCount, $last7, $outOf) {
         $cands = [];
         foreach ($people as $n) {
-            if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || pl_excluded_name($n)) continue;
+            if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || $outOf[$n]) continue;
             $try = $daysOf[$n];
             $try[$d] = $row;
             ksort($try);
@@ -480,7 +526,7 @@ function a_plan_auto(): void
         $nd = count(plan_days($ym));
         $w = [];
         foreach ($people as $n) {
-            if (pl_excluded_name($n)) continue;
+            if ($outOf[$n]) continue;
             $off = 0;
             foreach (plan_days($ym) as $d) if (isset($reqOf[$n][$d]) || (isset($daysOf[$n][$d]) && ($daysOf[$n][$d]['kind'] ?? '') !== 'shift')) $off++;
             $w[$n] = max(0, $nd - $off) / $nd;

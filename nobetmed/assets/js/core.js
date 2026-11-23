@@ -557,9 +557,45 @@ function avatarUrlFor(name) {
 }
 function avatar(name, size = '', url) {
   const u = url === undefined ? avatarUrlFor(name) : url;
-  if (u) return html`<span class="avatar ${size} has-img" data-i="${initials(name)}"><img class="av-img" src="${u}" alt="" loading="lazy" decoding="async"></span>`;
+  if (u) return html`<span class="avatar ${size} has-img" data-i="${initials(name)}" data-name="${name || ''}"><img class="av-img" src="${u}" alt="" loading="lazy" decoding="async" draggable="false"></span>`;
   return html`<span class="avatar ${size} tone-${toneFor(name)}">${initials(name)}</span>`;
 }
+/* Profil fotoğrafına uzun bas → kırpılmamış hâli tam ekran (dokununca / geri tuşuyla kapanır) */
+function avZoom(src, name) {
+  if (!src) return;
+  const full = /[?&]action=avatar\b/.test(src) ? src.replace(/([?&])o=1(&|$)/, '$1') + '&o=1' : src;
+  const el = document.createElement('div');
+  el.className = 'av-zoom'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', (name ? name + ' · ' : '') + 'profil fotoğrafı');
+  el.innerHTML = `<img alt="" src="${esc(full)}"><button type="button" class="av-zoom-x" aria-label="Kapat">×</button>${name ? `<div class="av-zoom-n">${esc(name)}</div>` : ''}`;
+  const img = el.querySelector('img');
+  img.addEventListener('error', () => { if (img.src !== new URL(src, location.href).href) img.src = src; }, { once: true });
+  let ov = null;
+  const close = () => { if (!el.isConnected) return; el.remove(); if (ov) { ovShut(ov); ov = null; } };
+  el.addEventListener('click', close);
+  document.body.appendChild(el);
+  ov = typeof ovOpen === 'function' ? ovOpen(close, () => el.isConnected) : null;
+}
+(() => {
+  let t = null, sx = 0, sy = 0, fired = false;
+  const cancel = () => { if (t) { clearTimeout(t); t = null; } };
+  document.addEventListener('pointerdown', (e) => {
+    const av = e.target.closest && e.target.closest('.avatar.has-img');
+    if (!av || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const img = av.querySelector('img.av-img'); if (!img) return;
+    sx = e.clientX; sy = e.clientY; fired = false; cancel();
+    t = setTimeout(() => {
+      t = null; fired = true;
+      if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) { /* */ }
+      const nm = av.getAttribute('aria-label') || av.dataset.name || '';
+      avZoom(img.getAttribute('src'), nm);
+    }, 480);
+  }, true);
+  document.addEventListener('pointermove', (e) => { if (t && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); }, true);
+  ['pointerup', 'pointercancel', 'scroll'].forEach((k) => document.addEventListener(k, cancel, true));
+  // Uzun basıştan sonraki tıklama (kişi kartını açma vb.) yutulur
+  document.addEventListener('click', (e) => { if (fired) { fired = false; if (e.target.closest && e.target.closest('.avatar.has-img')) { e.preventDefault(); e.stopPropagation(); } } }, true);
+  document.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.avatar.has-img')) e.preventDefault(); }, true);
+})();
 // Fotoğraf yüklenemezse (ör. çevrimdışı) baş harfleri göster
 document.addEventListener('error', (e) => {
   const t = e.target;

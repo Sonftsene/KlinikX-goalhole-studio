@@ -650,10 +650,17 @@ function avatar_dir(): string
     return $d;
 }
 
+/** Kırpılmamış (orijinal) fotoğrafın yolu: kare fotoğrafla aynı ad, “-o.jpg” */
+function avatar_orig_path(string $a): string
+{
+    $a = basename($a);
+    return $a === '' ? '' : avatar_dir() . '/' . pathinfo($a, PATHINFO_FILENAME) . '-o.jpg';
+}
 function avatar_delete_file(array $u): void
 {
     $a = basename((string)($u['avatar'] ?? ''));
     if ($a !== '' && is_file(avatar_dir() . '/' . $a)) @unlink(avatar_dir() . '/' . $a);
+    if ($a !== '' && is_file(avatar_orig_path($a))) @unlink(avatar_orig_path($a));
 }
 
 /** Profil fotoğrafı yükle / kaldır. Tarayıcı fotoğrafı kare olarak kırpıp küçültür (en fazla 512 px). */
@@ -680,8 +687,17 @@ function a_me_avatar(): void
     $info = @getimagesizefromstring($bin);
     $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
     if (!$info || !isset($types[$info[2]]) || $info[0] < 16 || $info[1] < 16 || $info[0] > 1024 || $info[1] > 1024) fail('Fotoğraf okunamadı. JPG veya PNG deneyin.');
+    // Kırpılmamış hâl (uzun basınca büyük gösterilir): isteğe bağlı, JPEG, en çok 2560 px
+    $orig = null;
+    $od = (string)($IN['orig'] ?? '');
+    if ($od !== '' && preg_match('#^data:image/jpeg;base64,([A-Za-z0-9+/=]+)$#', $od, $om)) {
+        $ob = base64_decode($om[1], true);
+        $oi = $ob !== false && strlen($ob) <= 3500000 ? @getimagesizefromstring($ob) : false;
+        if ($oi && $oi[2] === IMAGETYPE_JPEG && $oi[0] >= 16 && $oi[1] >= 16 && $oi[0] <= 2560 && $oi[1] <= 2560) $orig = $ob;
+    }
     $name = bin2hex(random_bytes(8)) . '.' . $types[$info[2]];
     if (@file_put_contents(avatar_dir() . '/' . $name, $bin) === false) fail('Fotoğraf kaydedilemedi (klasör yazma izni).', 500);
+    if ($orig !== null) @file_put_contents(avatar_orig_path($name), $orig);
     avatar_delete_file($me);
     q('UPDATE users SET avatar = ? WHERE id = ?', [$name, $me['id']]);
     out(['avatar' => avatar_url(['id' => $me['id'], 'avatar' => $name])]);
@@ -695,6 +711,8 @@ function a_avatar_get(): void
     $u = one('SELECT id, avatar FROM users WHERE id = ?', [(int)($_GET['u'] ?? 0)]);
     $a = $u ? basename((string)$u['avatar']) : '';
     $path = $a !== '' ? avatar_dir() . '/' . $a : '';
+    // ?o=1: kırpılmamış hâl (yoksa kare fotoğraf)
+    if ($path !== '' && !empty($_GET['o']) && is_file(avatar_orig_path($a))) $path = avatar_orig_path($a);
     if ($path === '' || !is_file($path)) { http_response_code(404); exit; }
     session_write_close();
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));

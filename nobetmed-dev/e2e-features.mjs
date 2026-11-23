@@ -92,6 +92,18 @@ const anon = await browser.newContext();
 const anonSt = await (await anon.request.get(BASE + avOk.src)).status();
 await anon.close();
 if (anonSt !== 404) fail('giriş yapmadan profil fotoğrafı açıldı: ' + anonSt);
+// Uzun bas → kırpılmamış (orijinal oranlı) fotoğraf tam ekran; kısa dokunuşta açılmaz
+const orig = await m.evaluate(async (src) => { const im = new Image(); im.src = src + '&o=1'; await im.decode(); return [im.naturalWidth, im.naturalHeight]; }, avOk.src);
+if (!(orig[0] === 320 && orig[1] === 180)) fail('orijinal fotoğraf saklanmadı: ' + orig.join('x'));
+const avBox = await m.locator('#topMe .avatar.has-img').boundingBox();
+await m.mouse.move(avBox.x + avBox.width / 2, avBox.y + avBox.height / 2);
+await m.mouse.down(); await m.waitForTimeout(700); await m.mouse.up();
+await m.locator('.av-zoom img').waitFor();
+const zw = await m.evaluate(async () => { const im = document.querySelector('.av-zoom img'); await im.decode().catch(() => {}); return [im.naturalWidth, im.naturalHeight, document.querySelectorAll('.modal').length]; });
+if (zw[0] !== 320 || zw[1] !== 180) fail('uzun basınca orijinal fotoğraf açılmadı: ' + zw.join('x'));
+await m.screenshot({ path: path.join(OUT, 'f-avatar-buyuk.png') });
+await m.click('.av-zoom');
+await m.locator('.av-zoom').waitFor({ state: 'detached' });
 await m.fill('[data-form=me-profile] [name=phone]', '0532 111 22 33');
 await m.fill('[data-form=me-profile] [name=extension]', '4412');
 await m.selectOption('[data-form=me-profile] [name=title_id]', { index: 2 });
@@ -103,7 +115,7 @@ await m.click('[data-act=nmode][data-m=digest]');
 await expectText(m, 'Bildirim tercihiniz kaydedildi');
 const me = (await apiCall(m, 'boot')).me;
 if (me.phone !== '0532 111 22 33' || me.notify_mode !== 'digest' || !me.avatar || !me.title_id) fail('profil kaydedilmedi: ' + JSON.stringify(me));
-step('profil: fotoğraf (girişsiz erişim kapalı), ünvan, telefon/dahili, sabah özeti');
+step('profil: fotoğraf (girişsiz erişim kapalı; uzun basınca kırpılmamış 320×180 hâli tam ekran), ünvan, telefon/dahili, sabah özeti');
 
 // 4) Rehber: kişi, ara düğmesi, bugün filtresi
 await a.goto(BASE + '#/rehber');

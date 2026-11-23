@@ -306,6 +306,41 @@ try {
   const parts = ppl.reduce((a, p) => a + Object.values(bl.cells[p.name] || {}).filter((c) => c === nov.c16).length, 0);
   step(`saat eşitleme: kişiler arası saat farkı ${sp0} → ${sp1} saat (${bl.balanced} değişiklik, ${parts} adet 24 saat 08-16 / 16-08 olarak bölündü); her günün gündüz / gece ihtiyacı karşılandı; kural ihlali yok`);
 
+  // Nöbet dışı (sorumlu): otomatik dağıtıma girmez; kendi mesaisi (hafta içi gündüz) gereken sayıya sayılmaz; ek nöbeti (hafta sonu / gece) sayılır
+  const S0 = ppl[0].name;
+  const ks = Array.from({ length: nDays }, (_, i) => i + 1);
+  const kWd = ks.find((k) => wd(k) && holD[d(k)] === undefined), kWe = ks.find((k) => !wd(k));
+  const ownC = { [d(kWd)]: nov.c8, [d(kWe)]: nov.c24 };
+  const NEED = { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } };
+  const ob = await apiCall(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: { [S0]: ownC }, outside: { [S0]: true }, needs: NEED, mode: '24', full_code: nov.c24, day_code: nov.c8, night_code: nov.c16, balance: true } });
+  const covO = (dd, withS0) => ppl.filter((p) => withS0 || p.name !== S0).map((p) => CV[(ob.cells[p.name] || {})[dd]] || [0, 0]).reduce((a, x) => [a[0] + x[0], a[1] + x[1]], [0, 0]);
+  const s0c = JSON.stringify(ob.cells[S0]) === JSON.stringify(ownC);
+  const cWd = covO(d(kWd), false), cWe = covO(d(kWe), false);
+  if (!s0c || cWd[0] < 2 || cWd[1] < 1 || cWe[0] !== 0 || cWe[1] !== 0) fail('nöbet dışı kişi: ' + JSON.stringify({ s0: ob.cells[S0], cWd, cWe }));
+  const chkO = await apiCall(A.p, 'plan.check', { roster_id: ro.id, ym, draft: { people: ppl, cells: ob.cells, outside: { [S0]: true }, needs: NEED } });
+  if (chkO.short.length || chkO.issues.some((x) => x.name === S0 && x.type === 'bosluk')) fail('nöbet dışı kişi denetimi: ' + JSON.stringify({ short: chkO.short.slice(0, 3), bos: chkO.issues.filter((x) => x.name === S0).slice(0, 2) }));
+  // Ek nöbet işareti kapatılırsa hafta sonu 24’ü de sayılmaz → o gün eksik kalır
+  const chkX = await apiCall(A.p, 'plan.check', { roster_id: ro.id, ym, draft: { people: ppl, cells: ob.cells, outside: { [S0]: true }, xtra: { [S0]: { [d(kWe)]: 0 } }, needs: NEED } });
+  if (!chkX.short.some((x) => x.date === d(kWe))) fail('ek nöbet işareti kaldırılınca gün eksik görünmedi');
+  step(`nöbet dışı (sorumlu): otomatik dağıtıma girmedi; hafta içi kendi mesaisi (${d(kWd)} 08-16) gereken sayıya sayılmadı, başkaları 2 gündüz + 1 gece yazıldı; hafta sonu ek nöbeti (${d(kWe)} 24 saat) sayıldı, o güne başkası yazılmadı; boşluk kuralı aranmadı; ek nöbet işareti kaldırılınca gün eksik göründü`);
+
+  // Arayüz: kişi menüsünden nöbet dışı yap → satır işaretlenir, hücre penceresinde “ek nöbet” seçeneği; geri al
+  const PO = await A.p.evaluate(() => PL2.d.people.find((p) => !planOutside(p.name)).name);
+  await A.p.click(`[data-act=pl2-pmenu][data-n="${PO}"]`);
+  await A.p.locator('.modal [data-o=outside]').click();
+  await expectText(A.p, `${PO} nöbet dışı`);
+  if (!(await A.p.evaluate((n) => !!document.querySelector(`[data-act=pl2-pmenu][data-n="${n}"]`).closest('tr.pl2-out') && PL2.d.outside[n] === true, PO))) fail('nöbet dışı işareti satıra / taslağa işlenmedi');
+  const dO = await A.p.evaluate(() => planDays(PL2.ym)[2]);
+  await A.p.click(`[data-act=pl2-cell][data-n="${PO}"][data-d="${dO}"]`);
+  await A.p.locator('#pl2Xtra').waitFor();
+  await A.p.keyboard.press('Escape');
+  await A.p.locator('#pl2Xtra').waitFor({ state: 'detached' });
+  await A.p.click(`[data-act=pl2-pmenu][data-n="${PO}"]`);
+  await A.p.locator('.modal [data-o=outside]').click();
+  await expectText(A.p, `${PO} yeniden nöbete dahil`);
+  if (await A.p.evaluate((n) => planOutside(n), PO)) fail('nöbet dışı işareti kaldırılamadı');
+  step(`arayüz: “${PO}” kişi menüsünden nöbet dışı yapıldı (satır işaretli, hücrede “ek nöbet” seçeneği), sonra yeniden nöbete alındı`);
+
   // Kolay düzenleme: temizle (yalnız nöbetler / tümü), kişinin nöbetleri, gün; hepsi Geri al ile döner
   await A.p.evaluate(() => { window.__isSh = (c) => { const k = PL2.codes.find((x) => x.code === c); return !k || k.kind === 'shift'; }; });
   const snap = () => A.p.evaluate(() => JSON.stringify(Object.keys(PL2.d.cells).sort().map((n) => [n, Object.entries(PL2.d.cells[n]).sort()])));
