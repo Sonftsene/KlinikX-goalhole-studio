@@ -301,6 +301,9 @@ try {
   execFileSync('python3', ['-c', 'import sys,xml.dom.minidom;xml.dom.minidom.parseString(sys.stdin.buffer.read())'], { input: dxml });
   if (!dxml.includes('KY.LS.99') || !dxml.includes('SELİN ÖRNEK') || !dxml.includes('w:orient="landscape"') || !/r:embed="rIdLogo"/.test(dxml)) fail('Word belgesi eksik');
   if (!execFileSync('unzip', ['-l', dpath], { encoding: 'utf8' }).includes('word/media/logo.')) fail('Word belgesinde logo yok');
+  const dlist = execFileSync('unzip', ['-l', dpath], { encoding: 'utf8' });
+  if (!dxml.includes('w:lang w:val="tr-TR"') || !dlist.includes('word/styles.xml') || !execFileSync('unzip', ['-p', dpath, 'word/styles.xml'], { encoding: 'utf8' }).includes('tr-TR')) fail('Word belgesinde Türkçe dil / varsayılan yazı tipi tanımı yok');
+  if (!/ŞEHİR|ÖRNEK|SELİN/.test(dxml)) fail('Word belgesinde Türkçe büyük harfler yok');
   const xlsx = Buffer.from(await blobBytes(A.p, 'rsXlsx'));
   const xpath = path.join(OUT, 'r-resmi.xlsx'); fs.writeFileSync(xpath, xlsx);
   execFileSync('unzip', ['-tq', xpath]);

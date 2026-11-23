@@ -180,7 +180,7 @@ function rsDocHtml(M, opts = {}) {
     .rd table{border-collapse:collapse}
     .rd-head{width:279mm;max-width:100%;border:1px solid #000;margin-bottom:2mm}
     .rd-head td{border:1px solid #000;vertical-align:middle}
-    .rd-logo{width:30mm;text-align:center;padding:1mm}.rd-logo img{max-height:18mm;max-width:27mm}
+    .rd-logo{width:30mm;text-align:center;vertical-align:middle;padding:1mm;line-height:0}.rd-logo img{display:block;margin:0 auto;max-height:18mm;max-width:27mm}
     .rd-title{text-align:center;font-weight:700;font-size:8.5pt;line-height:1.35}.rd-t-main{font-size:9.5pt}
     .rd-docbox{width:46mm;padding:0}.rd-docbox table{width:100%}.rd-docbox td{border:0;border-bottom:1px solid #000;font-size:6.5pt;padding:.6mm 1.2mm;height:4.4mm}
     .rd-docbox tr:last-child td{border-bottom:0}.rd-dl{border-right:1px solid #000!important;width:45%;font-weight:700}
@@ -268,7 +268,8 @@ async function rsDocx() {
   const tw = (mm) => Math.round(mm * 56.7); // twip
   const n = M.rows.length;
   const sz = Math.max(9, Math.min(14, Math.round(260 / Math.max(10, n)))); // yarım punto
-  const run = (t, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${o.b ? '<w:b/>' : ''}<w:sz w:val="${o.sz || sz}"/><w:szCs w:val="${o.sz || sz}"/></w:rPr><w:t xml:space="preserve">${X(t)}</w:t></w:r>`;
+  // Türkçe karakterler: yazı tipi tüm alanlarda Arial, dil tr-TR (görüntüleyici Türkçe harfi olmayan yazı tipine geçmesin)
+  const run = (t, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>${o.b ? '<w:b/><w:bCs/>' : ''}<w:sz w:val="${o.sz || sz}"/><w:szCs w:val="${o.sz || sz}"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr><w:t xml:space="preserve">${X(String(t == null ? '' : t).normalize('NFC'))}</w:t></w:r>`;
   const para = (t, o = {}) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${o.jc || 'center'}"/></w:pPr>${Array.isArray(t) ? t.join('') : run(t, o)}</w:p>`;
   const cell = (inner, o = {}) => `<w:tc><w:tcPr>${o.w ? `<w:tcW w:w="${o.w}" w:type="dxa"/>` : ''}${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ''}${o.vm ? `<w:vMerge${o.vm === 'start' ? ' w:val="restart"' : ''}/>` : ''}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}${o.dir ? `<w:textDirection w:val="${o.dir}"/>` : ''}${o.nw ? '<w:noWrap/>' : ''}<w:vAlign w:val="${o.va || 'center'}"/><w:tcMar><w:left w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tcMar></w:tcPr>${inner || para('')}</w:tc>`;
   const borders = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="000000"/><w:left w:val="single" w:sz="4" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:color="000000"/><w:right w:val="single" w:sz="4" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:color="000000"/></w:tblBorders>';
@@ -285,7 +286,7 @@ async function rsDocx() {
   }
   const box = M.doc.length ? tbl(M.docLabels ? [Math.round(boxW * 0.45), boxW - Math.round(boxW * 0.45)] : [boxW],
     M.doc.map((x) => tr(M.docLabels ? [cell(para(x.l, { sz: 12, b: true, jc: 'left' })), cell(para(x.v, { sz: 12, jc: 'left' }))] : [cell(para(x.v, { sz: 12, jc: 'left' }))], 220))) + para('', { sz: 2 }) : para('');
-  const head = tbl([logoW, midW, boxW], [tr([cell(drawing ? `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${drawing}</w:p>` : para('')),
+  const head = tbl([logoW, midW, boxW], [tr([cell(drawing ? `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>${drawing}</w:p>` : para(''), { va: 'center' }),
     cell(M.lines.map((l, i) => para(l, { b: true, sz: i === M.lines.length - 1 ? 20 : 18 })).join('')), cell(box, { va: 'top' })], 1000)]);
   // Ana tablo
   const RW = rsWidths(M);
@@ -309,9 +310,12 @@ async function rsDocx() {
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${head}${para('', { sz: 6 })}${tbl(grid, [h1, ...(h2 ? [h2] : []), ...body])}${para('', { sz: 10 })}${sigs}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="397" w:right="397" w:bottom="397" w:left="397" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const files = [
-    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`],
-    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
-    ['word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${img ? `<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.${img.ext === 'png' ? 'png' : 'jpg'}"/>` : ''}</Relationships>`],
+    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`],
+    ['word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="20" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`],
+    ['word/settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:defaultTabStop w:val="708"/><w:characterSpacingControl w:val="doNotCompress"/><w:themeFontLang w:val="tr-TR"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`],
+    ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${X(rsFileBase())}</dc:title><dc:language>tr-TR</dc:language><dc:creator>dupcii</dc:creator></cp:coreProperties>`],
+    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`],
+    ['word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>${img ? `<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.${img.ext === 'png' ? 'png' : 'jpg'}"/>` : ''}</Relationships>`],
     ['word/document.xml', docXml],
   ];
   if (img) files.push([`word/media/logo.${img.ext === 'png' ? 'png' : 'jpg'}`, img.u8]);
@@ -330,6 +334,11 @@ async function rsXlsx() {
   const lead = (M.cols.sira ? 1 : 0) + 1 + (M.cols.unvan ? 1 : 0);
   const total = Math.max(4, lead + M.days.length + hk.length);
   const HL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+  wb.creator = 'dupcii'; wb.title = rsFileBase();
+  // Sütun genişlikleri (karakter) — logo yerleşimi de bunlarla hesaplanır
+  const colW = [...(M.cols.sira ? [4] : []), 24, ...(M.cols.unvan ? [14] : []), ...M.days.map(() => 4.6), ...hk.map(() => (hasDays ? 5 : 10))];
+  while (colW.length < total) colW.push(6);
+  const pxW = (w) => Math.floor(w * 7 + 5);
   const thin = { style: 'thin', color: { argb: 'FF000000' } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
   // Başlık (1–5. satırlar): logo | başlık | doküman kutusu
@@ -350,8 +359,13 @@ async function rsXlsx() {
     const img = await rsImgInfo(M.logo);
     if (img) {
       const id = wb.addImage({ base64: img.b64, extension: img.ext === 'png' ? 'png' : 'jpeg' });
-      const h = 70, w = Math.round(h * img.w / img.h);
-      ws.addImage(id, { tl: { col: 0.2, row: 0.2 }, ext: { width: Math.min(w, 110), height: Math.round(Math.min(w, 110) * img.h / img.w) } });
+      // Logo: birleşik logo hücresinin (1–5. satır, ilk sütunlar) tam ortasına
+      const areaW = colW.slice(0, titleFrom - 1).reduce((a, w) => a + pxW(w), 0), areaH = 5 * 20;
+      const sc = Math.min((areaW - 10) / img.w, (areaH - 10) / img.h);
+      const iw = Math.max(1, Math.round(img.w * sc)), ih = Math.max(1, Math.round(img.h * sc));
+      let x = (areaW - iw) / 2, col = 0;
+      while (col < titleFrom - 2 && x >= pxW(colW[col])) { x -= pxW(colW[col]); col++; }
+      ws.addImage(id, { tl: { col: col + x / pxW(colW[col]), row: (areaH - ih) / 2 / 20 }, ext: { width: iw, height: ih } });
     }
   }
   // Tablo başlığı (7–8. satırlar)
@@ -377,20 +391,15 @@ async function rsXlsx() {
     vals.forEach((v, i) => {
       const x = row.getCell(i + 1);
       const di = i - lead, si = i - lead - M.days.length;
-      x.value = v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle' };
+      x.value = typeof v === 'string' ? v.normalize('NFC') : v; x.font = { size: hasDays ? 7 : 9, name: 'Arial', bold: (i < lead && i >= (M.cols.sira ? 1 : 0)) || (si >= 0 && M.hl.has(hk[si])) }; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: M.cols.unvan && i === lead - 1 };
       if (di >= 0 && di < M.days.length && M.shade && M.off[di]) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
       if (si >= 0 && M.hl.has(hk[si])) x.fill = HL;
     });
-    row.height = 14;
+    row.height = M.cols.unvan && r.title.length > 16 ? 20 : 14;
   });
   for (let r = hr; r < r0 + M.rows.length; r++) for (let k = 1; k <= lead + M.days.length + hk.length; k++) ws.getCell(r, k).border = box;
   // Sütun genişlikleri
-  let ci = 1;
-  if (M.cols.sira) ws.getColumn(ci++).width = 4;
-  ws.getColumn(ci++).width = 24;
-  if (M.cols.unvan) ws.getColumn(ci++).width = 11;
-  M.days.forEach(() => { ws.getColumn(ci++).width = 4.6; });
-  hk.forEach(() => { ws.getColumn(ci++).width = hasDays ? 5 : 10; });
+  colW.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   // İmzalar
   const sr = r0 + 1 + M.rows.length;
   if (M.sig.length) {

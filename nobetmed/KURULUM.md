@@ -1080,4 +1080,5 @@ Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sa
   - Örnek: hafta içi gündüz 2, gece 1 → 1 kişiye 08-08 + 1 kişiye 08-16; hafta sonu gündüz 1, gece 1 → yalnız 1 kişiye 08-08; gündüz 1, gece 2 → 1 kişiye 08-08 + 1 kişiye 16-08.
   - Adalet sırası, istekler, birim kuralları (24 saatten sonra dinlenme, boşluk sınırı) ve elle yazılan hücreler aynen geçerli; 24 saat için kurala uyan kimse yoksa ihtiyaç gündüz / gece koduyla denenir.
 - 24 saat kodu, gündüzü ve geceyi tam kapsayan bir vardiya olmalı (08-08 gibi); seçilmezse otomatik doldurma uyarır.
+- **Resmi liste çıktıları (4.36.0):** logo, logo hücresinin tam ortasında (önizleme / PDF, Word, Excel). Word belgesine Türkçe dil (tr-TR) ve varsayılan yazı tipi (Arial) tanımı eklendi; Türkçe harfler (Ç, Ğ, İ, Ö, Ş, Ü, ı) her görüntüleyicide doğru çıkar. Excel’de uzun unvanlar hücrede alt satıra geçer.
 
