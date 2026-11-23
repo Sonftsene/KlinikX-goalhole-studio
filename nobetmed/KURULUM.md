@@ -1087,3 +1087,28 @@ Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sa
   - Excel: “sayfaya sığdır” (1 × 1 sayfa), yazdırma alanı başlık + tablo + imzalar, hücrelerde “sığdırmak için küçült”, unvan alt satıra geçer, doküman kutusu etiketleri sığar.
   - 20 ve 30 kişilik, uzun ad ve unvanlı çizelgeyle denendi (PDF, Word ve Excel tek sayfa).
 
+## 57. Kura (4.37.0)
+Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar üstü kapalı, tek ekranda.
+
+### Kura yapmak
+1. İsimleri ya da sayıları yazın (her satıra bir tane; en çok 200). Kısayollar: **Sayılar 1–N**, **Birimdeki kişiler**, **Hazır şablondan…**
+2. İsterseniz kuraya ad verin (ör. “Bayram nöbeti kurası”).
+3. **Kurayı başlat**: ekran tam ekrana geçer, kartlar karışır ve üstü kapalı olarak ekrana **olabildiğince birbirinden uzak** dağılır (kart sayısına ve ekran boyutuna göre en büyük kart, en geniş aralık).
+4. Herkes sırayla bir karta dokunur; kart döner ve altındaki isim / sayı görünür.
+5. **Sonuçlar**: açılış sırası, kim açtı, saati; **Kopyala** ya da **Sohbette paylaş**. **Hepsini aç** kalan kartları açar ve kurayı bitirir.
+
+### Ayarlar (Kura ayarları)
+- **Nasıl çekilsin?** Kartla tek tek (dokunarak) ya da hepsini birden karıştır (sıralı liste hemen çıkar).
+- **Kart arkası:** numara, harf ya da düz. **Renk:** mor, yeşil, turuncu, pembe, gri.
+- **Sırayla çekenler:** ad listesi yazılırsa ekranda “Sıradaki: …” görünür ve açılan karta kendiliğinden yazılır.
+- **En çok N kart açılsın:** ör. 20 kişiden 3 kazanan; N kart açılınca kura biter, kalan kartlar kapalı kalır.
+- **Açan kişinin adını sor**, **açılan kart birkaç saniye sonra kapansın** (sıradaki kişi öncekileri görmesin), karıştırma gösterisi, ses, titreşim.
+
+### Hazır şablonlar ve geçmiş
+- Yönetici ve yayıncı yazdıkları listeyi **Şablon olarak kaydet** ile saklar; birimdeki **herkes** görür ve “Kullan” ile kura yapar. Yönetici / yayıncı şablonu siler.
+- **Geçmiş kuralar** birimde herkese görünür: kim başlattı, ne zaman, açılan kartlar ve kimin açtığı. Yarım kalan kendi kuranıza **Devam et** ile dönersiniz. Kaydı başlatan kişi, yönetici ya da yayıncı silebilir (onay sorulur).
+
+### Güvenilirlik
+- Karıştırma **sunucuda** yapılır (kriptografik rastgele sayı, Fisher–Yates). Kartların içeriği açılana kadar telefona / bilgisayara hiç gelmez; kimse önceden göremez.
+- Her açılış kim / ne zaman olarak kaydedilir; aynı kart iki kez açılamaz. Kartları yalnız kurayı başlatan kişinin ekranından açılabilir.
+

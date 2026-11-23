@@ -55,7 +55,7 @@ $boot = json_encode(['v' => $v, 'csrf' => $_SESSION['csrf'], 'share' => (string)
 <body>
   <div id="app"><div class="boot-splash"><?php if ($bv('logo') === '' && $bv('logo_dark') === ''): ?><img class="boot-logo light" src="assets/logo-light.png" alt="dupcii"><img class="boot-logo dark" src="assets/logo-dark.png" alt="dupcii"><?php endif; ?><div class="spinner"></div></div></div>
   <noscript>Bu uygulama için JavaScript gereklidir.</noscript>
-<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'mesaj4', 'arama', 'kisi', 'bildirim', 'plan', 'resmi', 'yemek', 'pwa', 'main'] as $js): ?>
+<?php foreach (['core', 'auth', 'posts', 'viewer', 'rosters', 'admin', 'shiftparse', 'extras', 'taraf', 'placement', 'requests', 'market', 'ekstra', 'qrgiris', 'prefs', 'sistem', 'abonelik', 'basvuru', 'destek', 'guncelle', 'yasal', 'saglik', 'paylas', 'yetki', 'hastane', 'mesaj', 'mesaj2', 'mesaj3', 'mesaj4', 'arama', 'kisi', 'bildirim', 'plan', 'resmi', 'kura', 'yemek', 'pwa', 'main'] as $js): ?>
   <script src="assets/js/<?= $js ?>.js?v=<?= $v ?>"></script>
 <?php endforeach; ?>
 </body>

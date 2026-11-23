@@ -1944,3 +1944,41 @@ a.in-link { font-weight: 600; }
 /* Bildirimler kapalı uyarısı (ana sayfa) */
 .push-nag { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
 .push-nag > .grow { min-width: 180px; }
+/* 4.37 kura */
+.kr-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.kr-sw.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface) inset; }
+.kr-set > summary { cursor: pointer; padding: 4px 0; }
+html.kr-open, html.kr-open body { overflow: hidden; }
+.kr-stage { --k1: #6d28d9; --k2: #8b5cf6; --kbg: #1e1b4b; position: fixed; inset: 0; z-index: 58; display: flex; flex-direction: column; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--kbg) 80%, #000) 0%, #0b0b16 100%); color: #fff; padding: max(10px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.kr-t-emerald { --k1: #047857; --k2: #10b981; --kbg: #064e3b; } .kr-t-amber { --k1: #b45309; --k2: #f59e0b; --kbg: #78350f; }
+.kr-t-rose { --k1: #be123c; --k2: #f43f5e; --kbg: #881337; } .kr-t-slate { --k1: #334155; --k2: #64748b; --kbg: #1e293b; } .kr-t-brand { --k1: #6d28d9; --k2: #8b5cf6; --kbg: #1e1b4b; }
+.kr-sw.kr-t-brand, .kr-sw.kr-t-emerald, .kr-sw.kr-t-amber, .kr-sw.kr-t-rose, .kr-sw.kr-t-slate { background: linear-gradient(135deg, var(--k1), var(--k2)); }
+.kr-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 8px; }
+.kr-top b { font-size: 16px; display: block; }
+.kr-prog { font-size: 12px; opacity: .75; }
+.kr-next { background: rgba(255,255,255,.14); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.kr-top .btn { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.25); }
+.kr-grid { flex: 1; min-height: 0; display: grid; place-items: center; }
+.kr-cell { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.kr-card { width: var(--kc); height: calc(var(--kc) * 1.35); border: 0; padding: 0; background: none; cursor: pointer; transition: transform .28s cubic-bezier(.2,.7,.2,1); }
+.kr-card[aria-disabled="true"] { cursor: default; }
+/* Çevirme: 2B (3B dönüş açılır pencerelerin katman sırasını bozuyordu) */
+.kr-in { position: relative; display: block; width: 100%; height: 100%; }
+.kr-card.flipping .kr-in { animation: krPulse .5s ease-in-out infinite; }
+.kr-card.shown .kr-in { animation: krFlip .42s ease-out; }
+@keyframes krFlip { 0% { transform: scaleX(.05); } 100% { transform: scaleX(1); } }
+@keyframes krPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(.94); } }
+.kr-back, .kr-front { position: absolute; inset: 0; border-radius: calc(var(--kc) * .1); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,.35); transition: opacity .18s ease; }
+.kr-back { background: repeating-linear-gradient(45deg, var(--k1) 0 8px, var(--k2) 8px 16px); color: #fff; font-weight: 800; font-size: calc(var(--kc) * .32); border: 3px solid rgba(255,255,255,.85); }
+.kr-back small { font-size: calc(var(--kc) * .14); opacity: .9; display: flex; align-items: center; gap: 2px; }
+.kr-card.open:not(.shown) .kr-back { filter: grayscale(.6) brightness(.7); }
+.kr-front { background: #fff; color: #111; padding: 6px; text-align: center; border: 3px solid var(--k2); opacity: 0; pointer-events: none; }
+.kr-card.shown .kr-front { opacity: 1; } .kr-card.shown .kr-back { opacity: 0; }
+.kr-front b { line-height: 1.1; word-break: break-word; overflow-wrap: anywhere; }
+.kr-front small { font-size: calc(var(--kc) * .11); color: #555; margin-top: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kr-front i { position: absolute; top: 6px; left: 8px; font-style: normal; font-size: calc(var(--kc) * .11); color: var(--k1); font-weight: 700; }
+.kr-stage.shuffling .kr-card { transition: transform .26s ease-in-out; }
+.kr-card:not(.open):not([aria-disabled="true"]):active { transform: scale(.94); }
+.kr-done { text-align: center; padding-top: 8px; display: flex; gap: 8px; align-items: center; justify-content: center; }
+.kr-res .kr-no { width: 30px; height: 30px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-text, var(--brand)); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+@media (prefers-reduced-motion: reduce) { .kr-in, .kr-card { transition: none; } }
