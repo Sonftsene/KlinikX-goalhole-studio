@@ -68,6 +68,8 @@ async function planLoad() {
   PL2.d.cells = PL2.d.cells && !Array.isArray(PL2.d.cells) ? PL2.d.cells : {};
   PL2.d.reqs = PL2.d.reqs && !Array.isArray(PL2.d.reqs) ? PL2.d.reqs : {};
   PL2.d.hfix = PL2.d.hfix && !Array.isArray(PL2.d.hfix) ? PL2.d.hfix : {};
+  if (!PL2.d.mode) PL2.d.mode = 'split';
+  if (!PL2.d.full_code) PL2.d.full_code = (PL2.codes.find((c) => c.kind === 'shift' && +c.hours >= 24 && c.start && c.start === c.end) || PL2.codes.find((c) => c.kind === 'shift' && +c.hours >= 24) || {}).code || '';
   if (!PL2.d.leave_code) PL2.d.leave_code = (PL2.codes.find((c) => c.kind !== 'shift' && /yıllık/i.test(c.label || '')) || {}).code || '';
   if (PL2.synced) PL2.dirty = true; // yayından sonraki değişim / devirler taslağa işlendi: kaydedilsin
   try { await rsLoadTpl(); } catch (e) { /* şablon okunamadıysa varsayılan saatlerle */ }
@@ -155,6 +157,8 @@ function planDraw() {
         <label class="small">gece <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekday.night" value="${PL2.d.needs.weekday.night}"></label>
         <label class="small">Hafta sonu/tatil gündüz <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekend.day" value="${PL2.d.needs.weekend.day}"></label>
         <label class="small">gece <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekend.night" value="${PL2.d.needs.weekend.night}"></label>
+        <label class="small" title="Önce 24 saat: her gün önce 24 saatlik nöbet yazılır (bir 24 saat hem gündüzü hem geceyi karşılar); 24’lerle kapanmayan gündüz / gece ihtiyacı gündüz ve gece koduyla tamamlanır">Dağıtım <select class="select" data-change="pl2-code" data-k="mode" id="pl2Mode" style="width:auto"><option value="split" ${PL2.d.mode !== '24' ? raw('selected') : ''}>Gündüz / gece ayrı</option><option value="24" ${PL2.d.mode === '24' ? raw('selected') : ''}>Önce 24 saat, kalan gündüz / gece</option></select></label>
+        ${PL2.d.mode === '24' ? html`<label class="small">24 saat kodu <select class="select" data-change="pl2-code" data-k="full_code" style="width:auto">${shiftCodes.filter((c) => +c.hours >= 20).map((c) => html`<option ${c.code === PL2.d.full_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>` : ''}
         <label class="small">Gündüz kodu <select class="select" data-change="pl2-code" data-k="day_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.day_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
         <label class="small">Gece kodu <select class="select" data-change="pl2-code" data-k="night_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.night_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
         <label class="small" title="Otomatik dağıtımda onaylı (ya da elle girilen) yıllık izin isteği olan boş günlere yazılır">İzin kodu <select class="select" data-change="pl2-code" data-k="leave_code" style="width:auto"><option value="">Yazma</option>${PL2.codes.filter((c) => c.kind !== 'shift').map((c) => html`<option value="${c.code}" ${c.code === PL2.d.leave_code ? raw('selected') : ''}>${c.code} · ${c.label}</option>`)}</select></label>
@@ -205,7 +209,7 @@ const pl2Url = () => `#/cizelge/${PL2.rid}/${PL2.ym}${PL2_TAB_URL[PL2.tab] ? '/'
 ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); navStep(pl2Url()); planLoad(); };
 CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; navStep(pl2Url()); planLoad(); };
 CHANGE['pl2-need'] = (el) => { const [a, b] = el.dataset.k.split('.'); PL2.d.needs[a][b] = Math.max(0, +el.value || 0); planDirty(); };
-CHANGE['pl2-code'] = (el) => { PL2.d[el.dataset.k] = el.value; planDirty(); };
+CHANGE['pl2-code'] = (el) => { PL2.d[el.dataset.k] = el.value; planDirty(); if (el.dataset.k === 'mode') planDraw(); };
 ACT['pl2-brush'] = (el) => { PL2.brush = el.dataset.c; planDraw(); };
 ACT['pl2-brush-off'] = () => { PL2.brush = null; planDraw(); };
 ACT['pl2-cell'] = (el) => {
@@ -330,7 +334,7 @@ ACT['pl2-check'] = (el) => busy(el, async () => {
   try { PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d }); planDraw(); const x = $('#plIssues'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { toast(e.message, 'err'); }
 });
 ACT['pl2-auto'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Önce istekler yerleşir${PL2.d.leave_code ? ` (yıllık izin isteği olan boş günlere ${PL2.d.leave_code})` : ''}; boşluk isteği olan güne nöbet yazılmaz. Sonra gereken sayıya ulaşmayan günlere (${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece) kurallara uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura. Dolu hücrelere dokunulmaz; sonra elle düzenleyebilirsiniz.`, ok: 'Doldur' }))) return;
+  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Önce istekler yerleşir${PL2.d.leave_code ? ` (yıllık izin isteği olan boş günlere ${PL2.d.leave_code})` : ''}; boşluk isteği olan güne nöbet yazılmaz. Sonra gereken sayıya ulaşmayan günlere ${PL2.d.mode === '24' ? `önce ${PL2.d.full_code} (24 saat; gündüzü ve geceyi birlikte karşılar), kalan ihtiyaca ${PL2.d.day_code} gündüz / ${PL2.d.night_code} gece` : `${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece`} kurallara uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura. Dolu hücrelere dokunulmaz; sonra elle düzenleyebilirsiniz.`, ok: 'Doldur' }))) return;
   busy(el, async () => {
     try {
       const r = await api('plan.auto', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
@@ -338,7 +342,7 @@ ACT['pl2-auto'] = async (el) => {
       planDirty();
       PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
       planDraw();
-      toast(`${r.placed ? r.placed + ' izin günü işlendi · ' : ''}${r.filled} nöbet yazıldı${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
+      toast(`${r.placed ? r.placed + ' izin günü işlendi · ' : ''}${r.filled} nöbet yazıldı${r.full ? ` (${r.full} tanesi 24 saat)` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
     } catch (e) { toast(e.message, 'err'); }
   });
 };

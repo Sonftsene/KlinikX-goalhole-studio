@@ -1073,3 +1073,11 @@ Yönetici ve yayıncı (çizelgeyi yönetenler) için **Nöbet › Çizelge** sa
 - İki nöbet arası **en fazla N gün boşluk** (ör. 3), nöbet çıkışı en az dinlenme saati, üst üste en fazla çalışma saati. Her birime özgüdür.
 - Çizelge denetimi bu kurallara göre uyarır; otomatik dağıtım, boşluk sınırına gelen kişiye önce nöbet yazar. Nöbet değişimi, ilan ve eksik çağrısı da aynı kurallara uyar (Ayarlar › Nöbet › Nöbet kuralları ile aynı ayar).
 
+## 56. Otomatik dağıtımda “Önce 24 saat” (4.36.0)
+Çizelge › Çizelge ayarları › **Dağıtım**:
+- **Gündüz / gece ayrı** (varsayılan, eskisi gibi): gündüz ihtiyacı gündüz koduyla (08-16), gece ihtiyacı gece koduyla (16-08) doldurulur.
+- **Önce 24 saat, kalan gündüz / gece**: her gün önce **24 saat kodu** (ör. 08-08) yazılır; bir 24 saatlik nöbet hem gündüzden hem geceden birer kişilik ihtiyacı karşılar. 24’lerle kapanmayan kısım gündüz / gece koduyla tamamlanır.
+  - Örnek: hafta içi gündüz 2, gece 1 → 1 kişiye 08-08 + 1 kişiye 08-16; hafta sonu gündüz 1, gece 1 → yalnız 1 kişiye 08-08; gündüz 1, gece 2 → 1 kişiye 08-08 + 1 kişiye 16-08.
+  - Adalet sırası, istekler, birim kuralları (24 saatten sonra dinlenme, boşluk sınırı) ve elle yazılan hücreler aynen geçerli; 24 saat için kurala uyan kimse yoksa ihtiyaç gündüz / gece koduyla denenir.
+- 24 saat kodu, gündüzü ve geceyi tam kapsayan bir vardiya olmalı (08-08 gibi); seçilmezse otomatik doldurma uyarır.
+

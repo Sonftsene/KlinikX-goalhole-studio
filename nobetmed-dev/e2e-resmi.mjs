@@ -240,6 +240,30 @@ try {
   await A.p.locator('#rsPaper', { hasText: 'KY.LS.99' }).waitFor();
   step('liste türü: “Fazla Mesai Listesi” oluşturuldu (kendi doküman no FM.LS.07, gün sütunsuz özet, Topl İzin / Gereken / Gündüz / Gece / %10 / Fazla, fazla sütunu yeşil); PDF tek sayfa, Excel ve Word üretildi; asıl liste türü değişmedi');
 
+  // ---- 6c) Dağıtım: önce 24 saat, kalan gündüz / gece ----
+  await A.p.click('[data-act=pl2-tab][data-t=grid]'); await A.p.locator('#plGrid').waitFor();
+  await A.p.selectOption('#pl2Mode', '24');
+  await A.p.locator('[data-change=pl2-code][data-k=full_code]').waitFor();
+  if ((await A.p.evaluate(() => PL2.d.full_code)) !== nov.c24) fail('24 saat kodu kendiliğinden seçilmedi');
+  await A.p.selectOption('#pl2Mode', 'split');
+  const ppl = Array.from({ length: 8 }, (_, i) => ({ name: `Dağıtım Örnek ${i + 1}`, title: '' }));
+  const au = await apiCall(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } }, mode: '24', full_code: nov.c24, day_code: nov.c8, night_code: nov.c16 } });
+  const holD = await A.p.evaluate(() => PL2.hol);
+  const bad = [];
+  for (let k = 1; k <= nDays; k++) {
+    const dd = d(k);
+    const codes = ppl.map((p) => (au.cells[p.name] || {})[dd]).filter(Boolean);
+    const cnt = (c) => codes.filter((x) => x === c).length;
+    const we = !wd(k) || holD[dd] !== undefined;
+    const ok = we ? cnt(nov.c24) === 1 && codes.length === 1 : cnt(nov.c24) === 1 && cnt(nov.c8) === 1 && codes.length === 2;
+    if (!ok) bad.push(`${dd}: ${codes.join(',')}`);
+  }
+  for (const p of ppl) for (let k = 1; k < nDays; k++) if ((au.cells[p.name] || {})[d(k)] === nov.c24 && (au.cells[p.name] || {})[d(k + 1)]) bad.push(`${p.name} 24 saat sonrası ${d(k + 1)}`);
+  if (bad.length || au.unfilled.length) fail('önce 24 saat dağıtımı yanlış: ' + bad.slice(0, 5).join(' | ') + (au.unfilled.length ? ' · eksik ' + au.unfilled.length : ''));
+  if (!/24 saat/.test(await apiErr(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: {}, mode: '24', full_code: nov.c8, day_code: nov.c8, night_code: nov.c16 } }))) fail('gündüz kodu 24 saat kodu olarak kabul edildi');
+  step(`dağıtım “önce 24 saat”: ${au.full} gün 24 saat (${nov.c24}) yazıldı, hafta içi kalan gündüz ihtiyacı ${nov.c8} ile tamamlandı, hafta sonu yalnız 24 saat; 24’ün ertesi günü aynı kişiye nöbet yok; 24 saat olmayan kod reddedildi`);
+  await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
+
   // ---- 7) Tek sayfa PDF, Word, Excel ----
   const docHtml = await A.p.evaluate(() => `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body>${rsDocHtml(rsModel(), { page: true })}</body></html>`);
   const PG = await browser.newPage();

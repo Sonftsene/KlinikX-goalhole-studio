@@ -101,7 +101,9 @@ function plan_clean(array $in, string $ym): array
     foreach ((array)($in['hfix'] ?? []) as $n => $x) if (isset($names[$n]) && is_array($x) && isset($x['req']) && is_numeric($x['req'])) $hfix[$n] = ['req' => max(0, min(400, round((float)$x['req'], 1)))];
     return ['people' => $people, 'cells' => (object)$cells, 'needs' => $needs, 'reqs' => (object)$reqs, 'hfix' => (object)$hfix,
         'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20),
-        'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20)];
+        'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20),
+        // Dağıtım biçimi (4.36): 'split' gündüz / gece ayrı · '24' önce 24 saatlik nöbet, kalan gündüz / gece ayrı
+        'mode' => ($in['mode'] ?? '') === '24' ? '24' : 'split', 'full_code' => mb_substr(trim((string)($in['full_code'] ?? '')), 0, 20)];
 }
 
 /**
@@ -352,36 +354,59 @@ function a_plan_auto(): void
     $hoursOf = function ($n) use (&$daysOf, $first) { $h = 0; foreach ($daysOf[$n] as $d => $x) if ($d >= $first && $x['kind'] === 'shift') $h += (float)($x['hours'] ?? 0); return $h; };
     $last7 = function ($n, $d) use (&$daysOf) { $c = 0; foreach ($daysOf[$n] as $k => $x) if ($x['kind'] === 'shift' && $k < $d && $k >= date('Y-m-d', strtotime($d . ' -7 day'))) $c++; return $c; };
     $filled = 0;
+    $full = 0;
     $unfilled = [];
+    // Önce 24 saat: bir 24 saatlik nöbet hem gündüzden hem geceden birer kişilik ihtiyacı karşılar
+    $fRow = null;
+    if ($data['mode'] === '24') {
+        $fc = $data['full_code'];
+        if ($fc === '') fail('24 saatlik nöbet kodunu seçin (ör. 08-08).');
+        $fRow = plan_row($fc, $dict);
+        $fcov = shift_cover($fRow);
+        if ($fRow['kind'] !== 'shift' || $fcov['day'] < 0.99 || $fcov['night'] < 0.99) fail('Seçilen 24 saat kodu gündüzü ve geceyi tam kapsamalı (ör. 08-08).');
+    }
+    $haveOf = function ($d, $per) use (&$daysOf, $people) { $h = 0.0; foreach ($people as $n) if (isset($daysOf[$n][$d])) $h += shift_cover($daysOf[$n][$d])[$per]; return $h; };
+    $pick = function ($d, $row) use (&$daysOf, $people, $reqOf, $cfg, $gapUrgent, $hoursOf, $isWe, $weCount, $last7) {
+        $cands = [];
+        foreach ($people as $n) {
+            if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || pl_excluded_name($n)) continue;
+            $try = $daysOf[$n];
+            $try[$d] = $row;
+            ksort($try);
+            if (swap_check($try, [$d], [], $cfg, $n)) continue;
+            // Adalet: boşluk sınırına gelen → ay içinde az saat → (hafta sonu / tatilse) az hafta sonu nöbeti → son 7 günde az nöbet → kura
+            $cands[] = [$gapUrgent($n, $d), $hoursOf($n), $isWe($d) ? $weCount($n) : 0, $last7($n, $d), random_int(0, 1000000), $n];
+        }
+        if (!$cands) return null;
+        sort($cands);
+        return $cands[0][5];
+    };
+    $assign = function ($n, $d, $row) use (&$daysOf, &$cells, &$filled) {
+        $daysOf[$n][$d] = $row;
+        ksort($daysOf[$n]);
+        $cells[$n][$d] = $row['code'];
+        $filled++;
+    };
     foreach (plan_days($ym) as $d) {
         $need = $data['needs'][day_type($d)] ?? ['day' => 0, 'night' => 0];
+        if ($fRow) {
+            while ($haveOf($d, 'day') < $need['day'] - 0.01 && $haveOf($d, 'night') < $need['night'] - 0.01) {
+                $n = $pick($d, $fRow);
+                if ($n === null) break; // kurala uyan kimse yoksa kalan ihtiyaç gündüz / gece ile denenir
+                $assign($n, $d, $fRow);
+                $full++;
+            }
+        }
         foreach (['day' => $dRow, 'night' => $nRow] as $per => $row) {
-            $have = 0.0;
-            foreach ($people as $n) if (isset($daysOf[$n][$d])) $have += shift_cover($daysOf[$n][$d])[$per];
-            $step = max(0.25, shift_cover($row)[$per]);
-            while ($have < $need[$per] - 0.01) {
-                $cands = [];
-                foreach ($people as $n) {
-                    if (isset($daysOf[$n][$d]) || isset($reqOf[$n][$d]) || pl_excluded_name($n)) continue;
-                    $try = $daysOf[$n];
-                    $try[$d] = $row;
-                    ksort($try);
-                    if (swap_check($try, [$d], [], $cfg, $n)) continue;
-                    // Adalet: ay içinde az saat → (hafta sonu / tatilse) az hafta sonu nöbeti → son 7 günde az nöbet → kura
-                    $cands[] = [$gapUrgent($n, $d), $hoursOf($n), $isWe($d) ? $weCount($n) : 0, $last7($n, $d), random_int(0, 1000000), $n];
-                }
-                if (!$cands) { $unfilled[] = ['date' => $d, 'period' => $per, 'missing' => $need[$per] - $have]; break; }
-                sort($cands);
-                $n = $cands[0][5];
-                $daysOf[$n][$d] = $row;
-                ksort($daysOf[$n]);
-                $cells[$n][$d] = $row['code'];
-                $have += $step;
-                $filled++;
+            if (shift_cover($row)[$per] < 0.01) { if ($haveOf($d, $per) < $need[$per] - 0.01) $unfilled[] = ['date' => $d, 'period' => $per, 'missing' => $need[$per] - $haveOf($d, $per)]; continue; }
+            while (($have = $haveOf($d, $per)) < $need[$per] - 0.01) {
+                $n = $pick($d, $row);
+                if ($n === null) { $unfilled[] = ['date' => $d, 'period' => $per, 'missing' => $need[$per] - $have]; break; }
+                $assign($n, $d, $row);
             }
         }
     }
-    out(['cells' => (object)$cells, 'filled' => $filled, 'unfilled' => $unfilled, 'placed' => $placed]);
+    out(['cells' => (object)$cells, 'filled' => $filled, 'full' => $full, 'unfilled' => $unfilled, 'placed' => $placed]);
 }
 
 /** Birim kuralları (çizelge ekranından; yönetici ve yayıncı): değişim / ilan / çağrı / çizelge hepsi bunlara uyar */
