@@ -1112,3 +1112,19 @@ Menüde **Kura** (herkes görür). İsim ya da sayılardan adil kura; kartlar ü
 - Karıştırma **sunucuda** yapılır (kriptografik rastgele sayı, Fisher–Yates). Kartların içeriği açılana kadar telefona / bilgisayara hiç gelmez; kimse önceden göremez.
 - Her açılış kim / ne zaman olarak kaydedilir; aynı kart iki kez açılamaz. Kartları yalnız kurayı başlatan kişinin ekranından açılabilir.
 
+
+## 58. Çizelgeyi kolay düzenleme ve saat eşitleme (4.38.0)
+### Temizle ve Geri al
+- Çizelgenin üstünde **Temizle** (telefonda **⋯ › Temizle**):
+  - **Yalnız nöbetleri temizle**: izin, rapor ve diğer günler kalır; otomatik doldurmayı baştan yapmak için.
+  - **Tüm çizelgeyi temizle**: bütün hücreler boşalır; kişiler ve istekler kalır.
+- **Kişinin adına dokunun** › **Bu kişinin nöbetlerini temizle** (izin / rapor kalır) ya da **Satırı tamamen temizle**.
+- **Gün başlığına (gün numarasına) dokunun** › o günün nöbetlerini ya da günü tamamen temizleyin.
+- Toplu işlemlerden (otomatik doldur, temizle, yapıştır, kişi çıkar) sonra **Geri al** düğmesi çıkar; son 20 işlem sırayla geri alınır.
+
+### Saatleri eşitle (24’ü 08-16 / 16-08 bölerek)
+Çizelge ayarlarında **Saatleri eşitle** (varsayılan açık). Otomatik doldurmadan sonra:
+- Her kişinin saati, ay içinde çalışabileceği gün sayısına göre (izin / rapor / istek günleri düşülür) olması gereken paya göre karşılaştırılır.
+- Fazla çalışanın **otomatik yazılan** nöbeti az çalışana geçer. 24 saatlik nöbet bütün olarak ya da **08-16 / 16-08 parçalarına bölünerek** paylaştırılır (ör. 08-16 bir kişide kalır, 16-08 diğerine geçer); hangisi farkı daha çok kapatıyorsa o seçilir.
+- Gün gün gündüz / gece ihtiyacı hiç azalmaz; birim kuralları (24 saatten sonra dinlenme, iki nöbet arası en çok boşluk, art arda gün) her iki kişi için de denetlenir.
+- Elle yazılan hücrelere, isteklere ve izinlere dokunulmaz. Sonuç mesajında kaç değişiklik yapıldığı yazar; beğenmezseniz **Geri al**.

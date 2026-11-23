@@ -64,6 +64,7 @@ async function planLoad() {
   try { r = await api('plan.get', { roster_id: PL2.rid, ym: PL2.ym }); } catch (e) { setHTML(box, html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null; PL2.joint = !!r.joint;
   PL2.rules = r.rules || null;
+  PL2.undo = [];
   PL2.half = r.half || []; PL2.marks = r.marks && !Array.isArray(r.marks) ? r.marks : {}; PL2.signed = r.signed || null; PL2.published = !!r.published; PL2.synced = r.synced || 0;
   PL2.d.cells = PL2.d.cells && !Array.isArray(PL2.d.cells) ? PL2.d.cells : {};
   PL2.d.reqs = PL2.d.reqs && !Array.isArray(PL2.d.reqs) ? PL2.d.reqs : {};
@@ -143,7 +144,9 @@ function planDraw() {
         ${PL2.joint ? html`<a class="btn sm pl2-xbtn" href="#/cizelge/taraflar/${PL2.ym}">${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}
         <button class="btn sm pl2-xbtn" data-act="pl2-import">${icon('upload', 'sm')}<span>Yapıştır / CSV</span></button>
         <button class="btn sm pl2-xbtn" data-act="pl2-check">${icon('shield', 'sm')}<span>Denetle</span></button>
+        <button class="btn sm pl2-xbtn" data-act="pl2-clear">${icon('trash', 'sm')}<span>Temizle</span></button>
         <button class="btn sm pl2-xbtn" data-act="pl2-auto">${icon('star', 'sm')}<span>Otomatik doldur</span></button>
+        ${(PL2.undo || []).length ? html`<button class="btn sm" data-act="pl2-undo" title="Son toplu işlemi geri al: ${PL2.undo[PL2.undo.length - 1].label}">${icon('history', 'sm')}<span>Geri al</span></button>` : ''}
         <button class="btn sm pl2-more" data-act="pl2-more" aria-label="Diğer işlemler">${icon('more', 'sm')}<span>Diğer</span></button>
         <button class="btn sm" data-act="pl2-save">${icon('check', 'sm')}<span>Kaydet</span></button>
         <button class="btn sm primary" data-act="pl2-publish">${icon('send', 'sm')}<span>Yayınla</span></button>
@@ -158,6 +161,7 @@ function planDraw() {
         <label class="small">Hafta sonu/tatil gündüz <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekend.day" value="${PL2.d.needs.weekend.day}"></label>
         <label class="small">gece <input class="input" type="number" min="0" max="50" data-input="pl2-need" data-k="weekend.night" value="${PL2.d.needs.weekend.night}"></label>
         <label class="small" title="Önce 24 saat: her gün önce 24 saatlik nöbet yazılır (bir 24 saat hem gündüzü hem geceyi karşılar); 24’lerle kapanmayan gündüz / gece ihtiyacı gündüz ve gece koduyla tamamlanır">Dağıtım <select class="select" data-change="pl2-code" data-k="mode" id="pl2Mode" style="width:auto"><option value="split" ${PL2.d.mode !== '24' ? raw('selected') : ''}>Gündüz / gece ayrı</option><option value="24" ${PL2.d.mode === '24' ? raw('selected') : ''}>Önce 24 saat, kalan gündüz / gece</option></select></label>
+        <label class="small" title="Otomatik doldurmadan sonra fazla çalışanın otomatik yazılan nöbeti az çalışana geçer; 24 saatlik nöbet 08-16 / 16-08 olarak bölünebilir. Elle yazılanlara ve isteklere dokunulmaz."><input type="checkbox" data-change="pl2-bal" ${PL2.d.balance !== false ? raw('checked') : ''}> Saatleri eşitle (24’ü 08-16 / 16-08 bölerek)</label>
         ${PL2.d.mode === '24' ? html`<label class="small">24 saat kodu <select class="select" data-change="pl2-code" data-k="full_code" style="width:auto">${shiftCodes.filter((c) => +c.hours >= 20).map((c) => html`<option ${c.code === PL2.d.full_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>` : ''}
         <label class="small">Gündüz kodu <select class="select" data-change="pl2-code" data-k="day_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.day_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
         <label class="small">Gece kodu <select class="select" data-change="pl2-code" data-k="night_code" style="width:auto">${shiftCodes.map((c) => html`<option ${c.code === PL2.d.night_code ? raw('selected') : ''}>${c.code}</option>`)}</select></label>
@@ -176,7 +180,7 @@ function planDraw() {
         ${PL2.brush !== null ? html`<button type="button" class="btn sm ghost" data-act="pl2-brush-off">Fırçayı bırak</button>` : ''}</div>
     </div>
     <div class="pl2-wrap"><table class="pl2-grid" id="plGrid"><thead><tr><th class="pl2-name">Kişi <button type="button" class="btn sm ghost icon" data-act="pl2-addp" aria-label="Kişi ekle">${icon('plus', 'sm')}</button></th>
-      ${days.map((d) => { const w = new Date(d).getDay(); return html`<th class="${w === 0 || w === 6 ? 'we' : ''} ${PL2.hol[d] !== undefined ? 'hol' : ''}" title="${PL2.hol[d] || ''}">${+d.slice(8)}<small>${TR_DAYS_S[w].slice(0, 2)}</small></th>`; })}<th class="pl2-hh" title="Çalışılması gereken saat (iş günü × günlük saat − izin / rapor)">Ger.</th><th class="pl2-hh" title="Çalışılan saat">Çal.</th><th class="pl2-hh" title="Fazla mesai (çalışılan − gereken)">Fazla</th></tr></thead>
+      ${days.map((d) => { const w = new Date(d).getDay(); return html`<th class="${w === 0 || w === 6 ? 'we' : ''} ${PL2.hol[d] !== undefined ? 'hol' : ''}" title="${PL2.hol[d] || ''}"><button type="button" class="pj-dh" data-act="pl2-day" data-d="${d}" aria-label="${dateLabel(d)}: temizle">${+d.slice(8)}<small>${TR_DAYS_S[w].slice(0, 2)}</small></button></th>`; })}<th class="pl2-hh" title="Çalışılması gereken saat (iş günü × günlük saat − izin / rapor)">Ger.</th><th class="pl2-hh" title="Çalışılan saat">Çal.</th><th class="pl2-hh" title="Fazla mesai (çalışılan − gereken)">Fazla</th></tr></thead>
       <tbody>${PL2.d.people.map((p) => { const rq = Object.assign({}, planReqFor(p.name), PL2.d.reqs[p.name] || {}); const mk = PL2.marks[p.name] || {}; const oh = offH[p.name] || { req: 0, work: 0, over: 0 }; return html`<tr><th class="pl2-name"><button type="button" class="pl2-pn" data-act="pl2-pmenu" data-n="${p.name}">${p.name}${p.title ? html`<small>${p.title}</small>` : ''}</button></th>
         ${days.map((d) => { const code = (cells[p.name] || {})[d] || ''; const iss = issues[p.name + '|' + d]; const man = (PL2.d.reqs[p.name] || {})[d]; return html`<td class="${rq[d] ? 'rq' : ''} ${iss ? 'bad' : ''} ${mk[d] ? 'chg' : ''}" title="${[mk[d], iss, rq[d] ? (rq[d] === 'izin' ? (man ? 'Yıllık izin isteği (elle)' : 'Onaylı yıllık izin isteği') : (man ? 'Boşluk isteği (elle)' : 'Onaylı boşluk isteği')) : ''].filter(Boolean).join(' · ')}"><button type="button" class="pl2-c ${code ? 'tone-' + planTone(code) : ''}" data-act="pl2-cell" data-n="${p.name}" data-d="${d}">${code || (rq[d] ? (rq[d] === 'izin' ? 'İ' : 'B') : '')}</button></td>`; })}
         <td class="pl2-h ${oh.fixed ? 'fx' : ''}" title="${oh.fixed ? 'Elle düzeltildi' : ''}">${rsNum(oh.req)}</td><td class="pl2-h">${rsNum(oh.work)}</td><td class="pl2-h ${oh.over < 0 ? 'neg' : ''}">${oh.over ? rsNum(oh.over) : ''}</td></tr>`; })}</tbody>
@@ -199,6 +203,49 @@ function planIssuesHtml() {
 }
 function mkShortDate(d) { return `${+d.slice(8)} ${TR_MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`; }
 function planDirty() { PL2.dirty = true; PL2.chk = null; }
+/** Geri al yığını: toplu işlemlerden (otomatik doldur, temizle, yapıştır) önce çizelgenin anlık görüntüsü */
+function planSnap(label) {
+  PL2.undo = PL2.undo || [];
+  PL2.undo.push({ label, cells: JSON.parse(JSON.stringify(PL2.d.cells || {})), people: JSON.parse(JSON.stringify(PL2.d.people || [])) });
+  if (PL2.undo.length > 20) PL2.undo.shift();
+}
+ACT['pl2-undo'] = () => {
+  const u = (PL2.undo || []).pop();
+  if (!u) return;
+  PL2.d.cells = u.cells; PL2.d.people = u.people;
+  planDirty(); PL2.chk = null; planDraw(); toast(`Geri alındı: ${u.label}`);
+};
+/** Temizle: tüm çizelge ya da yalnız nöbetler (izin / rapor kalır) */
+const planIsShift = (code) => { const c = planCode(code); return !c || c.kind === 'shift'; };
+ACT['pl2-clear'] = () => {
+  const m = openModal({ title: 'Çizelgeyi temizle', size: 'narrow', body: html`<div class="list">
+    <button type="button" class="list-row" data-o="shifts" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span><b>Yalnız nöbetleri temizle</b><br><span class="tiny faint">İzin, rapor ve diğer günler kalır; otomatik doldurmayı yeniden yapmak için</span></span></button>
+    <button type="button" class="list-row" data-o="all" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span><b>Tüm çizelgeyi temizle</b><br><span class="tiny faint">Bütün hücreler boşalır; kişiler ve istekler kalır</span></span></button></div>
+    <p class="tiny faint" style="margin:8px 0 0">Yanlışlıkla temizlerseniz <b>Geri al</b> düğmesiyle dönebilirsiniz.</p>` });
+  m.el.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-o]'); if (!b) return;
+    const all = b.dataset.o === 'all';
+    m.close();
+    if (!(await confirmDialog({ title: all ? 'Tüm çizelge temizlensin mi?' : 'Tüm nöbetler temizlensin mi?', text: all ? 'Bütün hücreler boşalır.' : 'İzin, rapor ve diğer günler kalır.', ok: 'Temizle', danger: true }))) return;
+    planSnap(all ? 'tüm çizelgeyi temizleme' : 'nöbetleri temizleme');
+    if (all) PL2.d.cells = {};
+    else Object.keys(PL2.d.cells).forEach((n) => { Object.keys(PL2.d.cells[n]).forEach((d) => { if (planIsShift(PL2.d.cells[n][d])) delete PL2.d.cells[n][d]; }); });
+    planDirty(); PL2.chk = null; planDraw(); toast(all ? 'Çizelge temizlendi' : 'Nöbetler temizlendi');
+  });
+};
+/** Gün başlığı: o günü temizle */
+ACT['pl2-day'] = (el) => {
+  const d = el.dataset.d;
+  const m = openModal({ title: dateLabel(d), size: 'narrow', body: html`<div class="list">
+    <button type="button" class="list-row" data-o="shifts" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Bu günün nöbetlerini temizle</span></button>
+    <button type="button" class="list-row" data-o="all" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span>Bu günü tamamen temizle</span></button></div>` });
+  m.el.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-o]'); if (!b) return;
+    planSnap(`${dateLabel(d)} temizleme`);
+    Object.keys(PL2.d.cells).forEach((n) => { const c = PL2.d.cells[n][d]; if (c && (b.dataset.o === 'all' || planIsShift(c))) delete PL2.d.cells[n][d]; });
+    planDirty(); PL2.chk = null; m.close(); planDraw(); toast('Gün temizlendi');
+  });
+};
 function planSetCell(name, d, code) {
   const row = PL2.d.cells[name] || (PL2.d.cells[name] = {});
   if (code) row[d] = code; else delete row[d];
@@ -209,6 +256,7 @@ const pl2Url = () => `#/cizelge/${PL2.rid}/${PL2.ym}${PL2_TAB_URL[PL2.tab] ? '/'
 ACT['pl2-month'] = (el) => { if (PL2.dirty) planSave(true); PL2.ym = planNextYm(PL2.ym, +el.dataset.k); navStep(pl2Url()); planLoad(); };
 CHANGE['pl2-roster'] = (el) => { if (PL2.dirty) planSave(true); PL2.rid = +el.value; navStep(pl2Url()); planLoad(); };
 CHANGE['pl2-need'] = (el) => { const [a, b] = el.dataset.k.split('.'); PL2.d.needs[a][b] = Math.max(0, +el.value || 0); planDirty(); };
+CHANGE['pl2-bal'] = (el) => { PL2.d.balance = el.checked; planDirty(); };
 CHANGE['pl2-code'] = (el) => { PL2.d[el.dataset.k] = el.value; planDirty(); if (el.dataset.k === 'mode') planDraw(); };
 ACT['pl2-brush'] = (el) => { PL2.brush = el.dataset.c; planDraw(); };
 ACT['pl2-brush-off'] = () => { PL2.brush = null; planDraw(); };
@@ -247,7 +295,8 @@ ACT['pl2-pmenu'] = (el) => {
     <button type="button" class="list-row" data-o="up" style="width:100%;border:0;background:none;text-align:left">${icon('chevL', 'sm')}<span>Sırada yukarı taşı</span></button>
     <button type="button" class="list-row" data-o="down" style="width:100%;border:0;background:none;text-align:left">${icon('chevR', 'sm')}<span>Sırada aşağı taşı</span></button>
     <button type="button" class="list-row" data-o="hfix" style="width:100%;border:0;background:none;text-align:left">${icon('clock', 'sm')}<span>Çalışılması gereken saat: <b>${fx !== undefined ? fx + ' (elle)' : 'otomatik'}</b></span></button>
-    <button type="button" class="list-row" data-o="clear" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Satırı temizle</span></button>
+    <button type="button" class="list-row" data-o="clearsh" style="width:100%;border:0;background:none;text-align:left">${icon('x', 'sm')}<span>Bu kişinin nöbetlerini temizle <span class="tiny faint">(izin / rapor kalır)</span></span></button>
+    <button type="button" class="list-row" data-o="clear" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span>Satırı tamamen temizle</span></button>
     <button type="button" class="list-row tone-danger" data-o="remove" style="width:100%;border:0;background:none;text-align:left">${icon('trash', 'sm')}<span>Çizelgeden çıkar</span></button></div>` });
   m.el.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-o]'); if (!b) return;
@@ -271,13 +320,14 @@ ACT['pl2-pmenu'] = (el) => {
     if (o === 'up' || o === 'down') {
       const j = o === 'up' ? i - 1 : i + 1;
       if (j >= 0 && j < PL2.d.people.length) { const t = PL2.d.people[i]; PL2.d.people[i] = PL2.d.people[j]; PL2.d.people[j] = t; }
-    } else if (o === 'clear') delete PL2.d.cells[n];
-    else { PL2.d.people = PL2.d.people.filter((p) => p.name !== n); delete PL2.d.cells[n]; delete PL2.d.reqs[n]; delete PL2.d.hfix[n]; }
+    } else if (o === 'clear') { planSnap(`${n} satırını temizleme`); delete PL2.d.cells[n]; }
+    else if (o === 'clearsh') { planSnap(`${n} nöbetlerini temizleme`); Object.keys(PL2.d.cells[n] || {}).forEach((d) => { if (planIsShift(PL2.d.cells[n][d])) delete PL2.d.cells[n][d]; }); }
+    else { planSnap(`${n} çıkarma`); PL2.d.people = PL2.d.people.filter((p) => p.name !== n); delete PL2.d.cells[n]; delete PL2.d.reqs[n]; delete PL2.d.hfix[n]; }
     planDirty(); m.close(); planDraw();
   });
 };
 ACT['pl2-more'] = () => {
-  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle']];
+  const items = [['pl2-auto', 'star', 'Otomatik doldur'], ['pl2-clear', 'trash', 'Temizle (tümü / yalnız nöbetler)'], ['pl2-check', 'shield', 'Denetle'], ['pl2-import', 'upload', 'Yapıştır / CSV'], ['pl2-addp', 'plus', 'Kişi ekle']];
   const m = openModal({ title: 'Çizelge işlemleri', size: 'narrow', body: html`<div class="list">${items.map(([a, ic, l]) => html`<button type="button" class="list-row" data-o="${a}" style="width:100%;border:0;background:none;text-align:left">${icon(ic, 'sm')}<span>${l}</span></button>`)}
     ${PL2.joint ? html`<a class="list-row" href="#/cizelge/taraflar/${PL2.ym}" data-close>${icon('layers', 'sm')}<span>Basamakları birlikte planla</span></a>` : ''}</div>` });
   m.el.addEventListener('click', (ev) => {
@@ -334,15 +384,16 @@ ACT['pl2-check'] = (el) => busy(el, async () => {
   try { PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d }); planDraw(); const x = $('#plIssues'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { toast(e.message, 'err'); }
 });
 ACT['pl2-auto'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Önce istekler yerleşir${PL2.d.leave_code ? ` (yıllık izin isteği olan boş günlere ${PL2.d.leave_code})` : ''}; boşluk isteği olan güne nöbet yazılmaz. Sonra gereken sayıya ulaşmayan günlere ${PL2.d.mode === '24' ? `önce ${PL2.d.full_code} (24 saat; gündüzü ve geceyi birlikte karşılar), kalan ihtiyaca ${PL2.d.day_code} gündüz / ${PL2.d.night_code} gece` : `${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece`} kurallara uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura. Dolu hücrelere dokunulmaz; sonra elle düzenleyebilirsiniz.`, ok: 'Doldur' }))) return;
+  if (!(await confirmDialog({ title: 'Otomatik doldurulsun mu?', text: `Önce istekler yerleşir${PL2.d.leave_code ? ` (yıllık izin isteği olan boş günlere ${PL2.d.leave_code})` : ''}; boşluk isteği olan güne nöbet yazılmaz. Sonra gereken sayıya ulaşmayan günlere ${PL2.d.mode === '24' ? `önce ${PL2.d.full_code} (24 saat; gündüzü ve geceyi birlikte karşılar), kalan ihtiyaca ${PL2.d.day_code} gündüz / ${PL2.d.night_code} gece` : `${PL2.d.day_code} gündüz, ${PL2.d.night_code} gece`} kurallara uyan kişiler adalet sırasıyla yazılır: ay içinde az saat çalışan → hafta sonu / tatilde az nöbeti olan → son 7 günde az nöbeti olan → kura. ${PL2.d.balance !== false ? ' Sonra saatler eşitlenir: fazla çalışanın otomatik yazılan nöbeti (gerekirse 24 saat 08-16 / 16-08 olarak bölünerek) az çalışana geçer.' : ''} Dolu hücrelere dokunulmaz; sonra elle düzenleyebilir ya da Geri al ile dönebilirsiniz.`, ok: 'Doldur' }))) return;
   busy(el, async () => {
     try {
       const r = await api('plan.auto', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
+      planSnap('otomatik doldurma');
       PL2.d.cells = r.cells && !Array.isArray(r.cells) ? r.cells : {};
       planDirty();
       PL2.chk = await api('plan.check', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d });
       planDraw();
-      toast(`${r.placed ? r.placed + ' izin günü işlendi · ' : ''}${r.filled} nöbet yazıldı${r.full ? ` (${r.full} tanesi 24 saat)` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
+      toast(`${r.placed ? r.placed + ' izin günü işlendi · ' : ''}${r.filled} nöbet yazıldı${r.full ? ` (${r.full} tanesi 24 saat)` : ''}${r.balanced ? ` · saatler eşitlendi (${r.balanced} değişiklik)` : ''}${r.unfilled.length ? ` · ${r.unfilled.length} vardiya kurallara uygun kimse olmadığı için boş kaldı` : ''}`);
     } catch (e) { toast(e.message, 'err'); }
   });
 };
@@ -368,6 +419,7 @@ ACT['pl2-import'] = () => {
   $('#pl2ImpGo', m.el).addEventListener('click', () => {
     const res = m.res; if (!res) return;
     const rep = $('#pl2Replace', m.el).checked;
+    planSnap('yapıştırma');
     res.people.forEach((n) => {
       if (!PL2.d.people.some((p) => avKey(p.name) === avKey(n))) PL2.d.people.push({ name: n, title: '' });
       const real = PL2.d.people.find((p) => avKey(p.name) === avKey(n)).name;

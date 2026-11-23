@@ -247,7 +247,7 @@ try {
   if ((await A.p.evaluate(() => PL2.d.full_code)) !== nov.c24) fail('24 saat kodu kendiliğinden seçilmedi');
   await A.p.selectOption('#pl2Mode', 'split');
   const ppl = Array.from({ length: 8 }, (_, i) => ({ name: `Dağıtım Örnek ${i + 1}`, title: '' }));
-  const au = await apiCall(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } }, mode: '24', full_code: nov.c24, day_code: nov.c8, night_code: nov.c16 } });
+  const au = await apiCall(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } }, mode: '24', full_code: nov.c24, day_code: nov.c8, night_code: nov.c16, balance: false } });
   const holD = await A.p.evaluate(() => PL2.hol);
   const bad = [];
   for (let k = 1; k <= nDays; k++) {
@@ -262,6 +262,54 @@ try {
   if (bad.length || au.unfilled.length) fail('önce 24 saat dağıtımı yanlış: ' + bad.slice(0, 5).join(' | ') + (au.unfilled.length ? ' · eksik ' + au.unfilled.length : ''));
   if (!/24 saat/.test(await apiErr(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: {}, mode: '24', full_code: nov.c8, day_code: nov.c8, night_code: nov.c16 } }))) fail('gündüz kodu 24 saat kodu olarak kabul edildi');
   step(`dağıtım “önce 24 saat”: ${au.full} gün 24 saat (${nov.c24}) yazıldı, hafta içi kalan gündüz ihtiyacı ${nov.c8} ile tamamlandı, hafta sonu yalnız 24 saat; 24’ün ertesi günü aynı kişiye nöbet yok; 24 saat olmayan kod reddedildi`);
+  // Saat eşitleme: aynı dağıtım eşitlemeyle — kişiler arası saat farkı küçülür, gün gün kapsama ve kurallar korunur
+  const H = { [nov.c24]: 24, [nov.c8]: 8, [nov.c16]: 16 }, CV = { [nov.c24]: [1, 1], [nov.c8]: [1, 0], [nov.c16]: [0, 1] };
+  const spread = (cells) => { const h = ppl.map((p) => Object.values(cells[p.name] || {}).reduce((a, c) => a + (H[c] || 0), 0)); return Math.max(...h) - Math.min(...h); };
+  const bl = await apiCall(A.p, 'plan.auto', { roster_id: ro.id, ym, draft: { people: ppl, cells: {}, needs: { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } }, mode: '24', full_code: nov.c24, day_code: nov.c8, night_code: nov.c16, balance: true } });
+  const sp0 = spread(au.cells), sp1 = spread(bl.cells);
+  const cov = [];
+  for (let k = 1; k <= nDays; k++) {
+    const dd = d(k); const we = !wd(k) || holD[dd] !== undefined;
+    const c = ppl.map((p) => CV[(bl.cells[p.name] || {})[dd]] || [0, 0]).reduce((a, x) => [a[0] + x[0], a[1] + x[1]], [0, 0]);
+    if (c[0] < (we ? 1 : 2) || c[1] < 1) cov.push(`${dd}: ${c.join('/')}`);
+  }
+  const chk2 = await apiCall(A.p, 'plan.check', { roster_id: ro.id, ym, draft: { people: ppl, cells: bl.cells, needs: { weekday: { day: 2, night: 1 }, weekend: { day: 1, night: 1 } } } });
+  const kural = chk2.issues.filter((x) => x.type === 'kural');
+  if (sp1 > sp0 || sp1 > 16 || cov.length || kural.length || !bl.balanced) fail(`saat eşitleme: fark ${sp0} → ${sp1} saat, ${bl.balanced} değişiklik; kapsama eksik ${cov.slice(0, 3).join(' | ')}; kural ${kural.length}`);
+  const parts = ppl.reduce((a, p) => a + Object.values(bl.cells[p.name] || {}).filter((c) => c === nov.c16).length, 0);
+  step(`saat eşitleme: kişiler arası saat farkı ${sp0} → ${sp1} saat (${bl.balanced} değişiklik, ${parts} adet 24 saat 08-16 / 16-08 olarak bölündü); her günün gündüz / gece ihtiyacı karşılandı; kural ihlali yok`);
+
+  // Kolay düzenleme: temizle (yalnız nöbetler / tümü), kişinin nöbetleri, gün; hepsi Geri al ile döner
+  await A.p.evaluate(() => { window.__isSh = (c) => { const k = PL2.codes.find((x) => x.code === c); return !k || k.kind === 'shift'; }; });
+  const snap = () => A.p.evaluate(() => JSON.stringify(Object.keys(PL2.d.cells).sort().map((n) => [n, Object.entries(PL2.d.cells[n]).sort()])));
+  const before = await snap();
+  const leaveOf = await A.p.evaluate(() => Object.values(PL2.d.cells).reduce((a, r) => a + Object.values(r).filter((c) => !window.__isSh(c)).length, 0));
+  await A.p.click('[data-act=pl2-clear]');
+  await A.p.locator('.modal [data-o=shifts]').click();
+  await A.p.locator('.modal [data-ok]').last().click();
+  await expectText(A.p, 'Nöbetler temizlendi');
+  const af1 = await A.p.evaluate(() => { const v = Object.values(PL2.d.cells).flatMap((r) => Object.values(r)); return { shifts: v.filter((c) => window.__isSh(c)).length, other: v.filter((c) => !window.__isSh(c)).length }; });
+  if (af1.shifts || af1.other !== leaveOf) fail('yalnız nöbetleri temizle yanlış: ' + JSON.stringify(af1));
+  await A.p.click('[data-act=pl2-undo]');
+  if ((await snap()) !== before) fail('geri al çizelgeyi eski hâline döndürmedi');
+  await A.p.click('[data-act=pl2-clear]');
+  await A.p.locator('.modal [data-o=all]').click();
+  await A.p.locator('.modal [data-ok]').last().click();
+  await expectText(A.p, 'Çizelge temizlendi');
+  if (await A.p.evaluate(() => Object.values(PL2.d.cells).some((r) => Object.keys(r).length))) fail('tüm çizelge temizlenmedi');
+  await A.p.click('[data-act=pl2-undo]');
+  await A.p.click(`[data-act=pl2-pmenu][data-n="${P}"]`);
+  await A.p.locator('.modal [data-o=clearsh]').click();
+  const pr = await A.p.evaluate((P) => Object.values(PL2.d.cells[P] || {}), P);
+  if (pr.some((c) => c === nov.c24 || c === nov.c8 || c === nov.c16) || !pr.length) fail('kişinin nöbetleri temizlenmedi ya da izinleri de silindi: ' + pr.join(','));
+  await A.p.click('[data-act=pl2-undo]');
+  await A.p.click(`[data-act=pl2-day][data-d="${d(15)}"]`);
+  await A.p.locator('.modal [data-o=shifts]').click();
+  if (await A.p.evaluate((dd) => Object.values(PL2.d.cells).some((r) => r[dd] && window.__isSh(r[dd])), d(15))) fail('gün temizlenmedi');
+  await A.p.click('[data-act=pl2-undo]');
+  if ((await snap()) !== before) fail('art arda geri al çizelgeyi eski hâline döndürmedi');
+  step('kolay düzenleme: “yalnız nöbetleri temizle” (izin / rapor kaldı), “tüm çizelgeyi temizle”, kişinin nöbetlerini temizle, günü temizle; her biri Geri al ile aynen geri döndü');
+
   await A.p.click('[data-act=pl2-tab][data-t=resmi]'); await A.p.locator('#rsPaper .rd-grid').waitFor();
 
   // ---- 7) Tek sayfa PDF, Word, Excel ----

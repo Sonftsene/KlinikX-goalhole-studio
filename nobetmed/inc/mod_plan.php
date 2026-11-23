@@ -103,7 +103,9 @@ function plan_clean(array $in, string $ym): array
         'day_code' => mb_substr(trim((string)($in['day_code'] ?? '')), 0, 20), 'night_code' => mb_substr(trim((string)($in['night_code'] ?? '')), 0, 20),
         'leave_code' => mb_substr(trim((string)($in['leave_code'] ?? '')), 0, 20),
         // Dağıtım biçimi (4.36): 'split' gündüz / gece ayrı · '24' önce 24 saatlik nöbet, kalan gündüz / gece ayrı
-        'mode' => ($in['mode'] ?? '') === '24' ? '24' : 'split', 'full_code' => mb_substr(trim((string)($in['full_code'] ?? '')), 0, 20)];
+        'mode' => ($in['mode'] ?? '') === '24' ? '24' : 'split', 'full_code' => mb_substr(trim((string)($in['full_code'] ?? '')), 0, 20),
+        // Saat eşitleme (4.38): otomatik yazılanlar fazla çalışandan az çalışana; 24 saat 08-16 / 16-08 olarak bölünebilir
+        'balance' => !array_key_exists('balance', $in) || !empty($in['balance'])];
 }
 
 /**
@@ -381,10 +383,12 @@ function a_plan_auto(): void
         sort($cands);
         return $cands[0][5];
     };
-    $assign = function ($n, $d, $row) use (&$daysOf, &$cells, &$filled) {
+    $auto = []; // bu dağıtımda yazılan hücreler (eşitleme yalnız bunlara dokunur)
+    $assign = function ($n, $d, $row) use (&$daysOf, &$cells, &$filled, &$auto) {
         $daysOf[$n][$d] = $row;
         ksort($daysOf[$n]);
         $cells[$n][$d] = $row['code'];
+        $auto[$n][$d] = 1;
         $filled++;
     };
     foreach (plan_days($ym) as $d) {
@@ -406,7 +410,64 @@ function a_plan_auto(): void
             }
         }
     }
-    out(['cells' => (object)$cells, 'filled' => $filled, 'full' => $full, 'unfilled' => $unfilled, 'placed' => $placed]);
+    // Saat eşitleme: kişilerin saat sapması (izinli günlere göre hedef küçülür) kapanana kadar otomatik yazılmış nöbet ya da
+    // 24 saatin bir parçası (08-16 / 16-08) fazla çalışandan az çalışana geçer. Günün kapsaması değişmez; her hamle kurallarla denetlenir.
+    $balanced = 0;
+    if ($data['balance']) {
+        $only = fn(array $r, string $per) => ($r['kind'] ?? '') === 'shift' && shift_periods($r) === [$per];
+        $partD = $only($dRow, 'day') ? $dRow : null;
+        $partN = $only($nRow, 'night') ? $nRow : null;
+        $nd = count(plan_days($ym));
+        $w = [];
+        foreach ($people as $n) {
+            if (pl_excluded_name($n)) continue;
+            $off = 0;
+            foreach (plan_days($ym) as $d) if (isset($reqOf[$n][$d]) || (isset($daysOf[$n][$d]) && ($daysOf[$n][$d]['kind'] ?? '') !== 'shift')) $off++;
+            $w[$n] = max(0, $nd - $off) / $nd;
+        }
+        $mem = array_keys(array_filter($w, fn($x) => $x > 0));
+        $t0 = microtime(true);
+        for ($it = 0; $it < 400 && count($mem) >= 2 && microtime(true) - $t0 < 10; $it++) {
+            $tot = 0.0; $sw = 0.0;
+            foreach ($mem as $n) { $tot += $hoursOf($n); $sw += $w[$n]; }
+            $dev = [];
+            foreach ($mem as $n) $dev[$n] = $hoursOf($n) - $tot * $w[$n] / $sw;
+            arsort($dev);
+            $his = array_keys(array_filter($dev, fn($v) => $v > 2));
+            $los = array_reverse(array_keys(array_filter($dev, fn($v) => $v < -2)));
+            $best = null;
+            foreach ($his as $hk) foreach ($los as $lk) {
+                $gap = $dev[$hk] - $dev[$lk];
+                if ($gap <= 4) continue;
+                foreach ($auto[$hk] ?? [] as $d => $_) {
+                    if (isset($daysOf[$lk][$d]) || isset($reqOf[$lk][$d])) continue;
+                    $row = $daysOf[$hk][$d];
+                    $opts = [[$row, null]];
+                    if (shift_periods($row) === ['day', 'night'] && $partD && $partN) { $opts[] = [$partN, $partD]; $opts[] = [$partD, $partN]; }
+                    foreach ($opts as [$give, $keep]) {
+                        $h = (float)($give['hours'] ?? 0);
+                        if ($h <= 0 || $h >= $gap) continue;
+                        $gain = 2 * $h * ($gap - $h);
+                        if ($best && $gain <= $best['gain']) continue;
+                        // Alan: kurallara uymalı; veren: kalan parça / boşalan gün kurala uymalı
+                        $tl = $daysOf[$lk]; $tl[$d] = $give; ksort($tl);
+                        if (swap_check($tl, [$d], [], $cfg, $lk)) continue;
+                        $th = $daysOf[$hk];
+                        if ($keep) { $th[$d] = $keep; ksort($th); if (swap_check($th, [$d], [], $cfg, $hk)) continue; }
+                        else { unset($th[$d]); if (swap_check($th, [], [$d], $cfg, $hk)) continue; }
+                        $best = ['gain' => $gain, 'hk' => $hk, 'lk' => $lk, 'd' => $d, 'give' => $give, 'keep' => $keep];
+                    }
+                }
+            }
+            if (!$best) break;
+            ['hk' => $hk, 'lk' => $lk, 'd' => $d, 'give' => $give, 'keep' => $keep] = $best;
+            if ($keep) { $daysOf[$hk][$d] = $keep; $cells[$hk][$d] = $keep['code']; }
+            else { unset($daysOf[$hk][$d], $cells[$hk][$d], $auto[$hk][$d]); }
+            $daysOf[$lk][$d] = $give; ksort($daysOf[$lk]); $cells[$lk][$d] = $give['code']; $auto[$lk][$d] = 1;
+            $balanced++;
+        }
+    }
+    out(['cells' => (object)$cells, 'filled' => $filled, 'full' => $full, 'unfilled' => $unfilled, 'placed' => $placed, 'balanced' => $balanced]);
 }
 
 /** Birim kuralları (çizelge ekranından; yönetici ve yayıncı): değişim / ilan / çağrı / çizelge hepsi bunlara uyar */
