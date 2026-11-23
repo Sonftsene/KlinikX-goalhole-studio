@@ -586,6 +586,7 @@ function a_plan_auto(): void
             $los = array_reverse(array_keys(array_filter($dev, fn($v) => $v < -2)));
             $best = null;
             foreach ($his as $hk) foreach ($los as $lk) {
+                if (microtime(true) - $t0 > 10) break 2; // süre sınırı her çiftte
                 $gap = $dev[$hk] - $dev[$lk];
                 if ($gap <= 4) continue;
                 foreach ($auto[$hk] ?? [] as $d => $_) {

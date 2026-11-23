@@ -30,6 +30,15 @@ function prefs_clean_ui(array $in): array
     if (isset($in['push_nag'])) $o['push_nag'] = (bool)$in['push_nag'];
     if (array_key_exists('meal', $in) && in_array($in['meal'], ['', 'all', 'shift', 'off'], true)) $o['meal'] = $in['meal'];
     if (isset($in['contact']) && is_array($in['contact'])) $o['contact'] = ['phone' => !empty($in['contact']['phone']), 'email' => !empty($in['contact']['email'])];
+    // Ana sayfa kısayolları: yerleşik anahtarlar ya da uygulama içi sayfa (p:#/...), sıralı, en çok 12
+    if (array_key_exists('chips', $in)) {
+        $o['chips'] = null;
+        if (is_array($in['chips'])) {
+            $c = [];
+            foreach ($in['chips'] as $x) { $x = (string)$x; if ((preg_match('/^[a-z]{2,12}$/', $x) || preg_match('~^p:#/[A-Za-z0-9/_-]{1,60}$~', $x)) && !in_array($x, $c, true)) $c[] = $x; }
+            $o['chips'] = array_slice($c, 0, 12);
+        }
+    }
     if (isset($in['home']) && is_array($in['home'])) {
         $ids = fn($a) => array_values(array_unique(array_filter(array_map(fn($x) => preg_replace('/[^a-z0-9_-]/', '', strtolower((string)$x)), is_array($a) ? $a : []), fn($x) => $x !== '')));
         $o['home'] = ['hidden' => array_slice($ids($in['home']['hidden'] ?? []), 0, 40), 'shown' => array_slice($ids($in['home']['shown'] ?? []), 0, 40), 'order' => array_slice($ids($in['home']['order'] ?? []), 0, 40), 'side_first' => !empty($in['home']['side_first'])];

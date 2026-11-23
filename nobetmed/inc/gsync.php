@@ -289,6 +289,7 @@ function gs_apply_roster(array $r, array $model, array $tabs, int $attId, int $o
         $status = $ml . ' · ' . count($entries) . ' kayıt' . ($warn ? ' · ' . $warn[0] : '');
         q('UPDATE rosters SET period = ?, parsed_file_id = ?, src_sync_at = ?, src_status = ?, src_tabname = ?, src_tabs = ? WHERE id = ?', [$period, $attId, now(), mb_substr($status, 0, 250), $tabNow, $tabList, $rid]);
         db()->commit();
+        if (function_exists('nl_autobind')) { try { nl_autobind(); } catch (Throwable $e2) { error_log('[dupcii] ad bağı: ' . $e2->getMessage()); } }
     } catch (Throwable $e) {
         db()->rollBack();
         throw $e;

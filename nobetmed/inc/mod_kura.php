@@ -125,6 +125,7 @@ function a_kura_start(): void
     kr_ensure();
     $items = kr_items($GLOBALS['IN']['items'] ?? []);
     if (count($items) < 2) fail('Kura için en az 2 isim ya da sayı yazın.');
+    if ((int)val('SELECT COUNT(*) FROM kura_draw WHERE created_by = ? AND created_at >= ?', [$me['id'], date('Y-m-d H:i:s', time() - 3600)]) >= 30) fail('Bir saatte en çok 30 kura başlatılabilir; biraz sonra yeniden deneyin.', 429);
     $opts = kr_opts($GLOBALS['IN']['opts'] ?? []);
     $ord = range(0, count($items) - 1);
     for ($i = count($ord) - 1; $i > 0; $i--) { $j = random_int(0, $i); [$ord[$i], $ord[$j]] = [$ord[$j], $ord[$i]]; }
@@ -209,6 +210,9 @@ function a_kura_delete(): void
     $r = one('SELECT * FROM kura_draw WHERE id = ?', [(int)i('id')]) ?? fail('Kura bulunamadı.', 404);
     $pub = function_exists('is_publisher') && is_publisher($me);
     if ((int)$r['created_by'] !== (int)$me['id'] && !$pub) fail('Kura kaydını yalnız başlatan kişi, yönetici ya da yayıncı silebilir.', 403);
+    // Adalet: kart açılmış bir kurayı başlatan kişi silip yeniden çekemez (yalnız yönetici / yayıncı)
+    $opened = count(array_filter((array)(json_decode((string)($r['reveals'] ?? ''), true) ?: [])));
+    if (!$pub && $opened > 0) fail('Kartı açılmış bir kura silinemez; geçmişte herkese görünür kalır. Gerekirse yöneticinize başvurun.', 403);
     q('DELETE FROM kura_draw WHERE id = ?', [$r['id']]);
     audit($me, 'kura.delete', $r['title'] !== '' ? $r['title'] : 'Kura');
     out(['ok' => true]);

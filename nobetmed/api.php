@@ -416,6 +416,7 @@ function user_out(array $u): array
         'created_at' => $u['created_at'],
         'last_seen_at' => $u['last_seen_at'],
         'has_password' => !empty($u['password_hash']),
+        'avatar_full' => !empty($u['avatar']) && function_exists('avatar_orig_path') && is_file(avatar_orig_path((string)$u['avatar'])),
         'no_duty' => !empty($u['no_duty']),
         'email_notify' => (int)($u['email_notify'] ?? 1) === 1,
         'notify_mode' => $u['notify_mode'] ?? 'instant',
@@ -576,10 +577,18 @@ function a_boot(): void
     $setup = nm_setup_allowed();
     // Merkezdeki site adresini (tüm birimlerin QR / yeni birim bağlantıları) yalnız ana birimin yöneticisi günceller; APP_URL tanımlıysa hiç
     if ($me && PHP_SAPI !== 'cli' && $me['role'] === 'admin' && nm_multi() && (string)APP_URL === '' && (int)(nm_tenant()['is_default'] ?? 0) === 1 && m_setting('site_url') !== request_base_url()) m_q("INSERT OR REPLACE INTO m_settings (k, v) VALUES ('site_url', ?)", [request_base_url()]);
+    $listName = null;
+    if ($me && empty($me['sa_virtual']) && function_exists('nl_links_of')) {
+        try {
+            $ln = nl_links_of((int)$me['id']);
+            if (!$ln && (int)($_SESSION['nl_try'] ?? 0) < time() - 3600) { $_SESSION['nl_try'] = time(); if (nl_autobind((int)$me['id'])) $ln = nl_links_of((int)$me['id']); }
+            $listName = $ln ? (string)$ln[0]['name'] : null;
+        } catch (Throwable $e) { error_log('[dupcii] ad bağı: ' . $e->getMessage()); }
+    }
     $data = [
         'csrf' => $_SESSION['csrf'],
         'setup_needed' => $setup,
-        'me' => $me ? user_out($me) : null,
+        'me' => $me ? user_out($me) + ['list_name' => $listName] : null,
         'settings' => [
             'org_name' => setting('org_name', 'Klinik Portalı'),
             'registration' => setting('registration', 'approval'),
@@ -885,6 +894,7 @@ function a_logout(): void
 /** Nöbetler ada göre eşleştiği için bir ad iki hesapta olamaz: bu ad başka bir (etkin / bekleyen) kullanıcıya mı ait? */
 function name_taken_by_user(string $name, int $exceptId = 0): bool
 {
+    if (function_exists('nl_bound_to_other') && nl_bound_to_other($name, $exceptId)) return true;
     foreach (all("SELECT id, name FROM users WHERE status IN ('active', 'pending') AND id <> ?", [$exceptId]) as $o) {
         if (names_match((string)$o['name'], $name)) return true;
     }
@@ -919,6 +929,7 @@ function a_me_update(): void
     $name = s('name', 120);
     if (mb_strlen($name) < 3) fail('Ad soyad en az 3 karakter olmalıdır.');
     if ($name !== (string)$me['name']) {
+        if (function_exists('nl_links_of') && ($bl = nl_links_of((int)$me['id']))) fail('Adınız nöbet listesindeki “' . $bl[0]['name'] . '” adına bağlı. Listedeki adınız düzeltilirse hesabınız da güncellenir; değişiklik için yöneticinize başvurun.', 409);
         // Nöbetler ada göre eşleştiği için başka bir kişinin adı alınamaz
         if (name_taken_by_user($name, (int)$me['id'])) fail('Bu ad başka bir kullanıcıya ait. Adınız farklıysa yöneticinize başvurun.');
         // Hesabı olmayan birinin nöbet listesindeki / istek kayıtlarındaki adı da alınamaz (o kişinin nöbetleri ve istekleri bu hesaba geçerdi)
@@ -1666,6 +1677,7 @@ function a_admin_user_save(): void
     if ($dupe && (int)$dupe['id'] !== (int)$id) fail('Bu e-posta başka bir hesapta kullanılıyor.', 409);
     nm_email_guard($email);
 
+    if (function_exists('nl_bound_to_other') && nl_bound_to_other($name, (int)$id)) fail('Bu ad nöbet listesinde başka bir hesaba bağlı. Önce Ayarlar › Nöbet › Liste adları’ndan bağı değiştirin.', 409);
     if ($id) {
         $u = one('SELECT * FROM users WHERE id = ?', [$id]);
         if (!$u) fail('Kullanıcı bulunamadı.', 404);

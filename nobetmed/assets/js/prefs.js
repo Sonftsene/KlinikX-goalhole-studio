@@ -614,3 +614,47 @@ function syncHolidaysToBoot() {
   // rules.get bu yıldan itibaren döner; önceki yılın tatilleri (geçmiş ay hesapları için) korunur
   S.holidays = [...(S.holidays || []).filter((h) => h.date < from), ...fresh];
 }
+
+
+/* ---------------- Liste adları ↔ hesaplar (kalıcı bağ; Ayarlar › Nöbet) ---------------- */
+const NLB = { d: null, f: 'free' };
+NM_EXT.settingsCards.push({
+  sec: 'nobet', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="nobet" id="nlCard"><h3 style="font-size:15px">${icon('link', 'sm')} Liste adları ve hesaplar</h3><div class="skel" style="height:14px;width:55%"></div></div>`,
+  mount: () => nlLoad(),
+});
+async function nlLoad() {
+  const c = $('#nlCard'); if (!c) return;
+  try { NLB.d = await api('names.list'); } catch (e) { setHTML(c, html`<p class="small muted">${e.message}</p>`); return; }
+  nlDraw();
+}
+function nlDraw() {
+  const c = $('#nlCard'); if (!c || !NLB.d) return;
+  const { names, users } = NLB.d;
+  const uName = (id) => ((users.find((u) => u.id === id) || {}).name) || '?';
+  const free = names.filter((x) => x.uid === null);
+  const list = NLB.f === 'free' ? free : NLB.f === 'bound' ? names.filter((x) => x.uid !== null) : names;
+  const chip = (k, l, n) => html`<button type="button" class="chip-btn ${NLB.f === k ? 'on' : ''}" data-act="nl-f" data-f="${k}">${l} <b>${n}</b></button>`;
+  const opts = (x) => { const sug = new Set(x.suggest); const sorted = [...users].sort((a, b) => (sug.has(b.id) - sug.has(a.id)) || (!a.links.length - !b.links.length) * -1 || a.name.localeCompare(b.name, 'tr')); return sorted.map((u) => html`<option value="${u.id}">${sug.has(u.id) ? '★ ' : ''}${u.name}${u.links.length ? ' (bağlı)' : ''}</option>`); };
+  setHTML(c, html`<h3 style="font-size:15px;margin:0">${icon('link', 'sm')} Liste adları ve hesaplar</h3>
+    <p class="small muted" style="margin:0">Nöbet listesindeki ad bir hesapla bir kez eşleşince kalıcı olarak bağlanır: listedeki ya da hesaptaki ad sonradan değişse de kişinin nöbetleri hesabında kalır. Bağlı ad başka bir hesaba verilemez; kişi adını kendisi değiştiremez. Elle bağladığınızda hesap adı listedeki ada güncellenir.</p>
+    <div class="row wrap" style="gap:6px;align-items:center">${chip('free', 'Bağsız', free.length)}${chip('bound', 'Bağlı', names.length - free.length)}${chip('all', 'Hepsi', names.length)}
+      <span class="grow"></span><button type="button" class="btn sm" data-act="nl-auto">${icon('star', 'sm')}<span>Otomatik eşleştir</span></button></div>
+    <div class="list nl-list">${list.length ? list.map((x, i) => html`<div class="list-row" style="gap:8px;flex-wrap:wrap">
+      <b class="small grow" style="min-width:140px">${x.name}</b>
+      ${x.uid !== null ? html`<span class="small">${icon('link', 'sm')} ${uName(x.uid)}</span>${x.link_id ? html`<button type="button" class="btn sm ghost" data-act="nl-unlink" data-id="${x.link_id}">Bağı kaldır</button>` : html`<span class="tiny faint">hesap adıyla aynı</span>`}`
+        : html`<select class="select" data-nl="${i}" style="width:auto;max-width:200px" aria-label="${x.name}: hesap"><option value="">Hesap seçin…</option>${opts(x)}</select><button type="button" class="btn sm primary" data-act="nl-link" data-i="${i}">Bağla</button>`}</div>`)
+      : html`<div class="list-row small muted">${NLB.f === 'free' ? 'Bağsız liste adı yok; herkes hesabına bağlı.' : 'Kayıt yok.'}</div>`}</div>`);
+  NLB.view = list;
+}
+ACT['nl-f'] = (el) => { NLB.f = el.dataset.f; nlDraw(); };
+ACT['nl-auto'] = (el) => busy(el, async () => { try { const r = await api('names.auto'); toast(r.linked ? `${r.linked} liste adı hesabına bağlandı` : 'Kendiliğinden bağlanacak yeni ad yok'); await nlLoad(); } catch (e) { toast(e.message, 'err'); } });
+ACT['nl-unlink'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Bağ kaldırılsın mı?', text: 'Bu liste adı hesaptan ayrılır; kişinin bu addaki nöbetleri hesabında görünmeyebilir.', ok: 'Kaldır', danger: true }))) return;
+  try { await api('names.unlink', { id: +el.dataset.id }); toast('Bağ kaldırıldı'); await nlLoad(); } catch (e) { toast(e.message, 'err'); }
+};
+ACT['nl-link'] = (el) => busy(el, async () => {
+  const x = (NLB.view || [])[+el.dataset.i]; const sel = $(`#nlCard select[data-nl="${el.dataset.i}"]`);
+  if (!x || !sel || !sel.value) { toast('Önce hesabı seçin', 'err'); return; }
+  try { const r = await api('names.link', { user_id: +sel.value, name: x.name, sync: true }); toast(`Bağlandı · hesap adı: ${r.name}`); await nlLoad(); if (typeof refreshPeople === 'function') refreshPeople(); } catch (e) { toast(e.message, 'err'); }
+});

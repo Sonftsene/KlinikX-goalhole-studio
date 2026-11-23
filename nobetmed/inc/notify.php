@@ -123,7 +123,11 @@ function names_match(string $a, string $b): bool
     $ta = name_tokens($a);
     $tb = name_tokens($b);
     if (!$ta || !$tb) return false;
-    if (implode(' ', $ta) === implode(' ', $tb)) return true;
+    $ka = implode(' ', $ta); $kb = implode(' ', $tb);
+    if ($ka === $kb) return true;
+    // Kalıcı bağ (inc/mod_adbag.php): iki ad da bir hesaba bağlıysa yalnız aynı hesapsa eşleşir — ad değişse de bağ kopmaz,
+    // benzer adlı iki farklı kişi de karışmaz
+    if (function_exists('nl_map')) { $m = nl_map(); if ($m) { $ua = $m[$ka] ?? null; $ub = $m[$kb] ?? null; if ($ua !== null && $ub !== null) return $ua === $ub; } }
     if (count($ta) < 2 || count($tb) < 2) return false;
     [$short, $long] = count($ta) <= count($tb) ? [$ta, $tb] : [$tb, $ta];
     // ilk ve son adlar eşleşmeli, kısa addaki her parça uzun adda bulunmalı

@@ -548,14 +548,17 @@ function planRenameAsk(n) {
   foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="pl2RnF">Kaydet</button>` });
   const inp = $('#pl2RnIn', m.el);
   setTimeout(() => { inp.focus(); inp.select(); }, 50);
-  $('#pl2RnF', m.el).addEventListener('submit', (ev) => {
+  $('#pl2RnF', m.el).addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const nu = inp.value.replace(/\s+/g, ' ').trim().slice(0, 120);
     const err = (t) => { const e = $('#pl2RnErr', m.el); setHTML(e, t); e.classList.remove('hidden'); };
     if (nu.length < 2) return err('Ad en az 2 harf olmalı.');
     if (nu !== n && PL2.d.people.some((p) => p.name !== n && trLower(p.name) === trLower(nu))) return err('Bu adla bir kişi zaten çizelgede.');
+    // Liste adı bir hesaba bağlıysa bağ yeni ada taşınır, hesap adı da güncellenir; başka hesaba bağlı ad verilemez
+    let linked = null;
+    try { linked = await api('names.rename', { old: n, new: nu }); } catch (e2) { return err(e2.message); }
     m.close();
-    if (planRename(n, nu)) { planDirty(); PL2.chk = null; planDraw(); toast(`Ad değiştirildi: ${nu}`); }
+    if (planRename(n, nu)) { planDirty(); PL2.chk = null; planDraw(); toast(`Ad değiştirildi: ${nu}${linked && linked.uid ? ' · bağlı hesap da güncellendi' : ''}`); }
   });
 }
 /** Toplu unvan düzenleme: herkes tek ekranda; seçilen unvanı boşlara / herkese ver; varsayılan unvan */

@@ -173,6 +173,7 @@ function a_rosters_shifts_save(): void
     q('UPDATE rosters SET period = ?, parsed_file_id = ? WHERE id = ?', [$period, $fid, $rid]);
     db()->commit();
     if (function_exists('swap_check_applied')) swap_check_applied($rid);
+    if (function_exists('nl_autobind')) { try { nl_autobind(); } catch (Throwable $e) { error_log('[dupcii] ad bağı: ' . $e->getMessage()); } }
     audit($me, 'roster.parse', 'Liste #' . $rid, "$n nöbet kaydı, dönem $period");
     out(['saved' => $n]);
 }

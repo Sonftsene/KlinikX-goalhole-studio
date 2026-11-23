@@ -40,6 +40,7 @@ const NM_ACTION_MODULE = [
     'chat.' => 'mesaj',
     'call.' => 'mesaj',
     'plan.' => 'cizelge',
+    'names.' => 'nobet',
     'meal.' => 'yemek',
 ];
 

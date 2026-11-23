@@ -158,15 +158,79 @@ function heroHtml() {
   return html`<section class="hero" data-home="hero">
     <div class="hero-head"><div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div></div>
     <a class="hero-shift" id="heroShift" href="#/nobetim"><span class="hs-ico tone-slate">${icon('calendar')}</span><span class="grow"><span class="skel" style="display:block;height:18px;width:62%"></span><span class="skel" style="display:block;height:13px;width:40%;margin-top:8px"></span></span></a>
-    <div class="hero-chips" data-home="chips">
-      <a class="hchip ${c.todo ? 'warn' : 'ok'}" href="#/okunacak">${icon(c.todo ? 'alert' : 'checkCircle', 'sm')}${c.todo ? html`<span>Okuman gereken <b data-count="todo">${c.todo}</b></span>` : html`<span>Okunacak yok</span>`}</a>
-      <button class="hchip ${c.unread ? 'brand' : ''}" data-act="feed-filter" data-filter="unread">${icon('bell', 'sm')}<span>Yeni <b data-count="unread">${c.unread}</b></span></button>
-      ${isPublisher() && pend ? html`<a class="hchip danger" href="${c.pending_posts ? '#/yonetim/onaylar' : '#/yonetim/kullanicilar'}">${icon('inbox', 'sm')}<span>Onay bekleyen <b>${pend}</b></span></a>` : ''}
-      <a class="hchip" href="#/rehber">${icon('users', 'sm')}<span>Kim nöbette</span></a>
-      <a class="hchip" href="#/telefon">${icon('phone', 'sm')}<span>Telefon rehberi</span></a>
-    </div>
+    <div class="hero-chips" data-home="chips">${heroChipsHtml()}</div>
   </section>`;
 }
+/* ---------------- Ana sayfa kısayolları (kişiye özel; hesabına kaydedilir) ---------------- */
+const CHIP_DEF = ['todo', 'unread', 'pend', 'rehber', 'telefon'];
+function chipList() { const u = (S.my_prefs && S.my_prefs.ui) || {}; return Array.isArray(u.chips) && u.chips.length ? u.chips : CHIP_DEF; }
+/** Seçilebilecek kısayollar: durum kısayolları + yan menüdeki her sayfa (yetkisi olanlar) */
+function chipCatalog() {
+  const o = [
+    { id: 'todo', label: 'Okuman gerekenler', g: 'Durum' }, { id: 'unread', label: 'Yeni içerikler', g: 'Durum' },
+    ...(isPublisher() ? [{ id: 'pend', label: 'Onay bekleyenler', g: 'Durum' }] : []),
+    ...(modOn('nobet') ? [{ id: 'rehber', label: 'Kim nöbette', g: 'Durum', ic: 'users', href: '#/rehber' }] : []),
+    ...(modOn('rehber') ? [{ id: 'telefon', label: 'Telefon rehberi', g: 'Durum', ic: 'phone', href: '#/telefon' }] : []),
+  ];
+  let g = 'Genel';
+  const seen = new Set(['#/', '#/rehber', '#/telefon', '#/okunacak']);
+  [...(($('#sidebar') || {}).children || [])].forEach((el) => {
+    if (el.classList.contains('nav-sec')) { g = el.textContent.trim(); return; }
+    if (!el.classList.contains('nav-item')) return;
+    const href = el.getAttribute('href');
+    if (!href || seen.has(href) || !/^#\/[A-Za-z0-9/_-]{1,60}$/.test(href)) return;
+    seen.add(href);
+    const ic = el.firstElementChild;
+    o.push({ id: 'p:' + href, href, label: ((el.querySelector('.grow') || el).textContent || '').trim(), g, svg: ic && !ic.classList.contains('grow') ? ic.outerHTML : '' });
+  });
+  return o;
+}
+function heroChipsHtml() {
+  const c = S.counts;
+  const pend = (c.pending_posts || 0) + (isAdmin() ? c.pending_users || 0 : 0);
+  const cat = chipCatalog();
+  const one = (id) => {
+    if (id === 'todo') return html`<a class="hchip ${c.todo ? 'warn' : 'ok'}" href="#/okunacak">${icon(c.todo ? 'alert' : 'checkCircle', 'sm')}${c.todo ? html`<span>Okuman gereken <b data-count="todo">${c.todo}</b></span>` : html`<span>Okunacak yok</span>`}</a>`;
+    if (id === 'unread') return html`<button class="hchip ${c.unread ? 'brand' : ''}" data-act="feed-filter" data-filter="unread">${icon('bell', 'sm')}<span>Yeni <b data-count="unread">${c.unread}</b></span></button>`;
+    if (id === 'pend') return isPublisher() && pend ? html`<a class="hchip danger" href="${c.pending_posts ? '#/yonetim/onaylar' : '#/yonetim/kullanicilar'}">${icon('inbox', 'sm')}<span>Onay bekleyen <b>${pend}</b></span></a>` : '';
+    const x = cat.find((k) => k.id === id);
+    if (!x || !x.href) return '';
+    return html`<a class="hchip" href="${x.href}">${x.svg ? raw(x.svg) : icon(x.ic || 'star', 'sm')}<span>${x.label}</span></a>`;
+  };
+  return html`${chipList().map(one)}<button type="button" class="hchip ghost" data-act="chips-edit" aria-label="Kısayolları düzenle" title="Kısayolları düzenle">${icon('edit', 'sm')}</button>`;
+}
+function heroChipsRefresh() { const el = $('[data-home="chips"]'); if (el) setHTML(el, heroChipsHtml()); }
+ACT['chips-edit'] = () => {
+  const cat = chipCatalog();
+  let sel = chipList().filter((id) => cat.some((k) => k.id === id));
+  const m = openModal({ title: 'Kısayollar', body: html`<div class="stack" id="chE"></div>`,
+    foot: html`<button class="btn ghost" id="chDef">Varsayılan</button><span class="grow"></span><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="chSave">Kaydet</button>` });
+  const box = $('#chE', m.el);
+  const draw = () => {
+    const groups = [];
+    cat.filter((k) => !sel.includes(k.id)).forEach((k) => { let g = groups.find((x) => x.g === k.g); if (!g) groups.push(g = { g: k.g, items: [] }); g.items.push(k); });
+    setHTML(box, html`<p class="small muted" style="margin:0">Ana sayfada üstte görünen düğmeler. Sırasını değiştirin, istemediğinizi çıkarın, menüdeki herhangi bir sayfayı ekleyin (en çok 12).</p>
+      <div class="ph-sec">Görünenler</div>
+      <div class="list ch-sel">${sel.length ? sel.map((id, i) => { const k = cat.find((x) => x.id === id); return html`<div class="list-row" style="gap:6px"><span class="grow small"><b>${k ? k.label : id}</b></span>
+        <button type="button" class="btn sm ghost icon" data-ch="up" data-i="${i}" aria-label="Yukarı" ${i ? '' : raw('disabled')}>${icon('chevL', 'sm')}</button>
+        <button type="button" class="btn sm ghost icon" data-ch="down" data-i="${i}" aria-label="Aşağı" ${i < sel.length - 1 ? '' : raw('disabled')}>${icon('chevR', 'sm')}</button>
+        <button type="button" class="btn sm ghost icon" data-ch="del" data-i="${i}" aria-label="Çıkar">${icon('x', 'sm')}</button></div>`; }) : html`<div class="list-row small muted">Hiç kısayol yok.</div>`}</div>
+      ${groups.map((g) => html`<div class="ph-sec">${g.g}</div><div class="row wrap" style="gap:6px">${g.items.map((k) => html`<button type="button" class="chip-btn" data-ch="add" data-id="${k.id}" ${sel.length >= 12 ? raw('disabled') : ''}>${icon('plus', 'sm')} ${k.label}</button>`)}</div>`)}`);
+  };
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ch]'); if (!b) return;
+    const i = +b.dataset.i;
+    if (b.dataset.ch === 'add' && sel.length < 12) sel.push(b.dataset.id);
+    if (b.dataset.ch === 'del') sel.splice(i, 1);
+    if (b.dataset.ch === 'up' && i > 0) [sel[i - 1], sel[i]] = [sel[i], sel[i - 1]];
+    if (b.dataset.ch === 'down' && i < sel.length - 1) [sel[i + 1], sel[i]] = [sel[i], sel[i + 1]];
+    draw();
+  });
+  draw();
+  const save = (v) => { prefsRemember({ chips: v }); m.close(); heroChipsRefresh(); toast('Kısayollar kaydedildi'); };
+  $('#chSave', m.el).addEventListener('click', () => save(sel.slice(0, 12)));
+  $('#chDef', m.el).addEventListener('click', () => save(null));
+};
 function heroShiftHtml(my) {
   const box = (tone, ic, t, sub) => html`<span class="hs-ico tone-${tone}">${icon(ic)}</span><span class="grow" style="min-width:0"><span class="hs-t">${t}</span><span class="hs-s">${sub}</span></span>${icon('chevR', 'sm')}`;
   if (!my.has_data) return box('slate', 'table', 'Nöbet listesi bekleniyor', 'Liste yüklenince nöbetlerin burada görünür.');
@@ -562,6 +626,7 @@ async function phTodoFill() {
       ${st === 'off' ? html`<button class="btn sm" data-act="push-on">Şimdi aç</button>` : html`<a class="btn sm" href="#/profil/bildirim">Nasıl açılır?</a>`}</div>`);
   }
   if (!me.avatar) todo.push(html`<div class="ph-todo info">${icon('user')}<b>Fotoğraf ekleyin</b><label class="btn sm">Fotoğraf seç<input type="file" accept="image/*" hidden data-change="av-file"></label></div>`);
+  else if (me.avatar_full === false) todo.push(html`<div class="ph-todo info">${icon('user')}<b>Fotoğrafınızı yeniden yükleyin</b><span class="tiny muted">Basılı tutunca tam hâli görünsün</span><label class="btn sm">Fotoğraf seç<input type="file" accept="image/*" hidden data-change="av-file"></label></div>`);
   if (!me.has_password) todo.push(html`<div class="ph-todo info">${icon('lock')}<b>Şifre belirleyin</b><a class="btn sm" href="#/profil/guvenlik">Belirle</a></div>`);
   if (!me.phone) todo.push(html`<div class="ph-todo info">${icon('phone')}<b>Telefonunuzu ekleyin</b><a class="btn sm" href="#/profil/bilgiler">Ekle</a></div>`);
   const box = $('#phTodo');
@@ -637,8 +702,9 @@ function profileTabHtml(tab) {
     </div>
     <form class="card card-pad stack" data-form="me-profile">
       <h3 class="ph">Kişisel bilgiler</h3>
-      <div class="field"><label>Ad soyad</label><input class="input" name="name" value="${me.name}" required minlength="3" maxlength="120" autocomplete="name">
-        <p class="hint">Nöbet listesindeki yazılışla aynı olsun; nöbetleriniz adınıza göre eşleşir.</p></div>
+      <div class="field"><label>Ad soyad</label><input class="input" name="name" value="${me.name}" required minlength="3" maxlength="120" autocomplete="name" ${me.list_name ? raw('readonly aria-readonly="true"') : ''}>
+        ${me.list_name ? html`<p class="hint">${icon('lock', 'sm')} Nöbet listesindeki <b>${me.list_name}</b> adına bağlı. Listedeki adınız düzeltilirse hesabınız da güncellenir; başka biri bu adı alamaz. Değişiklik için yöneticinize başvurun.</p>`
+          : html`<p class="hint">Nöbet listesindeki yazılışla aynı olsun; nöbetleriniz adınıza göre eşleşir ve bir kez eşleşince kalıcı olarak bağlanır.</p>`}</div>
       <div class="grid2">
         <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, me.title_id, '—')}</select></div>
         <div class="field"><label>Birim</label><input class="input" value="${unitName(me.unit_id) || '—'}" disabled><p class="hint">Birimi yönetici değiştirir.</p></div>
@@ -748,11 +814,14 @@ CHANGE['av-file'] = async (el) => {
   if (!file) return;
   let data, orig;
   try { ({ data, orig } = await makeAvatarData(file)); } catch (e) { toast(e.message, 'err'); return; }
-  const m = openModal({ title: 'Profil fotoğrafı', size: 'narrow', body: html`<div class="av-preview"><img src="${data}" alt="Önizleme"></div><p class="small muted" style="text-align:center;margin-top:10px">Fotoğrafınız böyle görünecek.</p>`,
+  const m = openModal({ title: 'Profil fotoğrafı', size: 'narrow', body: html`<div class="av-preview"><img src="${data}" alt="Önizleme"></div><p class="small muted" style="text-align:center;margin-top:10px">Listelerde fotoğrafınız böyle görünecek.</p>
+    ${orig ? html`<div class="av-orig"><img src="${orig}" alt="Kırpılmamış hâli"></div>
+    <label class="row small" style="gap:8px;align-items:flex-start;margin-top:8px"><input type="checkbox" id="avOrigOk" checked><span>Fotoğrafın <b>kırpılmamış hâli</b> (yukarıdaki) de kaydedilsin; ekip arkadaşlarınız fotoğrafınıza basılı tutunca bunu büyük görür. İşaretlemezseniz yalnız kare hâli görünür.</span></label>` : ''}`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
   m.el.querySelector('[data-ok]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     try {
-      const r = await api('me.avatar', { data, orig });
+      const ok = $('#avOrigOk', m.el);
+      const r = await api('me.avatar', { data, orig: ok && ok.checked ? orig : '' });
       S.me.avatar = r.avatar;
       m.close();
       refreshMeEverywhere();

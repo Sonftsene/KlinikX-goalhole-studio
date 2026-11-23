@@ -1196,3 +1196,20 @@ Ayarlar › Bildirimler › **Bildirim durumu** (yönetici; uç yayıncıya da a
 - **Yapılacaklar** kartları: bildirimler kapalı (Şimdi aç / Nasıl açılır?), fotoğraf yok, şifre yok, telefon yok. Yapılacak yoksa görünmez.
 - **Kısa liste**: Kişisel bilgiler, E-posta adresi, Bildirimler (Açık / Kapalı), Görünüm, Güvenlik ve şifre, (açıksa) Ücretim, Verilerim, Gönderilerim; altta Hesap bilgisi kartı ve **Çıkış yap**.
 - Her satır **tek işi olan sade bir sayfa** açar; üstte “‹ Hesabım” geri düğmesi. Eski sekme bağlantıları (`#/profil/bildirim`, `#/profil/guvenlik`…) aynen çalışır.
+
+## 64. Liste adı ↔ hesap kalıcı bağı, kısayollar, güvenlik (4.44.0)
+### Ad bağı
+- Nöbet listesindeki ad bir hesapla **bir kez eşleşince kalıcı olarak bağlanır** (hesap kimliğiyle saklanır). Listedeki ad (Excel) ya da hesaptaki ad sonradan değişse de kişinin nöbetleri, istekleri, değişimleri hesabında kalır.
+- Bağ kendiliğinden kurulur: liste yüklenince / Google E-Tablolar eşitlenince ve kişi uygulamayı açınca, bağsız liste adı **tek bir** hesapla eşleşiyorsa. (Kendiliğinden bağda hesap adına dokunulmaz.)
+- **Bağlı ad başkasına verilemez**: başka biri kayıt olurken, profilinden ya da yönetici kullanıcı düzenlerken o adı alamaz. Benzer adlı iki bağlı kişi de artık birbirine karışmaz.
+- **Bağlı kişi adını kendisi değiştiremez** (Hesabım › Kişisel bilgiler’de ad kilitli, yanında hangi liste adına bağlı olduğu yazar).
+- **Ayarlar › Nöbet › Liste adları ve hesaplar** (yönetici): bağsız / bağlı liste adları; bağsız ada hesap seçip **Bağla** (hesap adı liste adına güncellenir; Excel’de ad değiştiyse yeni adı böyle bağlayın), **Bağı kaldır**, **Otomatik eşleştir**.
+- Çizelgede kişinin adı düzeltilirse (**Adını düzenle**) bağlı hesap yeni ada geçer, hesap adı da güncellenir; başka hesaba bağlı ad verilemez.
+
+### Ana sayfa kısayolları
+- Selam kartındaki kısayolların sonunda **kalem** düğmesi: kısayolları sıralayın, çıkarın, menüdeki herhangi bir sayfayı ekleyin (en çok 12). Hesaba kaydedilir; **Varsayılan** ile eski beşliye dönülür.
+
+### Diğer
+- Koyu temada Menü kutucukları ve Hesabım listesi düzeltildi.
+- Fotoğrafı kırpılmamış hâli olmayan kişiye Hesabım’da “Fotoğrafınızı yeniden yükleyin” kartı.
+- Güvenlik: fotoğraf yüklerken kırpılmamış hâl önizlemede gösterilir ve kişi isterse kaydedilmez; kartı açılmış kurayı başlatan üye silemez (yalnız yönetici / yayıncı), saatte en çok 30 kura; otomatik doldurmada süre sınırı her adımda denetlenir.
