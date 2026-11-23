@@ -424,7 +424,7 @@ try {
   if (!PID) PID = (await apiCall(A.p, 'req.period.save', { ym, roster_id: ro.id, deadline: `${ym}-10`, note: '', status: 'open' })).id;
   const mine0 = await apiCall(A.p, 'req.mine', { period_id: PID, name: RQ.n });
   const keepItems = (mine0.items || []).map((x) => ({ date: x.date, kind: x.kind, note: x.note || '' }));
-  const sv = await apiCall(A.p, 'req.save', { period_id: PID, name: RQ.n, items: [...keepItems, { date: RQ.wd, kind: 'izin' }, { date: RQ.we, kind: 'izin' }] });
+  const sv = await apiCall(A.p, 'req.save', { period_id: PID, name: RQ.n, roster_id: ro.id, items: [...keepItems, { date: RQ.wd, kind: 'izin' }, { date: RQ.we, kind: 'izin' }] });
   const ids = sv.items.filter((x) => x.date === RQ.wd || x.date === RQ.we).map((x) => x.id);
   await apiCall(A.p, 'req.decide', { ids, status: 'approved' });
   await A.p.evaluate(() => planLoad());
