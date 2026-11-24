@@ -736,11 +736,23 @@ async function planPublishCtx(ctx, el) {
   const ro = rosterById(ctx.rid);
   const [y, m] = ctx.ym.split('-').map(Number);
   const curP = ro && ro.period;
-  // Güncel ay: liste boşsa, bu ay ya da geçmiş güncelden yeni ama bugünü aşmayan ay; gelecek ay “sıradaki ay” olarak eklenir (liste sayfasından güncel yapılır)
-  const nowYm = ymd(new Date()).slice(0, 7);
-  const primary = !curP || ctx.ym === curP || (ctx.ym > curP && ctx.ym <= nowYm);
-  const warn = curP && curP !== ctx.ym ? (primary ? ` Liste şu an ${periodLabel(curP)} ayını güncel gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} güncel ay olur, ${periodLabel(curP)} geçmiş aylarda kalır.` : ` ${TR_MONTHS[m - 1]} ${y} listeye ${ctx.ym > curP ? 'sıradaki' : 'geçmiş'} ay olarak eklenir; ${periodLabel(curP)} güncel kalır. Nöbetler kendi günlerinde Takvimim’de ve hesaplarda geçerlidir; liste sayfasından istediğiniz ayı güncel yapabilirsiniz.`) : '';
-  if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: `Çizelge “${ctx.roster.name}” listesinin yeni sürümü olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.${warn}`, ok: 'Yayınla' }))) return;
+  // Güncel ay: liste başka bir ayı gösteriyorsa sorulur (yeni ay varsayılan olarak öne çıkar; işaret kaldırılırsa sıradaki / geçmiş ay olarak eklenir)
+  const base = `Çizelge “${ctx.roster.name}” listesinin ${TR_MONTHS[m - 1]} ${y} ayı olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.`;
+  let primary = true;
+  if (!curP || curP === ctx.ym) {
+    if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: base, ok: 'Yayınla' }))) return;
+  } else {
+    primary = await new Promise((resolve) => {
+      let done = false;
+      const dm = openModal({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, size: 'narrow',
+        body: html`<p class="muted">${base}</p>
+          <label class="small row" style="gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="pubPrim" ${ctx.ym > curP ? raw('checked') : ''}><span><b>${TR_MONTHS[m - 1]} ${y} güncel ay olsun</b><br><span class="tiny muted">Liste açılınca bu ay görünür; ${periodLabel(curP)} ${ctx.ym > curP ? 'geçmiş aylarda' : 'güncel olarak'} kalır. İşaretlemezseniz ${ctx.ym > curP ? 'sıradaki' : 'geçmiş'} ay olarak eklenir. Her iki durumda da iki ayın nöbetleri kendi günlerinde Takvimim’de ve hesaplarda geçerlidir.</span></span></label>`,
+        foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Yayınla</button>`,
+        onClose: () => { if (!done) resolve(null); } });
+      dm.el.querySelector('[data-ok]').addEventListener('click', () => { done = true; const v = $('#pubPrim', dm.el).checked; dm.close(); resolve(v); });
+    });
+    if (primary === null) return;
+  }
   busy(el, async () => {
     try {
       await ctx.save();
