@@ -67,7 +67,7 @@ function ex_eval(array $tl, string $k, int $rid, string $date, string $shift): a
     if ($d && in_array($d['kind'], ['leave', 'off'], true)) return [false, ($d['label'] ?: 'İzinli') . ' (' . $d['code'] . ')'];
     if ($q = rules_req_on($name, $date, ['izin', 'bosluk'], true)) return [false, ($q['kind'] === 'izin' ? 'Yıllık izin' : 'Boşluk') . ' isteği var' . ($q['status'] === 'pending' ? ' (onay bekliyor)' : '')];
     if ($lw = rules_leave_weekend($days, $date, $name)) return [false, $lw];
-    $row = co_row($shift, [$rid]);
+    $row = co_row($shift, [$rid], null, $date);
     $ev = co_eval($days, $date, $row, rules_cfg());
     if (!$ev['rest']) return [false, $ev['rest_why']];
     if (!$ev['cont']) return [false, $ev['cont_why']];

@@ -394,7 +394,8 @@ function unit_name_of(?int $id): string
 function a_invites_candidates(): void
 {
     need_admin();
-    $names = all('SELECT s.name, MAX(s.title) AS title FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id GROUP BY s.name ORDER BY s.name');
+    // Liste geçmiş ayları da tutar: yalnızca geçen aydan bu yana listede olanlar (ayrılan kişiye davet önerilmesin)
+    $names = all('SELECT s.name, MAX(s.title) AS title FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ? GROUP BY s.name ORDER BY s.name', [date('Y-m-01', strtotime('first day of last month'))]);
     $users = all('SELECT name FROM users');
     $invited = all("SELECT name FROM invites WHERE kind = 'personal' AND revoked = 0 AND used_by IS NULL AND name IS NOT NULL");
     $titles = all('SELECT id, name FROM titles');
@@ -636,7 +637,7 @@ function a_setup_status(): void
     need_admin();
     $cron = (int)setting('cron_last', '0');
     $rosterPeople = [];
-    foreach (all('SELECT DISTINCT s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id') as $x) $rosterPeople[] = (string)$x['name'];
+    foreach (all('SELECT DISTINCT s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ?', [date('Y-m-01', strtotime('first day of last month'))]) as $x) $rosterPeople[] = (string)$x['name'];
     $users = all("SELECT name FROM users WHERE status = 'active'");
     $matched = 0;
     foreach ($rosterPeople as $n) foreach ($users as $u) if (names_match($n, (string)$u['name'])) { $matched++; break; }

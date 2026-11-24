@@ -607,12 +607,15 @@ function co_conds(): array
 }
 
 /** Vardiyanın bu listede kullanılan kodu (yoksa sözlükten, o da yoksa varsayılan) */
-function co_row(string $shift, array $rids, ?string $code = null): array
+function co_row(string $shift, array $rids, ?string $code = null, ?string $date = null): array
 {
     [$st, $en, $h, $lab, $def] = co_def($shift);
     $label = null;
     if ($code === null && $rids) {
-        $r = one('SELECT s.code, COUNT(*) AS n FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.roster_id IN (' . implode(',', array_fill(0, count($rids), '?')) . ") AND s.kind = 'shift' AND s.start_time = ? AND s.end_time = ? GROUP BY s.code ORDER BY n DESC LIMIT 1", [...$rids, $st, $en]);
+        // Liste birden çok ay tutar: önce o günün ayındaki yazılış (aydan aya kod değişmiş olabilir), yoksa tümü
+        $sql = 'SELECT s.code, COUNT(*) AS n FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.roster_id IN (' . implode(',', array_fill(0, count($rids), '?')) . ") AND s.kind = 'shift' AND s.start_time = ? AND s.end_time = ?";
+        $r = $date && preg_match('/^\d{4}-\d{2}/', $date) ? one($sql . ' AND s.date LIKE ? GROUP BY s.code ORDER BY n DESC LIMIT 1', [...$rids, $st, $en, substr($date, 0, 7) . '-%']) : null;
+        $r = $r ?: one($sql . ' GROUP BY s.code ORDER BY n DESC LIMIT 1', [...$rids, $st, $en]);
         $code = $r ? (string)$r['code'] : null;
     }
     if ($code === null && function_exists('shift_codes')) {
@@ -742,7 +745,7 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
     $from = mk_shift_day($date, -40);
     $to = mk_shift_day($date, 40);
     $rids = array_column($scope, 'roster_id');
-    $row = $C ? co_row($shift, $rids, (string)$C['code']) : co_row($shift, $rids);
+    $row = $C ? co_row($shift, $rids, (string)$C['code']) : co_row($shift, $rids, null, $date);
     $periods = shift_periods($row);
     $ym = substr($date, 0, 7);
     $reqs = co_req_blocks($date);

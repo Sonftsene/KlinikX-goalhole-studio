@@ -54,9 +54,9 @@ function swap_splittable(?array $row): bool
     return (int)($row['hours'] ?? 0) === 24;
 }
 /** Gündüz / gece / 24 saat satırı: listenin kendi kodu (ilan modülü yüklüyse), yoksa varsayılan */
-function swap_part_row(string $p, int $rid): array
+function swap_part_row(string $p, int $rid, ?string $date = null): array
 {
-    if (function_exists('co_row')) return co_row($p, $rid ? [$rid] : []);
+    if (function_exists('co_row')) return co_row($p, $rid ? [$rid] : [], null, $date);
     $d = ['day' => ['08:00', '16:00', 8, 'Gündüz', '8 16'], 'night' => ['16:00', '08:00', 16, 'Gece', '16 8'], '24' => ['08:00', '08:00', 24, '24 saat', '8 8']][$p];
     return ['kind' => 'shift', 'code' => $d[4], 'label' => $d[3], 'hours' => $d[2], 'start_time' => $d[0], 'end_time' => $d[1]];
 }
@@ -64,7 +64,7 @@ function swap_part_row(string $p, int $rid): array
 function swap_split(array $row, string $part, int $rid): array
 {
     $mk = function (string $p) use ($row, $rid): array {
-        return swap_part_row($p, $rid) + ['date' => $row['date'] ?? null, 'name' => $row['name'] ?? null, 'title' => $row['title'] ?? null, 'roster_id' => $row['roster_id'] ?? $rid, 'part_of' => $row['code'] ?? null];
+        return swap_part_row($p, $rid, $row['date'] ?? null) + ['date' => $row['date'] ?? null, 'name' => $row['name'] ?? null, 'title' => $row['title'] ?? null, 'roster_id' => $row['roster_id'] ?? $rid, 'part_of' => $row['code'] ?? null];
     };
     return [$mk($part), $mk($part === 'day' ? 'night' : 'day')];
 }
@@ -76,7 +76,7 @@ function swap_merge(?array $cur, array $given, int $rid): ?array
     $cs = $cur['start_time'] ?? null; $ce = $cur['end_time'] ?? null;
     $gs = $given['start_time'] ?? null; $ge = $given['end_time'] ?? null;
     if ($cs && $ce && $gs && $ge && (($ce === $gs && $cs === '08:00' && $ge === '08:00') || ($ge === $cs && $gs === '08:00' && $ce === '08:00')))
-        return swap_part_row('24', $rid) + ['date' => $given['date'] ?? null, 'name' => $cur['name'] ?? null, 'roster_id' => $cur['roster_id'] ?? $rid];
+        return swap_part_row('24', $rid, $given['date'] ?? null) + ['date' => $given['date'] ?? null, 'name' => $cur['name'] ?? null, 'roster_id' => $cur['roster_id'] ?? $rid];
     return null;
 }
 
