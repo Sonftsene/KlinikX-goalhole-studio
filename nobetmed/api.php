@@ -585,10 +585,15 @@ function a_boot(): void
             $listName = $ln ? (string)$ln[0]['name'] : null;
         } catch (Throwable $e) { error_log('[dupcii] ad bağı: ' . $e->getMessage()); }
     }
+    // Son bildirilen telefon bildirimi durumu: güncellemede düşen aboneliğin sessizce onarılması için (pwa.js pushHeal)
+    $pushPrev = null;
+    if ($me && empty($me['sa_virtual']) && function_exists('nb_ps_ensure')) {
+        try { nb_ps_ensure(); $r = one('SELECT state, platform FROM push_state WHERE user_id = ?', [(int)$me['id']]); if ($r) $pushPrev = ['state' => (string)$r['state'], 'platform' => (string)$r['platform']]; } catch (Throwable $e) { /* */ }
+    }
     $data = [
         'csrf' => $_SESSION['csrf'],
         'setup_needed' => $setup,
-        'me' => $me ? user_out($me) + ['list_name' => $listName] : null,
+        'me' => $me ? user_out($me) + ['list_name' => $listName, 'push_prev' => $pushPrev] : null,
         'settings' => [
             'org_name' => setting('org_name', 'Klinik Portalı'),
             'registration' => setting('registration', 'approval'),

@@ -882,7 +882,7 @@ async function pushNagMount() {
   const hero = $('#view .hero') || $('.hero') || $('#homeExtTop');
   if (!hero || $('#pushNag')) return;
   hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box warn push-nag" id="pushNag" role="alert">${icon('bell', 'sm')}
-    <div class="grow"><b class="small">Bildirimleriniz kapalı</b><div class="tiny">${st === 'denied' ? 'Bu cihazda bildirim izni verilmemiş. Tarayıcı ya da telefon ayarlarından dupcii için bildirim iznini açın.' : 'Nöbet hatırlatmaları, değişim istekleri ve mesajlar telefonunuza gelmez. Açmanız önerilir.'}</div></div>
+    <div class="grow"><b class="small">Bildirimleriniz kapalı</b><div class="tiny">${st === 'denied' ? 'Bu cihazda bildirim izni verilmemiş. Tarayıcı ya da telefon ayarlarından dupcii için bildirim iznini açın.' : Notification.permission === 'granted' ? 'İzin verili ama bu cihazın bildirim bağlantısı kopmuş. Tek dokunuşla yeniden bağlayın; izin sorulmaz.' : 'Nöbet hatırlatmaları, değişim istekleri ve mesajlar telefonunuza gelmez. Açmanız önerilir.'}</div></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${st === 'off' ? html`<button class="btn sm primary" data-act="push-on">${icon('bell', 'sm')}Bildirimleri aç</button>` : html`<a class="btn sm" href="#/profil/bildirim">Nasıl açılır?</a>`}
       <button class="btn sm ghost" data-act="push-nag-later" title="Yarın yeniden hatırlatılır">Daha sonra</button></div></div>`));
 }

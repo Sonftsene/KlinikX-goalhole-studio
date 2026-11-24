@@ -130,6 +130,43 @@ try {
   await call(A.p, 'mail.design.save', { design: {} });
   await call(A.p, 'brand.save', { mail_logo: '' });
   step('e-posta tasarımı: “Renkli başlık” stili, mavi, logo (PNG) 90 px → kaydedildi; önizlemede logo, renk ve genişlik var; logo girişsiz açılıyor (e-posta programları için); varsayılana dönüldü');
+
+  // 8) Güncellemeden sonra düşen telefon bildirimi aboneliği izin sormadan geri gelir; kişi kendisi kapattıysa gelmez (4.46.0)
+  //    Test tarayıcısında gerçek push servisi yok: PushManager taklit edilir (abonelik "düşmüş" başlar).
+  const fakePush = () => {
+    Object.defineProperty(Notification, 'permission', { get: () => 'granted' }); // başsız tarayıcı izni hep 'denied' gösterir
+    let sub = null;
+    const mk = () => { const ep = 'http://127.0.0.1:9/ep-' + Math.random().toString(36).slice(2); return { endpoint: ep, options: {}, toJSON: () => ({ endpoint: ep, keys: { p256dh: 'BPx' + 'a'.repeat(84), auth: 'b'.repeat(22) } }), unsubscribe: async () => { sub = null; return true; } }; };
+    PushManager.prototype.getSubscription = async function () { return sub; };
+    PushManager.prototype.subscribe = async function () { window.__subCalls = (window.__subCalls || 0) + 1; sub = mk(); return sub; };
+  };
+  const H = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await H.grantPermissions(['notifications'], { origin: new URL(BASE).origin });
+  await H.addInitScript(() => { try { localStorage.setItem('nm-tour', 'done'); } catch (e) { /* */ } });
+  await H.addInitScript(fakePush);
+  const hp = await H.newPage();
+  hp.on('pageerror', (e) => errors.push('[heal] pageerror: ' + e.message));
+  await login(hp, 'burak@test.com', 'Sifre1234');
+  const bs = await call(hp, 'boot');
+  if (!bs.settings.push_ready) { step('bildirim onarımı: sunucuda push kapalı, atlandı'); } else {
+    const devs0 = (await call(hp, 'notif.devices')).items.length;
+    // a) Bu cihazda daha önce açılmıştı (iz var), abonelik düştü → sayfa açılınca kendiliğinden yeniden abone olur, uyarı çıkmaz
+    await hp.evaluate(() => { localStorage.setItem('nm-push-ep', 'https://push.example.test/eski'); localStorage.removeItem('nm-push-off'); localStorage.removeItem('nm-push-nag'); });
+    await hp.reload(); await hp.waitForFunction(() => typeof S !== 'undefined' && S.me);
+    await hp.waitForFunction(() => window.__subCalls >= 1, null, { timeout: 12000 }).catch(() => fail('düşen abonelik kendiliğinden yenilenmedi'));
+    await hp.waitForTimeout(1500);
+    if (await hp.locator('#pushNag').count()) fail('abonelik onarıldığı hâlde "Bildirimleriniz kapalı" uyarısı çıktı');
+    const devs1 = (await call(hp, 'notif.devices')).items.length;
+    if (devs1 !== devs0 + 1) fail(`onarılan abonelik sunucuya kaydedilmedi: ${devs0} → ${devs1}`);
+    // b) Kişi bu cihazda kendisi kapattı → onarılmaz, açma uyarısı görünür
+    await hp.evaluate(() => pushDisable());
+    await hp.evaluate(() => { localStorage.removeItem('nm-push-nag'); });
+    await hp.reload(); await hp.waitForFunction(() => typeof S !== 'undefined' && S.me);
+    await hp.locator('#pushNag').waitFor({ timeout: 10000 }).catch(() => fail('kişi kapattığında "Bildirimleriniz kapalı" uyarısı çıkmadı'));
+    if (await hp.evaluate(() => window.__subCalls || 0)) fail('kişinin kapattığı bildirim kendiliğinden yeniden açıldı');
+    step(`bildirim onarımı: güncellemede düşen abonelik izin sormadan geri geldi (cihaz ${devs0} → ${devs1}), uyarı çıkmadı; kişi kendisi kapatınca açılmadı ve uyarı göründü`);
+  }
+  await H.close();
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }

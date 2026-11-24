@@ -1227,3 +1227,11 @@ Ayarlar › Bildirimler › **E-posta tasarımı** (yönetici). Bildirim, hatır
 Gelen kutusundaki yuvarlak resmi e-postanın içi değil gönderen adres belirler:
 1. **Gmail / Google Workspace adresiyle** gönderiliyorsa o Google hesabına profil fotoğrafı koyun.
 2. **Kendi alan adınızla** (ör. Hostinger e-postası) gönderiliyorsa **BIMI** gerekir: SPF + DKIM + DMARC (`p=quarantine` ya da `reject`), kare **SVG Tiny P/S** logo ve `default._bimi` DNS kaydı. **Gmail ayrıca ücretli marka sertifikası (VMC ya da CMC) ister**; Yahoo / AOL sertifikasız gösterir. Kart içindeki “Gmail’de gönderen resmi neden yok?” bölümü alan adınıza göre kayıtları yazar.
+
+## 66. Güncellemeden sonra telefon bildirimlerinin kendiliğinden geri gelmesi (4.46.0)
+Uygulama güncellenince arka plandaki bildirim servisi (service worker) yenilenir. Bazı telefonlarda (özellikle iPhone'da) bu sırada tarayıcı bildirim aboneliğini düşürür; izin verili kaldığı hâlde kişiye “Bildirimleriniz kapalı · Bildirimleri aç” uyarısı çıkardı.
+- Artık uygulama açılınca **izin verili + bu cihazda daha önce açıktı + abonelik yok** durumunu görür ve izin penceresi açmadan **sessizce yeniden abone olur** (pwa.js `pushHeal`); uyarı çıkmaz, sunucudaki cihaz kaydı yenilenir.
+- Kişi bildirimi o cihazda **kendisi kapattıysa** ya da **çıkış yaptıysa** onarılmaz (cihazda `nm-push-off` işareti).
+- Bu sürüme geçişte cihazda henüz iz yoksa sunucuya en son aynı tür cihazdan “açık” bildirilmişse (push_state) yine onarılır.
+- Onarım olmazsa (tarayıcı izin vermezse) uyarı “bağlantı kopmuş, tek dokunuşla yeniden bağlayın; izin sorulmaz” der.
+

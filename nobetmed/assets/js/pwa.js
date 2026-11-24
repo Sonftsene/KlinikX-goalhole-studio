@@ -122,6 +122,45 @@ function _nmSameKey(sub, keyBytes) {
   return true;
 }
 
+/* Bu cihazda bildirim açıktı mı / kişi kendisi mi kapattı (sessiz onarım yalnızca açık olan ama düşen aboneliği geri getirir) */
+function _nmPushMark(endpoint) { try { if (endpoint) { localStorage.setItem('nm-push-ep', endpoint); localStorage.removeItem('nm-push-off'); } else { localStorage.removeItem('nm-push-ep'); localStorage.setItem('nm-push-off', '1'); } } catch (e) { /* */ } }
+function _nmPushWasOn() {
+  try {
+    if (localStorage.getItem('nm-push-off') === '1') return false;
+    if (localStorage.getItem('nm-push-ep')) return true;
+    // Bu cihazda henüz kayıt yoksa (eski sürümden geçiş): sunucuya en son bu tür cihazdan "açık" bildirildiyse
+    const p = typeof S !== 'undefined' && S.me && S.me.push_prev;
+    return !!(p && p.state === 'on' && typeof nbPlatform === 'function' && p.platform === nbPlatform());
+  } catch (e) { return false; }
+}
+async function _nmPushSend(sub) {
+  const j = sub.toJSON();
+  await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '', app: _nmStandalone() });
+  _nmPushMark(j.endpoint);
+}
+
+let _nmHeal = null;
+/**
+ * Sessiz onarım: bu cihazda bildirim açıktı, izin hâlâ verili ama tarayıcıdaki abonelik düşmüş
+ * (ör. uygulama güncellenip service worker yenilenince bazı telefonlarda) → izin penceresi açmadan yeniden abone olur.
+ * Kişi bildirimi kendisi kapattıysa ya da çıkış yaptıysa dokunmaz. true: abonelik geri geldi.
+ */
+function pushHeal() {
+  if (_nmHeal) return _nmHeal;
+  if (window.NM_DEMO_API || !pushSupported() || Notification.permission !== 'granted' || !_nmPushWasOn()) return Promise.resolve(false);
+  if (typeof S === 'undefined' || !S.me || S.me.sa_virtual || S.me.push_on === false || !S.settings || !S.settings.push_ready) return Promise.resolve(false);
+  _nmHeal = (async () => {
+    const reg = await _nmPushReg();
+    if (await reg.pushManager.getSubscription()) return false;
+    const { key } = await api('push.key');
+    if (!key) return false;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+    await _nmPushSend(sub);
+    return true;
+  })().catch(() => false);
+  return _nmHeal;
+}
+
 /** Bildirimleri açar. true: açıldı, false: izin penceresi kapatıldı. Reddedilirse/hata olursa Error fırlatır. */
 async function pushEnable() {
   const info = pushSupportInfo();
@@ -151,13 +190,13 @@ async function pushEnable() {
       throw new Error('Bildirim aboneliği oluşturulamadı: ' + (e && e.message ? e.message : 'bilinmeyen hata'));
     }
   }
-  const j = sub.toJSON();
-  await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '', app: _nmStandalone() });
+  await _nmPushSend(sub);
   return true;
 }
 
 /** Bildirimleri kapatır (bu cihaz). */
 async function pushDisable() {
+  _nmPushMark('');
   if (!('serviceWorker' in navigator)) return true;
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
@@ -172,6 +211,7 @@ async function pushDisable() {
 async function pushState() {
   if (!pushSupported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
+  await pushHeal();
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     const sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
@@ -184,9 +224,7 @@ async function pushSync() {
   if ((await pushState()) !== 'on') return false;
   try {
     const reg = await navigator.serviceWorker.getRegistration();
-    const sub = await reg.pushManager.getSubscription();
-    const j = sub.toJSON();
-    await api('push.subscribe', { endpoint: j.endpoint, p256dh: (j.keys || {}).p256dh || '', auth: (j.keys || {}).auth || '', app: _nmStandalone() });
+    await _nmPushSend(await reg.pushManager.getSubscription());
     return true;
   } catch (e) { return false; }
 }
