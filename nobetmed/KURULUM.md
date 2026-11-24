@@ -1262,3 +1262,9 @@ Bir nöbet listesi (ör. “Hemşire Nöbet Listesi”) artık birden çok ayı 
 - Yönetici tüm gönderimleri, sorumlu yalnızca kendi gönderdiklerini görür ve siler.
 - Gönderilmiş **e-postalar geri alınamaz**; kişisel mesaj ve arama bildirimleri listede görünmez.
 
+## 70. İstek günleri açıkça yazılır (4.49.0)
+İsteklerde günler artık “3-5” gibi kısaltılmaz (3 ile 5 diye okunuyordu):
+- 5 güne kadar ardışık günler tek tek yazılır: **“3, 4, 5 B”**.
+- Daha uzun aralık başlangıç → bitiş ve gün sayısıyla yazılır: **“7 → 18 (12 gün) Yİ”**; ay aşan: “28 Ara → 2 Oca (6 gün)”.
+- Pano, İsteklerim, Yönetim, önizleme ve bildirim metinlerinde aynı yazım kullanılır.
+
