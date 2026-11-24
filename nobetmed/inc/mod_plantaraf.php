@@ -91,7 +91,7 @@ function pt_bootstrap(int $rid, string $ym): array
     }
     if (!$people) {
         $fid = (int)val('SELECT MAX(file_id) FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $pym . '-%']);
-        if ($fid) foreach (all('SELECT DISTINCT name, title FROM roster_shifts WHERE roster_id = ? AND file_id = ? ORDER BY name', [$rid, $fid]) as $x) {
+        if ($fid) foreach (all('SELECT DISTINCT name, title FROM roster_shifts WHERE roster_id = ? AND file_id = ? AND date LIKE ? ORDER BY name', [$rid, $fid, $pym . '-%']) as $x) {
             if (!isset($seen[tr_lower($x['name'])])) { $seen[tr_lower($x['name'])] = 1; $people[] = ['name' => $x['name'], 'title' => (string)$x['title']]; }
         }
     }

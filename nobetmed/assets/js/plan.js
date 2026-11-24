@@ -736,7 +736,7 @@ async function planPublishCtx(ctx, el) {
   const ro = rosterById(ctx.rid);
   const [y, m] = ctx.ym.split('-').map(Number);
   const curP = ro && ro.period;
-  const warn = curP && curP !== ctx.ym ? ` Liste şu an ${periodLabel(curP)} ayını gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} olur (eski ay sürümlerde kalır).` : '';
+  const warn = curP && curP !== ctx.ym ? ` Liste şu an ${periodLabel(curP)} ayını gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} olur. ${periodLabel(curP)} nöbetleri silinmez; Takvimim ve Kim nöbette’de ay sonuna kadar görünmeye devam eder.` : '';
   if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: `Çizelge “${ctx.roster.name}” listesinin yeni sürümü olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.${warn}`, ok: 'Yayınla' }))) return;
   busy(el, async () => {
     try {

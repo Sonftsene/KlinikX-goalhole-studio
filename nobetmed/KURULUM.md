@@ -1228,10 +1228,20 @@ Gelen kutusundaki yuvarlak resmi e-postanın içi değil gönderen adres belirle
 1. **Gmail / Google Workspace adresiyle** gönderiliyorsa o Google hesabına profil fotoğrafı koyun.
 2. **Kendi alan adınızla** (ör. Hostinger e-postası) gönderiliyorsa **BIMI** gerekir: SPF + DKIM + DMARC (`p=quarantine` ya da `reject`), kare **SVG Tiny P/S** logo ve `default._bimi` DNS kaydı. **Gmail ayrıca ücretli marka sertifikası (VMC ya da CMC) ister**; Yahoo / AOL sertifikasız gösterir. Kart içindeki “Gmail’de gönderen resmi neden yok?” bölümü alan adınıza göre kayıtları yazar.
 
-## 66. Güncellemeden sonra telefon bildirimlerinin kendiliğinden geri gelmesi (4.46.0)
+## 66. Güncellemeden sonra telefon bildirimlerinin kendiliğinden geri gelmesi (4.46.0 / 4.47.0)
 Uygulama güncellenince arka plandaki bildirim servisi (service worker) yenilenir. Bazı telefonlarda (özellikle iPhone'da) bu sırada tarayıcı bildirim aboneliğini düşürür; izin verili kaldığı hâlde kişiye “Bildirimleriniz kapalı · Bildirimleri aç” uyarısı çıkardı.
 - Artık uygulama açılınca **izin verili + bu cihazda daha önce açıktı + abonelik yok** durumunu görür ve izin penceresi açmadan **sessizce yeniden abone olur** (pwa.js `pushHeal`); uyarı çıkmaz, sunucudaki cihaz kaydı yenilenir.
 - Kişi bildirimi o cihazda **kendisi kapattıysa** ya da **çıkış yaptıysa** onarılmaz (cihazda `nm-push-off` işareti).
 - Bu sürüme geçişte cihazda henüz iz yoksa sunucuya en son aynı tür cihazdan “açık” bildirilmişse (push_state) yine onarılır.
 - Onarım olmazsa (tarayıcı izin vermezse) uyarı “bağlantı kopmuş, tek dokunuşla yeniden bağlayın; izin sorulmaz” der.
+
+## 67. Ay bitmeden gelecek ayın listesini yüklemek (4.47.0)
+Gelecek ayın Excel listesini (ya da çizelgede yayınladığınız ayı) **aynı listeye** yükleyebilirsiniz; bu ayın kalan nöbetleri silinmez.
+- Yalnızca yüklenen listenin kapsadığı günler değişir. Bu ayın nöbetleri **Takvimim**, **Kim nöbette**, hatırlatmalar ve nöbet değişimlerinde ay sonuna kadar görünür; gelecek ay da hemen görünür.
+- Aylar birbirine karışmaz, ad çiftlenmez: bir günün nöbetleri tek ayın listesinden gelir. Bu ayın düzeltilmiş listesini yeniden yüklerseniz yalnızca bu ay değişir, gelecek ay korunur.
+- Liste sayfası en son yüklenen ayı (Excel’i) gösterir; önceki ayın dosyası **Sürümler**’dedir.
+- “Listenin ayı” düzeltmesi yalnızca listenin gösterdiği ayın kayıtlarını taşır.
+- Bir yıldan eski aylar kendiliğinden temizlenir.
+- Önceki sürümlerde aynı listeye yeni ay yüklenince bu ayın kalan nöbetleri siliniyordu; o listeyi bu sürümde bu ay için yeniden yüklerseniz geri gelir (önce bu ayın dosyasını Sürümler’den geri yükleyin, sonra gelecek ayınkini).
+- Ayrı ayrı listeler (ör. “Kasım”, “Aralık”) açmaya gerek yok; açarsanız da çalışır ama İstekler ve ilanlar kişiyi iki listede görür.
 

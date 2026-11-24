@@ -154,8 +154,21 @@ function a_rosters_shifts_save(): void
     if (!one('SELECT id FROM roster_files WHERE roster_id = ? AND attachment_id = ?', [$rid, $fid])) fail('Dosya bu listeye ait değil.', 400);
     if (!preg_match('/^\d{4}-\d{2}$/', $period)) fail('Geçersiz dönem.');
     $entries = array_slice(arr('entries'), 0, 6000);
+    // Yalnızca yeni listenin kapsadığı günler değişir: aynı listeye gelecek ayı yüklemek bu ayın kalan nöbetlerini silmez
+    // (Takvimim, Kim nöbette, hatırlatmalar, değişimler ay sonuna kadar çalışır). Aralık = dönemin ayı ∪ kayıtların tarihleri.
+    $lo = $period . '-01';
+    $hi = date('Y-m-t', strtotime($lo));
+    foreach ($entries as $e) {
+        $d = is_array($e) ? (string)($e['date'] ?? '') : '';
+        if (!valid_ymd($d)) continue;
+        if ($d < $lo) $lo = $d;
+        if ($d > $hi) $hi = $d;
+    }
+    $keepFrom = date('Y-m-01', strtotime($period . '-01 -12 months')); // bir yıldan eski aylar tutulmaz
     db()->beginTransaction();
-    q('DELETE FROM roster_shifts WHERE roster_id = ?', [$rid]);
+    q('DELETE FROM roster_shifts WHERE roster_id = ? AND ((date >= ? AND date <= ?) OR date < ?)', [$rid, $lo, $hi, $keepFrom]);
+    // Kalan aylar yeni dosyaya bağlanır (bütün sorgular listenin son okunan dosyasındaki kayıtlara bakar)
+    q('UPDATE roster_shifts SET file_id = ? WHERE roster_id = ?', [$fid, $rid]);
     $st = db()->prepare('INSERT INTO roster_shifts (roster_id, file_id, name, title, date, code, label, kind, hours, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $n = 0;
     foreach ($entries as $e) {
@@ -188,7 +201,12 @@ function a_rosters_period(): void
     $r = one('SELECT * FROM rosters WHERE id = ?', [$rid]) ?? fail('Liste bulunamadı.', 404);
     roster_not_linked($rid);
     $days = (int)date('t', strtotime($period . '-01'));
-    foreach (all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]) as $x) {
+    // Yalnızca listenin gösterdiği ayın kayıtları taşınır; listede tutulan diğer aylara dokunulmaz
+    $old = (string)($r['period'] ?? '');
+    if ($old === $period) out(['period' => $period]);
+    if (preg_match('/^\d{4}-\d{2}$/', $old)) q('DELETE FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $period . '-%']);
+    $rows = preg_match('/^\d{4}-\d{2}$/', $old) ? all('SELECT id, date FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $old . '-%']) : all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]);
+    foreach ($rows as $x) {
         $d = (int)substr($x['date'], 8, 2);
         if ($d > $days) q('DELETE FROM roster_shifts WHERE id = ?', [$x['id']]);
         else q('UPDATE roster_shifts SET date = ? WHERE id = ?', [$period . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT), $x['id']]);
