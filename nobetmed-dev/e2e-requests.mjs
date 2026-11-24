@@ -116,7 +116,7 @@ await m.locator('#rqTxt').waitFor();
 if (!/3\. Basamak/.test(await m.locator('#rqRost').innerText())) fail('liste adından bulunamadı: ' + await m.locator('#rqRost').innerText());
 await m.fill('#rqTxt', '2,3,4 boşluk; 15-19 yıllık izin');
 const prevTxt = await m.locator('#rqPrev').innerText();
-if (!/2-4/.test(prevTxt) || !/15-19/.test(prevTxt) || !/8 gün/.test(prevTxt)) fail('önizleme: ' + prevTxt);
+if (!/2, 3, 4/.test(prevTxt) || !/15, 16, 17, 18, 19/.test(prevTxt) || !/8 gün/.test(prevTxt)) fail('önizleme: ' + prevTxt);
 if ((await m.locator('.rq-d.pv').count()) !== 8) fail('takvim önizlemesi: ' + await m.locator('.rq-d.pv').count());
 await m.click('#rqApply');
 await m.click(`.rq-d[data-d="${d1(10)}"]`);
