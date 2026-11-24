@@ -472,17 +472,22 @@ ACT['ics-file'] = () => {
 /* =================================================================== */
 /* Nöbet listesinden nöbetleri çıkar (yayıncı yüklediğinde/gördüğünde)  */
 /* =================================================================== */
-async function syncRosterShifts(roster, model) {
-  if (!isPublisher() || !roster || roster.linked || !roster.file || !model || typeof extractShifts !== 'function') return;
-  if (roster.parsed_file_id === roster.file.id && !roster._reparse) return;
-  roster._reparse = false;
+/** mo: listenin bir ayı (4.48.0; dosyası ve ayı belli) — yoksa listenin dosyası, ay Excel’den bulunur */
+async function syncRosterShifts(roster, model, mo) {
+  const file = mo ? mo.file : roster && roster.file;
+  if (!isPublisher() || !roster || roster.linked || !file || !model || typeof extractShifts !== 'function') return;
+  if (mo ? mo.parsed && !mo._reparse : roster.parsed_file_id === file.id && !roster._reparse) return;
+  if (mo) mo._reparse = false; else roster._reparse = false;
+  const [fy, fm] = mo ? mo.ym.split('-').map(Number) : [roster._year, roster._month];
   let res;
-  try { res = extractShifts(model, { dict: shiftDict(), fileName: roster.file.name, uploadedAt: roster.file.updated_at, year: roster._year, month: roster._month }); } catch (e) { return; }
+  try { res = extractShifts(model, { dict: shiftDict(), fileName: file.name, uploadedAt: file.updated_at, year: fy, month: fm }); } catch (e) { return; }
   if (!res || !res.ok || !res.entries.length) return;
-  const period = `${res.year}-${pad(res.month)}`;
+  const period = mo ? mo.ym : `${res.year}-${pad(res.month)}`;
+  const primary = !mo || !roster.period || mo.ym === roster.period;
   try {
-    const r = await api('rosters.shifts', { roster_id: roster.id, file_id: roster.file.id, period, entries: res.entries });
-    Object.assign(roster, { parsed_file_id: roster.file.id, period, parsed_count: r.saved });
+    const r = await api('rosters.shifts', { roster_id: roster.id, file_id: file.id, period, entries: res.entries, primary });
+    if (mo) Object.assign(mo, { parsed: true, count: r.saved });
+    Object.assign(roster, { parsed_file_id: file.id }, primary ? { period, parsed_count: r.saved } : {});
     if (RS.active === roster.id) drawRosterInfo();
     MY.at = 0;
   } catch (e) { /* sessiz */ }
@@ -501,9 +506,15 @@ ACT['rs-period'] = async () => {
     const period = `${f.y.value}-${pad(+f.m.value)}`;
     try {
       await api('rosters.period', { id: r.id, period });
-      r.period = period; m.close(); drawRosterInfo(); MY.at = 0; toast('Listenin ayı güncellendi');
+      m.close(); MY.at = 0; toast('Listenin ayı güncellendi');
+      if (typeof refreshRosters === 'function') await refreshRosters();
+      const r2 = rosterById(r.id) || r;
+      const mo = (r2.months || []).find((x) => x.ym === period);
+      if (typeof RS !== 'undefined') RS.vm[r2.id] = period;
+      if (typeof showRoster === 'function' && RS.stage) showRoster(r2.id); else drawRosterInfo();
       // Ay değişince gün sayısı da değişebilir: listeyi yeni aya göre yeniden oku
-      if (r.file) { Object.assign(r, { _year: +f.y.value, _month: +f.m.value, _reparse: true }); loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {}); }
+      if (mo && mo.file) { mo._reparse = true; loadSheetModel(mo.file).then((model) => syncRosterShifts(r2, model, mo)).catch(() => {}); }
+      else if (r2.file) { Object.assign(r2, { _year: +f.y.value, _month: +f.m.value, _reparse: true }); loadSheetModel(r2.file).then((model) => syncRosterShifts(r2, model)).catch(() => {}); }
     } catch (err) { toast(err.message, 'err'); }
   }));
 };
@@ -1544,7 +1555,13 @@ ACT['code-save'] = (el) => busy(el, async () => {
 function reparseAllRosters() {
   let n = 0;
   (S.rosters || []).forEach((r) => {
-    if (!r.file || !['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(r.file.name))) return;
+    const ok = (f) => f && ['xlsx', 'xlsm', 'xls', 'ods', 'csv'].includes(extOf(f.name));
+    if (!r.linked && (r.months || []).length) {
+      // Her ay kendi dosyasından yeniden okunur
+      r.months.forEach((mo) => { if (!ok(mo.file)) return; n++; mo._reparse = true; loadSheetModel(mo.file).then((model) => syncRosterShifts(r, model, mo)).catch(() => {}); });
+      return;
+    }
+    if (!ok(r.file)) return;
     n++;
     r._reparse = true;
     loadSheetModel(r.file).then((model) => syncRosterShifts(r, model)).catch(() => {});

@@ -17,11 +17,21 @@ function notify_users(array $users, string $kind, string $title, string $body, s
     $pushIds = [];
     $mailTo = [];
     $seen = [];
+    // Geri alınabilsin diye: aynı işlemde (istekte) giden bildirimler tek gönderim sayılır; gönderen kişi kaydedilir
+    $nb = function_exists('nb_batch_on') && nb_batch_on();
+    $by = null;
+    if ($nb) {
+        $GLOBALS['NM_NB_BATCH'] ??= bin2hex(random_bytes(6));
+        $cu = function_exists('current_user') ? current_user() : null;
+        $by = $cu && empty($cu['sa_virtual']) ? (int)$cu['id'] : null;
+    }
     foreach ($users as $u) {
         $id = (int)$u['id'];
         if (isset($seen[$id])) continue;
         $seen[$id] = true;
-        q('INSERT INTO notifications (user_id, title, body, url, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        if ($nb) q('INSERT INTO notifications (user_id, title, body, url, kind, created_at, batch, by_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$id, mb_substr($title, 0, 200), mb_substr($body, 0, 400), mb_substr($url, 0, 200), $kind, now(), $GLOBALS['NM_NB_BATCH'], $by]);
+        else q('INSERT INTO notifications (user_id, title, body, url, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
             [$id, mb_substr($title, 0, 200), mb_substr($body, 0, 400), mb_substr($url, 0, 200), $kind, now()]);
         $mode = $u['notify_mode'] ?? 'instant';
         $pushIds[] = $id; // telefon bildirimi: kişinin kategori tercihleri ve birim politikası (nb_push_filter); e-posta tercihinden bağımsız

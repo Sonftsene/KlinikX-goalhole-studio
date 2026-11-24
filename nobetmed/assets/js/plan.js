@@ -736,7 +736,10 @@ async function planPublishCtx(ctx, el) {
   const ro = rosterById(ctx.rid);
   const [y, m] = ctx.ym.split('-').map(Number);
   const curP = ro && ro.period;
-  const warn = curP && curP !== ctx.ym ? ` Liste şu an ${periodLabel(curP)} ayını gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} olur. ${periodLabel(curP)} nöbetleri silinmez; Takvimim ve Kim nöbette’de ay sonuna kadar görünmeye devam eder.` : '';
+  // Güncel ay: liste boşsa, bu ay ya da geçmiş güncelden yeni ama bugünü aşmayan ay; gelecek ay “sıradaki ay” olarak eklenir (liste sayfasından güncel yapılır)
+  const nowYm = ymd(new Date()).slice(0, 7);
+  const primary = !curP || ctx.ym === curP || (ctx.ym > curP && ctx.ym <= nowYm);
+  const warn = curP && curP !== ctx.ym ? (primary ? ` Liste şu an ${periodLabel(curP)} ayını güncel gösteriyor; yayınlayınca ${TR_MONTHS[m - 1]} ${y} güncel ay olur, ${periodLabel(curP)} geçmiş aylarda kalır.` : ` ${TR_MONTHS[m - 1]} ${y} listeye ${ctx.ym > curP ? 'sıradaki' : 'geçmiş'} ay olarak eklenir; ${periodLabel(curP)} güncel kalır. Nöbetler kendi günlerinde Takvimim’de ve hesaplarda geçerlidir; liste sayfasından istediğiniz ayı güncel yapabilirsiniz.`) : '';
   if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: `Çizelge “${ctx.roster.name}” listesinin yeni sürümü olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.${warn}`, ok: 'Yayınla' }))) return;
   busy(el, async () => {
     try {
@@ -747,13 +750,13 @@ async function planPublishCtx(ctx, el) {
       try { await api('plan.mark', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d }); } catch (e) { /* kayıt tutulamadıysa yayın yine yapılır */ }
       const file = await planXlsx(ctx);
       const att = await uploadFile(file);
-      await api('rosters.upload', { id: ctx.rid, attachment_id: att.id });
+      await api('rosters.upload', { id: ctx.rid, attachment_id: att.id, ym: ctx.ym, primary });
       const entries = [];
       ctx.d.people.forEach((p) => Object.entries(ctx.d.cells[p.name] || {}).forEach(([d, code]) => {
         const c = planCode(code) || { kind: 'shift' };
         entries.push({ name: p.name, title: p.title || '', date: d, code, label: c.label || code, kind: c.kind || 'shift', hours: c.hours != null ? c.hours : undefined, start: c.start || undefined, end: c.end || undefined });
       }));
-      const r = await api('rosters.shifts', { roster_id: ctx.rid, file_id: att.id, period: ctx.ym, entries });
+      const r = await api('rosters.shifts', { roster_id: ctx.rid, file_id: att.id, period: ctx.ym, entries, primary });
       await api('plan.save', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d, published: true });
       await refreshRosters(); MY.at = 0;
       toast(`${ctx.roster.name} yayınlandı · ${r.saved} nöbet kaydı`);

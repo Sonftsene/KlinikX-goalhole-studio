@@ -629,6 +629,7 @@ function a_boot(): void
         // Modüllerin açılış verisi: $GLOBALS['NM_BOOT'][] = fn(array $me): array
         foreach ($GLOBALS['NM_BOOT'] ?? [] as $fn) { try { $data = array_merge($data, (array)$fn($me)); } catch (Throwable $e) { error_log('[dupcii] boot modülü: ' . $e->getMessage()); } }
         $data['counts'] = counts_for($me);
+        if (function_exists('rm_ensure')) { try { rm_ensure(); } catch (Throwable $e) { error_log('[dupcii] liste ayları: ' . $e->getMessage()); } }
         $data['rosters'] = array_map('roster_out', all('SELECT * FROM rosters ORDER BY sort, id'));
         $data['people'] = array_map(fn($r) => [
             'id' => (int)$r['id'], 'name' => $r['name'], 'avatar' => avatar_url($r),
@@ -1477,10 +1478,16 @@ function serve_file(): void
 
 function roster_out(array $r): array
 {
-    $cur = one('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size
+    // Liste birden çok ay tutar (inc/mod_listeay.php): görünen dosya güncel ayın son dosyası; ay bilgisi yoksa son yüklenen
+    $months = empty($r['src_on']) && function_exists('rm_months') ? rm_months((int)$r['id']) : [];
+    $pm = null;
+    foreach ($months as $mo) if ($mo['ym'] === ($r['period'] ?? null)) $pm = $mo;
+    $cur = $pm ? null : one('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size
         FROM roster_files f JOIN attachments a ON a.id = f.attachment_id LEFT JOIN users u ON u.id = f.user_id
         WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$r['id']]);
+    if ($pm) $cur = ['id' => $pm['file']['id'], 'orig_name' => $pm['file']['name'], 'mime' => $pm['file']['mime'], 'size' => $pm['file']['size'], 'created_at' => $pm['file']['updated_at'], 'user_name' => $pm['file']['user_name']];
     return [
+        'months' => $months,
         'id' => (int)$r['id'],
         'name' => $r['name'],
         'file' => $cur ? [
@@ -1496,7 +1503,7 @@ function roster_out(array $r): array
         'tab' => !empty($r['src_on']) ? ($r['src_tabname'] ?? null) : null,
         'sync_at' => !empty($r['src_on']) ? ($r['src_sync_at'] ?? null) : null,
         'sync_status' => !empty($r['src_on']) ? ($r['src_status'] ?? null) : null,
-        'parsed_count' => $cur && isset($r['parsed_file_id']) && (int)$r['parsed_file_id'] === (int)$cur['id'] ? (int)val('SELECT COUNT(*) FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$r['id'], ($r['period'] ?? '') . '%']) : 0,
+        'parsed_count' => $pm ? (int)$pm['count'] : ($cur && isset($r['parsed_file_id']) && (int)$r['parsed_file_id'] === (int)$cur['id'] ? (int)val('SELECT COUNT(*) FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$r['id'], ($r['period'] ?? '') . '%']) : 0),
         // Islak imzalı resmi liste (çizelge › Resmi liste; inc/mod_resmi.php)
         'signed' => !empty($r['period']) && function_exists('plan_signed_get') ? plan_signed_get((int)$r['id'], (string)$r['period']) : null,
     ];
@@ -1559,7 +1566,8 @@ function add_roster_version(int $rosterId, int $attId, array $me): void
 {
     q('UPDATE attachments SET roster_id = ? WHERE id = ?', [$rosterId, $attId]);
     q('INSERT INTO roster_files (roster_id, attachment_id, user_id, created_at) VALUES (?, ?, ?, ?)', [$rosterId, $attId, $me['id'], now()]);
-    $old = all('SELECT id, attachment_id FROM roster_files WHERE roster_id = ? ORDER BY id DESC LIMIT 1000 OFFSET ' . ROSTER_KEEP_VERSIONS, [$rosterId]);
+    // Aya bağlı dosyalar ay ay budanır (rm_tag_file); burada yalnız ay bilgisi olmayan eski sürümler
+    $old = all('SELECT id, attachment_id FROM roster_files WHERE roster_id = ?' . (function_exists('rm_on') && rm_on() ? ' AND ym IS NULL' : '') . ' ORDER BY id DESC LIMIT 1000 OFFSET ' . ROSTER_KEEP_VERSIONS, [$rosterId]);
     foreach ($old as $o) {
         q('DELETE FROM roster_files WHERE id = ?', [$o['id']]);
         delete_attachment_if_unused((int)$o['attachment_id']);
@@ -1574,9 +1582,15 @@ function a_rosters_upload(): void
     if (!valid_id('rosters', $id)) fail('Liste bulunamadı.', 404);
     roster_not_linked($id);
     if (!one('SELECT id FROM attachments WHERE id = ? AND user_id = ? AND post_id IS NULL AND roster_id IS NULL', [$attId, $me['id']])) fail('Yüklenen dosya bulunamadı.', 404);
+    // Hangi ayın listesi (isteğe bağlı; inc/mod_listeay.php). primary: güncel ay yapılsın mı
+    $ym = s('ym', 7);
+    if ($ym !== '' && function_exists('rm_ensure')) { rm_ensure(); if (!rm_valid_ym($ym)) fail('Geçersiz ay.'); }
+    else $ym = '';
     // Aynı dosya tekrar yüklendiyse yeni sürüm, duyuru ve bildirim oluşturma
     $new = one('SELECT stored_name, size FROM attachments WHERE id = ?', [$attId]);
-    $cur = one('SELECT a.id, a.stored_name, a.size FROM roster_files f JOIN attachments a ON a.id = f.attachment_id WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$id]);
+    $cur = $ym !== ''
+        ? one('SELECT a.id, a.stored_name, a.size FROM roster_files f JOIN attachments a ON a.id = f.attachment_id WHERE f.roster_id = ? AND f.ym = ? ORDER BY f.id DESC LIMIT 1', [$id, $ym])
+        : one('SELECT a.id, a.stored_name, a.size FROM roster_files f JOIN attachments a ON a.id = f.attachment_id WHERE f.roster_id = ? ORDER BY f.id DESC LIMIT 1', [$id]);
     if ($cur && $new && (int)$cur['size'] === (int)$new['size']) {
         $pa = nm_upload_dir() . '/' . $new['stored_name'];
         $pb = nm_upload_dir() . '/' . $cur['stored_name'];
@@ -1587,15 +1601,20 @@ function a_rosters_upload(): void
         }
     }
     add_roster_version($id, $attId, $me);
+    if ($ym !== '') {
+        rm_tag_file($id, $attId, $ym);
+        $per = (string)(val('SELECT period FROM rosters WHERE id = ?', [$id]) ?? '');
+        if (b('primary') || $per === '') q('UPDATE rosters SET period = ? WHERE id = ?', [$ym, $id]);
+    }
     $roster = one('SELECT * FROM rosters WHERE id = ?', [$id]);
-    audit($me, 'roster.upload', $roster['name'], (string)val('SELECT orig_name FROM attachments WHERE id = ?', [$attId]));
+    audit($me, 'roster.upload', $roster['name'], ($ym !== '' ? rm_label($ym) . ' · ' : '') . (string)val('SELECT orig_name FROM attachments WHERE id = ?', [$attId]));
     $postId = null;
     if (setting('auto_post_roster', '1') === '1') {
         $file = one('SELECT orig_name FROM attachments WHERE id = ?', [$attId]);
         $cat = val("SELECT id FROM categories WHERE icon = 'megaphone' ORDER BY sort, id LIMIT 1") ?: val('SELECT id FROM categories ORDER BY sort, id LIMIT 1');
         $required = setting('auto_post_required', '0') === '1' ? 1 : 0;
         q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?, ?, ?)',
-            ['“' . $roster['name'] . '” nöbet listesi güncellendi',
+            ['“' . $roster['name'] . '”' . ($ym !== '' ? ' · ' . rm_label($ym) : '') . ' nöbet listesi güncellendi',
              $me['name'] . ' güncel nöbet listesini yükledi.' . ($file ? "\nDosya: " . $file['orig_name'] : '') . "\n\nListeyi açmak için: " . base_url() . '#/nobet/' . $id,
              $cat, $me['id'], 'published', $required, now(), now(), now()]);
         $postId = insert_id();
@@ -1609,11 +1628,14 @@ function a_rosters_versions(): void
 {
     need_user();
     $id = (int)i('id');
-    $rows = all('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size
+    $rm = function_exists('rm_on') && rm_on();
+    $vym = $rm ? s('ym', 7) : '';
+    $byMonth = $vym !== '' && rm_valid_ym($vym); // yalnız o ayın sürümleri
+    $rows = all('SELECT f.id AS fid, f.created_at, u.name AS user_name, a.id, a.orig_name, a.mime, a.size' . ($rm ? ', f.ym' : '') . '
         FROM roster_files f JOIN attachments a ON a.id = f.attachment_id LEFT JOIN users u ON u.id = f.user_id
-        WHERE f.roster_id = ? ORDER BY f.id DESC', [$id]);
+        WHERE f.roster_id = ?' . ($byMonth ? ' AND f.ym = ?' : '') . ' ORDER BY f.id DESC', $byMonth ? [$id, $vym] : [$id]);
     out(['versions' => array_map(fn($r) => [
-        'version_id' => (int)$r['fid'], 'id' => (int)$r['id'], 'name' => $r['orig_name'], 'mime' => $r['mime'], 'size' => (int)$r['size'],
+        'version_id' => (int)$r['fid'], 'ym' => $r['ym'] ?? null, 'id' => (int)$r['id'], 'name' => $r['orig_name'], 'mime' => $r['mime'], 'size' => (int)$r['size'],
         'url' => 'api.php?action=file&id=' . (int)$r['id'], 'updated_at' => $r['created_at'], 'user_name' => $r['user_name'],
     ], $rows)]);
 }
@@ -1626,6 +1648,7 @@ function a_rosters_restore(): void
     $f = one('SELECT * FROM roster_files WHERE id = ? AND roster_id = ?', [(int)i('version_id'), $id]);
     if (!$f) fail('Sürüm bulunamadı.', 404);
     add_roster_version($id, (int)$f['attachment_id'], $me);
+    if (!empty($f['ym']) && function_exists('rm_tag_file')) rm_tag_file($id, (int)$f['attachment_id'], (string)$f['ym']);
     $r = one('SELECT * FROM rosters WHERE id = ?', [$id]);
     audit($me, 'roster.restore', $r['name'], 'Sürüm #' . (int)i('version_id'));
     out(['roster' => roster_out($r)]);

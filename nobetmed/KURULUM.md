@@ -1245,3 +1245,20 @@ Gelecek ayın Excel listesini (ya da çizelgede yayınladığınız ayı) **ayn�
 - Önceki sürümlerde aynı listeye yeni ay yüklenince bu ayın kalan nöbetleri siliniyordu; o listeyi bu sürümde bu ay için yeniden yüklerseniz geri gelir (önce bu ayın dosyasını Sürümler’den geri yükleyin, sonra gelecek ayınkini).
 - Ayrı ayrı listeler (ör. “Kasım”, “Aralık”) açmaya gerek yok; açarsanız da çalışır ama İstekler ve ilanlar kişiyi iki listede görür.
 
+## 68. Listede aylar: güncel ay, sıradaki ay, geçmiş aylar (4.48.0)
+Bir nöbet listesi (ör. “Hemşire Nöbet Listesi”) artık birden çok ayı tutar; her ayın kendi Excel dosyası (son 5 sürümü) ve kendi nöbet kayıtları vardır. Ayrı ayrı liste açmanıza gerek yok.
+- Liste sayfasında başlığın altında **ay çubuğu**: ★ **güncel ay** önde, yanında **sıradaki** aylar, eskiler **Geçmiş aylar** menüsünde. Herkes geçmiş aylara bakabilir.
+- **Ay ekle** (yönetici / sorumlu): hangi ayın listesi olduğunu seçip Excel’i yükleyin. **Güncel ay yap** işaretliyse liste açılınca bu ay görünür; işaretsizse sıradaki / geçmiş ay olarak eklenir.
+- **Güncel ay yap**: sıradaki ayı açıp düğmeye basın; önceki güncel ay geçmiş aylara geçer. Yeni ay başlayıp liste hâlâ eski ayı güncel gösteriyorsa yöneticiye “Aralık başladı, Aralık’ı güncel yap” önerisi çıkar.
+- **Hesaplar**: her ayın nöbetleri kendi günlerinde geçerlidir; Takvimim, Kim nöbette, hatırlatmalar, kurallar, ilanlar ve değişimler hangi ayın güncel olduğundan bağımsız olarak doğru günün listesini kullanır. Bir ayı yüklemek / düzeltmek yalnızca o ayın günlerini değiştirir.
+- **Yeni sürüm yükle** açık olan aya yükler. Dosyanın içindeki ay açık olan aydan farklıysa “Bu dosya hangi ayın?” diye sorulur. İlk yüklemede ay dosyanın içinden bulunur.
+- **⋯ › “<ay> ayını listeden kaldır”**: o ayın dosyaları ve nöbet kayıtları silinir, diğer aylar kalır.
+- Çizelgeden yayınlarken: bu ay ya da geçmiş güncel aydan yeni (bugünü aşmayan) ay güncel olur; gelecek ay **sıradaki ay** olarak eklenir.
+- Google E-Tablolar’a bağlı listeler sekmeleriyle çalışmaya devam eder.
+
+## 69. Yanlış giden bildirimi herkesten geri alma (4.48.0)
+**Bildirimler › Gönderilenler** (yönetici ve sorumlu) ya da **Ayarlar › Bildirimler › Gönderilen bildirimler** (yönetici): son 30 günde giden bildirimler gönderim gönderim listelenir (kaç kişiye gitti, kaçı okudu, kim gönderdi).
+- **Herkesten sil**: bildirim herkesin bildirim listesinden silinir. Telefon / bilgisayar ekranında duruyorsa uygulama açılınca ya da sıradaki bildirim geldiğinde kendiliğinden kapanır.
+- Yönetici tüm gönderimleri, sorumlu yalnızca kendi gönderdiklerini görür ve siler.
+- Gönderilmiş **e-postalar geri alınamaz**; kişisel mesaj ve arama bildirimleri listede görünmez.
+

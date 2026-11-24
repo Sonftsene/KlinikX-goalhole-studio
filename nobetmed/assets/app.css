@@ -2098,3 +2098,14 @@ html.kr-open, html.kr-open body { overflow: hidden; }
 .md-frame iframe { width: 100%; height: 560px; border: 0; display: block; background: #fff; }
 .md-bimi { border-top: 1px solid var(--border); padding-top: 10px; }
 .md-bimi code { font-size: 11.5px; overflow-wrap: anywhere; }
+
+/* Listede aylar (4.48.0) */
+.rs-months { display: flex; gap: 6px; margin: 8px 0 2px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.rs-months::-webkit-scrollbar { display: none; }
+.rs-mo { flex: none; }
+.rs-mo.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.rs-mo.on .faint, .rs-mo.on .rs-mo-cur { color: rgba(255,255,255,.85); }
+.rs-mo-cur { font-weight: 700; color: var(--brand-text); }
+.rs-title-mo { font-weight: 500; color: var(--text-3); }
+.rs-suggest, .rs-notcur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
+.rs-suggest { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }

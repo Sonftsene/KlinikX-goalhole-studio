@@ -156,7 +156,7 @@ function nb_payload(array $u, string $since, ?array $pol = null): ?array
     }
     if (!$items) return null;
     return [
-        'v' => 1, 'items' => $items,
+        'v' => 1, 'items' => $items, 'gone' => nb_gone_ids((int)$u['id'], null, 30),
         'unread' => (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL', [(int)$u['id']]),
         'silent' => !$urgent && nb_in_quiet($pr) ? 1 : 0,
         'vibrate' => $pr['vibrate'], 'icon' => nb_icon_url(), 'org' => (string)setting('org_name', ''),
@@ -224,6 +224,9 @@ function a_live(): void
     if (function_exists('pr_touch')) pr_touch($me); // çevrimiçi durum ve açık bölüm (inc/mod_cevrimici.php)
     $since = s('since', 19);
     $o = ['now' => now(), 'unread' => (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL', [$me['id']]), 'items' => []];
+    nb_batch_ensure();
+    $okSince = preg_match('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $since);
+    if ($g = nb_gone_ids((int)$me['id'], $okSince ? date('Y-m-d H:i:s', strtotime($since) - 120) : null)) $o['gone'] = $g;
     if (preg_match('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $since)) {
         $rows = all('SELECT id, title, body, url, kind, created_at, read_at FROM notifications WHERE user_id = ? AND read_at IS NULL AND created_at >= ? ORDER BY created_at DESC, id DESC LIMIT 6', [$me['id'], $since]);
         $o['items'] = array_map('nb_item', $rows);
@@ -575,7 +578,87 @@ $GLOBALS['NM_GET']['nm.kick'] = function () {
     try { $fn(true); } catch (Throwable $e) { error_log('[dupcii] kick ' . $job . ': ' . $e->getMessage()); }
 };
 
+/* ---------------- Gönderilen bildirimi herkesten geri alma (4.48.0) ---------------- */
+
+/** notifications.batch (aynı işlemde giden bildirimler) + by_id (gönderen) ve notif_gone (geri alınan bildirimlerin kimlikleri: telefonda kapatmak için) */
+function nb_batch_ensure(): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (setting('nbatch_schema', '') === '1') return;
+    $my = DB_DRIVER === 'mysql';
+    foreach (['batch VARCHAR(16) NULL', 'by_id INT NULL'] as $c) { try { db()->exec("ALTER TABLE notifications ADD COLUMN $c"); } catch (Throwable $e) { /* zaten var */ } }
+    $pk = $my ? 'INT AUTO_INCREMENT PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+    $end = $my ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+    db()->exec("CREATE TABLE IF NOT EXISTS notif_gone (id $pk, user_id INT NOT NULL, nid INT NOT NULL, at VARCHAR(19) NOT NULL)$end");
+    foreach (['CREATE INDEX idx_notif_batch ON notifications (batch)', 'CREATE INDEX idx_ngone_user ON notif_gone (user_id)'] as $x) { try { db()->exec($x); } catch (Throwable $e) { /* var */ } }
+    set_setting('nbatch_schema', '1');
+}
+function nb_batch_on(): bool { return setting('nbatch_schema', '') === '1'; }
+
+/** Kişinin geri alınmış bildirimleri (son 7 gün; $since verilirse o andan beri) */
+function nb_gone_ids(int $uid, ?string $since = null, int $lim = 60): array
+{
+    if (!nb_batch_on()) return [];
+    $from = $since ?? date('Y-m-d H:i:s', time() - 7 * 86400);
+    return array_map('intval', array_column(all('SELECT nid FROM notif_gone WHERE user_id = ? AND at >= ? ORDER BY id DESC LIMIT ' . max(1, min(200, $lim)), [$uid, $from]), 'nid'));
+}
+
+const NB_NO_RETRACT = ['chat', 'call', 'test'];
+
+/** Son 30 günde giden bildirimler, gönderim gönderim (yönetici hepsini, sorumlu kendi gönderdiklerini görür) */
+function a_notif_sent(): void
+{
+    $me = need_publisher();
+    nb_batch_ensure();
+    $adm = is_admin($me);
+    $p = [date('Y-m-d H:i:s', time() - 30 * 86400)];
+    $w = 'n.created_at >= ? AND n.kind NOT IN (' . implode(',', array_fill(0, count(NB_NO_RETRACT), '?')) . ')';
+    $p = array_merge($p, NB_NO_RETRACT);
+    if (!$adm) { $w .= ' AND n.by_id = ?'; $p[] = (int)$me['id']; }
+    $g = 'COALESCE(n.batch, SUBSTR(n.created_at, 1, 16))';
+    $rows = all("SELECT $g AS g, n.kind, n.title, MIN(n.body) AS body, MIN(n.url) AS url, MIN(n.created_at) AS at, MAX(n.by_id) AS by_id,
+            COUNT(*) AS n, SUM(CASE WHEN n.read_at IS NULL THEN 0 ELSE 1 END) AS rd
+        FROM notifications n WHERE $w GROUP BY $g, n.kind, n.title ORDER BY MIN(n.created_at) DESC LIMIT 150", $p);
+    $names = [];
+    foreach (all('SELECT id, name FROM users') as $u) $names[(int)$u['id']] = (string)$u['name'];
+    out(['items' => array_map(fn($r) => [
+        'g' => (string)$r['g'], 'kind' => (string)$r['kind'], 'cat' => nb_cat((string)$r['kind']), 'title' => (string)$r['title'], 'body' => (string)$r['body'],
+        'url' => (string)$r['url'], 'at' => (string)$r['at'], 'n' => (int)$r['n'], 'read' => (int)$r['rd'],
+        'by' => $r['by_id'] !== null ? ($names[(int)$r['by_id']] ?? null) : null, 'mine' => $r['by_id'] !== null && (int)$r['by_id'] === (int)$me['id'],
+    ], $rows), 'admin' => $adm]);
+}
+
+/** Bir gönderimi herkesin bildirim listesinden siler; telefonda duranlar uygulama açılınca / sonraki bildirimde kapanır */
+function a_notif_retract(): void
+{
+    $me = need_publisher();
+    nb_batch_ensure();
+    $g = s('g', 19); $kind = s('kind', 30); $title = s('title', 200);
+    if ($g === '' || $title === '') fail('Gönderim seçilmedi.');
+    if (in_array($kind, NB_NO_RETRACT, true)) fail('Kişisel mesaj ve arama bildirimleri geri alınamaz.', 403);
+    $w = 'COALESCE(batch, SUBSTR(created_at, 1, 16)) = ? AND kind = ? AND title = ? AND created_at >= ?';
+    $p = [$g, $kind, $title, date('Y-m-d H:i:s', time() - 31 * 86400)];
+    if (!is_admin($me)) { $w .= ' AND by_id = ?'; $p[] = (int)$me['id']; }
+    $rows = all("SELECT id, user_id FROM notifications WHERE $w", $p);
+    if (!$rows) fail('Bildirim bulunamadı ya da zaten silinmiş.', 404);
+    $at = now();
+    db()->beginTransaction();
+    try {
+        $ins = db()->prepare('INSERT INTO notif_gone (user_id, nid, at) VALUES (?, ?, ?)');
+        foreach ($rows as $r) $ins->execute([(int)$r['user_id'], (int)$r['id'], $at]);
+        foreach (array_chunk(array_map(fn($r) => (int)$r['id'], $rows), 500) as $ids) q('DELETE FROM notifications WHERE id IN (' . implode(',', $ids) . ')');
+        q('DELETE FROM notif_gone WHERE at < ?', [date('Y-m-d H:i:s', time() - 8 * 86400)]);
+        db()->commit();
+    } catch (Throwable $e) { db()->rollBack(); throw $e; }
+    audit($me, 'notif.retract', $title, count($rows) . ' kişi');
+    out(['deleted' => count($rows)]);
+}
+
 return [
+    'notif.sent' => 'a_notif_sent',
+    'notif.retract' => 'a_notif_retract',
     'live' => 'a_live',
     'notif.delete' => 'a_notif_delete',
     'notif.prefs.get' => 'a_notif_prefs_get',

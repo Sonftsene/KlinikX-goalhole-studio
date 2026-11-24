@@ -153,6 +153,10 @@ function a_rosters_shifts_save(): void
     roster_not_linked($rid);
     if (!one('SELECT id FROM roster_files WHERE roster_id = ? AND attachment_id = ?', [$rid, $fid])) fail('Dosya bu listeye ait değil.', 400);
     if (!preg_match('/^\d{4}-\d{2}$/', $period)) fail('Geçersiz dönem.');
+    if (function_exists('rm_ensure')) rm_ensure();
+    // primary: bu ay listenin güncel ayı olsun mu (eski istemci göndermez → eskisi gibi güncel olur)
+    global $IN;
+    $prim = !array_key_exists('primary', $IN) || b('primary');
     $entries = array_slice(arr('entries'), 0, 6000);
     // Yalnızca yeni listenin kapsadığı günler değişir: aynı listeye gelecek ayı yüklemek bu ayın kalan nöbetlerini silmez
     // (Takvimim, Kim nöbette, hatırlatmalar, değişimler ay sonuna kadar çalışır). Aralık = dönemin ayı ∪ kayıtların tarihleri.
@@ -183,7 +187,10 @@ function a_rosters_shifts_save(): void
             isset($e['hours']) && is_numeric($e['hours']) ? (int)$e['hours'] : null, $hm($e['start'] ?? null), $hm($e['end'] ?? null)]);
         $n++;
     }
-    q('UPDATE rosters SET period = ?, parsed_file_id = ? WHERE id = ?', [$period, $fid, $rid]);
+    $curP = (string)(val('SELECT period FROM rosters WHERE id = ?', [$rid]) ?? '');
+    if ($prim || $curP === '') q('UPDATE rosters SET period = ?, parsed_file_id = ? WHERE id = ?', [$period, $fid, $rid]);
+    else q('UPDATE rosters SET parsed_file_id = ? WHERE id = ?', [$fid, $rid]);
+    if (function_exists('rm_on') && rm_on()) q('UPDATE roster_files SET parsed = 1, ym = COALESCE(ym, ?) WHERE roster_id = ? AND attachment_id = ?', [$period, $rid, $fid]);
     db()->commit();
     if (function_exists('swap_check_applied')) swap_check_applied($rid);
     if (function_exists('nl_autobind')) { try { nl_autobind(); } catch (Throwable $e) { error_log('[dupcii] ad bağı: ' . $e->getMessage()); } }
@@ -204,6 +211,11 @@ function a_rosters_period(): void
     // Yalnızca listenin gösterdiği ayın kayıtları taşınır; listede tutulan diğer aylara dokunulmaz
     $old = (string)($r['period'] ?? '');
     if ($old === $period) out(['period' => $period]);
+    if (function_exists('rm_on') && rm_on()) {
+        if ($old !== '' && val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ? AND ym = ?', [$rid, $period])) fail('Bu ay listede zaten var. Önce o ayı kaldırın ya da dosyayı o aya yükleyin.', 409);
+        if ($old !== '') q('UPDATE roster_files SET ym = ? WHERE roster_id = ? AND ym = ?', [$period, $rid, $old]);
+        else q('UPDATE roster_files SET ym = ? WHERE roster_id = ? AND attachment_id = ?', [$period, $rid, (int)($r['parsed_file_id'] ?? 0)]);
+    }
     if (preg_match('/^\d{4}-\d{2}$/', $old)) q('DELETE FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $period . '-%']);
     $rows = preg_match('/^\d{4}-\d{2}$/', $old) ? all('SELECT id, date FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $old . '-%']) : all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]);
     foreach ($rows as $x) {

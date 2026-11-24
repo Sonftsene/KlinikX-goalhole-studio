@@ -26,12 +26,25 @@ async function nbTick() {
       const first = !NB.since;
       NB.since = r.now;
       nbCounts(r);
+      if (r.gone && r.gone.length) nbGone(r.gone);
       if (!first) nbIncoming(r.items || []);
       if (r.call && typeof callIncoming === 'function') callIncoming(r.call);
     } catch (e) { /* çevrimdışı ya da oturum bitti (api uyarır) */ }
     NB.busy = false;
   }
   NB.timer = setTimeout(nbTick, on ? nbInterval() : 5000);
+}
+/** Yönetici geri aldı: telefonda/masaüstünde duran bildirimi kapat, açık listeden kaldır */
+const NB_GONE = new Set();
+async function nbGone(ids) {
+  const fresh = ids.filter((i) => !NB_GONE.has(i));
+  if (!fresh.length) return;
+  fresh.forEach((i) => NB_GONE.add(i));
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg && reg.getNotifications) (await reg.getNotifications()).forEach((x) => { if (x.data && fresh.includes(+x.data.id)) x.close(); });
+  } catch (e) { /* */ }
+  if (typeof NBL !== 'undefined' && NBL.items.some((x) => fresh.includes(x.id)) && $('#nblBox')) nblLoad(false);
 }
 /** Çevrimiçi durum için açık bölüm (yalnız bölüm adı; içerik ve kayıt numaraları gönderilmez) */
 function nbPresence() {
@@ -353,7 +366,7 @@ const NBL = { cat: '', unread: false, items: [], more: false };
 NM_EXT.routes.bildirimler = (view) => {
   NBL.items = [];
   setHTML(view, html`<div class="page-head"><div><h1>Bildirimler</h1><p>Son 90 günün bildirimleri. Telefona gelmeyenler de burada durur.</p></div>
-    <div class="row wrap" style="gap:6px"><button class="btn sm" data-act="nbl-readall">${icon('check', 'sm')}Tümünü okundu say</button><button class="btn sm ghost" data-act="nbl-clean">${icon('trash', 'sm')}Okunanları sil</button><a class="btn sm icon ghost" href="#/profil/bildirim" aria-label="Bildirim ayarları" title="Bildirim ayarları">${icon('sliders', 'sm')}</a></div></div>
+    <div class="row wrap" style="gap:6px">${isPublisher() ? html`<button class="btn sm" data-act="nb-sent">${icon('send', 'sm')}Gönderilenler</button>` : ''}<button class="btn sm" data-act="nbl-readall">${icon('check', 'sm')}Tümünü okundu say</button><button class="btn sm ghost" data-act="nbl-clean">${icon('trash', 'sm')}Okunanları sil</button><a class="btn sm icon ghost" href="#/profil/bildirim" aria-label="Bildirim ayarları" title="Bildirim ayarları">${icon('sliders', 'sm')}</a></div></div>
     <div class="seg nbl-f" role="tablist">${[['', 'Tümü'], ['_u', 'Okunmamış'], ...Object.entries(NB_CAT_UI).filter(([k]) => k !== 'yonetim' || isPublisherBase()).map(([k, v]) => [k, v[2]])].map(([k, l]) => html`<button type="button" class="${(k === '_u' ? NBL.unread : !NBL.unread && NBL.cat === k) ? 'on' : ''}" data-act="nbl-f" data-f="${k}">${l}</button>`)}</div>
     <div id="nblBox" style="margin-top:12px"><div class="card card-pad"><div class="skel" style="height:14px"></div></div></div>`);
   nblLoad(false);
@@ -608,3 +621,37 @@ CHANGE['md-logo'] = async (el) => {
   } catch (e) { toast(e.message, 'err'); }
 };
 ACT['md-logo-x'] = async () => { try { await api('brand.save', { mail_logo: '' }); await mdLoad(true); toast('E-posta logosu kaldırıldı'); } catch (e) { toast(e.message, 'err'); } };
+
+
+/* ---------------- Gönderilen bildirimler: yanlış gideni herkesten geri al (yönetici hepsini, sorumlu kendi gönderdiklerini) ---------------- */
+async function nbSentOpen() {
+  const m = openModal({ title: 'Gönderilen bildirimler', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  let d;
+  try { d = await api('notif.sent'); } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
+  const draw = () => m.setBody(html`<p class="small muted" style="margin:0 0 10px">Son 30 gün${d.admin ? '' : ' · yalnız sizin gönderdikleriniz'}. Yanlış giden bildirimi <b>Herkesten sil</b> ile kaldırın: herkesin bildirim listesinden silinir, telefon ekranında duruyorsa uygulama açılınca ya da sıradaki bildirimde kapanır. Gönderilmiş e-postalar geri alınamaz; kişisel mesaj ve arama bildirimleri burada görünmez.</p>
+    ${d.items.length ? html`<div class="card"><div class="list nbs-list">${d.items.map((x, i) => { const [tone, ic, lab] = NB_CAT_UI[x.cat] || NB_CAT_UI.sistem;
+      return html`<div class="list-row" style="gap:10px;align-items:flex-start"><span class="nbc-ico tone-${tone}">${icon(ic, 'sm')}</span>
+        <div class="grow" style="min-width:0"><b class="small">${x.title}</b>${x.body ? html`<div class="tiny muted ellipsis">${x.body}</div>` : ''}
+          <div class="tiny faint">${lab} · ${fmtRel(x.at)}${x.by ? ' · ' + x.by : ' · otomatik'} · <b>${x.n}</b> kişi · ${x.read} okudu</div></div>
+        <button type="button" class="btn sm ghost danger" data-sent-del="${i}">${icon('trash', 'sm')}Herkesten sil</button></div>`; })}</div></div>`
+      : html`<div class="card empty"><div class="e-ico">${icon('bell', 'lg')}</div><p class="small">Son 30 günde ${d.admin ? '' : 'sizin '}gönderdiğiniz bildirim yok.</p></div>`}`);
+  draw();
+  m.el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-sent-del]'); if (!b) return;
+    const x = d.items[+b.dataset.sentDel]; if (!x) return;
+    if (!(await confirmDialog({ title: `“${x.title}” herkesten silinsin mi?`, text: `${x.n} kişinin bildirimlerinden kaldırılır. Telefon ekranında duruyorsa uygulama açılınca ya da sıradaki bildirim geldiğinde kapanır. Gönderilmiş e-postalar geri alınamaz.`, ok: 'Herkesten sil', danger: true }))) return;
+    await busy(b, async () => {
+      try {
+        const r = await api('notif.retract', { g: x.g, kind: x.kind, title: x.title });
+        d.items = d.items.filter((y) => y !== x); draw();
+        toast(`Bildirim ${r.deleted} kişiden silindi`);
+        nbSoon();
+      } catch (err) { toast(err.message, 'err'); }
+    });
+  });
+}
+ACT['nb-sent'] = () => nbSentOpen();
+NM_EXT.settingsCards.push({
+  sec: 'bildirim', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="bildirim" id="nbSentCard"><div class="row between wrap" style="gap:8px;align-items:center"><div><h3 style="font-size:15px;margin:0">${icon('send', 'sm')} Gönderilen bildirimler</h3><p class="tiny muted" style="margin:4px 0 0">Yanlış giden bir bildirimi herkesten geri alın.</p></div><button type="button" class="btn sm" data-act="nb-sent">Aç</button></div></div>`,
+});

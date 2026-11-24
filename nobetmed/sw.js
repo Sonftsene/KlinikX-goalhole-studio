@@ -257,6 +257,10 @@ async function handlePush(event) {
   if (!data || !Array.isArray(data.items)) data = await fetchPending();
   const items = data.items || [];
   if (typeof data.unread === 'number') await setBadge(data.unread);
+  // Yönetici geri aldıysa ekranda duran bildirimi kapat
+  if (Array.isArray(data.gone) && data.gone.length) {
+    try { (await self.registration.getNotifications()).forEach((n) => { if (n.data && data.gone.includes(+n.data.id)) n.close(); }); } catch (e) { /* */ }
+  }
 
   // Uygulama öndeyse içeriği ona ver (ekranda kart, ses); Safari dışında sistem bildirimi gösterme
   const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
