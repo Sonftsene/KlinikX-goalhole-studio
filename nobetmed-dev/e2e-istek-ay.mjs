@@ -70,7 +70,7 @@ try {
   const k = (d) => (m3.items.find((x) => x.date === d) || {}).kind;
   if (k('2031-02-26') !== 'bosluk' || k('2031-02-24') !== 'izin') fail('arayüzden komşu gün eklenmedi: ' + JSON.stringify(m3.items.map((x) => x.date + x.kind)));
   const lt = await M.p.locator('#rqList').innerText();
-  if (!/27 Şub – 1 Mar|27-28 Şub/.test(lt)) fail('listede aydan aya aralık yazılmadı: ' + lt.slice(0, 200));
+  if (!/27 Şub, 28 Şub, 1 Mar|27, 28 Şub/.test(lt)) fail('listede aydan aya aralık yazılmadı: ' + lt.slice(0, 200));
   step('arayüz: takvimin ilk haftasında Şubat günleri; 26 Şubat dokunarak, 24 Şubat “24 şubat izin” yazarak eklendi; listede “27 Şub – 1 Mar” gibi');
   // 4) Kapanmış komşu dönem: üye o ayın gününü ekleyemez / değiştiremez
   await call(A.p, 'req.period.save', { id: p2, ym: '2031-04', deadline: '2031-04-20', status: 'closed', silent: true });
