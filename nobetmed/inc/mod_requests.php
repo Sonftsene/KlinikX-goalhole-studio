@@ -62,19 +62,24 @@ function rq_member_open(array $p): bool
     return $p['status'] === 'open' && (!$p['deadline'] || date('Y-m-d') <= $p['deadline']);
 }
 
-/** Gün listelerini kısaltır: [2,3,4,6] -> "2-4, 6" */
+/** Gün listelerini açıkça yazar (istemcideki rqRangeText ile aynı): [3,4,5,9] -> "3, 4, 5, 9"; 6 gün ve üstü "7 → 18 (12 gün)" */
 function rq_ranges(array $days): string
 {
+    $days = array_values(array_unique(array_map('intval', $days)));
     sort($days);
     $out = [];
-    $start = $prev = null;
+    $run = [];
+    $flush = function () use (&$run, &$out) {
+        if (!$run) return;
+        $n = count($run);
+        $out[] = $n <= 5 ? implode(', ', $run) : $run[0] . ' → ' . $run[$n - 1] . ' (' . $n . ' gün)';
+        $run = [];
+    };
     foreach ($days as $d) {
-        if ($start === null) { $start = $prev = $d; continue; }
-        if ($d === $prev + 1) { $prev = $d; continue; }
-        $out[] = $start === $prev ? (string)$start : $start . '-' . $prev;
-        $start = $prev = $d;
+        if ($run && $d !== $run[count($run) - 1] + 1) $flush();
+        $run[] = $d;
     }
-    if ($start !== null) $out[] = $start === $prev ? (string)$start : $start . '-' . $prev;
+    $flush();
     return implode(', ', $out);
 }
 

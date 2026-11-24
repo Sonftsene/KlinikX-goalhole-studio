@@ -249,15 +249,17 @@ step('ret: Elif gerekçeyi uygulamada ve bildirimde görüyor; Burak’ın panos
 await go(b, '#/istekler/pano');
 await b.locator('.rq-brow').first().waitFor();
 const elifRowTxt = await b.locator('.rq-brow', { hasText: 'Elif' }).innerText();
-if (!/2-4/.test(elifRowTxt.replace(/\s+/g, '')) && !/3-4/.test(elifRowTxt)) fail('pano çipleri: ' + elifRowTxt);
-if (!/15-19\s*Yİ/.test(elifRowTxt) || !/10-?\s*B|10\s*B/.test(elifRowTxt)) fail('pano çipleri (Yİ/B): ' + elifRowTxt);
+// Günler açıkça yazılır: “2, 3, 4 B” (3-4 diye okunmasın)
+const flat = elifRowTxt.replace(/\s+/g, '');
+if (!/2,3,4/.test(flat) && !/3,4/.test(flat)) fail('pano çipleri: ' + elifRowTxt);
+if (!/15,16,17,18,19Yİ/.test(flat) || !/10B/.test(flat)) fail('pano çipleri (Yİ/B): ' + elifRowTxt);
 if ((await b.locator('body').innerText()).includes(REASON)) fail('Burak ekranında gerekçe görünüyor');
 await b.click('[data-act=rq-bview][data-v=takvim]');
 await b.locator(`.rq-bd[data-d="${d1(25)}"]`).click();
 const d25 = await b.locator('.cal-wrap .card').nth(1).innerText();
 if ((await b.locator(`.rq-bd[data-d="${d1(25)}"] .cd-c`).innerText()) !== '3' || !/Deniz Şahin/.test(d25) || !/Ayşe Kaya/.test(d25)) fail('pano takvim 25. gün: ' + d25);
 await b.screenshot({ path: path.join(OUT, 'req-d-board.png'), fullPage: true });
-step('pano (Burak): kişi çipleri “2-4 B · 15-19 Yİ”, takvimde 25. gün 3 kişi');
+step('pano (Burak): kişi çipleri “2, 3, 4 B · 15, 16, 17, 18, 19 Yİ”, takvimde 25. gün 3 kişi');
 
 // 10) Uyum kontrolü: onaylı boşluk gününe listede nöbet yazılmış (Elif, 10. gün)
 const id10 = mine2.items.find((x) => x.date === d1(10)).id;

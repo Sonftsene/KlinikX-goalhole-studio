@@ -46,7 +46,9 @@ const rqFromSerial = (n) => { const x = new Date(n * 864e5); return `${x.getUTCF
 /** Dönem ayına göre gün sırası: 1 = ayın 1'i; 0, -1… önceki ay; ayın son gününden büyük → sonraki ay */
 const rqOffDate = (ym, off) => rqFromSerial(rqSerial(ym + '-01') + off - 1);
 const rqInWin = (ym, ds) => { const o = rqSerial(ds) - rqSerial(ym + '-01') + 1; return o >= 1 - RQ_SPAN && o <= rqDaysIn(ym) + RQ_SPAN; };
-/** Tarihleri okunur aralıklara çevirir: "2-4 Ara", "28 Ara – 2 Oca"; dönem ayındakilerde ay adı istenirse yazılır */
+/** Tarihleri açıkça yazar (“3-5” 3 ile 5 diye okunmasın): 5 güne kadar her gün tek tek “3, 4, 5”; daha uzun aralık
+ *  “7 → 18 (12 gün)”; ay aşan “28 Ara → 2 Oca (6 gün)”. Dönem ayındakilerde ay adı istenirse yazılır */
+const RQ_LIST_MAX = 5;
 function rqRangeText(dates, ym, withMonth = true) {
   const a = [...new Set(dates)].sort();
   const out = [];
@@ -55,10 +57,12 @@ function rqRangeText(dates, ym, withMonth = true) {
   for (let i = 0; i < a.length; i++) {
     let j = i;
     while (j + 1 < a.length && rqSerial(a[j + 1]) === rqSerial(a[j]) + 1) j++;
-    const s = a[i], e = a[j];
-    if (i === j) out.push(`${rqDayN(s)}${showM(s) ? ' ' + mo(s) : ''}`);
-    else if (s.slice(0, 7) === e.slice(0, 7)) out.push(`${rqDayN(s)}-${rqDayN(e)}${showM(s) ? ' ' + mo(s) : ''}`);
-    else out.push(`${rqDayN(s)} ${mo(s)} – ${rqDayN(e)} ${mo(e)}`);
+    const s = a[i], e = a[j], n = j - i + 1;
+    const one = s.slice(0, 7) === e.slice(0, 7);
+    if (n <= RQ_LIST_MAX && one) out.push(a.slice(i, j + 1).map(rqDayN).join(', ') + (showM(s) ? ' ' + mo(s) : ''));
+    else if (n <= RQ_LIST_MAX) out.push(a.slice(i, j + 1).map((ds) => `${rqDayN(ds)} ${mo(ds)}`).join(', '));
+    else if (one) out.push(`${rqDayN(s)} → ${rqDayN(e)}${showM(s) ? ' ' + mo(s) : ''} (${n} gün)`);
+    else out.push(`${rqDayN(s)} ${mo(s)} → ${rqDayN(e)} ${mo(e)} (${n} gün)`);
     i = j;
   }
   return out.join(', ');
