@@ -1287,3 +1287,10 @@ Ayarlar › Genel › **Sayfa ve menü adları** (yönetici): her adın karşıs
 - Adlar **veritabanında** saklanır (setting ui_labels); güncelleme paketi veritabanına dokunmadığı için **güncellemelerde değişmez**.
 - Bölüm (kategori) ve nöbet listesi adları kendi sayfalarından değiştirilir.
 
+## 73. Boş sohbetler ve yöneticinin sohbet silmesi (4.50.1 / 4.51.0)
+- Kişi kartından **Mesaj** ile açılıp hiç yazılmayan birebir sohbet artık iki tarafın listesinde de görünmez; ilk mesajla listeye gelir. Aynı kişiye tekrar dokununca aynı sohbet açılır.
+- **Yönetim › Kullanıcılar › Tüm sohbetler** (yönetici): biriminizden birinin bulunduğu bütün sohbetler tek listede — birebirde kim kiminle (“Ayşe Kaya ↔ Burak Demir”, başka birimdense birim adıyla), gruplarda üyeler, mesaj sayısı, son mesaj. Arama kutusuyla bulunur.
+- Kişi bazında: **Kullanıcılar › kişi › ⋯ › Sohbetleri**.
+- **Herkesten sil**: birebir sohbetler (karşı taraf başka birimde olsa da) ve biriminizde kurulan gruplar mesajlar, dosyalar, tepkiler ve aramalarla birlikte herkes için kalıcı silinir. Başka birimin kurduğu grupta yalnız biriminizdeki kişiler listeden çıkarılır.
+- **Mesaj içerikleri gösterilmez** (KVKK). Her silme işlem günlüğüne yazılır; sohbetteki kişilere “Bir sohbetiniz yönetici tarafından silindi” bildirimi gider. Birim grubu silinemez.
+
