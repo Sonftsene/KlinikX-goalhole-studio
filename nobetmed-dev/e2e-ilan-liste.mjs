@@ -49,7 +49,7 @@ try {
     await call(A, 'rosters.shifts', { roster_id: id, file_id: fid, period: ym, entries, primary: true });
     return id;
   };
-  const ridA = await mk('Ek A deneme', [{ name: 'Elif Yılmaz', date: D, ...N }, { name: 'Elif Yılmaz', date: addDays(D, -6), ...N }, { name: 'Elif Yılmaz', date: addDays(D, 6), ...N }]);
+  const ridA = await mk('Ek A deneme', [{ name: 'Elif Yılmaz', date: D, ...N }, { name: 'Elif Yılmaz', date: addDays(D, -2), ...N }, { name: 'Elif Yılmaz', date: addDays(D, 2), ...N }]);
   await mk('Ek B deneme', [{ name: 'Burak Demir', date: addDays(D, -9), ...N }, { name: 'Burak Demir', date: addDays(D, 9), ...N }]);
 
   // 1) Elif devir ilanı açar
@@ -75,7 +75,7 @@ try {
   step(`devir ilanı (${D}, Ek A) yalnız Ek B’de olan Burak’a açık: panoda gördü (liste adıyla), uygun, başvurdu; Elif “başka listeden” görüp seçti`);
 
   // 4) Değişim ilanı başka listedeki kişiye kapalı
-  const S2 = (await call(E, 'listing.create', { date: addDays(D, -6), kind: 'swap' })).listing;
+  const S2 = (await call(E, 'listing.create', { date: addDays(D, -2), kind: 'swap' })).listing;
   const b2 = (await call(B, 'listing.list')).board;
   if (b2.some((x) => x.id === S2.id)) fail('değişim ilanı başka listedeki kişiye görünüyor');
   if ((await err(B, 'listing.apply', { id: S2.id, offer_date: addDays(D, -9) })) === 'kabul') fail('başka listedeki kişi değişim ilanına başvurabildi');
