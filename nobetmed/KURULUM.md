@@ -1294,3 +1294,9 @@ Ayarlar › Genel › **Sayfa ve menü adları** (yönetici): her adın karşıs
 - **Herkesten sil**: birebir sohbetler (karşı taraf başka birimde olsa da) ve biriminizde kurulan gruplar mesajlar, dosyalar, tepkiler ve aramalarla birlikte herkes için kalıcı silinir. Başka birimin kurduğu grupta yalnız biriminizdeki kişiler listeden çıkarılır.
 - **Mesaj içerikleri gösterilmez** (KVKK). Her silme işlem günlüğüne yazılır; sohbetteki kişilere “Bir sohbetiniz yönetici tarafından silindi” bildirimi gider. Birim grubu silinemez.
 
+## 74. Devir ilanı tüm listelere açık (4.52.0)
+- **Devret** ilanı, kurallara uyan herkese açıktır: ilan sahibiyle aynı listede olmayan (başka nöbet listesindeki) kişiler de görür, başvurur; yeni ilanda uygun olanlara bildirim gider.
+- Uygunluk kişinin **tüm listelerindeki** nöbetleriyle denetlenir (başka listedeki nöbet günü boş sanılmaz); ilan sahibinin boşluk denetimi de tüm listeleriyle yapılır.
+- İlan kartında nöbetin hangi listeden olduğu yazar. İlan sahibi başvuranlarda “Başka listeden · Excel’de bu listeye eklenir” görür; seçince sorumluya “Excel’e işlenecek” bildirimi gider.
+- **Değiş** (takas) ilanı yalnız aynı listedeki kişilere açıktır (iki listenin Excel’i birlikte değişmesin).
+
