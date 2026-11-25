@@ -92,10 +92,12 @@ function mk_roster_names(): array
 function mk_my_rosters(array $me): array
 {
     static $c = [];
+    static $rows = null;
     $id = (int)$me['id'];
     if (isset($c[$id])) return $c[$id];
-    $rows = all('SELECT DISTINCT s.roster_id, s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ? AND s.date <= ?',
-        [date('Y-m-d', strtotime('-45 days')), date('Y-m-d', strtotime('+120 days'))]);
+    // Liste adları bir kez okunur (başka listelerdeki uygun kişiler aranırken her kişi için yeniden sorgulanmasın)
+    $rows = $rows ?? all('SELECT DISTINCT s.roster_id, s.name FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id AND r.parsed_file_id = s.file_id WHERE s.date >= ? AND s.date <= ? AND r.kind <> ?',
+        [date('Y-m-d', strtotime('-45 days')), date('Y-m-d', strtotime('+120 days')), 'tablo']);
     $out = [];
     foreach ($rows as $r) {
         $rid = (int)$r['roster_id'];
@@ -151,6 +153,62 @@ function mk_tx(callable $fn)
 /* Nöbet ilanı                                                          */
 /* =================================================================== */
 
+/**
+ * Kişiyi bir listenin zaman çizelgesine yerleştirir (4.52.0): kişinin TÜM nöbet listelerindeki günleri birleştirilir
+ * (başka listedeki nöbet günü “boş” sanılmasın) ve kabul edilmiş ama Excel’e işlenmemiş devirleri eklenir.
+ * Kişi bu listede yoksa (başka listedense) listeye kendi listesindeki adıyla eklenir — devir ilanları herkese açık.
+ * @return array{0: array, 1: string, 2: string}|null [timeline, kişi anahtarı, listedeki adı] ya da hiçbir listede yoksa null
+ */
+function mk_tl_with(array $tl, int $rid, array $user, string $from, string $to): ?array
+{
+    $my = mk_my_rosters($user);
+    if (!$my) return null;
+    $name = $my[$rid] ?? (string)array_values($my)[0];
+    $uk = swap_key($name);
+    if (!isset($tl[$uk])) $tl[$uk] = ['name' => $name, 'title' => null, 'days' => [], 'guest' => true];
+    $put = function (string $d, array $x) use (&$tl, $uk): void {
+        $cur = $tl[$uk]['days'][$d] ?? null;
+        if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $tl[$uk]['days'][$d] = $x;
+    };
+    foreach ($my as $orid => $onm) {
+        if ((int)$orid === $rid) continue;
+        $otl = mk_tl((int)$orid, $from, $to);
+        foreach (($otl[swap_key((string)$onm)]['days'] ?? []) as $d => $x) $put((string)$d, $x);
+    }
+    // Başka listeden kabul edilmiş devirler (Excel’e işlenene kadar)
+    foreach (all("SELECT * FROM swap_requests WHERE status = 'accepted' AND to_user = ? AND roster_id <> ? AND from_date >= ? AND from_date <= ?", [(int)$user['id'], $rid, $from, $to]) as $r) {
+        $otl = mk_tl((int)$r['roster_id'], $from, $to);
+        $row = $otl[swap_key((string)$r['to_name'])]['days'][$r['from_date']] ?? null;
+        if ($row) $put((string)$r['from_date'], $row);
+    }
+    ksort($tl[$uk]['days']);
+    return [$tl, $uk, $name];
+}
+
+/** Devir ilanını alabilecek, BAŞKA listelerdeki kişi sayısı (ya da kimlikleri) */
+function mk_guests_ok(array $tl, int $rid, array $L, int $exceptId, string $date, bool $ids = false)
+{
+    $from = mk_shift_day($date, -45); $to = mk_shift_day($date, 45);
+    $out = [];
+    foreach (mk_users() as $u) {
+        if ((int)$u['id'] === $exceptId) continue;
+        $w = mk_tl_with($tl, $rid, $u, $from, $to);
+        if ($w && !empty($w[0][$w[1]]['guest']) && mk_eligible($w[0], $L, $w[1], 'O')['ok']) $out[] = (int)$u['id'];
+    }
+    return $ids ? $out : count($out);
+}
+
+/** İlan için başvuranın zaman çizelgesi ve anahtarı: [tl, uk, ad] — aynı listede değilse devir ilanında kendi listelerinden */
+function mk_tl_for(array $L, array $user): ?array
+{
+    $from = mk_shift_day((string)$L['date'], -45); $to = mk_shift_day((string)$L['date'], 45);
+    $r = mk_tl_with(mk_listing_tl($L), (int)$L['roster_id'], $user, $from, $to);
+    if (!$r) return null;
+    // Değişim (takas) ilanı yalnız aynı listedeki kişilere: iki listenin Excel’i birlikte değişmesin
+    if ($L['kind'] !== 'give' && !empty($r[0][$r[1]]['guest'])) return null;
+    return $r;
+}
+
 function mk_listing(int $id): array
 {
     $L = one('SELECT * FROM listings WHERE id = ?', [$id]);
@@ -170,7 +228,12 @@ function mk_started(array $L): bool
 /** İlan için kişinin zaman çizelgesi penceresi */
 function mk_listing_tl(array $L): array
 {
-    return mk_tl((int)$L['roster_id'], mk_shift_day((string)$L['date'], -45), mk_shift_day((string)$L['date'], 45));
+    $from = mk_shift_day((string)$L['date'], -45); $to = mk_shift_day((string)$L['date'], 45);
+    $tl = mk_tl((int)$L['roster_id'], $from, $to);
+    // İlan sahibinin başka listelerdeki nöbetleri de (boşluk / dinlenme denetimi doğru olsun)
+    $p = mk_user_by_id((int)$L['user_id']);
+    $w = $p ? mk_tl_with($tl, (int)$L['roster_id'], $p, $from, $to) : null;
+    return $w && empty($w[0][$w[1]]['guest']) ? $w[0] : $tl;
 }
 
 /**
@@ -276,11 +339,14 @@ function mk_elig_map(array $listings, array $me): array
     foreach ($listings as $L) if ($L['status'] === 'open' && (int)$L['user_id'] !== (int)$me['id']) $byR[(int)$L['roster_id']][] = $L;
     $out = [];
     foreach ($byR as $rid => $list) {
-        if (!isset($my[$rid])) { foreach ($list as $L) $out[(int)$L['id']] = ['ok' => false, 'reason' => 'Bu nöbet listesinde adın yok.', 'offers' => []]; continue; }
         $dates = array_column($list, 'date');
-        $tl = mk_tl($rid, mk_shift_day(min($dates), -45), mk_shift_day(max($dates), 45));
-        $uk = swap_key($my[$rid]);
-        foreach ($list as $L) $out[(int)$L['id']] = mk_eligible($tl, $L, $uk);
+        $from = mk_shift_day(min($dates), -45); $to = mk_shift_day(max($dates), 45);
+        $w = mk_tl_with(mk_tl($rid, $from, $to), $rid, $me, $from, $to);
+        foreach ($list as $L) {
+            if (!$w) { $out[(int)$L['id']] = ['ok' => false, 'reason' => 'Hiçbir nöbet listesinde adın yok.', 'offers' => []]; continue; }
+            if ($L['kind'] !== 'give' && !isset($my[$rid])) { $out[(int)$L['id']] = ['ok' => false, 'reason' => 'Değişim ilanına yalnız aynı listedeki kişiler katılabilir; devir ilanlarına herkes başvurabilir.', 'offers' => []]; continue; }
+            $out[(int)$L['id']] = mk_eligible($w[0], $L, $w[1]);
+        }
     }
     return $out;
 }
@@ -293,7 +359,8 @@ function a_listing_list(): void
     $today = mk_today();
     $board = all("SELECT * FROM listings WHERE user_id <> ? AND ((status = 'open' AND date >= ?) OR (status <> 'open' AND closed_at >= ? AND date >= ?)) ORDER BY date, id LIMIT 300",
         [$me['id'], $today, date('Y-m-d H:i:s', time() - 3 * 86400), mk_shift_day($today, -1)]);
-    if (!$pub) $board = array_values(array_filter($board, fn($L) => isset($my[(int)$L['roster_id']])));
+    // Devir ilanları her listedeki kişiye açık (uygunluk kişinin tüm listelerine göre); değişim ilanları aynı listedekilere
+    if (!$pub) $board = array_values(array_filter($board, fn($L) => isset($my[(int)$L['roster_id']]) || ($my && $L['kind'] === 'give')));
     $mine = all('SELECT * FROM listings WHERE user_id = ? AND (date >= ? OR created_at >= ?) ORDER BY date DESC, id DESC LIMIT 80',
         [$me['id'], mk_shift_day($today, -30), date('Y-m-d H:i:s', time() - 30 * 86400)]);
     $apps = all('SELECT * FROM listing_apps WHERE user_id = ? ORDER BY id DESC LIMIT 200', [$me['id']]);
@@ -320,6 +387,8 @@ function mk_post_info(array $me, string $date): array
     $rid = (int)$mine['roster_id'];
     $tl = mk_tl($rid, mk_shift_day($date, -45), mk_shift_day($date, 45));
     $mk = swap_key((string)$mine['name']);
+    $w = mk_tl_with($tl, $rid, $me, mk_shift_day($date, -45), mk_shift_day($date, 45));
+    if ($w && $w[1] === $mk) $tl = $w[0]; // başka listelerdeki nöbetlerim de
     if (!isset($tl[$mk]['days'][$date])) fail('Bu nöbet için kabul edilmiş bir değişim/devir zaten var ya da listede adın bulunamadı.');
     $iv = swap_interval($date, $tl[$mk]['days'][$date]);
     if ($iv && $iv[0] <= time()) fail('Başlamış ya da bitmiş nöbet ilana konamaz.');
@@ -332,12 +401,14 @@ function mk_post_info(array $me, string $date): array
         if ($kind === 'give' && $giveErr) continue;
         $L = ['name' => $mine['name'], 'date' => $date, 'kind' => $kind, 'roster_id' => $rid];
         foreach ($tl as $k => $p) if ($k !== $mk && mk_eligible($tl, $L, $k, 'O')['ok']) $n[$kind]++;
+        if ($kind === 'give') $n[$kind] += mk_guests_ok($tl, $rid, $L, (int)$me['id'], $date);
     }
     // 24 saatlik nöbet: gündüzü / gecesi ayrı ilana konabilir (kalan parça sende kalır, boşluk oluşmaz)
     if (swap_splittable($row)) foreach (['day', 'night'] as $pt) {
         $n[$pt] = 0;
         $L = ['name' => $mine['name'], 'date' => $date, 'kind' => 'give', 'roster_id' => $rid, 'meta' => json_encode(['part' => $pt])];
         foreach ($tl as $k => $p) if ($k !== $mk && mk_eligible($tl, $L, $k, 'O')['ok']) $n[$pt]++;
+        $n[$pt] += mk_guests_ok($tl, $rid, $L, (int)$me['id'], $date);
     }
     return ['rid' => $rid, 'name' => (string)$mine['name'], 'row' => $row, 'roster' => (string)$mine['roster_name'], 'give_error' => $giveErr, 'n' => $n, 'tl' => $tl];
 }
@@ -384,6 +455,8 @@ function a_listing_create(): void
         if (!$u || (int)$u['id'] === (int)$me['id']) continue;
         if (mk_eligible($x['tl'], $L, $k, 'O')['ok']) $ids[] = (int)$u['id'];
     }
+    // Devir ilanı: başka listelerdeki kişiler de (kendi tüm listelerindeki nöbetlerine göre kurallara uyanlar)
+    if ($kind === 'give') $ids = array_values(array_unique(array_merge($ids, mk_guests_ok($x['tl'], (int)$x['rid'], $L, (int)$me['id'], $date, true))));
     $txt = $me['name'] . ' · ' . swap_fmt_date($date) . ' ' . mk_row_text($row) . ' (' . $row['code'] . ($part !== '' ? ', ' . swap_part_text($part) : '') . ') nöbetini ' . ($kind === 'give' ? 'devrediyor' : 'değişmek istiyor') . ($note ? ' · “' . $note . '”' : '');
     $n = $ids ? notify_users(mk_full_users($ids), 'listing', 'Yeni nöbet ilanı', $txt, '#/ilanlar/' . $id, null) : 0;
     audit($me, 'listing.create', swap_fmt_date($date) . ' (' . $row['code'] . ')', $kind === 'give' ? 'Devret' . ($part !== '' ? ' · ' . swap_part_text($part) : '') : 'Değiş');
@@ -393,20 +466,23 @@ function a_listing_create(): void
 /** Başvuranlar (yalnız ilan sahibi / yayıncı) ve güncel uygunlukları */
 function mk_apps_out(array $L): array
 {
-    $tl = mk_listing_tl($L);
+    $tl0 = mk_listing_tl($L);
     $open = $L['status'] === 'open';
     $out = [];
     foreach (all('SELECT * FROM listing_apps WHERE listing_id = ? ORDER BY id', [(int)$L['id']]) as $a) {
         $u = mk_user_by_id((int)$a['user_id']);
+        $w = $u ? mk_tl_for($L, $u) : null;
+        $tl = $w ? $w[0] : $tl0;
         $valid = null;
         if ($open && $a['status'] === 'applied') {
-            $e = mk_eligible($tl, $L, swap_key((string)$a['name']), mk_first((string)($u['name'] ?? $a['name'])));
+            $e = mk_eligible($tl, $L, $w ? $w[1] : swap_key((string)$a['name']), mk_first((string)($u['name'] ?? $a['name'])));
             if ($e['ok'] && $L['kind'] === 'swap' && !in_array($a['offer_date'], array_column($e['offers'], 'date'), true)) $e = ['ok' => false, 'reason' => 'Önerilen gün artık kurallara uymuyor.'];
             $valid = ['ok' => $e['ok'], 'reason' => $e['reason']];
         }
         $off = null;
         if ($a['offer_date']) { $r = $tl[swap_key((string)$a['name'])]['days'][$a['offer_date']] ?? null; $off = $r ? ['hours' => $r['hours'] !== null ? (int)$r['hours'] : null, 'start' => $r['start_time'], 'end' => $r['end_time'], 'label' => $r['label']] : null; }
         $out[] = ['id' => (int)$a['id'], 'name' => $u['name'] ?? $a['name'], 'user_id' => (int)$a['user_id'], 'offer_date' => $a['offer_date'], 'offer_code' => $a['offer_code'],
+            'other_list' => $w && !empty($w[0][$w[1]]['guest']),
             'offer' => $off, 'note' => $a['note'], 'status' => $a['status'], 'created_at' => $a['created_at'], 'valid' => $valid];
     }
     return $out;
@@ -419,7 +495,7 @@ function a_listing_get(): void
     $manage = (int)$L['user_id'] === (int)$me['id'] || is_publisher($me);
     $my = mk_my_rosters($me);
     $myApp = one('SELECT * FROM listing_apps WHERE listing_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', [$L['id'], $me['id']]);
-    if (!$manage && !isset($my[(int)$L['roster_id']]) && !$myApp) fail('Bu ilan yalnız aynı listedeki kişilere açık.', 403);
+    if (!$manage && !isset($my[(int)$L['roster_id']]) && !$myApp && !($my && $L['kind'] === 'give')) fail('Değişim ilanı yalnız aynı listedeki kişilere açık.', 403);
     $elig = null;
     if ($L['status'] === 'open' && (int)$L['user_id'] !== (int)$me['id']) $elig = mk_elig_map([$L], $me)[(int)$L['id']] ?? null;
     $o = mk_listing_out($L, $me, $manage, $elig, $myApp);
@@ -433,10 +509,12 @@ function a_listing_apply(): void
     $L = mk_listing((int)i('id'));
     if ((int)$L['user_id'] === (int)$me['id']) fail('Kendi ilanına başvuramazsın.');
     if ($L['status'] !== 'open' || $L['date'] < mk_today() || mk_started($L)) fail('Bu ilan kapandı.');
-    $my = mk_my_rosters($me);
+    $w = mk_tl_for($L, $me);
+    if (!$w) fail($L['kind'] === 'give' ? 'Hiçbir nöbet listesinde adın yok.' : 'Değişim ilanına yalnız aynı listedeki kişiler katılabilir.', 403);
+    [$tlA, $ukA, $myName] = $w;
+    $my = [(int)$L['roster_id'] => $myName];
     $rid = (int)$L['roster_id'];
-    if (!isset($my[$rid])) fail('Bu ilan yalnız aynı listedeki kişilere açık.', 403);
-    $e = mk_eligible(mk_listing_tl($L), $L, swap_key($my[$rid]));
+    $e = mk_eligible($tlA, $L, $ukA);
     if (!$e['ok']) fail((string)$e['reason']);
     $offer = null;
     if ($L['kind'] === 'swap') {
@@ -490,11 +568,12 @@ function a_listing_choose(): void
     if ($L['date'] < mk_today() || mk_started($L)) fail('Nöbet başladı ya da tarihi geçti.');
     $a = one('SELECT * FROM listing_apps WHERE id = ? AND listing_id = ?', [(int)i('app_id'), $L['id']]);
     if (!$a || $a['status'] !== 'applied') fail('Başvuru bulunamadı ya da geri çekildi.');
-    $tl = mk_listing_tl($L);
     $taker = mk_user_by_id((int)$a['user_id']);
     $takerName = (string)($taker['name'] ?? $a['name']);
+    $w = $taker ? mk_tl_for($L, $taker) : null;
+    $tl = $w ? $w[0] : mk_listing_tl($L);
     // Liste değişmiş olabilir: kuralları yeniden denetle
-    $e = mk_eligible($tl, $L, swap_key((string)$a['name']), mk_first($takerName));
+    $e = mk_eligible($tl, $L, $w ? $w[1] : swap_key((string)$a['name']), mk_first($takerName));
     if (!$e['ok']) fail('Bu başvuru artık kurallara uymuyor: ' . $e['reason']);
     if ($L['kind'] === 'swap' && !in_array($a['offer_date'], array_column($e['offers'], 'date'), true)) fail('Önerilen takas günü artık kurallara uymuyor.');
     if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND status = 'accepted'", [$me['id'], $L['date']])) fail('Bu nöbet için zaten kabul edilmiş bir değişim var.');

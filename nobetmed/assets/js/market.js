@@ -92,7 +92,7 @@ function mkBoardItem(L) {
     ${mkDayBlock(L.date)}
     <div class="mk-main">
       ${mkHead(L)}
-      <div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b>${L.manage && L.roster ? ' · ' + L.roster : ''} · ${fmtRel(L.created_at)}</span></div>
+      <div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b>${L.roster ? ' · ' + L.roster : ''} · ${fmtRel(L.created_at)}</span></div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${!closed && !app && L.elig && !L.elig.ok ? html`<div class="mk-why">${icon('info', 'sm')}<span>${L.elig.reason}</span></div>` : ''}
       ${!closed && L.kind === 'swap' && L.elig && L.elig.ok && !app ? html`<div class="tiny faint">${L.elig.offers.length} nöbetinle değişebilirsin</div>` : ''}
@@ -103,7 +103,7 @@ function mkBoardItem(L) {
 function mkBoardHtml(D) {
   if (!D.board.length) {
     return html`<div class="card empty"><div class="e-ico">${icon('megaphone', 'lg')}</div><h3>Şu an açık ilan yok</h3>
-      <p class="small">${D.in_roster ? 'Liste arkadaşların nöbetini ilana koyunca burada görünür ve uygunsan haber veririz.' : 'Nöbet listesinde adın bulunamadı; yalnız kendi listendeki ilanları görebilirsin.'}</p>
+      <p class="small">${D.in_roster ? 'Biri nöbetini ilana koyunca burada görünür; devir ilanları tüm listelerdeki uygun kişilere açıktır, uygunsan haber veririz.' : 'Nöbet listesinde adın bulunamadı; ilanlara başvurmak için bir nöbet listesinde adın olmalı.'}</p>
       ${D.in_roster ? html`<button class="btn" data-act="mk-new" style="margin-top:12px">${icon('plus', 'sm')}Kendi nöbetini ilana koy</button>` : ''}</div>`;
   }
   const open = D.board.filter((x) => x.status === 'open');
@@ -282,6 +282,7 @@ async function mkOpenListing(id) {
         ${a.offer_date ? html`<div class="small">Karşılığında <b>${mkShort(a.offer_date)}</b> ${codeChip(mkEntry({ code: a.offer_code, ...(a.offer || {}) }))} ${a.offer ? html`<span class="tiny faint">${shiftDesc(mkEntry({ code: a.offer_code, ...a.offer }))}</span>` : ''}</div>` : ''}
         ${a.note ? html`<div class="tiny muted">“${a.note}”</div>` : ''}
         <div class="tiny faint">${fmtRel(a.created_at)} başvurdu</div>
+        ${a.other_list ? html`<div class="tiny faint">${icon('layers', 'sm')} Başka listeden · Excel’de bu listeye eklenir</div>` : ''}
         ${a.valid ? html`<div class="tiny ${a.valid.ok ? 'mk-ok' : 'mk-no'}">${icon(a.valid.ok ? 'check' : 'x', 'sm')} ${a.valid.ok ? 'Kurallara uygun' : a.valid.reason}</div>` : ''}</div>
       <div class="mk-act">${a.status === 'chosen' ? html`<span class="badge success">Seçildi</span>` : a.status === 'rejected' ? html`<span class="badge">Seçilmedi</span>` : a.status === 'withdrawn' ? html`<span class="badge">Geri çekti</span>`
         : L.mine && L.status === 'open' ? html`<button class="btn sm primary" data-ch="${a.id}" data-n="${a.name}" ${a.valid && !a.valid.ok ? raw('disabled') : ''}>Seç</button>` : html`<span class="badge warn">Bekliyor</span>`}</div></div>`;
