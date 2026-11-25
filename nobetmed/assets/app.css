@@ -2232,6 +2232,7 @@ body:has(.settings-save.show, .rq-save) .toasts { bottom: 96px; }
 .nb-cat.head { position: sticky; top: calc(var(--topbar) + 50px); z-index: 4; background: var(--surface); padding-top: 6px; }
 @media (max-width: 900px) { .nb-cat.head { top: calc(var(--topbar) + env(safe-area-inset-top) + 50px); } }
 input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
+.switch input[type=checkbox], [class*=switch] > input[type=checkbox] { width: auto; height: auto; }
 /* Ekip rehberi araması kendi satırında, tam genişlik */
 .dir-tools { flex-wrap: wrap; }
 .dir-tools .search { max-width: none !important; flex: 1 1 100% !important; }
@@ -2269,3 +2270,5 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
 .lb-row .input::placeholder { color: var(--text-3); font-size: 13px; font-style: italic; }
 .lb-row.set .input { border-color: var(--brand); background: var(--brand-soft); }
 
+/* Odaklanan / kaydırılan öğe yapışkan üst çubuğun altında kalmasın */
+html { scroll-padding-top: calc(var(--topbar) + env(safe-area-inset-top) + 12px); scroll-padding-bottom: 90px; }
