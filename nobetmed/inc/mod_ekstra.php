@@ -390,6 +390,7 @@ function a_extra_take_respond(): void
     // Liste değişmiş olabilir: iki tarafı yeniden denetle
     $ok = false; $err = 'Bu nöbet listede artık görünmüyor.';
     if ($taker) foreach (tk_my_lists($taker, substr((string)$t['date'], 0, 7)) as [$rid, $tl, $myK, $myName]) {
+        if ((int)$t['roster_id'] && $rid !== (int)$t['roster_id']) continue; // isteğin listesi (kişiler birden çok listede olabilir)
         $pk = swap_key((string)$t['giver_name']);
         if (($tl[$pk]['days'][$t['date']]['kind'] ?? '') !== 'shift') continue;
         [$ok, $a, $b2] = tk_eval($tl, $myK, $myName, $pk, (string)$t['date'], swap_part($t['part'] ?? null));
