@@ -43,7 +43,8 @@ class ApiError extends Error {
  * Sayfa aynı işlem için az önce zaten sorduysa (confirmDialog / promptDialog ya da penceredeki kırmızı onay düğmesi) ikinci kez sormaz.
  * Toplu işlemde (aynı onayla art arda giden istekler) tek kez sorulur. */
 const NM_GUARD = { until: 0, busy: 0 };
-function guardGrant(ms = 8000) { NM_GUARD.until = Math.max(NM_GUARD.until, Date.now() + ms); }
+// Onay kısa süre geçerlidir ve ilk korumalı istekte harcanır (ilgisiz bir “Tamam” sonraki silmeyi sorgusuz geçirmesin — 4.55.0)
+function guardGrant(ms = 2500) { NM_GUARD.until = Math.max(NM_GUARD.until, Date.now() + ms); NM_GUARD.fresh = true; }
 function guardOf(action, d) {
   d = d || {};
   const del = (t, x = '') => [t, x, 'Sil'];
@@ -121,7 +122,7 @@ async function guardAsk(g) {
   let force = false;
   try { force = localStorage.getItem('nm-guard-test') === '1'; } catch (e) { /* */ }
   if (navigator.webdriver && !force) return true; // otomatik testler (sayfanın kendi onayları yine çalışır)
-  if (NM_GUARD.busy || Date.now() < NM_GUARD.until) return true;
+  if (NM_GUARD.busy || Date.now() < NM_GUARD.until) { NM_GUARD.fresh = false; return true; }
   return confirmDialog(g);
 }
 async function api(action, data = {}) {
@@ -634,7 +635,7 @@ function uiL(key, def, grp) {
 function uiSec(key, def) { const t = uiL(key, def, 'Menü başlıkları'); UI_GRP = def; return t; }
 const isPublisherBase = () => S.me && (S.me.role === 'admin' || S.me.role === 'editor');
 /* Modüller ve yetkiler (4.1): S.mods = birimde açık modüller, S.perm = kişinin modül başına yetkisi (off | use | manage) */
-const ROUTE_MOD = { nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber', hastane: 'hbelge', mesaj: 'mesaj', cizelge: 'cizelge' };
+const ROUTE_MOD = { kura: 'taraf', nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber', hastane: 'hbelge', mesaj: 'mesaj', cizelge: 'cizelge' };
 function modOn(m) {
   if (!m) return true;
   if (S.mods && S.mods[m] === false) return false;
@@ -646,6 +647,8 @@ function canManage(m) {
   if (m && S.perm && S.perm[m]) return S.perm[m] === 'manage';
   return S.me.role === 'editor';
 }
+/** Beklerken sayfa değişti mi? Geç gelen cevap yeni sayfanın üstüne çizilmesin (4.55.0): const gone = routeGone(); … if (gone()) return; */
+function routeGone() { const h = location.hash; return () => location.hash !== h; }
 function routeMod() { return ROUTE_MOD[(location.hash || '').replace(/^#\/?/, '').split(/[/?]/)[0]] || null; }
 /** Yayıncı mı? Modül sayfasında o modüldeki yetkiye göre (ör. üyeye “Eksik personel: Yönetir” verilmiş olabilir) */
 const isPublisher = () => { const m = routeMod(); return m ? canManage(m) : isPublisherBase(); };
@@ -670,7 +673,11 @@ document.addEventListener('submit', (ev) => {
   if (!f || f.closest('[data-uc]')) return;
   ev.preventDefault();
   const fn = FORMS[f.dataset.form];
-  if (fn) fn(f, ev);
+  if (!fn) return;
+  // Gönderim sürerken ikinci gönderim yok sayılır (çift tıklama / çift Enter aynı kaydı iki kez eklemesin — 4.55.0)
+  if (f.dataset.sending) return;
+  const r = fn(f, ev);
+  if (r && typeof r.then === 'function') { f.dataset.sending = '1'; r.finally(() => { delete f.dataset.sending; }); }
 });
 ['change', 'input'].forEach((type) => document.addEventListener(type, (ev) => {
   const t = ev.target.closest('[data-' + type + ']');
@@ -897,7 +904,7 @@ function promptDialog({ title, label, placeholder = '', ok = 'Kaydet', value = '
       foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn ${danger ? 'solid-danger' : 'primary'}" data-ok>${ok}</button>`,
       onClose: () => { if (!done) resolve(null); },
     });
-    const finish = () => { done = true; guardGrant(); const v = m.el.querySelector('[name=v]').value.trim(); m.close(); resolve(v); };
+    const finish = () => { done = true; if (danger) guardGrant(); const v = m.el.querySelector('[name=v]').value.trim(); m.close(); resolve(v); };
     m.el.querySelector('[data-ok]').addEventListener('click', finish);
     m.el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); finish(); });
   });
@@ -1019,7 +1026,12 @@ function options(list, selected, emptyLabel) {
     const d = drag; drag = null;
     d.el.classList.remove('hs-drag');
     // Sürükleme bittiğinde altta kalan bağlantı / düğme tıklanmasın
-    if (d.moved) document.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+    // (tıklama gelmezse — ör. pencere dışında bırakıldı — engel hemen kalkar; sonraki gerçek tıklama yutulmaz — 4.55.0)
+    if (d.moved) {
+      const block = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      document.addEventListener('click', block, { capture: true, once: true });
+      setTimeout(() => document.removeEventListener('click', block, { capture: true }), 0);
+    }
   });
   window.NM_HSCROLL = true;
 })();

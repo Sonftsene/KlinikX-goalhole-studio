@@ -83,6 +83,7 @@ async function callAction(a) {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: CALL.facing } });
       const nt = s.getVideoTracks()[0];
       const snd = CALL.pc.getSenders().find((x) => x.track && x.track.kind === 'video');
+      if (!(snd && nt)) s.getTracks().forEach((t) => t.stop()); // gönderen yoksa yeni kamera açık kalmasın (4.55.0)
       if (snd && nt) { await snd.replaceTrack(nt); CALL.local.getVideoTracks().forEach((t) => { t.stop(); CALL.local.removeTrack(t); }); CALL.local.addTrack(nt); const lv = $('#callLV'); if (lv) lv.srcObject = CALL.local; }
     } catch (e) { toast('Kamera değiştirilemedi', 'err'); }
   }

@@ -1309,6 +1309,19 @@ function upload_dir(): string
     return $dir;
 }
 
+/** Kişinin bugün yüklediği bayt (settings: upq_<id> = "Y-m-d|bayt") */
+function upload_quota_used(int $uid): int
+{
+    $v = (string)(val('SELECT v FROM settings WHERE k = ?', ['upq_' . $uid]) ?? '');
+    [$d, $n] = array_pad(explode('|', $v, 2), 2, '0');
+    return $d === date('Y-m-d') ? (int)$n : 0;
+}
+
+function upload_quota_add(int $uid, int $bytes): void
+{
+    try { set_setting('upq_' . $uid, date('Y-m-d') . '|' . (upload_quota_used($uid) + max(0, $bytes))); } catch (Throwable $e) { /* sayaç yazılamazsa yükleme engellenmez */ }
+}
+
 function a_upload_init(): void
 {
     need_user();
@@ -1319,7 +1332,8 @@ function a_upload_init(): void
     if (MAX_UPLOAD_MB > 0 && $size > MAX_UPLOAD_MB * 1048576) fail('Dosya çok büyük. En fazla ' . MAX_UPLOAD_MB . ' MB yükleyebilirsiniz.');
     // Tek kişi sunucunun diskini dolduramasın (tüm birimler aynı diski kullanır)
     $me = current_user();
-    $loose = (int)val('SELECT COALESCE(SUM(size), 0) FROM attachments WHERE user_id = ? AND post_id IS NULL AND roster_id IS NULL AND created_at > ?', [(int)$me['id'], date('Y-m-d H:i:s', time() - 86400)]);
+    // Günlük toplam ayrı sayaçta tutulur (sohbete gönderilen dosyanın eki silinse de sayılır — 4.55.0)
+    $loose = upload_quota_used((int)$me['id']);
     if ($loose + $size > 2048 * 1048576) fail('Bugün çok fazla dosya yüklediniz (2 GB sınırı). Yarın tekrar deneyin ya da yöneticinize başvurun.', 429);
     $dir = upload_dir();
     $free = function_exists('disk_free_space') ? @disk_free_space($dir) : false;
@@ -1384,6 +1398,7 @@ function a_upload_finish(): void
     q('INSERT INTO attachments (post_id, roster_id, user_id, orig_name, stored_name, mime, size, created_at) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?)',
         [$me['id'], $meta['name'], $stored, $mime, $meta['size'], now()]);
     $id = insert_id();
+    upload_quota_add((int)$me['id'], (int)$meta['size']);
     // Bir günden eski, hiçbir yere bağlanmamış dosyaları temizle
     foreach (all('SELECT id, stored_name FROM attachments WHERE post_id IS NULL AND roster_id IS NULL AND created_at < ?', [date('Y-m-d H:i:s', time() - 86400)]) as $o) {
         @unlink(upload_dir() . '/' . $o['stored_name']);
@@ -1438,6 +1453,7 @@ function serve_file(): void
     // Ek kimliği değişmez (yeni yükleme = yeni kimlik), bu yüzden tarayıcı önbelleği uzun tutulabilir
     header('Cache-Control: private, max-age=31536000, immutable');
     if ($mime !== 'application/pdf') header("Content-Security-Policy: default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    else header("Content-Security-Policy: default-src 'none'; object-src 'none'; script-src 'none'; frame-ancestors 'self'"); // PDF görüntüleyici çalışır, sayfa betiği çalışmaz (4.55.0)
 
     if (isset($_SERVER['HTTP_RANGE']) && preg_match('/bytes=(\d*)-(\d*)/', (string)$_SERVER['HTTP_RANGE'], $m)) {
         if ($m[1] === '' && $m[2] !== '') {

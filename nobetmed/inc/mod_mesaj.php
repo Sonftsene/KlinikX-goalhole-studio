@@ -963,6 +963,7 @@ function a_cfile_get(): void
     header('Accept-Ranges: bytes');
     header($once ? 'Cache-Control: no-store' : 'Cache-Control: private, max-age=31536000, immutable');
     if ($f['mime'] !== 'application/pdf') header("Content-Security-Policy: default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+    else header("Content-Security-Policy: default-src 'none'; object-src 'none'; script-src 'none'; frame-ancestors 'self'");
     // Parça isteği (video/ses oynatıcıları; iPhone videoyu yalnız böyle oynatır)
     $start = 0; $end = $size - 1;
     if (preg_match('/^bytes=(\d*)-(\d*)$/', (string)($_SERVER['HTTP_RANGE'] ?? ''), $rm) && $size > 0) {

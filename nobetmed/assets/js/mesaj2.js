@@ -13,7 +13,6 @@ function chatUi() {
   try { return Object.assign({ font: 'm', bg: 'def', enter: true, autoimg: true }, JSON.parse(localStorage.getItem('nm-chat-ui') || '{}')); } catch (e) { return { font: 'm', bg: 'def', enter: true, autoimg: true }; }
 }
 function chatUiSave(o) { try { localStorage.setItem('nm-chat-ui', JSON.stringify(Object.assign(chatUi(), o))); } catch (e) { /* */ } }
-function chatUiClass() { const u = chatUi(); return `ch-font-${u.font} ch-bg-${u.bg}`; }
 
 /* ---------------- Sohbet ayarları sayfası ---------------- */
 const VIS_LBL = { all: 'Herkes', contacts: 'Kişilerim', none: 'Hiç kimse' };

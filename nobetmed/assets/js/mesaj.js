@@ -19,7 +19,8 @@ Object.assign(ICON_PATHS, {
 });
 async function chatJoin(view, token) {
   setHTML(view, html`<div class="card card-pad"><div class="small muted">Gruba katılınıyor…</div></div>`);
-  try { const r = await api('chat.join', { token }); if (r.pending) { setHTML(view, html`<div class="card empty"><h3>İstek gönderildi</h3><p class="small">“${r.name}” grubunun yöneticisi onaylayınca katılacaksınız.</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); return; } location.replace('#/mesaj/' + r.id); } catch (e) { setHTML(view, html`<div class="card empty"><h3>Katılamadınız</h3><p class="small">${e.message}</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); }
+  const gone = routeGone();
+  try { const r = await api('chat.join', { token }); if (gone()) return; if (r.pending) { setHTML(view, html`<div class="card empty"><h3>İstek gönderildi</h3><p class="small">“${r.name}” grubunun yöneticisi onaylayınca katılacaksınız.</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); return; } location.replace('#/mesaj/' + r.id); } catch (e) { if (gone()) return; setHTML(view, html`<div class="card empty"><h3>Katılamadınız</h3><p class="small">${e.message}</p><a class="btn" href="#/mesaj">Mesajlar</a></div>`); }
 }
 NM_EXT.nav.push({ sec: 'genel', mod: 'mesaj', href: '#/mesaj', icon: 'chat', label: 'Mesajlar', match: (r) => r[0] === 'mesaj', count: () => S.chatUnread || 0, visible: () => !!S.hosp });
 NM_EXT.notif.chat = ['violet', 'chat'];
@@ -104,7 +105,11 @@ function chTime(at) {
 }
 
 /* ---------------- Sohbet ekranı ---------------- */
-function chatStop() { if (CH.timer) { clearInterval(CH.timer); CH.timer = null; } }
+function chatStop() {
+  if (CH.timer) { clearInterval(CH.timer); CH.timer = null; }
+  // Sohbetten çıkınca süren sesli kayıt iptal edilir (mikrofon kapanır; kayıt başka sohbete gitmez — 4.55.0)
+  if (CH.rec) { CH.recCancel = true; try { CH.rec.stop(); } catch (e) { /* */ } }
+}
 async function chatOpen(view, id) {
   chatStop();
   CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null; CH.rc = { d: 0, r: 0 }; CH.stick = true; CH.seen = null;
@@ -188,17 +193,6 @@ ACT['ch-at'] = (el) => {
   ta.focus(); ta.selectionStart = ta.selectionEnd = before.length;
   $('#chAt').classList.add('hidden');
 };
-ACT['ch-attach'] = () => {
-  const md = openModal({ title: 'Ekle', size: 'narrow', body: html`<div class="list">
-    <button type="button" class="list-row" data-o="file" style="width:100%;border:0;background:none;text-align:left">${icon('image', 'sm')}<span>Fotoğraf veya dosya</span></button>
-    <button type="button" class="list-row" data-o="poll" style="width:100%;border:0;background:none;text-align:left">${icon('chart', 'sm')}<span>Anket</span></button></div>` });
-  md.el.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-o]');
-    if (!b) return;
-    md.close();
-    if (b.dataset.o === 'file') $('#chFile').click(); else chatPollModal();
-  });
-};
 function chatPollModal() {
   const m = openModal({ title: 'Anket', body: html`<form class="stack" id="chPollF">
       <div class="field"><label>Soru</label><input class="input" name="question" maxlength="300" required placeholder="ör. Eğitim hangi gün olsun?"></div>
@@ -221,12 +215,15 @@ function chatPollModal() {
 /* Sesli mesaj: dokun → kayıt, tekrar dokun → gönder (en fazla 5 dk) */
 ACT['ch-rec'] = async (el) => {
   if (CH.rec) { CH.rec.stop(); return; }
+  const cid = CH.id;
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { toast('Mikrofona izin verilmedi. Tarayıcı ayarlarından bu siteye mikrofon izni verin.', 'err'); return; }
   const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
   const chunks = [];
   const t0 = Date.now();
+  const rep0 = CH.reply;
+  if (CH.id !== cid) { stream.getTracks().forEach((t) => t.stop()); return; } // izin beklenirken sohbet değişti
   CH.rec = rec;
   el.classList.add('rec');
   const tip = $('#chReply');
@@ -246,8 +243,8 @@ ACT['ch-rec'] = async (el) => {
     const file = new File(chunks, `sesli-mesaj.${ext}`, { type: mt });
     try {
       const a = await uploadFile(file);
-      const r = await api('chat.send', { id: CH.id, att_id: a.id, dur, reply_to: CH.reply ? CH.reply.id : null });
-      chatSetReply(null); chatAdd([r.msg]); chatScrollEnd(true);
+      const r = await api('chat.send', { id: cid, att_id: a.id, dur, reply_to: rep0 ? rep0.id : null });
+      if (CH.id === cid) { chatSetReply(null); chatAdd([r.msg]); chatScrollEnd(true); }
     } catch (e) { toast(e.message, 'err'); }
   };
   rec.start(1000);
@@ -396,13 +393,15 @@ ACT['ch-vote'] = async (el) => {
   else sel = sel.includes(i) ? [] : [i];
   try { const r = await api('chat.vote', { id: m.id, opts: sel }); const k = CH.msgs.findIndex((x) => x.id === r.msg.id); if (k >= 0) { CH.msgs[k] = r.msg; chatDraw(); } } catch (e) { toast(e.message, 'err'); }
 };
-function chSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+function chSize(n) { return fmtSize(n); }
 async function chatPoll() {
   if (!$('#chatView') || !location.hash.startsWith('#/mesaj/' + CH.id)) { chatStop(); return; }
   if (document.visibilityState !== 'visible' || CH.busy) return;
   CH.busy = true;
+  const cid = CH.id;
   try {
-    const r = await api('chat.poll', { id: CH.id, after: CH.last, seen: true, since: CH.since || '' });
+    const r = await api('chat.poll', { id: cid, after: CH.last, seen: true, since: CH.since || '' });
+    if (CH.id !== cid) return; // bu arada başka sohbete geçildi: cevap o sohbete karışmasın (4.55.0)
     let changed = false;
     CH.since = r.now || CH.since;
     const tp = JSON.stringify(r.typing || []);
@@ -417,7 +416,7 @@ async function chatPoll() {
     if (r.msgs.length && sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 300) CH.downN = (CH.downN || 0) + r.msgs.filter((x) => !x.mine).length;
     if (r.msgs.length) chatAdd(r.msgs); else if (changed || readChanged) chatDraw();
     if (r.msgs.length) chatScrollEnd();
-  } catch (e) { if (e.status === 403 || e.status === 404) { chatStop(); toast(e.message, 'err'); location.hash = '#/mesaj'; } } finally { CH.busy = false; }
+  } catch (e) { if (CH.id === cid && (e.status === 403 || e.status === 404)) { chatStop(); toast(e.message, 'err'); location.hash = '#/mesaj'; } } finally { CH.busy = false; }
 }
 ACT['ch-older'] = (el) => busy(el, async () => {
   const s = $('#chScroll'); const h = s.scrollHeight;
@@ -430,17 +429,21 @@ ACT['ch-send'] = async () => {
   const ta = $('#chInput');
   if (!ta) return;
   const body = ta.value.trim();
-  if (!body) return;
+  if (!body || CH.sending) return; // Enter’a iki kez basınca aynı mesaj iki kez gitmesin (4.55.0)
   const btn = $('[data-act=ch-send]');
-  btn.disabled = true;
+  const cid = CH.id;
+  CH.sending = true;
+  if (btn) btn.disabled = true;
   try {
-    const r = await api('chat.send', { id: CH.id, body, reply_to: CH.reply ? CH.reply.id : null });
-    ta.value = ''; ta.style.height = 'auto'; chatSetReply(null);
-    if (typeof chatDraftSave === 'function') chatDraftSave(CH.id, '');
-    const bar = $('#chBar'); if (bar) bar.classList.remove('has-text');
-    CH.divider = 0;
-    chatAdd([r.msg]); chatScrollEnd(true);
-  } catch (e) { toast(e.message, 'err'); } finally { btn.disabled = false; ta.focus(); }
+    const r = await api('chat.send', { id: cid, body, reply_to: CH.reply ? CH.reply.id : null });
+    if (typeof chatDraftSave === 'function') chatDraftSave(cid, '');
+    if (CH.id === cid) {
+      ta.value = ''; ta.style.height = 'auto'; chatSetReply(null);
+      const bar = $('#chBar'); if (bar) bar.classList.remove('has-text');
+      CH.divider = 0;
+      chatAdd([r.msg]); chatScrollEnd(true);
+    }
+  } catch (e) { toast(e.message, 'err'); } finally { CH.sending = false; if (btn) btn.disabled = false; if (CH.id === cid && document.contains(ta)) ta.focus(); }
 };
 /** Fotoğrafı telefonda küçült (en uzun kenar 1600 px, JPEG) — hızlı gönderim, az yer */
 async function chatShrink(file) {
@@ -457,18 +460,24 @@ async function chatShrink(file) {
 async function chatSendFile(f0, opt = {}) {
   const isVideo = /^video\//.test(f0.type);
   if (f0.size > (isVideo ? 64 : 25) * 1048576) { toast(isVideo ? 'Video en fazla 64 MB olabilir; daha kısa çekin' : 'Dosya en fazla 25 MB olabilir', 'err'); return; }
+  // Dosyanın gideceği sohbet yükleme BAŞLAMADAN sabitlenir: yükleme sürerken başka sohbete geçilirse dosya oraya gitmez (4.55.0)
+  const cid = opt.cid || CH.id;
+  const rep0 = 'reply' in opt ? opt.reply : CH.reply;
   const tip = $('#chReply');
   const f = await chatShrink(f0);
   const body = typeof opt.caption === 'string' ? opt.caption : ($('#chInput') || {}).value ? $('#chInput').value.trim() : '';
+  const here = () => CH.id === cid && $('#chatView');
   try {
     if (tip) setHTML(tip, html`<div class="ch-up tiny">${icon('upload', 'sm')} ${f.name} gönderiliyor… <span id="chUpP">%0</span></div>`);
-    const a = await uploadFile(f, (p) => { const el = $('#chUpP'); if (el) el.textContent = '%' + Math.round(p * 100); });
-    const r = await api('chat.send', { id: CH.id, body, att_id: a.id, reply_to: CH.reply ? CH.reply.id : null, once: !!opt.once, dur: opt.dur || null });
-    if ($('#chInput')) { $('#chInput').value = ''; const bar = $('#chBar'); if (bar) bar.classList.remove('has-text'); if (typeof chatDraftSave === 'function') chatDraftSave(CH.id, ''); }
-    if (tip) setHTML(tip, '');
+    const a = await uploadFile(f, (p) => { const el = here() && $('#chUpP'); if (el) el.textContent = '%' + Math.round(p * 100); });
+    const r = await api('chat.send', { id: cid, body, att_id: a.id, reply_to: rep0 ? rep0.id : null, once: !!opt.once, dur: opt.dur || null });
+    if (typeof chatDraftSave === 'function' && body) chatDraftSave(cid, '');
+    if (!here()) { toast(f.name + ' gönderildi', 'ok'); return; }
+    if ($('#chInput') && body) { $('#chInput').value = ''; const bar = $('#chBar'); if (bar) bar.classList.remove('has-text'); }
+    if (tip && document.contains(tip)) setHTML(tip, '');
     chatSetReply(null);
     chatAdd([r.msg]); chatScrollEnd(true);
-  } catch (e) { toast(e.message, 'err'); if (tip) setHTML(tip, ''); }
+  } catch (e) { toast(e.message, 'err'); if (tip && here()) setHTML(tip, ''); }
 }
 function chatSetReply(m) {
   CH.reply = m;
@@ -539,16 +548,6 @@ ACT['ch-menu'] = (el) => {
 };
 async function chatStar(m) {
   try { await api('chat.star', { id: m.id, on: !m.star }); m.star = !m.star; chatDraw(); toast(m.star ? 'Yıldızlandı ⭐' : 'Yıldız kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
-}
-async function chatForward(m) {
-  let r;
-  try { r = await api('chat.list'); } catch (e) { toast(e.message, 'err'); return; }
-  const md = openModal({ title: 'Şuraya ilet', body: html`<div class="card"><div class="list">${r.items.filter((c) => c.id !== CH.id).map((c) => html`<button type="button" class="list-row" data-c="${c.id}" style="width:100%;border:0;background:none;text-align:left">${icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}<span class="grow">${c.name}</span></button>`)}</div></div>` });
-  md.el.addEventListener('click', async (ev) => {
-    const b = ev.target.closest('[data-c]');
-    if (!b) return;
-    try { await api('chat.forward', { id: m.id, to: +b.dataset.c }); md.close(); toast('İletildi'); } catch (err) { toast(err.message, 'err'); }
-  });
 }
 
 /* ---------------- Sohbet bilgisi ve grup yönetimi ---------------- */
@@ -656,6 +655,8 @@ ACT['ch-add'] = async () => {
 
 /* ---------------- Yeni sohbet / grup ---------------- */
 async function chatPeople() {
+  // Kişi listesi 2 dakikada bir tazelenir (yeni gelen personel “Yeni sohbet / Yeni grup”ta görünsün — 4.55.0)
+  if (typeof chatPeopleCache === 'function') return chatPeopleCache();
   if (!CH.people) CH.people = (await api('chat.people')).people;
   return CH.people;
 }

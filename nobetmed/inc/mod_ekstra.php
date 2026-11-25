@@ -393,6 +393,9 @@ function a_extra_take_respond(): void
         if ((int)$t['roster_id'] && $rid !== (int)$t['roster_id']) continue; // isteğin listesi (kişiler birden çok listede olabilir)
         $pk = swap_key((string)$t['giver_name']);
         if (($tl[$pk]['days'][$t['date']]['kind'] ?? '') !== 'shift') continue;
+        // Başlamış ya da geçmiş nöbet devredilemez (4.55.0)
+        $iv = swap_interval((string)$t['date'], $tl[$pk]['days'][$t['date']]);
+        if ($iv && $iv[0] <= time()) { $err = 'Bu nöbet başladı ya da geçti; artık devredilemez.'; break; }
         [$ok, $a, $b2] = tk_eval($tl, $myK, $myName, $pk, (string)$t['date'], swap_part($t['part'] ?? null));
         if (!$ok) $err = 'Liste değiştiği için artık kurallara uymuyor: ' . ($a ?? $b2);
         break;

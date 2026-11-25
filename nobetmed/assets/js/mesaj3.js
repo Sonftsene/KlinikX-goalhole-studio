@@ -277,17 +277,6 @@ ACT['ch-sel'] = async (el) => {
   } catch (e) { toast(e.message, 'err'); }
   chatSelEnd();
 };
-async function chatForwardMany(ms) {
-  let r;
-  try { r = await api('chat.list'); } catch (e) { toast(e.message, 'err'); return; }
-  const md = openModal({ title: ms.length + ' mesajı ilet', body: html`<div class="card"><div class="list">${r.items.filter((c) => c.id !== CH.id).map((c) => html`<label class="list-row"><input type="checkbox" value="${c.id}"><span class="grow">${c.name}</span></label>`)}</div></div>`,
-    foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>İlet</button>` });
-  md.el.querySelector('[data-go]').addEventListener('click', (ev) => busy(ev.currentTarget, async () => {
-    const to = $$('input:checked', md.el).map((i) => +i.value);
-    if (!to.length) { toast('Sohbet seçin', 'err'); return; }
-    try { for (const c of to) for (const m of ms) await api('chat.forward', { id: m.id, to: c }); md.close(); chatSelEnd(); toast('İletildi'); } catch (e) { toast(e.message, 'err'); }
-  }));
-}
 /** Grup mesajına özelden yanıt: birebir sohbeti aç, alıntıyı taslağa koy */
 async function chatReplyPrivate(m) {
   try {
@@ -347,6 +336,8 @@ async function chatCamModal() {
     if (stream) stream.getTracks().forEach((x) => x.stop());
     try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 } }, audio: true }); }
     catch (e) { try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); } catch (e2) { toast('Kameraya izin verilmedi. Tarayıcı ayarlarından bu siteye kamera izni verin.', 'err'); md.close(); return; } }
+    // İzin beklenirken pencere kapandıysa kamera / mikrofon hemen kapatılır (4.55.0)
+    if (!document.body.contains(md.el)) { stream.getTracks().forEach((x) => x.stop()); stream = null; return; }
     v.srcObject = stream;
   };
   await start();
@@ -431,8 +422,9 @@ function chatPreview(files, opts = {}) {
   const go = async () => {
     const caption = cap.value.trim();
     const once = !!($('#pvOnce', md.el) || {}).checked;
+    const cid = CH.id, reply = CH.reply; // hangi sohbete gideceği şimdi sabitlenir
     md.close();
-    for (let i = 0; i < files.length; i++) await chatSendFile(files[i], { once, dur: opts.dur || null, caption: i === 0 ? caption : '' });
+    for (let i = 0; i < files.length; i++) await chatSendFile(files[i], { once, dur: opts.dur || null, caption: i === 0 ? caption : '', cid, reply: i === 0 ? reply : null });
   };
   md.el.querySelector('[data-go]').addEventListener('click', go);
   cap.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); go(); } });

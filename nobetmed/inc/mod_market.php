@@ -166,8 +166,10 @@ function mk_tl_with(array $tl, int $rid, array $user, string $from, string $to):
     $name = $my[$rid] ?? (string)array_values($my)[0];
     $uk = swap_key($name);
     if (!isset($tl[$uk])) $tl[$uk] = ['name' => $name, 'title' => null, 'days' => [], 'guest' => true];
+    // Başka listeden gelen günler _ext ile işaretlenir: kurallarda sayılır ama değişim (takas) teklifi olamaz (4.55.0)
     $put = function (string $d, array $x) use (&$tl, $uk): void {
         $cur = $tl[$uk]['days'][$d] ?? null;
+        $x['_ext'] = 1;
         if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $tl[$uk]['days'][$d] = $x;
     };
     foreach ($my as $orid => $onm) {
@@ -176,7 +178,11 @@ function mk_tl_with(array $tl, int $rid, array $user, string $from, string $to):
         foreach (($otl[swap_key((string)$onm)]['days'] ?? []) as $d => $x) $put((string)$d, $x);
     }
     // Başka listeden kabul edilmiş devirler (Excel’e işlenene kadar)
-    foreach (all("SELECT * FROM swap_requests WHERE status = 'accepted' AND to_user = ? AND roster_id <> ? AND from_date >= ? AND from_date <= ?", [(int)$user['id'], $rid, $from, $to]) as $r) {
+    static $acc = [];
+    $ak = "$from|$to";
+    $acc[$ak] = $acc[$ak] ?? all("SELECT * FROM swap_requests WHERE status = 'accepted' AND from_date >= ? AND from_date <= ?", [$from, $to]);
+    foreach ($acc[$ak] as $r) {
+        if ((int)$r['to_user'] !== (int)$user['id'] || (int)$r['roster_id'] === $rid) continue;
         $otl = mk_tl((int)$r['roster_id'], $from, $to);
         $row = $otl[swap_key((string)$r['to_name'])]['days'][$r['from_date']] ?? null;
         if ($row) $put((string)$r['from_date'], $row);
@@ -247,7 +253,7 @@ function mk_eligible(array $tl, array $L, string $uk, string $who = 'Senin'): ar
     $pk = swap_key((string)$L['name']);
     $date = (string)$L['date'];
     $row = $tl[$pk]['days'][$date] ?? null;
-    if (!$row || $row['kind'] !== 'shift') return ['ok' => false, 'reason' => 'İlan sahibinin bu nöbeti listede artık görünmüyor.', 'offers' => []];
+    if (!$row || $row['kind'] !== 'shift' || !empty($row['_ext'])) return ['ok' => false, 'reason' => 'İlan sahibinin bu nöbeti listede artık görünmüyor.', 'offers' => []];
     if (!isset($tl[$uk])) return ['ok' => false, 'reason' => 'Bu nöbet listesinde adın yok.', 'offers' => []];
     // Yalnız ilanın ayındaki listede adı geçenler (önceki ayın listesinden kalanlar değil)
     if (!array_filter(array_keys($tl[$uk]['days']), fn($d) => strncmp((string)$d, substr($date, 0, 7), 7) === 0)) return ['ok' => false, 'reason' => 'Bu ayın listesinde adın yok.', 'offers' => []];
@@ -285,7 +291,8 @@ function mk_eligible(array $tl, array $L, string $uk, string $who = 'Senin'): ar
     $offers = [];
     $lastErr = null;
     foreach ($U as $e => $r2) {
-        if ($r2['kind'] !== 'shift' || $e < $today || $e === $date || isset($P[$e])) continue;
+        // Yalnız bu listedeki kendi nöbeti teklif edilir (başka listenin nöbeti bu listenin değişimine girmez)
+        if ($r2['kind'] !== 'shift' || !empty($r2['_ext']) || $e < $today || $e === $date || isset($P[$e])) continue;
         if (abs(strtotime($e) - strtotime($date)) > 31 * 86400) continue;
         $nu = $U;
         unset($nu[$e]);
@@ -339,10 +346,10 @@ function mk_elig_map(array $listings, array $me): array
     foreach ($listings as $L) if ($L['status'] === 'open' && (int)$L['user_id'] !== (int)$me['id']) $byR[(int)$L['roster_id']][] = $L;
     $out = [];
     foreach ($byR as $rid => $list) {
-        $dates = array_column($list, 'date');
-        $from = mk_shift_day(min($dates), -45); $to = mk_shift_day(max($dates), 45);
-        $w = mk_tl_with(mk_tl($rid, $from, $to), $rid, $me, $from, $to);
         foreach ($list as $L) {
+            // Başvuruda kullanılan çizelgenin aynısı (ilan sahibinin diğer listeleri dâhil): gösterilen teklif = kabul edilen teklif
+            $from = mk_shift_day((string)$L['date'], -45); $to = mk_shift_day((string)$L['date'], 45);
+            $w = mk_tl_with(mk_listing_tl($L), $rid, $me, $from, $to);
             if (!$w) { $out[(int)$L['id']] = ['ok' => false, 'reason' => 'Hiçbir nöbet listesinde adın yok.', 'offers' => []]; continue; }
             if ($L['kind'] !== 'give' && !isset($my[$rid])) { $out[(int)$L['id']] = ['ok' => false, 'reason' => 'Değişim ilanına yalnız aynı listedeki kişiler katılabilir; devir ilanlarına herkes başvurabilir.', 'offers' => []]; continue; }
             $out[(int)$L['id']] = mk_eligible($w[0], $L, $w[1]);
@@ -688,6 +695,15 @@ function co_conds(): array
 /** Vardiyanın bu listede kullanılan kodu (yoksa sözlükten, o da yoksa varsayılan) */
 function co_row(string $shift, array $rids, ?string $code = null, ?string $date = null): array
 {
+    // İstek içinde önbellek: ekstra nöbet panosu kişi × gün × vardiya kez çağırır (4.55.0)
+    static $memo = [];
+    $mk = $shift . '|' . implode(',', $rids) . '|' . ($code ?? "\0") . '|' . substr((string)$date, 0, 7);
+    if (isset($memo[$mk])) return $memo[$mk];
+    return $memo[$mk] = co_row_raw($shift, $rids, $code, $date);
+}
+
+function co_row_raw(string $shift, array $rids, ?string $code, ?string $date): array
+{
     [$st, $en, $h, $lab, $def] = co_def($shift);
     $label = null;
     if ($code === null && $rids) {
@@ -904,9 +920,9 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
                 $iv0 = swap_interval($fromD, $r);
                 if (!$iv0 || $iv0[0] <= time()) continue;
                 if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, $ym, 7) === 0)) continue;
-                $days = $p['days'];
+                $days = swap_days_full($k, $p['days'], $from, $to); // başka listede o gün nöbeti olan “boş” görünmesin (4.55.0)
                 $dRow = $days[$date] ?? null;
-                [$c, $why] = $dayConds($p, $dRow, 'kaydirma');
+                [$c, $why] = $dayConds(['days' => $days] + $p, $dRow, 'kaydirma');
                 unset($days[$fromD]);
                 $ev = co_eval($days, $date, $r, $rules);
                 $c['rest'] = $ev['rest']; if (!$ev['rest']) $why['rest'] = $ev['rest_why'];
@@ -1300,8 +1316,11 @@ function a_market_home(): void
 {
     $me = need_user();
     $today = mk_today();
-    $asks = all("SELECT c.*, r.answer, r.move_from FROM callout_resp r JOIN callouts c ON c.id = r.callout_id WHERE r.user_id = ? AND c.status = 'open' AND c.date >= ? AND r.answer = 'asked' ORDER BY c.date LIMIT 10", [$me['id'], $today]);
-    $my = mk_my_rosters($me);
+    // Kapalı modülün özeti dönmez (birimde kapalı ya da kişinin rolünde “kapalı” — 4.55.0)
+    $on = fn(string $m) => (!function_exists('nm_mod_on') || nm_mod_on($m)) && (!function_exists('user_perm') || user_perm($me, $m) !== 'off');
+    if (!$on('eksik') && !$on('ilan')) out(['asks' => [], 'listings' => ['can' => 0, 'open' => 0, 'waiting' => 0]]);
+    $asks = !$on('eksik') ? [] : all("SELECT c.*, r.answer, r.move_from FROM callout_resp r JOIN callouts c ON c.id = r.callout_id WHERE r.user_id = ? AND c.status = 'open' AND c.date >= ? AND r.answer = 'asked' ORDER BY c.date LIMIT 10", [$me['id'], $today]);
+    $my = $on('ilan') ? mk_my_rosters($me) : [];
     $open = [];
     if ($my) {
         $open = all("SELECT * FROM listings WHERE status = 'open' AND date >= ? AND user_id <> ? AND roster_id IN (" . implode(',', array_fill(0, count($my), '?')) . ') ORDER BY date LIMIT 60', [$today, $me['id'], ...array_keys($my)]);
@@ -1313,7 +1332,8 @@ function a_market_home(): void
     foreach ($open as $L) if (($elig[(int)$L['id']]['ok'] ?? false) && !isset($applied[(int)$L['id']])) $can++;
     $waiting = (int)val("SELECT COUNT(*) FROM listing_apps a JOIN listings l ON l.id = a.listing_id WHERE l.user_id = ? AND l.status = 'open' AND a.status = 'applied'", [$me['id']]);
     $o = ['asks' => array_map(fn($C) => co_out($C, false) + ['move_from' => $C['move_from']], $asks), 'listings' => ['can' => $can, 'open' => count($open), 'waiting' => $waiting]];
-    if (is_publisher($me)) {
+    if (!$on('ilan')) $o['listings']['waiting'] = 0;
+    if ($on('eksik') && is_publisher($me)) {
         $o['pub'] = ['open' => (int)val("SELECT COUNT(*) FROM callouts WHERE status = 'open' AND date >= ?", [$today]),
             'yes' => (int)val("SELECT COUNT(*) FROM callout_resp r JOIN callouts c ON c.id = r.callout_id WHERE c.status = 'open' AND c.date >= ? AND r.answer = 'yes' AND r.chosen = 0", [$today])];
     }

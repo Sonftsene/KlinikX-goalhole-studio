@@ -331,7 +331,7 @@ function planIssuesHtml() {
     ${c.short.slice(0, 40).map((x) => html`<div class="list-row small"><span class="badge warn">${mkShortDate(x.date)}</span><span>Eksik: gündüz ${x.day}/${x.need_day}, gece ${x.night}/${x.need_night}</span></div>`)}</div></div>`;
 }
 function mkShortDate(d) { return `${+d.slice(8)} ${TR_MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`; }
-function planDirty() { PL2.dirty = true; PL2.chk = null; }
+function planDirty() { PL2.dirty = true; PL2.rev = (PL2.rev || 0) + 1; PL2.chk = null; }
 /** Geri al yığını: toplu işlemlerden (otomatik doldur, temizle, yapıştır) önce çizelgenin anlık görüntüsü */
 function planSnap(label) {
   PL2.undo = PL2.undo || [];
@@ -638,7 +638,14 @@ ACT['pl2-addp'] = () => {
   });
 };
 async function planSave(quiet) {
-  try { await api('plan.save', { roster_id: PL2.rid, ym: PL2.ym, draft: PL2.d }); PL2.dirty = false; if (!quiet) toast('Taslak kaydedildi'); return true; } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
+  // Kayıt sürerken yapılan düzenleme “kaydedildi” sayılmasın; ay / liste değiştiyse yenisinin işareti silinmesin (4.55.0)
+  const rev = PL2.rev || 0, rid = PL2.rid, ym = PL2.ym;
+  try {
+    await api('plan.save', { roster_id: rid, ym, draft: PL2.d });
+    if (PL2.rid === rid && PL2.ym === ym && (PL2.rev || 0) === rev) PL2.dirty = false;
+    if (!quiet) toast('Taslak kaydedildi');
+    return true;
+  } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
 }
 ACT['pl2-save'] = (el) => busy(el, () => planSave(false));
 ACT['pl2-check'] = (el) => busy(el, async () => {
@@ -822,9 +829,15 @@ function pjSaveDirty() {
   Object.keys(PJ.dirty || {}).forEach((rid) => { const sd = PJ.sides.find((s) => String(s.roster.id) === String(rid)); if (sd) pjSaveSide(sd, true); });
 }
 async function pjSaveSide(sd, quiet) {
-  try { await api('plan.save', { roster_id: sd.roster.id, ym: PJ.ym, draft: sd.draft }); delete PJ.dirty[sd.roster.id]; if (!quiet) toast(sd.name + ' kaydedildi'); return true; } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
+  const rid = sd.roster.id, ym = PJ.ym, rev = PJ.dirty[rid];
+  try {
+    await api('plan.save', { roster_id: rid, ym, draft: sd.draft });
+    if (PJ.ym === ym && PJ.dirty[rid] === rev) delete PJ.dirty[rid];
+    if (!quiet) toast(sd.name + ' kaydedildi');
+    return true;
+  } catch (e) { if (!quiet) toast(e.message, 'err'); return false; }
 }
-function pjDirty(sd) { PJ.dirty[sd.roster.id] = true; PJ.chk = null; }
+function pjDirty(sd) { PJ.rev = (PJ.rev || 0) + 1; PJ.dirty[sd.roster.id] = PJ.rev; PJ.chk = null; }
 /** Dönemin vardiya takımı (eski tek kod ayarından da okunur) */
 function pjCodeSet(k) {
   const o = PJ.opts;

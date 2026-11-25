@@ -13,7 +13,6 @@ function dateLabel(d) {
   const base = `${dt.getDate()} ${TR_MONTHS[dt.getMonth()]} ${TR_DAYS[dt.getDay()]}`;
   return diff === 0 ? 'Bugün · ' + base : diff === 1 ? 'Yarın · ' + base : diff === -1 ? 'Dün · ' + base : base;
 }
-function shiftTime(s) { return s.start && s.end ? `${s.start}–${s.end}` : ''; }
 function shiftTone(s) {
   if (s.kind === 'leave') return 'slate';
   if (s.kind === 'off') return 'slate';
@@ -275,11 +274,6 @@ async function loadHomeExtras() {
   const sb = $('#setupBox');
   if (sb) mountSetupBox(sb);
 }
-function relDayShort(d) {
-  const diff = daysUntil(d);
-  const dt = parseDT(d);
-  return diff === 0 ? 'Bugün' : diff === 1 ? 'Yarın' : `${dt.getDate()} ${TR_MONTHS_S[dt.getMonth()]} ${TR_DAYS_S[dt.getDay()]}`;
-}
 function dutyPerson(p) {
   return html`<span class="duty-chip">${pAvatar(p.name, 'sm', null, p.user_id)}<span class="ellipsis">${pName(p.name, p.user_id)}</span>${p.phone ? html`<a class="duty-call" href="${telLink(p.phone)}" aria-label="${p.name} ara">${icon('phone', 'sm')}</a>` : ''}</span>`;
 }
@@ -318,7 +312,7 @@ ACT['tip-hide'] = (el) => {
   try { const d = JSON.parse(localStorage.getItem('nm-tips') || '{}'); d[el.dataset.k] = 1; localStorage.setItem('nm-tips', JSON.stringify(d)); } catch (e) { /* */ }
   el.closest('.tip').remove();
 };
-ACT['go-profile'] = () => { location.hash = '#/profil'; };
+ACT['go-profile'] = () => { location.hash = '#/profil/bilgiler'; }; // telefon alanı “Kişisel bilgiler”de
 
 /* =================================================================== */
 /* Nöbet sayfası: Takvimim · Kim nöbette · Excel liste                  */
@@ -448,7 +442,7 @@ ACT.ics = async () => {
     ${d.https ? '' : html`<p class="tiny sp-kvkk">${icon('alert', 'sm')} Site HTTPS ile açılmıyor; Google Takvim ve Outlook yalnız HTTPS adresleri ekler (Hostinger › SSL).</p>`}
     <ul class="tiny faint cal-notes"><li>iPhone takvimi genellikle 15 dakika–1 saatte, Google Takvim birkaç saatte bir yeniler.</li>
       <li>Bu bağlantı size özeldir; kimseyle paylaşmayın. Paylaştıysanız “Bağlantıyı yenile”: eskisi çalışmaz, takvime yeniden ekleyin.</li>
-      ${d.seen ? html`<li>Takviminiz en son ${fmtRel(new Date(d.seen * 1000).toISOString())} güncellendi.</li>` : ''}</ul>
+      ${d.seen ? html`<li>Takviminiz en son ${((x) => fmtRel(ymd(x) + ' ' + hm(x) + ':' + pad(x.getSeconds())))(new Date(d.seen * 1000))} güncellendi.</li>` : ''}</ul>
     <div class="row wrap" style="gap:6px"><button type="button" class="btn sm" data-act="cal-reset">${icon('history', 'sm')}Bağlantıyı yenile</button><button type="button" class="btn sm ghost" data-act="cal-off">Aboneliği kapat</button>
       <span class="grow"></span><button type="button" class="btn sm ghost" data-act="ics-file">${icon('download', 'sm')}Dosya olarak indir (güncellenmez)</button></div></div>`);
   draw();
@@ -671,31 +665,6 @@ function renderProfile(view) {
     <div class="prof-sub"><a class="prof-back" href="#/profil">${icon('chevL', 'sm')}<span>Hesabım</span></a><h1 class="prof-h">${row[1]}</h1></div>
     <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
   if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
-  if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
-  if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
-  if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
-  if (tab === 'bildirim' && typeof nbSettingsMount === 'function') nbSettingsMount();
-  if (tab === 'guvenlik' && typeof qrSecMount === 'function') qrSecMount();
-  const ext = NM_EXT.profileTabs.find((t) => t.key === tab);
-  if (ext && ext.mount) { try { ext.mount(); } catch (e) { /* */ } }
-}
-/** Eski sekmeli düzen (kullanılmıyor; Hesabım artık özet + alt sayfalar) */
-function renderProfileTabs(view) {
-  const me = S.me;
-  const r = currentRoute()[1];
-  const tabs = profTabs();
-  const tab = tabs.some(([k]) => k === r) ? r : 'profil';
-  setHTML(view, html`
-    <div class="prof-hero">
-      <label class="prof-av" title="Profil fotoğrafını değiştir">${avatar(me.name, 'xl')}<span class="prof-av-edit">${icon('edit', 'sm')}</span><input type="file" accept="image/*" hidden data-change="av-file"></label>
-      <div class="grow" style="min-width:0"><h1 class="ellipsis">${me.name}</h1>
-        <div class="small muted">${[titleName(me.title_id), unitName(me.unit_id)].filter(Boolean).join(' · ') || me.email}</div>
-        <div class="row wrap" style="gap:6px;margin-top:8px"><span class="badge ${me.role === 'admin' ? 'brand' : me.role === 'editor' ? 'info' : ''}">${ROLE_LABEL[me.role]}</span>${me.phone ? html`<span class="badge">${icon('phone')}${me.phone}</span>` : ''}</div></div>
-    </div>
-    <nav class="seg prof-tabs" role="tablist">${tabs.map(([k, l, ic]) => html`<a class="${tab === k ? 'on' : ''}" href="#/profil/${k}" role="tab">${icon(ic, 'sm')}<span>${l}</span></a>`)}</nav>
-    <div class="prof-body" id="profBody">${profileTabHtml(tab)}</div>`);
-  if (tab === 'gonderiler') mountFeed($('#feedHost'), { filter: 'mine', fixed: true });
-  if (tab === 'profil') { const pb = $('#profBody'); if (pb) pb.insertAdjacentHTML(Object.keys(S.mods_why || {}).length ? 'afterbegin' : 'beforeend', fmtVal(accessInfoHtml())); } // görünmeyen bölüm varsa en üstte
   if (tab === 'bildirim' || tab === 'guvenlik') mountProfileExtras();
   if (tab === 'gorunum' && typeof prefsAppearanceMount === 'function') prefsAppearanceMount();
   if (tab === 'bildirim' && typeof remindCardMount === 'function') remindCardMount();
@@ -1596,17 +1565,6 @@ function appearanceCardHtml() {
     <button class="btn ghost sm" data-act="tour" style="align-self:flex-start">${icon('info', 'sm')}Kısa tanıtımı tekrar göster</button>
   </div>`;
 }
-ACT.fs = (el) => {
-  const lg = el.dataset.v === 'lg';
-  document.documentElement.classList.toggle('fs-lg', lg);
-  try { localStorage.setItem('nm-fs', lg ? 'lg' : ''); } catch (e) { /* */ }
-  $$('[data-act=fs]').forEach((b) => b.classList.toggle('on', b === el));
-};
-ACT['theme-set'] = (el) => {
-  setTheme(el.dataset.v);
-  $$('[data-act=theme-set]').forEach((b) => b.classList.toggle('on', b === el));
-  const b = $('#themeBtn'); if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
-};
 
 /* Çıkışta / hesap değişince önceki kişinin bilgileri ekranda kalmasın */
 function resetAppState() {
@@ -1887,15 +1845,12 @@ ACT['pb-scope'] = (el) => {
 };
 ACT['pb-add'] = () => { openModal({ title: 'Numara ekle', body: pbForm(null) }); };
 ACT['pb-edit'] = (el) => { const it = (PB.items || []).find((x) => x.id === +el.dataset.id); if (it) openModal({ title: 'Numarayı düzenle', body: pbForm(it) }); };
-FORMS['pb-save'] = async (f) => {
-  const d = formData(f);
-  try {
-    const r = await api('phonebook.save', { ...d, id: d.id ? +d.id : null });
-    PB.items = r.items; pbSet(r);
-    const m = modalStack[modalStack.length - 1]; if (m) m.close();
-    toast('Kaydedildi'); drawPhonebook();
-  } catch (e) { showFormError(f, e.message); }
-};
+FORMS['pb-save'] = (f) => submitForm(f, async (d) => {
+  const r = await api('phonebook.save', { ...d, id: d.id ? +d.id : null });
+  PB.items = r.items; pbSet(r);
+  const m = modalStack[modalStack.length - 1]; if (m) m.close();
+  toast('Kaydedildi'); drawPhonebook();
+});
 ACT['pb-del'] = async (el) => {
   const it = (PB.items || []).find((x) => x.id === +el.dataset.id);
   if (!it || !(await confirmDialog({ title: 'Numara silinsin mi?', text: `${it.name} (${it.number}) rehberden silinir.`, ok: 'Sil', danger: true }))) return;

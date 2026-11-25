@@ -25,17 +25,6 @@ function rqName(n) {
   if (s !== s.toLocaleUpperCase('tr') || !/[A-ZÇĞİÖŞÜ]/.test(s)) return s;
   return s.split(/(\s+)/).map((w) => (w.trim() ? w[0] + w.slice(1).toLocaleLowerCase('tr') : w)).join('');
 }
-function rqRanges(days) {
-  const a = [...new Set(days)].sort((x, y) => x - y);
-  const out = [];
-  for (let i = 0; i < a.length; i++) {
-    let j = i;
-    while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++;
-    out.push(i === j ? String(a[i]) : `${a[i]}-${a[j]}`);
-    i = j;
-  }
-  return out.join(', ');
-}
 const rqDayN = (d) => +String(d).slice(8, 10);
 const rqDaysIn = (ym) => new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
 /** Ay aşan istekler: dönem ayının en fazla 7 gün öncesi ve sonrası (sunucuyla aynı) */
@@ -45,7 +34,6 @@ const rqSerial = (ds) => Math.round(Date.UTC(+ds.slice(0, 4), +ds.slice(5, 7) - 
 const rqFromSerial = (n) => { const x = new Date(n * 864e5); return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`; };
 /** Dönem ayına göre gün sırası: 1 = ayın 1'i; 0, -1… önceki ay; ayın son gününden büyük → sonraki ay */
 const rqOffDate = (ym, off) => rqFromSerial(rqSerial(ym + '-01') + off - 1);
-const rqInWin = (ym, ds) => { const o = rqSerial(ds) - rqSerial(ym + '-01') + 1; return o >= 1 - RQ_SPAN && o <= rqDaysIn(ym) + RQ_SPAN; };
 /** Tarihleri açıkça yazar (“3-5” 3 ile 5 diye okunmasın): 5 güne kadar her gün tek tek “3, 4, 5”; daha uzun aralık
  *  “7 → 18 (12 gün)”; ay aşan “28 Ara → 2 Oca (6 gün)”. Dönem ayındakilerde ay adı istenirse yazılır */
 const RQ_LIST_MAX = 5;

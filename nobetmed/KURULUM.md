@@ -1317,3 +1317,14 @@ Kişi birden çok listede olabilir (ör. Hemşire ve Basamak listesi) ve önceki
 - “Nöbet al” isteği ve kabulü seçilen nöbetin listesine göre denetlenir (kişi iki listedeyse yanlış listeye bakılmaz).
 - Not: 4.47’den önce yeni ayı aynı listeye yüklediyseniz önceki ayın kalan günleri silinmiş olabilir; o ayın dosyasını “Ay ekle” ile yeniden yükleyin.
 
+## 77. Denetim düzeltmeleri (4.55.0)
+Uygulamanın baştan sona incelenmesinde bulunan hatalar düzeltildi:
+- **Sohbet:** başka birimin yöneticisi, sizin biriminizin kurduğu grubu “kalıcı sil”se bile grup sizde mesajlarıyla durur — yalnız onun birimindeki kişiler gruptan çıkar. Fotoğraf / video / sesli mesaj, yüklenirken başka sohbete geçilse bile başladığı sohbete gider; sohbetten çıkınca süren ses kaydı durur (mikrofon kapanır). Enter’a iki kez basınca mesaj iki kez gitmez.
+- **İlanlar:** değişim ilanına yalnız o listedeki kendi nöbetinizle başvurulur (başka listedeki nöbet teklif olarak çıkmaz). İlanda gösterilen teklif günleri başvuruda kabul edilir.
+- **Nöbet devri / değişimi:** başlamış ya da geçmiş nöbet için gelen istek artık kabul edilemez. Eksik personel “kaydırma” adaylarında kişinin başka listedeki nöbeti de görülür.
+- **Listeye işleme:** dosyadan yanlış okunan uzak bir tarih (dönemin 7 gün öncesi / sonrası dışı) yok sayılır; aradaki aylar silinmez. Dönemi bilinmeyen ve birden çok ayı olan listenin ayı “düzelt” ile karıştırılamaz.
+- **Bildirimler:** “Gönderilenler”de kişiye özel bildirimler (değişim, ilan seçimi, istek yanıtı…) görünmez ve geri alınamaz; yalnız aynı gönderimdeki bildirimler birlikte geri alınır.
+- **Formlar:** Kaydet’e çift tıklama / çift Enter kaydı iki kez eklemez. Bir pencerede “Tamam”a basmak, sonraki silmeyi sorgusuz geçirmez.
+- **Kura:** “Taraf / blok yerleşimi” modülünün parçasıdır; modül kapalıysa kura da kapalı.
+- Günlük 2 GB yükleme sınırı sohbete gönderilen dosyaları da sayar. Takvim aboneliğinde “son güncelleme” saati doğru gösterilir. Dosya boyutları her yerde “1,5 MB” biçiminde.
+

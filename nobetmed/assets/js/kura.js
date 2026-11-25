@@ -5,7 +5,7 @@
 'use strict';
 
 NM_EXT.routes.kura = (view, r) => kuraPage(view, r);
-NM_EXT.nav.push({ sec: 'genel', href: '#/kura', icon: 'dice', label: 'Kura', match: (r) => r[0] === 'kura' });
+NM_EXT.nav.push({ sec: 'genel', mod: 'taraf', href: '#/kura', icon: 'dice', label: 'Kura', match: (r) => r[0] === 'kura' });
 Object.assign(NM_EXT.audit, { 'kura.start': 'Kura başlattı', 'kura.finish': 'Kurayı bitirdi', 'kura.delete': 'Kura kaydını sildi', 'kura.tpl': 'Kura şablonu kaydetti', 'kura.tpl.delete': 'Kura şablonunu sildi' });
 
 const KR = { d: null, items: '', title: '', tplId: null, opts: null, draw: null, ov: null, busy: false, setOpen: false };
@@ -151,6 +151,9 @@ function krStage(draw, fresh) {
   KR.draw = draw;
   let st = $('#krStage');
   if (st) st.remove();
+  // Önceki sahnenin dinleyicisi ve geri tuşu kaydı da kaldırılır (4.55.0)
+  if (KR.onResize) { window.removeEventListener('resize', KR.onResize); KR.onResize = null; }
+  if (KR.ov && typeof ovShut === 'function') { ovShut(KR.ov); KR.ov = null; }
   st = document.createElement('div');
   st.id = 'krStage';
   st.className = `kr-stage kr-t-${draw.opts.theme}`;

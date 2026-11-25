@@ -158,6 +158,8 @@ function pushHeal() {
     await _nmPushSend(sub);
     return true;
   })().catch(() => false);
+  // Sonuç oturum boyunca saklanmaz: abonelik sonradan düşerse bir sonraki denetimde yeniden onarılır (4.55.0)
+  _nmHeal.finally(() => { setTimeout(() => { _nmHeal = null; }, 60000); });
   return _nmHeal;
 }
 
