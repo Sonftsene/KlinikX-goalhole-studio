@@ -58,16 +58,17 @@ async function drawUsers(body) {
     <div class="us-live card card-pad" id="usLive">${usLiveHtml(online)}</div>
     <div class="toolbar">
       <div class="seg">${[['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['active', 'Aktif'], ['disabled', 'Pasif']].map(([k, l]) => html`<button class="${AD.userFilter === k ? 'on' : ''}" data-act="u-filter" data-f="${k}">${l}<span class="count ${k === 'pending' && n[k] ? 'warn' : 'muted'}">${n[k]}</span></button>`)}</div>
-      <div class="row wrap">
+      <div class="us-tools"><div class="us-fl">
         <div class="search us-search" style="flex:1 1 200px;min-width:180px;max-width:100%">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
         <select class="select us-sel" data-change="us-sort" aria-label="Sırala" title="Sırala">${[['name', 'Ada göre (A–Z)'], ['name_desc', 'Ada göre (Z–A)'], ['online', 'Çevrimiçi olanlar önce'], ['seen', 'Son görülme (yeniden eskiye)'], ['seen_old', 'Son görülme (eskiden yeniye)'], ['new', 'Kayıt tarihi (yeni önce)'], ['role', 'Yetkiye göre']].map(([k, l]) => html`<option value="${k}" ${US.sort === k ? raw('selected') : ''}>${l}</option>`)}</select>
         <select class="select us-sel" data-change="us-act" aria-label="Etkinlik" title="Etkinlik">${[['all', 'Tüm etkinlik'], ['online', `Şu an çevrimiçi (${users.filter((u) => usState(u) !== 'off').length})`], ['today', 'Bugün girenler'], ['week', 'Son 7 günde girenler'], ['idle30', '30 günden uzun girmeyenler'], ['never', 'Hiç girmeyenler']].map(([k, l]) => html`<option value="${k}" ${US.act === k ? raw('selected') : ''}>${l}</option>`)}</select>
         <select class="select us-sel" data-change="us-role" aria-label="Yetki" title="Yetki"><option value="">Tüm yetkiler</option>${[['admin', 'Yönetici'], ['editor', 'Sorumlu'], ['member', 'Üye']].map(([k, l]) => html`<option value="${k}" ${US.role === k ? raw('selected') : ''}>${l}</option>`)}${(S.roles || []).map((ro) => html`<option value="r${ro.id}" ${US.role === 'r' + ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
+        </div><div class="us-btns">
+        <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
         <button class="btn" data-act="inv-roster" title="Nöbet listesinde adı geçip hesabı olmayanlara davet">${icon('table', 'sm')}Listeden davet et</button>
         <button class="btn" data-act="inv-qr" title="Servise asılacak QR kod">${icon('qr', 'sm')}QR ile kayıt</button>
         ${modOn('mesaj') && S.hosp && isAdmin() ? html`<button class="btn" data-act="adc-all">${icon('chat', 'sm')}Tüm sohbetler</button>` : ''}
-        <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
-      </div>
+      </div></div>
     </div>
     <div class="card"><div class="table-wrap"><table class="t users-t">
       <thead><tr><th>Kişi</th><th>Unvan / Birim</th><th>Yetki</th><th>Durum</th><th>Çevrimiçi / son görülme</th><th></th></tr></thead>
@@ -520,14 +521,14 @@ async function adChats(u) {
   const load = async () => { const r = await api(u ? 'chat.admin.list' : 'chat.admin.all', u ? { user_id: u.id } : {}); items = r.items; trashN = r.trash || 0; };
   try { await load(); } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
   const sideHtml = (c) => c.kind === 'direct'
-    ? html`<div class="adc-sides">${c.sides.map((x) => html`<span class="adc-side ${x.has ? 'on' : 'off'}">${icon(x.has ? 'check' : 'x', 'sm')}${x.name}${x.unit ? html` <i>(${x.unit})</i>` : ''}<b>${x.has ? 'var' : 'sildi'}</b></span>`)}</div>`
+    ? html`<div class="adc-sides">${c.sides.map((x) => html`<span class="adc-side ${x.has ? 'on' : 'off'}">${icon(x.has ? 'check' : 'x', 'sm')}${x.name}${x.unit ? html` <i>(${x.unit})</i>` : ''}<b>${x.has ? 'listesinde' : 'sildi'}</b></span>`)}</div>`
     : html`<div class="tiny ${c.has_n < c.members ? 'warn-text' : 'faint'}">${c.has_n === c.members ? 'Herkeste duruyor' : `${c.has_n}/${c.members} kişide duruyor · silenler: ${c.sides.filter((x) => !x.has).map((x) => x.name).join(', ') || '—'}`}</div>`;
   const rowHtml = (c, i) => html`<div class="list-row" style="gap:10px;flex-wrap:wrap;align-items:flex-start" data-q="${(c.name + ' ' + c.sides.map((x) => x.name).join(' ')).toLocaleLowerCase('tr')}">
       <span class="cat-ico sm tone-${c.kind === 'direct' ? 'indigo' : 'teal'}">${icon(c.kind === 'direct' ? 'chat' : 'users', 'sm')}</span>
       <div class="grow" style="min-width:180px"><b class="small">${c.name}</b>${sideHtml(c)}<div class="tiny faint">${c.kind === 'direct' ? 'Birebir' : 'Grup · ' + c.members + ' kişi'} · ${c.msgs} mesaj${c.last_at ? ' · son ' + fmtRel(c.last_at) : ''}</div></div>
-      <button type="button" class="btn sm ghost danger" data-adc="${i}">${icon('trash', 'sm')}${c.scope === 'all' ? 'Sil' : 'Biriminizden kaldır'}</button></div>`;
+      <button type="button" class="btn sm ghost danger adc-del" data-adc="${i}" aria-label="${c.scope === 'all' ? 'Sil' : 'Biriminizden kaldır'}">${icon('trash', 'sm')}<span>${c.scope === 'all' ? 'Sil' : 'Biriminizden kaldır'}</span></button></div>`;
   const draw = () => {
-    m.setBody(html`<div class="row between wrap" style="gap:8px;margin-bottom:10px"><p class="small muted" style="margin:0;flex:1;min-width:220px">${icon('lock', 'sm')} Mesaj içerikleri gösterilmez. Yalnız en az bir kişide duran sohbetler listelenir; her kişinin yanında sohbetin onda durup durmadığı yazar. Silinen sohbet herkesten kalkar ama <b>çöp kutusunda</b> durur, geri yüklenebilir.</p>
+    m.setBody(html`<div class="row between wrap" style="gap:8px;margin-bottom:10px"><details class="small muted adc-info" style="margin:0;flex:1;min-width:220px"><summary>${icon('lock', 'sm')} Mesaj içerikleri gösterilmez · ${icon('info', 'sm')}</summary>Yalnız en az bir kişide duran sohbetler listelenir; her kişinin yanında sohbetin onda durup durmadığı yazar. Silinen sohbet herkesten kalkar ama <b>çöp kutusunda</b> durur, geri yüklenebilir.</details>
         <button type="button" class="btn sm" data-adc-trash>${icon('trash', 'sm')}Çöp kutusu${trashN ? ` (${trashN})` : ''}</button></div>
       ${items.length > 6 ? html`<input class="input" type="search" id="adcQ" placeholder="Kişi ya da grup ara…" value="${q}" style="margin-bottom:10px">` : ''}
       ${items.length ? html`<div class="card"><div class="list adc-list">${items.map(rowHtml)}</div></div>`

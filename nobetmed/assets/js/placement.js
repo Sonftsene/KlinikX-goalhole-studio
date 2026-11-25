@@ -1129,7 +1129,7 @@ NM_EXT.homeCards.push({
         ${sb.length ? html`<div class="pl-hsb"><span class="tiny faint">(Nöbete gelecek kişi)</span>${sb.map((s) => html`<span class="pl-hp sb ${plIsMe(s.name) ? 'me' : ''}">${pName(plName(s.name))}</span>`)}</div>` : ''}`
       : html`<div class="pl-hempty small muted">${icon('clock', 'sm')}<span class="grow">Bugünün blok yerleşimi henüz yapılmadı${r.on_duty ? ` · ${r.on_duty} kişi nöbette` : ''}.</span>${r.can_edit ? html`<a class="btn sm primary" href="#/taraf/${r.date}">Yerleştir</a>` : ''}</div>`;
     setHTML(el, html`<div class="card pl-home"><div class="card-head"><h3>${icon('layers', 'sm')} Bugün bloklar</h3>
-      ${r.mine ? html`<span class="badge brand pl-mine">Sen: ${r.mine}</span>` : ''}
+      ${r.mine ? html`<span class="badge brand pl-mine">Siz: ${r.mine}</span>` : ''}
       ${r.can_edit && work.length ? html`<button class="btn ghost icon sm" data-act="pl-share-home" data-date="${r.date}" title="Paylaş" aria-label="Paylaş">${icon('send', 'sm')}</button>` : ''}<a class="small" href="#/taraf/${r.date}">Tümü</a></div>${body}
       <div class="tiny faint pl-hfoot">${work.length ? html`<details class="grow pl-legend"><summary>${icon('info', 'sm')} Simgeler</summary>( ) karşı tarafa toplam geçiş · <span class="pl-hp in sm">renkli</span> karşı taraftan gelen</details>` : html`<span class="grow"></span>`}
         <a class="pl-hist" href="#/taraf/${plAddDays(r.date, -1)}">${icon('history', 'sm')}Geçmiş günler</a></div></div>`);

@@ -328,8 +328,17 @@ function hubTabs(active) {
   NM_EXT.hubTabs.forEach((x) => { HUB_HREF[x.key] = x.href; });
   return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${modOn('taraf') ? t('taraf', 'layers', 'Taraf') : ''}${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => t(x.key, x.icon, x.label))}${t('list', 'table', 'Liste')}</nav>`;
 }
+/** Nöbet sekmelerinin başlığı: üstte küçük “Nöbet”, başlıkta açık sekmenin adı (4.56.0; önce her sekmede “Nöbet” yazıyordu) */
+function hubLabel(k) {
+  const base = { cal: 'Takvimim', who: 'Kim nöbette', taraf: 'Taraf', list: 'Liste' };
+  const ext = NM_EXT.hubTabs.find((x) => x.key === k);
+  const def = base[k] || (ext && ext.label) || uiL('@nobet', 'Nöbet');
+  return HUB_HREF[k] ? uiL(HUB_HREF[k], def, 'Nöbet') : def;
+}
 function hubHead(active, sub, actions) {
-  return html`<div class="page-head hub-head"><div><h1>${uiL('@nobet', 'Nöbet')}</h1><p>${sub}</p></div>${actions || ''}</div>${hubTabs(active)}`;
+  const nav = hubTabs(active); // HUB_HREF’i de doldurur
+  const lbl = hubLabel(active);
+  return html`<div class="page-head hub-head"><div><div class="hub-eyebrow">${uiL('@nobet', 'Nöbet')}</div><h1>${lbl === 'Liste' ? 'Nöbet listesi' : lbl}</h1><p>${sub}</p></div>${actions || ''}</div>${nav}`;
 }
 
 const CAL = { y: 0, m: 0, sel: null };
@@ -540,7 +549,7 @@ async function renderDirectory(view) {
   setHTML(view, html`${hubHead('who', 'Hangi gün kim nöbette, ekibe tek dokunuşla ulaşın')}
     <div class="card" id="dutyCard"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>
     <div class="sec-title">${icon('phone', 'sm')} Ekip rehberi</div>
-    <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, unvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
+    <div class="toolbar dir-tools"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, unvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
       <div class="seg"><button class="${DIR.filter === 'all' ? 'on' : ''}" data-act="dir-f" data-f="all">Herkes</button><button class="${DIR.filter === 'today' ? 'on' : ''}" data-act="dir-f" data-f="today">Bugün nöbette</button></div></div>
     <div id="dirList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div></div>`);
   try { DIR.people = (await api('people.list')).people; } catch (e) { DIR.people = DIR.people || []; }

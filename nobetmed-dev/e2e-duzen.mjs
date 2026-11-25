@@ -117,7 +117,9 @@ try {
   if (!(await M.p.locator('#bottomNav', { hasText: 'Diğer' }).count())) fail('alt menüde “Diğer” yok');
   await M.p.goto(BASE + '#/nobetim');
   await M.p.locator('.hub-tabs a.on', { hasText: 'Nöbetlerim' }).waitFor({ timeout: 8000 }).catch(() => fail('nöbet sekmesinde yeni ad yok'));
-  await M.p.locator('.page-head h1', { hasText: 'Nöbet işleri' }).waitFor({ timeout: 5000 }).catch(() => fail('nöbet sayfa başlığı değişmedi'));
+  // 4.56.0: başlıkta açık sekmenin adı, üstte bölüm adı
+  await M.p.locator('.page-head .hub-eyebrow', { hasText: 'Nöbet işleri' }).waitFor({ timeout: 5000 }).catch(() => fail('nöbet bölüm adı değişmedi'));
+  await M.p.locator('.page-head h1', { hasText: 'Nöbetlerim' }).waitFor({ timeout: 5000 }).catch(() => fail('nöbet sayfa başlığı sekme adını göstermiyor'));
   await M.p.goto(BASE + '#/telefon');
   await M.p.locator('.page-head h1', { hasText: 'Dahili numaralar' }).waitFor({ timeout: 8000 }).catch(() => fail('telefon rehberi sayfa başlığı değişmedi'));
   await M.p.goto(BASE + '#/menu');

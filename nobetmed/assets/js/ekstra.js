@@ -26,9 +26,10 @@ function exHead(cur, tab, ym) {
   const pre = { take: '', me: 'gonullu/', board: 'liste/' }[tab];
   const sub = { take: 'Alabileceğiniz nöbetler (bugünden ay sonuna).',
     me: 'Eksik personel çağrılarında öncelikli sorulmak için gönüllü olun; kurallara uyan günleriniz listelenir.', board: 'Eksik çağrılarına gönüllü olanlar ve kurallara göre uygun oldukları günler' }[tab];
-  return html`<div class="page-head"><div><h1>Ekstra nöbet</h1><p>${sub}</p></div></div>
-    ${tabs.length > 1 ? html`<div class="seg">${tabs.map(([k, l, h]) => html`<a class="${tab === k ? 'on' : ''}" href="${h}">${l}</a>`)}</div>` : ''}
-    <div class="seg ex-months">${exMonths().map((m) => html`<a class="${m === cur ? 'on' : ''}" href="#/ekstra/${pre}${m}">${exMonthName(m)}</a>`)}</div>`;
+  // Nöbet sekmeleri (Takvimim, Kim nöbette, … ) burada da görünür: kişi Nöbet bölümünden çıkmış gibi olmasın (4.56.0)
+  return html`${typeof hubHead === 'function' ? hubHead('ekstra', sub) : html`<div class="page-head"><div><h1>Ekstra nöbet</h1><p>${sub}</p></div></div>`}
+    <div class="ex-bar">${tabs.length > 1 ? html`<div class="seg">${tabs.map(([k, l, h]) => html`<a class="${tab === k ? 'on' : ''}" href="${h}">${l}</a>`)}</div>` : ''}
+    <div class="seg ex-months">${exMonths().map((m) => html`<a class="${m === cur ? 'on' : ''}" href="#/ekstra/${pre}${m}">${exMonthName(m)}</a>`)}</div></div>`;
 }
 
 /* ---------------- Kişi: benim isteğim ve uygun günlerim ---------------- */
@@ -164,12 +165,14 @@ function tkDraw() {
       <div class="row wrap" style="gap:4px;margin-top:2px">${codeChip(mkEntry(x))}<span class="small muted">${shiftDesc(mkEntry(x))}</span>${x.listed ? html`<span class="badge brand" title="Bu nöbeti ilana koydu">${icon('megaphone', 'sm')}İlanda</span>` : ''}${x.roster ? html`<span class="tiny faint">${x.roster}</span>` : ''}</div>
       ${x.ok ? '' : x.parts && tkAny(x)
         ? html`<div class="tk-why"><span class="tk-can">${x.parts.day.ok && x.parts.night.ok ? 'Gündüzü ya da gecesi alınabilir' : x.parts.day.ok ? 'Yalnız gündüzü (08-16) alınabilir' : 'Yalnız gecesi (16-08) alınabilir'}</span>${x.my_why || x.their_why ? html`<span class="mk-no">Tamamı alınamaz: ${x.my_why ? x.my_why.replace(/^Sizin için /, '') : x.display.split(' ')[0] + ' için ' + x.their_why}</span>` : ''}</div>`
-        : html`${x.my_why ? html`<div class="tiny mk-no">Sen: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
+        : html`${x.my_why ? html`<div class="tiny mk-no">Siz: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
     ${acts(x, date)}</div>`;
+  // Ayda alınabilecek nöbet yoksa gün şeridi gösterilmez (her kutuda “–” ve “Tümü 0” anlamsız — 4.56.0)
+  const allN = gen.days.reduce((a, x) => a + x.items.filter(tkAny).length, 0);
   setHTML(box, html`${tkReqHtml(d.requests)}
-    <div class="tk-strip"><a class="tk-dc all ${TK.date ? '' : 'on'}" href="#/ekstra/${TK.ym}"><b>Tümü</b><span>gün</span><em>${gen.days.reduce((a, x) => a + x.items.filter(tkAny).length, 0)}</em></a>${strip}</div>
+    ${allN || TK.date ? html`<div class="tk-strip"><a class="tk-dc all ${TK.date ? '' : 'on'}" href="#/ekstra/${TK.ym}"><b>Tümü</b><span>ay</span><em>${allN}</em></a>${strip}</div>` : ''}
     <div class="row wrap" style="gap:8px;margin:10px 0"><div class="seg">${[['all', 'Tüm vardiyalar'], ['24', '24 saat'], ['day', 'Gündüz'], ['night', 'Gece']].map(([k, l]) => html`<button type="button" class="${TK.f === k ? 'on' : ''}" data-act="tk-f" data-f="${k}">${l}</button>`)}</div>
-      <span class="small muted">${TK.date ? dateLabel(TK.date) + ' · ' : ''}${total} nöbet alınabilir</span></div>
+      ${total ? html`<span class="small muted">${TK.date ? dateLabel(TK.date) + ' · ' : ''}${total} nöbet alınabilir</span>` : ''}</div>
     ${TK.date && d.days[0] && d.days[0].mine ? html`<div class="mk-box">${icon('info', 'sm')}<span>${d.days[0].items.some(tkAny) ? `O gün sizin ${d.days[0].mine} nöbetiniz var; 24 saatlik nöbetlerin yalnız tamamlayan kısmını alabilirsiniz (ikisi 24 saate birleşir).` : `O gün sizin de ${d.days[0].mine} kaydınız var; bu yüzden o günün nöbetlerini alamazsınız.`}</span></div>` : ''}
     ${days.length ? days.map((x) => html`${TK.date ? '' : html`<div class="sec-title mk-sec">${dateLabel(x.date)} <span class="faint">(${x.items.length})</span></div>`}<div class="card"><div class="list">${x.items.map((i) => item(i, x.date))}</div></div>`)
       : html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${TK.date ? 'O gün alabileceğiniz nöbet yok' : 'Alabileceğiniz nöbet yok'}</h3><p class="small">${TK.date ? 'O gün nöbeti olan kimse yok ya da kurallar uymuyor.' : 'Kalan günlerde hem sizin hem nöbet sahibinin kurallarına uyan bir nöbet bulunamadı.'}</p></div>`}

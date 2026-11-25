@@ -352,7 +352,7 @@ const elifUnit = ta.items.find((x) => /ELİF/.test(x.name)).segs[0].unit;
 await m.reload();
 await m.locator('.home-ext-bloklar .pl-hu').first().waitFor();
 const card = await m.locator('.home-ext-bloklar').innerText();
-if (!/Elif Yılmaz\s*\(\d+\)/.test(card) || !/Kemal Bulut\s*\(\d+\)/.test(card) || !card.includes('Sen: ' + elifUnit) || !/SORUMLULAR[\s\S]*Burak Demir/i.test(card) || !/Nöbete gelecek kişi[\s\S]*Ayşe Kaya/.test(card)) fail('ana sayfa kartı: ' + card);
+if (!/Elif Yılmaz\s*\(\d+\)/.test(card) || !/Kemal Bulut\s*\(\d+\)/.test(card) || !card.includes('Siz: ' + elifUnit) || !/SORUMLULAR[\s\S]*Burak Demir/i.test(card) || !/Nöbete gelecek kişi[\s\S]*Ayşe Kaya/.test(card)) fail('ana sayfa kartı: ' + card);
 if (/Deniz Şahin/.test(card)) fail('ana sayfada dahil edilmeyen kişi');
 const myb = await m.evaluate((t) => (typeof S !== 'undefined' && S.my_blocks ? S.my_blocks[t] : 'yok'), today);
 if (myb !== elifUnit) fail('S.my_blocks bugünü göstermiyor: ' + myb);
@@ -369,7 +369,7 @@ if (yd) {
   if (!/Kaydedildi/.test(yTxt) || !/Geçmiş/.test(yTxt)) fail('üye geçmiş günü göremedi: ' + yTxt.slice(0, 300));
   if (await m.locator('[data-act=pl-auto], .pl-p.ed, [data-act=pl-share]').count()) fail('üye geçmiş günde düzenleme/paylaş görüyor');
 }
-step(`bugün: Burak Sorumlular’da, nöbete gelecek Ayşe ana sayfada ayrı; Sen: ${elifUnit}; S.my_blocks; üye geçmiş günü (${yDate}) salt okunur gördü`);
+step(`bugün: Burak Sorumlular’da, nöbete gelecek Ayşe ana sayfada ayrı; Siz: ${elifUnit}; S.my_blocks; üye geçmiş günü (${yDate}) salt okunur gördü`);
 
 // 13) Paylaşım: PNG görsel ve metin (yalnız sorumlular)
 await a.goto(BASE + '#/taraf/' + today);

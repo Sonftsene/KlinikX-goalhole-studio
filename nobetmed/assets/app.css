@@ -2272,3 +2272,33 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
 
 /* Odaklanan / kaydırılan öğe yapışkan üst çubuğun altında kalmasın */
 html { scroll-padding-top: calc(var(--topbar) + env(safe-area-inset-top) + 12px); scroll-padding-bottom: 90px; }
+/* Nöbet sekmeleri: üstte bölüm adı, başlıkta sekme adı */
+.hub-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); margin-bottom: 2px; }
+/* Ekstra nöbet: sekme ve ay seçimi tek satırda */
+.ex-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ex-bar .seg { margin: 0; }
+/* Kullanıcılar: arama ve seçimler ızgarada, birincil “Kullanıcı ekle” önde; filtre çipinde solma ipucu */
+.us-tools { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.us-fl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.us-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 700px) {
+  .us-fl { display: grid; grid-template-columns: 1fr 1fr; }
+  .us-fl .us-search { grid-column: 1 / -1; }
+  .us-fl .us-sel { width: 100%; min-width: 0; }
+  .us-btns .btn.primary { flex: 1 1 100%; justify-content: center; }
+  .us-btns .btn:not(.primary) { flex: 1 1 auto; height: 36px; font-size: 13px; }
+  .toolbar > .seg { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); padding-right: 22px; }
+}
+/* Tüm sohbetler penceresi: açıklama açılır; “Sil” telefonda yalnız simge */
+.adc-info summary { cursor: pointer; list-style: none; }
+.adc-info summary::-webkit-details-marker { display: none; }
+.adc-info[open] summary { margin-bottom: 4px; }
+@media (max-width: 600px) { .adc-del span { display: none; } .adc-del { min-width: 40px; justify-content: center; } }
+
+/* İlan kartı: avatar ve ad aynı satırda (uzun satır kesilir, alta düşmez) */
+.mk-l2:has(> .pav) { flex-wrap: nowrap; }
+.mk-l2:has(> .pav) > .ellipsis { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Pasif birincil düğme açıkça gri (soluk marka rengi “basılabilir mi?” sorusu doğurmasın) */
+.btn.primary:disabled, .btn.primary[disabled] { background: var(--surface-3); background-image: none; color: var(--text-3); border-color: var(--border); box-shadow: none; opacity: 1; }
+/* İstekler: “Değiştir” bir bağlantı gibi, satırın sağında */
+[data-act=rq-roster-pick] { height: auto; padding: 4px 6px; color: var(--brand-text); text-decoration: underline; text-underline-offset: 3px; margin-left: auto; }

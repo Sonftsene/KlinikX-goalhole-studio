@@ -1328,3 +1328,12 @@ Uygulamanın baştan sona incelenmesinde bulunan hatalar düzeltildi:
 - **Kura:** “Taraf / blok yerleşimi” modülünün parçasıdır; modül kapalıysa kura da kapalı.
 - Günlük 2 GB yükleme sınırı sohbete gönderilen dosyaları da sayar. Takvim aboneliğinde “son güncelleme” saati doğru gösterilir. Dosya boyutları her yerde “1,5 MB” biçiminde.
 
+## 78. Ekran ve metin düzenlemeleri, kısayol kutu boyutu (4.56.0)
+- **Kısayol kutularının boyutu:** Ayarlar › Genel › Herkes için ana sayfa › Kısayollar › “Büyük düğmeler” açıkken **Kutu boyutu** (Küçük / Orta / Büyük / Çok büyük) ve **Telefonda yan yana** (Otomatik / 1–4) seçilir; önizlemede hemen görünür, “Herkese uygula” ile kaydedilir. “Sade” hazır düzen büyük kutu, yan yana 2 ile gelir.
+- **Metinler:** uygulama her yerde “siz” diye hitap eder; kişi, birim, tarih ve saatlerden sonra yanlış ek çıkmaz (“Kime: Elif Yılmaz”, “bitiş 16:00”). Tek terimler: Nöbet listesi (sekmede “Liste”), Okunacaklar, Hesabım, Sorumlu (eski “Yayıncı”), Değiş / Devret / Devral, değişim / devir **teklifi**, Gönüllü ol, Yayımla, Okundu onayı, QR kod, Ana sayfa. Teknik hata yazıları kullanıcıya gösterilmez; hata iletileri ne yapılacağını söyler. Destek SSS’si güncel menü adlarıyla.
+- **Ana sayfa:** aynı liste ve ay yeniden yüklenince yeni duyuru açılmaz, var olan güncellenip başa gelir (akış “… güncellendi” kartlarıyla dolmaz). Telefonda akışta ilk 8 kart, sonra “Tümünü göster”. Alt menüde Ana sayfa sayacı nokta olarak görünür.
+- **Ayarlar (telefon):** “Ayarları kaydet” çubuğu bir şey değişince çıkar; önizleme yapışkan değildir; sekme şeridi opaktır. Bildirim politikası değişince kendiliğinden kaydedilir.
+- **Nöbet sekmeleri:** başlıkta açık sekmenin adı (üstte küçük “Nöbet”); Ekstra nöbet sayfasında da sekmeler var; ayda alınabilecek nöbet yoksa gün şeridi gösterilmez.
+- **Sohbet:** masaüstünde iki panel (solda sohbet listesi); telefonda açık sohbet kenardan kenara, alt menü gizli.
+- **Diğer:** Excel liste telefonda %90 açılır, “Beni bul” satırın tamamını vurgular, koyu temada isteğe bağlı koyu tablo; telefon rehberinde aynı adlı gruplar birleşir; açık temada soluk yazılar daha okunur; okunmamış sayaçları her yerde aynı renk; Kullanıcılar sayfasında birincil “Kullanıcı ekle” önde.
+
