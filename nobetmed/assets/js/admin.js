@@ -65,6 +65,7 @@ async function drawUsers(body) {
         <select class="select us-sel" data-change="us-role" aria-label="Yetki" title="Yetki"><option value="">Tüm yetkiler</option>${[['admin', 'Yönetici'], ['editor', 'Yayıncı'], ['member', 'Üye']].map(([k, l]) => html`<option value="${k}" ${US.role === k ? raw('selected') : ''}>${l}</option>`)}${(S.roles || []).map((ro) => html`<option value="r${ro.id}" ${US.role === 'r' + ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
         <button class="btn" data-act="inv-roster" title="Nöbet listesinde adı geçip hesabı olmayanlara davet">${icon('table', 'sm')}Listeden davet et</button>
         <button class="btn" data-act="inv-qr" title="Servise asılacak QR kod">${icon('qr', 'sm')}QR ile kayıt</button>
+        ${modOn('mesaj') && S.hosp && isAdmin() ? html`<button class="btn" data-act="adc-all">${icon('chat', 'sm')}Tüm sohbetler</button>` : ''}
         <button class="btn primary" data-act="u-new">${icon('plus', 'sm')}Kullanıcı ekle</button>
       </div>
     </div>
@@ -510,27 +511,35 @@ CHANGE['pr-pages'] = async (el) => {
 
 
 /* ---------------- Yönetici: kişinin sohbetleri (içerik görünmez; silme günlüğe yazılır, kişilere bildirim gider) ---------------- */
+/** u: kişi (o kişinin sohbetleri) ya da null (birimin tüm sohbetleri: kim kiminle) */
 async function adChats(u) {
-  const m = openModal({ title: `${u.name} · sohbetleri`, body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
-  let items;
-  try { items = (await api('chat.admin.list', { user_id: u.id })).items; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
-  const draw = () => m.setBody(html`<p class="small muted" style="margin:0 0 10px">${icon('lock', 'sm')} Mesaj içerikleri gösterilmez. Silme işlem günlüğüne yazılır; sohbetteki kişilere “yönetici tarafından silindi” bildirimi gider. Birim grubu burada görünmez.</p>
-    ${items.length ? html`<div class="card"><div class="list adc-list">${items.map((c, i) => html`<div class="list-row" style="gap:10px;flex-wrap:wrap">
+  const m = openModal({ title: u ? `${u.name} · sohbetleri` : 'Tüm sohbetler', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  let items, q = '';
+  try { items = (await api(u ? 'chat.admin.list' : 'chat.admin.all', u ? { user_id: u.id } : {})).items; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
+  const rowHtml = (c, i) => html`<div class="list-row" style="gap:10px;flex-wrap:wrap" data-q="${(c.name + ' ' + (c.people || '')).toLocaleLowerCase('tr')}">
       <span class="cat-ico sm tone-${c.kind === 'direct' ? 'indigo' : 'teal'}">${icon(c.kind === 'direct' ? 'chat' : 'users', 'sm')}</span>
-      <div class="grow" style="min-width:150px"><b class="small">${c.name}</b><div class="tiny faint">${c.kind === 'direct' ? 'Birebir' : 'Grup · ' + c.members + ' kişi'} · ${c.msgs} mesaj${c.last_at ? ' · son ' + fmtRel(c.last_at) : ''}${c.other_unit ? ' · başka birimden kişi var' : ''}</div></div>
+      <div class="grow" style="min-width:160px"><b class="small">${c.name}</b>${c.people ? html`<div class="tiny muted ellipsis">${c.people}</div>` : ''}<div class="tiny faint">${c.kind === 'direct' ? 'Birebir' : 'Grup · ' + c.members + ' kişi'} · ${c.msgs} mesaj${c.last_at ? ' · son ' + fmtRel(c.last_at) : ''}</div></div>
       ${c.scope === 'all' ? html`<button type="button" class="btn sm ghost danger" data-adc="${i}" data-mode="all">${icon('trash', 'sm')}Herkesten sil</button>`
-        : html`<button type="button" class="btn sm ghost" data-adc="${i}" data-mode="own" title="Başka birimle ortak sohbet: yalnız bu kişinin listesinden kaldırılır">${icon('x', 'sm')}Listesinden kaldır</button>`}</div>`)}</div></div>`
-      : html`<div class="card empty"><div class="e-ico">${icon('chat', 'lg')}</div><p class="small">Bu kişinin sohbeti yok.</p></div>`}`);
+        : html`<button type="button" class="btn sm ghost" data-adc="${i}" data-mode="own" title="Başka birimin grubu: biriminizdeki kişiler gruptan çıkarılır, grup o birimde kalır">${icon('x', 'sm')}Biriminizden kaldır</button>`}</div>`;
+  const draw = () => {
+    m.setBody(html`<p class="small muted" style="margin:0 0 10px">${icon('lock', 'sm')} Mesaj içerikleri gösterilmez. Birebir sohbetler kim kime yazdıysa iki taraftan da silinir. Silme işlem günlüğüne yazılır; sohbetteki kişilere “yönetici tarafından silindi” bildirimi gider. Birim grubu burada görünmez.</p>
+      ${items.length > 6 ? html`<input class="input" type="search" id="adcQ" placeholder="Kişi ya da grup ara…" value="${q}" style="margin-bottom:10px">` : ''}
+      ${items.length ? html`<div class="card"><div class="list adc-list">${items.map(rowHtml)}</div></div>`
+        : html`<div class="card empty"><div class="e-ico">${icon('chat', 'lg')}</div><p class="small">${u ? 'Bu kişinin sohbeti yok.' : 'Biriminizde sohbet yok.'}</p></div>`}`);
+    const qi = $('#adcQ', m.el);
+    if (qi) qi.addEventListener('input', () => { q = qi.value; const v = q.trim().toLocaleLowerCase('tr'); m.el.querySelectorAll('.adc-list .list-row').forEach((r) => r.classList.toggle('hidden', !!v && !r.dataset.q.includes(v))); });
+  };
   draw();
   m.el.addEventListener('click', async (ev) => {
     const b = ev.target.closest('[data-adc]'); if (!b) return;
     const c = items[+b.dataset.adc]; if (!c) return;
     const all = b.dataset.mode === 'all';
-    if (!(await confirmDialog({ title: all ? `“${c.name}” sohbeti herkesten silinsin mi?` : `“${c.name}” ${u.name} kişisinin listesinden kaldırılsın mı?`,
-      text: all ? `${c.msgs} mesaj, dosyalar ve tepkiler sohbetteki herkes için kalıcı olarak silinir; geri alınamaz.` : 'Sohbet başka birimle ortak olduğu için yalnız bu kişinin listesinden ve geçmişinden kaldırılır; karşı tarafta kalır.',
+    if (!(await confirmDialog({ title: all ? `“${c.name}” herkesten silinsin mi?` : `“${c.name}” ${u ? u.name + ' kişisinin listesinden' : 'biriminizden'} kaldırılsın mı?`,
+      text: all ? `${c.msgs} mesaj, dosyalar ve tepkiler sohbetteki herkes için kalıcı olarak silinir; geri alınamaz.` : 'Bu grup başka bir birimin; grup orada kalır, biriminizdeki kişilerin listesinden ve geçmişinden kaldırılır.',
       ok: all ? 'Herkesten sil' : 'Kaldır', danger: true }))) return;
     await busy(b, async () => {
-      try { const r = await api('chat.admin.delete', { user_id: u.id, id: c.id, mode: b.dataset.mode }); items = r.items; draw(); toast(r.mode === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet kişinin listesinden kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+      try { const r = await api('chat.admin.delete', u ? { user_id: u.id, id: c.id, mode: b.dataset.mode } : { id: c.id, mode: b.dataset.mode }); items = r.items; draw(); toast(r.mode === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet listeden kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
     });
   });
 }
+ACT['adc-all'] = () => adChats(null);

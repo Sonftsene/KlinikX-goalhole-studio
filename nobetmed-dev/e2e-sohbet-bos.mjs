@@ -62,6 +62,16 @@ try {
   if (!(await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('mesaj yazılınca sohbet listede görünmedi');
   step(`kişi kartından açılıp yazılmayan sohbet (${who.name}) listede görünmüyor (karşı tarafta da); aynı kişiye tekrar dokununca aynı sohbet açılıyor; mesaj yazılınca listede`);
 
+  // Yönetici: Tüm sohbetler (kim kiminle) — birebir sohbetler iki taraftan da silinebilir
+  const ALL = (await call(A, 'chat.admin.all')).items;
+  const mineAll = ALL.find((c) => c.id === id);
+  if (!mineAll || !/ ↔ /.test(mineAll.name) || mineAll.scope !== 'all') fail('tüm sohbetler listesinde kim kiminle görünmüyor: ' + JSON.stringify(mineAll));
+  if (ALL.some((c) => c.kind === 'direct' && c.scope !== 'all')) fail('birebir sohbet herkesten silinemiyor');
+  await A.goto(BASE + '#/yonetim/kullanicilar');
+  await A.click('[data-act=adc-all]');
+  await A.locator('.adc-list .list-row', { hasText: mineAll.name }).first().waitFor({ timeout: 8000 });
+  await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-tumu.png') }).catch(() => {});
+  await A.keyboard.press('Escape');
   // Yönetici: Kullanıcılar › kişi › Sohbetleri → içeriği görmeden sohbeti herkesten siler (4.51.0)
   const L = (await call(A, 'chat.admin.list', { user_id: who.uid })).items;
   const row = L.find((c) => c.id === id);
@@ -75,7 +85,7 @@ try {
   await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-yonetici.png') }).catch(() => {});
   await r2.locator(`[data-mode=${row.scope}]`).click();
   await A.locator('[data-ok]').last().click();
-  await A.getByText(row.scope === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet kişinin listesinden kaldırıldı').first().waitFor({ timeout: 8000 });
+  await A.getByText(row.scope === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet listeden kaldırıldı').first().waitFor({ timeout: 8000 });
   if (row.scope === 'all' && (await call(A, 'chat.list', { open: id })).items.some((c) => c.id === id)) fail('silinen sohbet yöneticinin listesinde duruyor');
   if (LOGIN[who.name]) {
     const O = await login(...LOGIN[who.name]);
