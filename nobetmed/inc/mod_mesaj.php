@@ -249,8 +249,11 @@ function a_chat_list(): void
     c_access($me, (int)$u['id']); // üye satırı
     $rows = h_all('SELECT c.* FROM c_chats c JOIN c_members m ON m.chat_id = c.id WHERE m.tkey = ? AND m.user_id = ? ORDER BY COALESCE(c.last_at, c.created_at) DESC', [c_tk(), (int)$me['id']]);
     $items = [];
+    $open = (int)i('open');
     foreach ($rows as $c) {
         if ($c['kind'] === 'unit' && $c['tkey'] !== c_tk()) continue;
+        // Kişi kartından “Mesaj” ile açılıp hiç yazılmamış birebir sohbet listede (iki tarafta da) görünmez; açıkken görünür
+        if ($c['kind'] === 'direct' && (int)($c['last_id'] ?? 0) <= 0 && (int)$c['id'] !== $open) continue;
         $m = h_one('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['id'], c_tk(), (int)$me['id']]);
         // Silinen sohbet: yeni mesaj gelene kadar listede yok
         if ((int)($m['deleted'] ?? 0) === 1) {
