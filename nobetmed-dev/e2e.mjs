@@ -72,7 +72,7 @@ if (/sınır|desteklenmiyor|başarısız|hata/i.test(upErr)) errors.push('yükle
 await a.click('.switch:has([name=required]) .track');
 await a.click('.switch:has([name=pinned]) .track');
 await a.click('button[form=composer]');
-await expectText(a, 'İçerik yayınlandı');
+await expectText(a, 'İçerik yayımlandı');
 await expectText(a, 'Yüksek riskli ilaçlarda');
 step('içerik + 6 ek yayınlandı (25 MB video ve bilinmeyen tür dahil)');
 
@@ -186,7 +186,7 @@ step('üye içerik gönderdi (onaya)');
 await a.goto(BASE + '#/yonetim/onaylar');
 await a.click('.post >> text=Nebülizatör');
 await a.click('.modal [data-act=approve]');
-await expectText(a, 'İçerik yayınlandı');
+await expectText(a, 'İçerik yayımlandı');
 await a.click('.post-x', { timeout: 1 }).catch(() => {});
 step('admin onayladı');
 

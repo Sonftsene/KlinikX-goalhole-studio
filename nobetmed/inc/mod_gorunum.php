@@ -30,7 +30,7 @@ function vw_label(array $va): string
         $n = val('SELECT name FROM roles WHERE id = ?', [(int)$va['role_id']]);
         if ($n) return (string)$n;
     }
-    return ($va['role'] ?? '') === 'editor' ? 'Yayıncı (sorumlu)' : 'Üye';
+    return ($va['role'] ?? '') === 'editor' ? 'Sorumlu' : 'Üye';
 }
 
 function a_viewas(): void

@@ -83,7 +83,7 @@ function lg_landing_page(): void
     $visCal = '<div class="ui"><div class="ui-h">Takvimim<span class="sp"></span><span class="pill t">Kasım</span><span class="pill">Sadece ben</span></div>' . $cal
         . '<div class="next"><div><small>Sıradaki nöbetiniz</small><b>Perşembe 08:00 · 24 saat</b><small>2 gün 14 saat sonra</small></div></div></div>'
         . '<div class="ui sm"><div class="row2"><span class="av b">EY</span><div class="gr"><b>Bugün nöbette</b><span class="ui-s">Elif Y., Burak T., Selin A. ve 3 kişi</span></div><span class="pill g">Kim nöbette</span></div></div>';
-    $visSwap = '<div class="ui"><div class="ui-h"><span class="av c">MD</span><div>Değişim isteği<div class="ui-s">Mehmet D. · 2 dakika önce</div></div><span class="sp"></span><span class="pill a">Bekliyor</span></div>'
+    $visSwap = '<div class="ui"><div class="ui-h"><span class="av c">MD</span><div>Değişim teklifi<div class="ui-s">Mehmet D. · 2 dakika önce</div></div><span class="sp"></span><span class="pill a">Bekliyor</span></div>'
         . '<div class="swap"><div><span class="ui-s">Verdiği</span><b>12 Kasım</b><div class="ui-s">Gece 16-08</div></div><span class="ar">⇄</span><div><span class="ui-s">Aldığı</span><b>15 Kasım</b><div class="ui-s">Gündüz 08-16</div></div></div>'
         . '<div class="chk"><div>Dinlenme süresi uygun (16 saat)</div><div>Üst üste en fazla 24 saat</div><div class="w">Sorumlu onayı bekleniyor</div></div><div class="ui-btns"><span class="ui-b pri">Kabul et</span><span class="ui-b">Reddet</span></div></div>'
         . '<div class="ui sm"><div class="ui-s" style="margin-bottom:6px">24 saatlik nöbetin hangi kısmını veriyorsunuz?</div><div class="seg3"><span>Tümü</span><span class="on">Gündüz 08-16</span><span>Gece 16-08</span></div></div>';
@@ -97,7 +97,7 @@ function lg_landing_page(): void
     foreach ($rows as $n => $r) { $tbl .= '<div class="nm">' . $n . '</div>'; foreach (explode(' ', $r) as $j => $c) $tbl .= '<span class="' . ($c === '24' ? 'T' : $c) . ($n === 'Burak T.' && $j === 0 ? ' bad' : '') . '">' . ($c === '-' ? '·' : $c) . '</span>'; }
     $tbl .= '</div>';
     $visPlan = '<div class="ui"><div class="ui-h">Aralık çizelgesi<span class="sp"></span><span class="pill p">Taslak</span></div>' . $tbl
-        . '<div class="warn">Burak T. · 1 Aralık: önceki nöbetten sonra 16 saat dinlenme yok</div><div class="ui-btns"><span class="ui-b">Otomatik doldur</span><span class="ui-b pri">Yayınla</span></div></div>';
+        . '<div class="warn">Burak T. · 1 Aralık: önceki nöbetten sonra 16 saat dinlenme yok</div><div class="ui-btns"><span class="ui-b">Otomatik doldur</span><span class="ui-b pri">Yayımla</span></div></div>';
     $visChat = '<div class="ui"><div class="ui-h"><span class="av">YB</span><div>Yoğun Bakım<div class="ui-s">24 üye · Elif yazıyor…</div></div></div>'
         . '<div class="bub in"><span class="who">Selin A.</span>Sabah devirde 3 numaralı ventilatörün filtresi değişecek 🙏<small>08:12</small></div>'
         . '<div class="bub out">Tamam, devir notuna ekledim<small>08:14 ✓✓</small></div>'
@@ -135,11 +135,11 @@ function lg_landing_page(): void
     $o .= lp_feature('nobet', 'Nöbet listeleri', 'Nöbet listeleri her an cepte', 'Sorumlunun hazırladığı Excel ya da Google E-Tablolar listesi portalda açılır. Kimse dosya aramaz, ekran görüntüsü paylaşmaz.',
         ['Herkes kendi nöbetlerini “Takvimim”de görür; “Sadece ben” ile listede yalnız kendi satırı', 'Liste güncellenince değişiklik anında herkese yansır', '“Kim nöbette” ile bugün ve yarın kimin çalıştığı tek bakışta', 'Telefon takvimine ekleme, nöbet hatırlatması, geri sayım'], $visCal);
     $o .= lp_feature('degisim', 'Değişim, devir ve ilan', 'Değişim için telefon telefon aramaya son', 'Nöbetinizi değiştirmek ya da devretmek istediğinizde, kurallara uyan uygun kişiler otomatik çıkar. Sorumlu tek dokunuşla onaylar.',
-        ['Dinlenme süresi, üst üste en fazla 24 saat gibi kurallar kendiliğinden denetlenir', '24 saatlik nöbetin yalnız gündüzü (08-16) ya da gecesi (16-08) verilebilir', 'Nöbet ilanı: “bu nöbetimi verebilirim” deyin, isteyen başvursun', 'Tüm değişimler kayıtlı; Excel’e işlenmeyenler bile hesaba katılır'], $visSwap, true, true);
+        ['Dinlenme süresi, üst üste en fazla 24 saat gibi kurallar kendiliğinden denetlenir', '24 saatlik nöbetin yalnız gündüzü (08-16) ya da gecesi (16-08) verilebilir', 'Nöbet ilanı: “bu nöbetimi verebilirim” deyin, isteyen başvursun', 'Tüm değişimler kayıtlı; listeye işlenmeyenler bile hesaba katılır'], $visSwap, true, true);
     $o .= lp_feature('eksik', 'Eksik personel çağrısı', 'Eksik vardiya dakikalar içinde dolsun', 'Bir kişi eksik kaldığında sorumlu tek seferde, o güne gelebilecek kişilere sorar. Yanıtlar canlı görünür, gönüllüler arasından seçilir.',
         ['Yalnız kurallara uyan ve o gün boş olan kişilere sorulur', 'Ekstra nöbet isteyenler öncelikli görünür', 'Bu ay kim kaç saat çalıştı yanında yazar; adil seçim kolaylaşır', 'Seçilen kişiye ve diğerlerine anında bildirim gider'], $visCall);
     $o .= lp_feature('cizelge', 'Çizelge hazırlama ve istekler', 'Excel kullanmayan birimler için çizelge', 'Aylık çizelgeyi portalda hazırlayın. Kurala aykırı her hücre kırmızıyla işaretlenir; otomatik doldurma boşlukları adil şekilde tamamlar.',
-        ['Boşluk ve yıllık izin istekleri dönem dönem toplanır, sorumlu onaylar', 'Otomatik doldurma: az çalışan ve dinlenmiş kişiler önce', 'Yayınlayınca liste tüm ekipte görünür', 'Günlük blok / taraf yerleşimi ve WhatsApp’a gönderilecek görsel'], $visPlan, true, true);
+        ['Boşluk ve yıllık izin istekleri dönem dönem toplanır, sorumlu onaylar', 'Otomatik doldurma: az çalışan ve dinlenmiş kişiler önce', 'Yayımlayınca liste tüm ekipte görünür', 'Günlük blok / taraf yerleşimi ve WhatsApp’a gönderilecek görsel'], $visPlan, true, true);
     $o .= lp_feature('mesaj', 'Mesajlaşma', 'Ekibin kendi mesajlaşması', 'Birim grubu, özel gruplar ve birebir sohbet; WhatsApp’a gerek kalmadan, kişisel numara paylaşmadan.',
         ['Fotoğraf, dosya, sesli mesaj, anket, yanıtla, ilet, sabitle', 'Sesli ve görüntülü arama, hastane içi birimler arası', 'Kim okudu, @bahsetme, sessize alma, kaybolan mesajlar', 'T.C. kimlik numarası gibi hasta bilgisi gönderilmeden uyarılır'], $visChat);
     $o .= lp_feature('duyuru', 'Duyuru ve protokoller', 'Önemli bilgi kaybolmaz', 'Protokol, talimat ve duyurular düzenli bir yerde durur. Zorunlu olanları kimin okuduğu görünür, okumayanlara hatırlatılır.',
@@ -156,14 +156,14 @@ function lg_landing_page(): void
         ['Duyuru ve protokol', 'Panoya asılan kâğıt, kimin okuduğu belirsiz', 'Okundu takibi, okumayanlara hatırlatma, hastane geneli ortak belgeler'],
         ['Türkiye’deki nöbet düzeni', 'Genel vardiya programları 24 saatlik nöbeti, gündüz/gece parçasını bilmez', '24 saatin gündüz (08-16) / gece (16-08) parçası, 16 saat dinlenme, izin bitişiği hafta sonu kuralı'],
         ['Hastane ölçeği', 'Her servis ayrı uygulama, ayrı grup, ayrı liste', 'Bütün birimler tek portalda; her birimin verisi ayrı, rehber ve belgeler ortak'],
-        ['Kurulum', 'Uygulama mağazası, bilgi işlem talebi, eğitim', 'Tarayıcıdan açılır, telefona eklenir; ekip karekodla dakikalar içinde katılır'],
+        ['Kurulum', 'Uygulama mağazası, bilgi işlem talebi, eğitim', 'Tarayıcıdan açılır, telefona eklenir; ekip QR kodla dakikalar içinde katılır'],
     ];
     $o .= '<section class="lp-sec" id="neden"><div class="wrap"><h2 class="s">Neden dupcii?</h2><p class="lead">Bir nöbet programı değil; birimin bütün günlük işini tek yerde toplayan ekip portalı.</p>'
         . '<div class="why"><div class="why-h"><span></span><span>Alışılmış yol</span><span>dupcii ile</span></div>'
         . implode('', array_map(fn($r) => '<div class="why-r"><div class="why-k">' . $e($r[0]) . '</div><div class="why-a">' . $e($r[1]) . '</div><div class="why-b">' . $e($r[2]) . '</div></div>', $whyRows)) . '</div>'
         . '<div class="why-sum"><div class="card"><b>1 portal</b><span>nöbet, değişim, eksik çağrısı, mesaj, duyuru, yemek, rehber</span></div>'
         . '<div class="card"><b>0 değişiklik</b><span>Excel listenizde; olduğu gibi yüklenir</span></div>'
-        . '<div class="card"><b>Dakikalar</b><span>başvuru formu da, ekibin karekodla katılması da bu kadar sürer</span></div></div></div></section>';
+        . '<div class="card"><b>Dakikalar</b><span>başvuru formu da, ekibin QR kodla katılması da bu kadar sürer</span></div></div></div></section>';
     $o .= '<section class="lp-sec"><div class="wrap"><h2 class="s">Herkes için ayrı kolaylık</h2><p class="lead">Aynı uygulama, her role kendi işini kolaylaştıran araçlarla gelir.</p><div class="roles">'
         . '<div class="card"><span class="pill t">Hemşire · hekim · personel</span><h3>Kendi düzenini yönet</h3><ul class="lp-list"><li>Nöbetini telefonda gör, hatırlatma al</li><li>Değişim, devir, ilan ve izin iste</li><li>Eksiğe gönüllü ol, ekstra nöbet iste</li><li>Ekibinle mesajlaş, duyuruları oku</li></ul></div>'
         . '<div class="card"><span class="pill p">Sorumlu · birim yöneticisi</span><h3>Yükü azalt, kontrolü tut</h3><ul class="lp-list"><li>Listeyi yükle ya da portalda hazırla</li><li>İstekleri ve değişimleri tek ekranda onayla</li><li>Eksiği tek dokunuşla duyur, gönüllü seç</li><li>Kim okudu, kim nerede, tek bakışta</li></ul></div>'
@@ -176,7 +176,7 @@ function lg_landing_page(): void
     if ($apply) $o .= '<section class="lp-sec"><div class="wrap"><h2 class="s">Nasıl başlanır</h2><p class="lead">Birim sorumlusu birkaç dakikada başvurur.</p><div class="grid steps">'
         . '<div class="card"><h3>Başvurun</h3><p>İş e-postanızı doğrulayın, hastanenizi ve biriminizi seçin.</p></div>'
         . '<div class="card"><h3>Onaylanınca giriş yapın</h3><p>Başvurunuz incelenir; biriminiz açılınca giriş bilgileriniz e-postanıza gelir.</p></div>'
-        . '<div class="card"><h3>Ekibinizi davet edin</h3><p>Karekod ya da bağlantıyla ekip katılır; nöbet listenizi yükleyin. Hepsi bu.</p></div></div></div></section>';
+        . '<div class="card"><h3>Ekibinizi davet edin</h3><p>QR kod ya da bağlantıyla ekip katılır; nöbet listenizi yükleyin. Hepsi bu.</p></div></div></div></section>';
     $o .= lp_plans();
     $faq = [
         ['Excel listemizi değiştirmemiz gerekiyor mu?', 'Hayır. Bugün kullandığınız Excel ya da Google E-Tablolar listesini olduğu gibi yüklersiniz; portal adları ve nöbet kodlarını kendisi tanır. İsterseniz çizelgeyi portalda da hazırlayabilirsiniz.'],

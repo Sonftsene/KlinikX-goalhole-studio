@@ -340,7 +340,7 @@ function a_req_period_save(): void
         audit($me, 'req.period', rq_month_label($ym) . ' istekleri açıldı', $scope . ' · son gün ' . $dl . ($moved ? ' · önceden yazılmış ' . $moved . ' gün bu döneme geçti' : ''));
         if (!b('silent')) {
             $title = "$label nöbet istekleri açıldı · son gün $dl";
-            $body = "Boşluk ve yıllık izin isteklerini $dl akşamına kadar yazabilirsin." . ($rid ? " ($scope)" : '') . ($note ? ' ' . $note : '');
+            $body = "Boşluk ve yıllık izin isteklerinizi $dl akşamına kadar yazabilirsiniz." . ($rid ? " ($scope)" : '') . ($note ? ' ' . $note : '');
             notify_users(rq_users(), 'request', $title, $body, '#/istekler', ['subject' => $title, 'lines' => [$body], 'button' => 'İsteklerimi yaz'], 'notoff');
         }
     } else {
@@ -355,7 +355,7 @@ function a_req_period_save(): void
         audit($me, 'req.period', rq_month_label($ym) . ' istekleri ' . $what, $scope . ' · son gün ' . $dl);
         if ($reopened && !b('silent')) {
             $title = $old['status'] !== 'open' ? "$label nöbet istekleri yeniden açıldı · son gün $dl" : "$label istekleri için süre uzatıldı · son gün $dl";
-            notify_users(rq_users(), 'request', $title, "İsteklerini $dl akşamına kadar yazabilir veya değiştirebilirsin.", '#/istekler', null, 'notoff');
+            notify_users(rq_users(), 'request', $title, "İsteklerinizi $dl akşamına kadar yazabilir veya değiştirebilirsiniz.", '#/istekler', null, 'notoff');
         }
     }
     out(['id' => $id, 'periods' => rq_periods_list($me)]);
@@ -387,7 +387,7 @@ function rq_target(array $me, array $p): array
     // Hesabı olmayan kişi: dönemin listelerinde adı geçmeli
     $people = rq_roster_people(rq_scope_rosters($p), $p['ym']);
     foreach ($people as $map) foreach ($map as $n) if (names_match((string)$n, $name)) return ['user_id' => 0, 'name' => (string)$n, 'self' => false];
-    fail('Bu kişi dönemin nöbet listesinde bulunamadı.');
+    fail('Bu kişi dönemin nöbet listesinde bulunamadı. Listedeki yazılışını kontrol edin ya da yukarıdan listeyi seçin.');
 }
 
 /** Kişinin bu dönemdeki satırları (hesabı varsa adla girilmiş eski satırlar da hesaba bağlanır) */
@@ -538,7 +538,7 @@ function a_req_save(): void
         audit($me, 'req.save', $t['name'] . ' · ' . rq_month_label($p['ym']), count($want) . ' gün (' . $b . ' boşluk, ' . (count($want) - $b) . ' yıllık izin)' . ($t['self'] ? '' : ' · sorumlu girdi'));
         if (!$t['self'] && $t['user_id'] > 0) {
             $u = array_values(array_filter(rq_users(), fn($x) => (int)$x['id'] === $t['user_id']));
-            if ($u) notify_users($u, 'request', rq_month_name($p['ym']) . ' isteklerin güncellendi', $me['name'] . ' senin adına isteklerini düzenledi (' . count($want) . ' gün).', '#/istekler');
+            if ($u) notify_users($u, 'request', rq_month_name($p['ym']) . ' istekleriniz güncellendi', $me['name'] . ' sizin adınıza isteklerinizi düzenledi (' . count($want) . ' gün).', '#/istekler');
         }
     }
     out(rq_mine_out($p, $t, $me) + ['changes' => ['added' => $add, 'changed' => $chg, 'removed' => $del]]);
@@ -547,7 +547,7 @@ function a_req_save(): void
 function a_req_delete(): void
 {
     $me = need_user();
-    $r = one('SELECT * FROM shift_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
+    $r = one('SELECT * FROM shift_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu istek silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     $p = rq_period((int)$r['period_id']);
     $own = (int)$r['user_id'] === (int)$me['id'];
     if (!is_publisher($me)) {
@@ -790,7 +790,7 @@ function a_req_decide(): void
     if (!in_array($status, RQ_STATUS, true)) fail('Geçersiz karar.');
     $reason = $status === 'rejected' ? s('reason', 300) : '';
     $rows = all('SELECT * FROM shift_requests WHERE id IN (' . implode(',', $ids) . ')');
-    if (!$rows) fail('İstek bulunamadı.', 404);
+    if (!$rows) fail('Bu istekler silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     $pid = (int)$rows[0]['period_id'];
     foreach ($rows as $r) if ((int)$r['period_id'] !== $pid) fail('İstekler aynı döneme ait olmalı.');
     $p = rq_period($pid);
@@ -815,8 +815,8 @@ function a_req_decide(): void
             $days = array_map(fn($r) => (int)substr($r['date'], 8, 2), $list);
             $kinds = array_unique(array_map(fn($r) => RQ_SHORT[$r['kind']] ?? '', $list));
             $txt = rq_ranges($days) . ' ' . $mn . ' (' . implode(', ', array_map(fn($k) => $k === 'B' ? 'boşluk' : 'yıllık izin', $kinds)) . ')';
-            if ($status === 'approved') notify_users([$users[$uid]], 'request', "$mn isteğin onaylandı", $txt . ' onaylandı.', '#/istekler');
-            else notify_users([$users[$uid]], 'request', "$mn isteğin reddedildi", $txt . ' reddedildi.' . ($reason !== '' ? ' Gerekçe: ' . $reason : ''), '#/istekler');
+            if ($status === 'approved') notify_users([$users[$uid]], 'request', "$mn isteğiniz onaylandı", $txt . ' onaylandı.', '#/istekler');
+            else notify_users([$users[$uid]], 'request', "$mn isteğiniz reddedildi", $txt . ' reddedildi.' . ($reason !== '' ? ' Gerekçe: ' . $reason : ''), '#/istekler');
         }
     }
     if ($changed) {
@@ -881,8 +881,8 @@ function rq_job(bool $force): ?array
             }
             $left = (int)round((strtotime($p['deadline']) - strtotime($today)) / 86400);
             if ($to) notify_users($to, 'request', "$mn nöbet istekleri · " . ($left === 0 ? 'bugün son gün' : "son $left gün"),
-                'Henüz isteğin yok. Boşluk veya yıllık izin istiyorsan ' . rq_day_long($p['deadline']) . ' akşamına kadar yaz.', '#/istekler',
-                ['subject' => "$mn nöbet istekleri için son gün " . rq_day_long($p['deadline']), 'lines' => ['Henüz isteğin yok. Boşluk veya yıllık izin istiyorsan ' . rq_day_long($p['deadline']) . ' akşamına kadar yaz.'], 'button' => 'İsteklerimi yaz'], 'notoff');
+                'Henüz isteğiniz yok. Boşluk veya yıllık izin istiyorsanız ' . rq_day_long($p['deadline']) . ' akşamına kadar yazın.', '#/istekler',
+                ['subject' => "$mn nöbet istekleri için son gün " . rq_day_long($p['deadline']), 'lines' => ['Henüz isteğiniz yok. Boşluk veya yıllık izin istiyorsanız ' . rq_day_long($p['deadline']) . ' akşamına kadar yazın.'], 'button' => 'İsteklerimi yaz'], 'notoff');
             $meta['reminded'] = $today;
             rq_set_period_meta((int)$p['id'], $meta);
             $done['reminded'] = ($done['reminded'] ?? 0) + count($to);
@@ -926,7 +926,7 @@ function rq_job(bool $force): ?array
         foreach (rq_users() as $u) $users[(int)$u['id']] = $u;
         foreach ($found as $r) {
             if ((int)$r['user_id'] > 0 && isset($users[(int)$r['user_id']])) {
-                notify_users([$users[(int)$r['user_id']]], 'request', 'Onaylı isteğine nöbet yazılmış', swap_fmt_date($r['date']) . ' için onaylı ' . mb_strtolower(RQ_KINDS[$r['kind']] ?? '') . ' isteğin var ama listede ' . $r['code'] . ' nöbeti görünüyor. Sorumluyla görüş.', '#/istekler');
+                notify_users([$users[(int)$r['user_id']]], 'request', 'Onaylı isteğinize nöbet yazılmış', swap_fmt_date($r['date']) . ' için onaylı ' . mb_strtolower(RQ_KINDS[$r['kind']] ?? '') . ' isteğiniz var ama listede ' . $r['code'] . ' nöbeti görünüyor. Sorumlunuzla görüşün.', '#/istekler');
             }
         }
         $lines = array_map(fn($r) => $r['name'] . ' · ' . swap_fmt_date($r['date']) . ' (' . (RQ_SHORT[$r['kind']] ?? '') . ' → ' . $r['code'] . ')', $found);

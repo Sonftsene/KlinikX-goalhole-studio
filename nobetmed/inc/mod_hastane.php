@@ -82,7 +82,7 @@ function hpb_items(): array
 /** Hastane numarası: yalnız ekleyen birim düzenler/siler */
 function hpb_own(int $hid): array
 {
-    $r = h_one('SELECT * FROM h_phonebook WHERE id = ?', [$hid]) ?? fail('Kayıt bulunamadı.', 404);
+    $r = h_one('SELECT * FROM h_phonebook WHERE id = ?', [$hid]) ?? fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     if ($r['tkey'] !== h_tkey()) fail('Bu numarayı “' . $r['unit_name'] . '” birimi ekledi; yalnız o birim düzenleyebilir.', 403);
     return $r;
 }
@@ -107,7 +107,7 @@ function hpb_save(array $me, ?int $id, array $row): bool
     }
     if ($scope !== 'hastane') return false;
     if ($id) { // birim numarasını hastaneye taşı
-        if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Kayıt bulunamadı.', 404);
+        if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
         q('DELETE FROM phonebook WHERE id = ?', [$id]);
     }
     h_q('INSERT INTO h_phonebook (name, number, category, note, pinned, sort, tkey, unit_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',

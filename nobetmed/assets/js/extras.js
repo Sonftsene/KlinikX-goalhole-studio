@@ -175,7 +175,7 @@ function chipCanEdit() { const L = S.ui_layout; if (!L) return true; return Arra
 /** Seçilebilecek kısayollar: durum kısayolları + yan menüdeki her sayfa (yetkisi olanlar) */
 function chipCatalog() {
   const o = [
-    { id: 'todo', label: 'Okuman gerekenler', g: 'Durum' }, { id: 'unread', label: 'Yeni içerikler', g: 'Durum' },
+    { id: 'todo', label: 'Okunacaklar', g: 'Durum' }, { id: 'unread', label: 'Yeni içerikler', g: 'Durum' },
     ...(isPublisher() ? [{ id: 'pend', label: 'Onay bekleyenler', g: 'Durum' }] : []),
     ...(modOn('nobet') ? [{ id: 'rehber', label: uiL('#/rehber', 'Kim nöbette'), g: 'Durum', ic: 'users', href: '#/rehber' }] : []),
     ...(modOn('rehber') ? [{ id: 'telefon', label: uiL('#/telefon', 'Telefon rehberi'), g: 'Durum', ic: 'phone', href: '#/telefon' }] : []),
@@ -249,19 +249,19 @@ ACT['chips-edit'] = () => {
 };
 function heroShiftHtml(my) {
   const box = (tone, ic, t, sub) => html`<span class="hs-ico tone-${tone}">${icon(ic)}</span><span class="grow" style="min-width:0"><span class="hs-t">${t}</span><span class="hs-s">${sub}</span></span>${icon('chevR', 'sm')}`;
-  if (!my.has_data) return box('slate', 'table', 'Nöbet listesi bekleniyor', 'Liste yüklenince nöbetlerin burada görünür.');
+  if (!my.has_data) return box('slate', 'table', 'Nöbet listesi bekleniyor', 'Liste yüklenince nöbetleriniz burada görünür.');
   const ent = my.entries || [];
-  if (!ent.length) return box('slate', 'search', 'Listede adın bulunamadı', `Portaldaki adın (“${S.me.name}”) listedekiyle aynı olmalı.`);
+  if (!ent.length) return box('slate', 'search', 'Listede adınız bulunamadı', `Portaldaki adınız (“${S.me.name}”) listedekiyle aynı olmalı.`);
   const y = new Date().getFullYear(), mo = new Date().getMonth() + 1;
   const monthList = ent.filter((e) => e.date.startsWith(`${y}-${pad(mo)}`));
   const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, mo, holidayMapOrNull()) : null;
   const monthTxt = sm ? ` · Bu ay ${sm.shifts} nöbet, ${sm.hours} saat` : '';
   const cur = currentShift(ent);
-  if (cur) return box(shiftTone(cur), 'clock', 'Şu an nöbettesin', html`${codeChip(cur)} ${shiftDesc(cur)} · ${cur.end}’de bitiyor`);
+  if (cur) return box(shiftTone(cur), 'clock', 'Şu an nöbettesiniz', html`${codeChip(cur)} ${shiftDesc(cur)} · bitiş ${cur.end}`);
   const n = nextShift(ent);
-  if (!n) return box('slate', 'calendar', 'Yakında nöbetin görünmüyor', 'Önümüzdeki günlerde listede nöbetin yok' + monthTxt);
+  if (!n) return box('slate', 'calendar', 'Yakında nöbetiniz görünmüyor', 'Önümüzdeki günlerde listede nöbetiniz yok' + monthTxt);
   const d = daysUntil(n.date);
-  const t = d <= 0 ? (n.start ? `Bugün ${n.start}’de nöbetin başlıyor` : 'Bugün nöbetin var') : d === 1 ? 'Yarın nöbetin var' : `${d} gün sonra nöbetin var`;
+  const t = d <= 0 ? (n.start ? `Bugün nöbetiniz var · başlangıç ${n.start}` : 'Bugün nöbetiniz var') : d === 1 ? 'Yarın nöbetiniz var' : `${d} gün sonra nöbetiniz var`;
   return box(shiftTone(n), 'calendar', t, html`${codeChip(n)} ${dateLabel(n.date).replace(/^(Bugün|Yarın) · /, '')} · ${shiftDesc(n)}${monthTxt}`);
 }
 async function loadHomeExtras() {
@@ -293,7 +293,7 @@ function dutyListHtml(day, compact) {
   return html`<div class="duty">
     ${shifts.map((g) => html`<div class="duty-g"><div class="duty-h">${codeChip(g)}<b>${shiftDesc(g)}</b><span class="tiny faint">${g.people.length} kişi</span></div>
       <div class="duty-p">${g.people.map(dutyPerson)}</div></div>`)}
-    ${carry.length ? html`<div class="duty-g duty-carry"><div class="duty-h"><span class="code-chip tone-slate">Dün</span><b>Dünkü nöbetten çıkıyor</b><span class="tiny faint">${ends.join(', ')}’e kadar</span></div><div class="duty-p">${carry.map(dutyPerson)}</div></div>` : ''}
+    ${carry.length ? html`<div class="duty-g duty-carry"><div class="duty-h"><span class="code-chip tone-slate">Dün</span><b>Dünkü nöbetten çıkıyor</b><span class="tiny faint">bitiş: ${ends.join(', ')}</span></div><div class="duty-p">${carry.map(dutyPerson)}</div></div>` : ''}
   </div>`;
 }
 function todayCardHtml(day, compact) {
@@ -326,7 +326,7 @@ function hubTabs(active) {
   try { localStorage.setItem('nm-hub', active); } catch (e) { /* */ }
   const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${uiL(HUB_HREF[k], l, 'Nöbet')}</span></a>`;
   NM_EXT.hubTabs.forEach((x) => { HUB_HREF[x.key] = x.href; });
-  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${modOn('taraf') ? t('taraf', 'layers', 'Taraf') : ''}${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => t(x.key, x.icon, x.label))}${t('list', 'table', 'Excel liste')}</nav>`;
+  return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${modOn('taraf') ? t('taraf', 'layers', 'Taraf') : ''}${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => t(x.key, x.icon, x.label))}${t('list', 'table', 'Liste')}</nav>`;
 }
 function hubHead(active, sub, actions) {
   return html`<div class="page-head hub-head"><div><h1>${uiL('@nobet', 'Nöbet')}</h1><p>${sub}</p></div>${actions || ''}</div>${hubTabs(active)}`;
@@ -334,7 +334,7 @@ function hubHead(active, sub, actions) {
 
 const CAL = { y: 0, m: 0, sel: null };
 async function renderMyShifts(view) {
-  setHTML(view, html`${hubHead('cal', html`<b>${S.me.name}</b> adıyla listelerdeki nöbetlerin`, html`<button class="btn" data-act="ics" id="icsBtn" disabled>${icon('calendar', 'sm')}<span>Telefon takvimine ekle</span></button>`)}
+  setHTML(view, html`${hubHead('cal', html`<b>${S.me.name}</b> adıyla listelerdeki nöbetleriniz`, html`<button class="btn" data-act="ics" id="icsBtn" disabled>${icon('calendar', 'sm')}<span>Telefon takvimine ekle</span></button>`)}
     <div id="myBody"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div>`);
   const my = await loadMyShifts(true);
   const body = $('#myBody');
@@ -345,10 +345,10 @@ async function renderMyShifts(view) {
   const cur = currentShift(entries);
   const top = cur || n;
   setHTML(body, html`
-    ${!my.has_data ? html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3><p class="small">Yöneticiniz Excel nöbet listesini yüklediğinde nöbetleriniz burada takvim olarak görünür.</p></div>`
-    : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa Hesabım sayfasından adınızı düzeltin.</p><a class="btn" href="#/nobet" style="margin-top:12px">${icon('table', 'sm')}Excel listeye bak</a></div>`
+    ${!my.has_data ? html`<div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3><p class="small">Sorumlunuz nöbet listesini yüklediğinde nöbetleriniz burada takvim olarak görünür.</p></div>`
+    : !entries.length ? html`<div class="card empty"><div class="e-ico">${icon('search', 'lg')}</div><h3>Listelerde adınız bulunamadı</h3><p class="small">Nöbet listesindeki adınız portaldaki adınızla (“${S.me.name}”) aynı olmalı. Farklıysa sorumlunuza yazın.</p><a class="btn" href="#/nobet" style="margin-top:12px">${icon('table', 'sm')}Nöbet listesine bak</a></div>`
     : html`
-      ${top ? html`<div class="next-shift tone-${shiftTone(top)}"><div class="ns-l">${cur ? 'Şu an nöbettesin' : 'Sıradaki nöbetin'}</div><div class="ns-d">${cur ? `${cur.end}’de bitiyor` : dateLabel(top.date)}</div>
+      ${top ? html`<div class="next-shift tone-${shiftTone(top)}"><div class="ns-l">${cur ? 'Şu an nöbettesiniz' : 'Sıradaki nöbetiniz'}</div><div class="ns-d">${cur ? `Bitiş ${cur.end}` : dateLabel(top.date)}</div>
         <div class="ns-c">${codeChip(top, true)}<span>${shiftDesc(top)}${top.hours && !/saat/i.test(top.label || '') ? html` · <b>${top.hours} saat</b>` : ''}</span></div><div class="ns-r">${top.roster || ''}</div></div>` : ''}
       <div id="swapBox"></div>
       <div class="cal-wrap"><div class="card cal-card" id="calCard"></div><div class="card" id="dayPanel"></div></div>`}`);
@@ -420,15 +420,15 @@ async function loadDayPanel() {
   const canSwap = CAL.sel >= ymd(new Date()) && modOn('ilan');
   const mineHtml = mine.length ? html`<div class="day-mine">${mine.map((e) => html`<div class="dm-row">${codeChip(e, true)}<div class="grow"><b>${shiftDesc(e) || e.code}</b><div class="tiny faint">${[e.hours && !/saat/i.test(e.label || '') ? e.hours + ' saat' : '', e.roster].filter(Boolean).join(' · ')}</div></div>
         ${e.kind === 'shift' && canSwap ? html`<div class="dm-acts"><button class="btn sm" data-act="swap-open" data-d="${e.date}">${icon('history', 'sm')}<span>Değiş / Devret</span></button>${NM_EXT.dayActions.map((f) => f(e, CAL.sel))}</div>` : ''}</div>`)}
-      ${mv ? html`<div class="dm-move">${icon('layers', 'sm')}<span>Bu gün <b>${mv.unit}</b>’ta çalıştın${mv.method === 'kura' ? ' (kura)' : ''}${mv.counted ? ' · karşı tarafa geçiş sayıldı' : ''}</span></div>` : ''}</div>`
-    : html`<div class="list-row small muted">Bu gün nöbetiniz yok.</div>`;
+      ${mv ? html`<div class="dm-move">${icon('layers', 'sm')}<span>Çalıştığınız blok: <b>${mv.unit}</b>${mv.method === 'kura' ? ' (kura)' : ''}${mv.counted ? ' · karşı tarafa geçiş sayıldı' : ''}</span></div>` : ''}</div>`
+    : html`<div class="list-row small muted">O gün nöbetiniz yok.</div>`;
   setHTML(box, html`${head}${mineHtml}<div id="dayMeal"></div><div class="sec-label">O gün nöbette olanlar</div><div id="dayDuty"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>`);
   if (typeof mlDayPanel === 'function') mlDayPanel($('#dayMeal'), CAL.sel, mine).catch(() => {});
   const want = CAL.sel;
   let day = null;
   try { day = await api('shifts.day', { date: want }); } catch (e) { /* */ }
   const dd = $('#dayDuty');
-  if (dd && CAL.sel === want) setHTML(dd, day ? dutyListHtml(day, false) : html`<div class="list-row small muted">Yüklenemedi.</div>`);
+  if (dd && CAL.sel === want) setHTML(dd, day ? dutyListHtml(day, false) : html`<div class="list-row small muted">Yüklenemedi. Sayfayı yenileyip tekrar deneyin.</div>`);
 }
 /* Telefon takvimi: kişiye özel abonelik bağlantısı (liste güncellendikçe takvim de güncellenir; inc/mod_takvim.php).
    Tek seferlik dosya indirme ikincil seçenek olarak durur. */
@@ -437,14 +437,14 @@ ACT.ics = async () => {
   let d;
   try { d = await api('cal.link', { act: 'make' }); } catch (e) { m.setBody(html`<p class="small">${e.message}</p>`); return; }
   const draw = () => m.setBody(html`<div class="stack cal-sub">
-    <p class="small muted" style="margin:0">Nöbetleriniz telefonunuzun takvimine <b>abone</b> olarak eklenir: liste güncellendikçe, değişim ve devirler işlendikçe takviminiz de kendiliğinden güncellenir.</p>
+    <p class="small muted" style="margin:0">Liste değiştikçe takviminiz kendiliğinden güncellenir. Bu bağlantı size özeldir; paylaşmayın.</p>
     <a class="btn block primary" href="${d.webcal}" data-cal="ios">${icon('calendar', 'sm')}iPhone / iPad / Mac Takvim’e ekle</a>
     <a class="btn block" href="${d.google}" target="_blank" rel="noopener" data-cal="google">${icon('calendar', 'sm')}Google Takvim’e ekle (Android)</a>
     <a class="btn block" href="${d.outlook}" target="_blank" rel="noopener" data-cal="outlook">${icon('calendar', 'sm')}Outlook’a ekle</a>
     <div class="field"><label>Başka bir takvim uygulaması için bağlantı</label><div class="row" style="gap:6px"><input class="input" readonly value="${d.url}" id="calUrl" data-nodirty><button type="button" class="btn" data-act="cal-copy">${icon('copy', 'sm')}Kopyala</button></div></div>
-    ${d.https ? '' : html`<p class="tiny sp-kvkk">${icon('alert', 'sm')} Site HTTPS ile açılmıyor; Google Takvim ve Outlook yalnız HTTPS adresleri ekler (Hostinger › SSL).</p>`}
+    ${d.https ? '' : html`<p class="tiny sp-kvkk">${icon('alert', 'sm')} ${S.me.role === 'admin' ? 'Site HTTPS ile açılmıyor; Google Takvim ve Outlook yalnız HTTPS adresleri ekler (Hostinger › SSL).' : 'Google Takvim ve Outlook ile ekleme şu an kullanılamıyor; yöneticinize bildirin.'}</p>`}
     <ul class="tiny faint cal-notes"><li>iPhone takvimi genellikle 15 dakika–1 saatte, Google Takvim birkaç saatte bir yeniler.</li>
-      <li>Bu bağlantı size özeldir; kimseyle paylaşmayın. Paylaştıysanız “Bağlantıyı yenile”: eskisi çalışmaz, takvime yeniden ekleyin.</li>
+      <li>Paylaştıysanız “Bağlantıyı yenile”ye basın: eskisi çalışmaz, takvime yeniden ekleyin.</li>
       ${d.seen ? html`<li>Takviminiz en son ${((x) => fmtRel(ymd(x) + ' ' + hm(x) + ':' + pad(x.getSeconds())))(new Date(d.seen * 1000))} güncellendi.</li>` : ''}</ul>
     <div class="row wrap" style="gap:6px"><button type="button" class="btn sm" data-act="cal-reset">${icon('history', 'sm')}Bağlantıyı yenile</button><button type="button" class="btn sm ghost" data-act="cal-off">Aboneliği kapat</button>
       <span class="grow"></span><button type="button" class="btn sm ghost" data-act="ics-file">${icon('download', 'sm')}Dosya olarak indir (güncellenmez)</button></div></div>`);
@@ -508,7 +508,7 @@ ACT['rs-period'] = async () => {
   const r = rosterById(RS.active);
   if (!r) return;
   const cur = r.period || ymd(new Date()).slice(0, 7);
-  const m = openModal({ title: 'Listenin ayı', size: 'narrow', body: html`<form class="stack" id="perForm"><p class="small muted">Nöbetlerim ve hatırlatmalar bu aya göre hesaplanır. Excel’de ay bilgisi bulunamadıysa buradan düzeltin.</p>
+  const m = openModal({ title: 'Listenin ayı', size: 'narrow', body: html`<form class="stack" id="perForm"><p class="small muted">Takvimim ve hatırlatmalar bu aya göre hesaplanır. Dosyada ay bilgisi bulunamadıysa buradan düzeltin.</p>
       <div class="grid2"><div class="field"><label>Ay</label><select class="select" name="m">${TR_MONTHS.map((n, i) => html`<option value="${i + 1}" ${+cur.slice(5) === i + 1 ? raw('selected') : ''}>${n}</option>`)}</select></div>
       <div class="field"><label>Yıl</label><input class="input" type="number" name="y" value="${cur.slice(0, 4)}" min="2020" max="2099"></div></div></form>`,
   foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Kaydet</button>` });
@@ -540,7 +540,7 @@ async function renderDirectory(view) {
   setHTML(view, html`${hubHead('who', 'Hangi gün kim nöbette, ekibe tek dokunuşla ulaşın')}
     <div class="card" id="dutyCard"><div class="list-row"><div class="skel" style="height:14px;width:60%"></div></div></div>
     <div class="sec-title">${icon('phone', 'sm')} Ekip rehberi</div>
-    <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, ünvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
+    <div class="toolbar"><div class="search" style="max-width:340px;flex:1">${icon('search')}<input class="input" placeholder="İsim, unvan veya birim ara" data-input="dir-q" value="${DIR.q}"></div>
       <div class="seg"><button class="${DIR.filter === 'all' ? 'on' : ''}" data-act="dir-f" data-f="all">Herkes</button><button class="${DIR.filter === 'today' ? 'on' : ''}" data-act="dir-f" data-f="today">Bugün nöbette</button></div></div>
     <div id="dirList"><div class="card card-pad"><div class="skel" style="height:16px;margin:10px 0"></div></div></div>`);
   try { DIR.people = (await api('people.list')).people; } catch (e) { DIR.people = DIR.people || []; }
@@ -593,13 +593,13 @@ ACT['dir-f'] = (el) => { DIR.filter = el.dataset.f; $$('[data-act=dir-f]').forEa
 /* =================================================================== */
 /* Hesabım: profil, bildirimler, güvenlik, görünüm, gönderilerim         */
 /* =================================================================== */
-const PROF_TABS = [['profil', 'Profil', 'user'], ['bildirim', 'Bildirimler', 'bell'], ['guvenlik', 'Güvenlik', 'lock'], ['gorunum', 'Görünüm', 'sun'], ['gonderiler', 'Gönderilerim', 'file']];
-const NMODE_HINT = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okumanız gerekenler.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' };
+const PROF_TABS = [['profil', 'Kişisel bilgiler', 'user'], ['bildirim', 'Bildirimler', 'bell'], ['guvenlik', 'Güvenlik ve şifre', 'lock'], ['gorunum', 'Görünüm', 'sun'], ['gonderiler', 'Gönderilerim', 'file']];
+const NMODE_HINT = { instant: 'Her duyuru ve güncellemede ayrı e-posta gelir.', digest: 'Her sabah tek e-postada: bugünkü nöbetiniz, yeni duyurular, okunacaklar.', off: 'Duyuru e-postaları gelmez. Nöbet hatırlatmaları ve hesap e-postaları yine gelir.' };
 /** Hesap bilgisi: hangi birimdeyim, sürüm, görünmeyen bölümler ve nedeni ("İstekler neden yok?" sorusu için) */
 function accessInfoHtml() {
   const t = S.tenant || {};
   const hid = Object.values(S.mods_why || {});
-  return html`<div class="card card-pad stack" id="accInfo"><h3 class="ph">${icon('info', 'sm')} Hesap bilgisi</h3>
+  return html`<div class="card card-pad stack" id="accInfo"><h3 class="ph">${icon('info', 'sm')} Destek için hesap bilgisi</h3>
     <div class="small">Birim: <b>${t.name || S.settings.org_name || '—'}</b>${t.hospital ? html` · ${t.hospital}` : ''}</div>
     <div class="small">Yetki: <b>${ROLE_LABEL[S.me.role] || S.me.role}</b> · Sürüm: <b>${BOOT.v || '?'}</b></div>
     ${hid.length ? html`<div class="small"><b>Size görünmeyen bölümler:</b><ul class="acc-hid">${hid.map((h) => html`<li><b>${h.name}</b>: ${h.why}</li>`)}</ul></div>`
@@ -615,7 +615,7 @@ function profRows() {
     ['eposta', 'E-posta adresi', 'mail', me.email || ''],
     ['bildirim', 'Bildirimler', 'bell', 'Telefon bildirimi, e-posta, sessiz saatler'],
     ['gorunum', 'Görünüm', 'sun', 'Yazı boyutu, koyu tema, ana sayfam'],
-    ['guvenlik', 'Güvenlik ve şifre', 'lock', 'Şifre, açık oturumlar, QR ile giriş'],
+    ['guvenlik', 'Güvenlik ve şifre', 'lock', 'Şifre, bağlı cihazlar, QR ile giriş'],
     ...ext,
     ['gonderiler', 'Gönderilerim', 'file', ''],
   ];
@@ -703,7 +703,7 @@ function profileTabHtml(tab) {
         ${me.list_name ? html`<p class="hint">${icon('lock', 'sm')} Nöbet listesindeki <b>${me.list_name}</b> adına bağlı. Listedeki adınız düzeltilirse hesabınız da güncellenir; başka biri bu adı alamaz. Değişiklik için yöneticinize başvurun.</p>`
           : html`<p class="hint">Nöbet listesindeki yazılışla aynı olsun; nöbetleriniz adınıza göre eşleşir ve bir kez eşleşince kalıcı olarak bağlanır.</p>`}</div>
       <div class="grid2">
-        <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, me.title_id, '—')}</select></div>
+        <div class="field"><label>Unvan</label><select class="select" name="title_id">${options(S.titles, me.title_id, '—')}</select></div>
         <div class="field"><label>Birim</label><input class="input" value="${unitName(me.unit_id) || '—'}" disabled><p class="hint">Birimi yönetici değiştirir.</p></div>
       </div>
       <div class="grid2">
@@ -879,7 +879,7 @@ async function pushNagMount() {
   const hero = $('#view .hero') || $('.hero') || $('#homeExtTop');
   if (!hero || $('#pushNag')) return;
   hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box warn push-nag" id="pushNag" role="alert">${icon('bell', 'sm')}
-    <div class="grow"><b class="small">Bildirimleriniz kapalı</b><div class="tiny">${st === 'denied' ? 'Bu cihazda bildirim izni verilmemiş. Tarayıcı ya da telefon ayarlarından dupcii için bildirim iznini açın.' : Notification.permission === 'granted' ? 'İzin verili ama bu cihazın bildirim bağlantısı kopmuş. Tek dokunuşla yeniden bağlayın; izin sorulmaz.' : 'Nöbet hatırlatmaları, değişim istekleri ve mesajlar telefonunuza gelmez. Açmanız önerilir.'}</div></div>
+    <div class="grow"><b class="small">Bildirimleriniz kapalı</b><div class="tiny">${st === 'denied' ? 'Bu cihazda bildirim izni verilmemiş. Tarayıcı ya da telefon ayarlarından dupcii için bildirim iznini açın.' : Notification.permission === 'granted' ? 'İzin verili ama bu cihazın bildirim bağlantısı kopmuş. Tek dokunuşla yeniden bağlayın; izin sorulmaz.' : 'Nöbet hatırlatmaları, değişim teklifleri ve mesajlar telefonunuza gelmez. Açmanız önerilir.'}</div></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${st === 'off' ? html`<button class="btn sm primary" data-act="push-on">${icon('bell', 'sm')}Bildirimleri aç</button>` : html`<a class="btn sm" href="#/profil/bildirim">Nasıl açılır?</a>`}
       <button class="btn sm ghost" data-act="push-nag-later" title="Yarın yeniden hatırlatılır">Daha sonra</button></div></div>`));
 }
@@ -1123,7 +1123,7 @@ ACT['inv-roster'] = async () => {
   m.setBody(html`<p class="small muted" style="margin-bottom:12px">Nöbet listelerinde adı geçen ama hesabı olmayan <b>${items.length}</b> kişi. E-posta yazdıklarınıza davet e-postası gider; boş bıraktıklarınız için kişiye özel bağlantı oluşur (WhatsApp’tan gönderebilirsiniz). Davetle gelenler onay beklemeden girer.</p>
     <div class="row wrap" style="margin-bottom:10px"><label class="small"><input type="checkbox" id="invAll" checked> Tümünü seç</label><span class="grow"></span>
       <span class="tiny faint">Birim:</span><select class="select" id="invUnit" style="width:auto;height:34px">${options(S.units, (S.units[0] || {}).id)}</select></div>
-    <div class="table-wrap"><table class="t inv-t"><thead><tr><th></th><th>Ad soyad</th><th>Ünvan</th><th>E-posta (isteğe bağlı)</th></tr></thead>
+    <div class="table-wrap"><table class="t inv-t"><thead><tr><th></th><th>Ad soyad</th><th>Unvan</th><th>E-posta (isteğe bağlı)</th></tr></thead>
     <tbody>${items.map((p, i) => html`<tr class="${p.invited ? 'dim' : ''}"><td><input type="checkbox" data-i="${i}" ${p.invited ? '' : raw('checked')}></td><td><b>${p.name}</b>${p.invited ? html` <span class="badge">davet edildi</span>` : ''}</td>
       <td><select class="select" data-ti="${i}" style="height:34px">${options(S.titles, p.title_id, '—')}</select></td><td><input class="input" type="email" data-em="${i}" placeholder="ornek@gmail.com" style="height:34px"></td></tr>`)}</tbody></table></div>`);
   m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-inv-go>${icon('send', 'sm')}Davetleri oluştur</button>`);
@@ -1166,11 +1166,11 @@ async function renderInvite(token) {
   const personal = inv.kind === 'personal';
   setHTML(APP(), authLayout(html`
     <div class="auth-brand">${brandLogo()}<div class="brand-org">${r.org_name}</div></div>
-    <h1>${personal ? `Hoş geldin, ${inv.name.split(' ')[0]}` : 'Portala katıl'}</h1>
-    <p class="sub">${personal ? 'Hesabın hazırlandı. E-postanı ve şifreni belirleyip hemen giriş yap.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsin.' : 'Kaydın yönetici onayından sonra aktifleşir.'}</p>
+    <h1>${personal ? `Hoş geldiniz, ${inv.name.split(' ')[0]}` : 'Portala katılın'}</h1>
+    <p class="sub">${personal ? 'Hesabınız hazırlandı. E-postanızı ve şifrenizi belirleyip hemen giriş yapın.' : inv.auto_approve ? 'Formu doldurunca hemen giriş yapabilirsiniz.' : 'Kaydınız yönetici onayından sonra etkinleşir.'}</p>
     <form class="stack" data-form="invite-reg">
       <div class="field"><label>Ad soyad</label><input class="input" name="name" value="${inv.name || ''}" ${personal ? raw('readonly') : ''} required minlength="3" autocomplete="name"></div>
-      ${!personal ? html`<div class="grid2"><div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, inv.title_id, 'Seçin')}</select></div>
+      ${!personal ? html`<div class="grid2"><div class="field"><label>Unvan</label><select class="select" name="title_id">${options(S.titles, inv.title_id, 'Seçin')}</select></div>
         <div class="field"><label>Birim</label><select class="select" name="unit_id" ${inv.unit_id ? raw('disabled') : ''}>${options(S.units, inv.unit_id, 'Seçin')}</select></div></div>` : ''}
       <div class="field"><label>E-posta</label><input class="input" type="email" name="email" value="${inv.email || ''}" required autocomplete="email"></div>
       <div class="field"><label>Şifre</label>${pwField('password', 'En az 8 karakter', 'new-password')}</div>
@@ -1184,7 +1184,7 @@ FORMS['invite-reg'] = (f) => submitForm(f, async (d) => {
   history.replaceState(null, '', location.pathname);
   if (r.pending) return renderAuth('pending');
   await start();
-  toast('Hesabın oluşturuldu. Hoş geldin!');
+  toast('Hesabınız oluşturuldu. Hoş geldiniz!');
 });
 
 /* =================================================================== */
@@ -1224,7 +1224,7 @@ ACT['rep-xlsx'] = (el) => busy(el, async () => {
     ws.mergeCells(1, 1, 1, 3 + rep.posts.length);
     ws.getCell(1, 1).value = `${S.settings.org_name} — Okuma raporu (${fmtDateTime(rep.generated_at)})`;
     ws.getCell(1, 1).font = { bold: true, size: 13 };
-    const hdr = ['Ad soyad', 'Ünvan', 'Birim', ...rep.posts.map((p) => p.title)];
+    const hdr = ['Ad soyad', 'Unvan', 'Birim', ...rep.posts.map((p) => p.title)];
     hdr.forEach((h, i) => { const c = ws.getCell(2, i + 1); c.value = h; Object.assign(c, head); if (i >= 3) c.alignment = { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: true }; });
     ws.getRow(2).height = 160;
     rep.users.forEach((u, r) => {
@@ -1244,7 +1244,7 @@ ACT['rep-xlsx'] = (el) => busy(el, async () => {
     ws.getColumn(1).width = 26; ws.getColumn(2).width = 18; ws.getColumn(3).width = 16;
     rep.posts.forEach((_, i) => { ws.getColumn(4 + i).width = 13; });
     const d = wb.addWorksheet('Ayrıntı');
-    d.addRow(['İçerik', 'Bölüm', 'Yayın tarihi', 'Ad soyad', 'Ünvan', 'Birim', 'Durum', 'Okuma tarihi']).eachCell((c) => Object.assign(c, head));
+    d.addRow(['İçerik', 'Bölüm', 'Yayın tarihi', 'Ad soyad', 'Unvan', 'Birim', 'Durum', 'Okuma tarihi']).eachCell((c) => Object.assign(c, head));
     rep.posts.forEach((p) => rep.users.filter((u) => p.unit_id === null || u.unit_id === p.unit_id).forEach((u) => {
       const at = (rep.acks[p.id] || {})[u.id];
       d.addRow([p.title, p.category || '', fmtDate(p.published_at, true), u.name, titleName(u.title_id), unitName(u.unit_id), at ? 'Okudu' : 'Okumadı', at ? fmtDateTime(at) : '']);
@@ -1258,13 +1258,13 @@ ACT['rep-xlsx'] = (el) => busy(el, async () => {
 
 const AUD = { q: '', items: [], more: false };
 const AUDIT_LABEL = {
-  login: 'Giriş', 'login.passkey': 'Parmak izi ile giriş', 'post.publish': 'İçerik yayınladı', 'post.submit': 'İçerik gönderdi', 'post.edit': 'İçerik düzenledi', 'post.delete': 'İçerik sildi',
+  login: 'Giriş', 'login.passkey': 'Parmak izi ile giriş', 'post.publish': 'İçerik yayımladı', 'post.submit': 'İçerik gönderdi', 'post.edit': 'İçerik düzenledi', 'post.delete': 'İçerik sildi',
   'post.approve': 'İçerik onayladı', 'post.reject': 'İçerik reddetti', 'roster.upload': 'Nöbet listesi yükledi', 'roster.restore': 'Liste sürümü geri yükledi', 'roster.rename': 'Liste adını değiştirdi',
   'roster.create': 'Liste oluşturdu', 'roster.delete': 'Liste sildi', 'chat.admin.delete': 'Sohbeti çöp kutusuna taşıdı', 'chat.admin.restore': 'Sohbeti çöp kutusundan geri yükledi', 'chat.admin.purge': 'Sohbeti kalıcı sildi', 'notif.retract': 'Bildirimi herkesten geri aldı', 'roster.primary': 'Listenin güncel ayını değiştirdi', 'roster.month.delete': 'Listeden ay kaldırdı', 'roster.parse': 'Listeden nöbetler okundu', 'roster.period': 'Liste ayını değiştirdi', 'user.create': 'Kullanıcı ekledi', 'user.edit': 'Kullanıcı düzenledi',
   'user.approve': 'Üyelik onayladı', 'user.delete': 'Kullanıcı sildi', 'user.resetpw': 'Geçici şifre oluşturdu', 'settings.save': 'Ayarları değiştirdi', 'structure.save': 'Bölüm/birim kaydetti', 'structure.delete': 'Bölüm/birim sildi',
   'backup.create': 'Yedek aldı', 'backup.download': 'Yedek indirdi', 'backup.delete': 'Yedek sildi', 'invite.general': 'QR davet oluşturdu', 'invite.personal': 'Davet oluşturdu', 'invite.use': 'Davetle katıldı', 'invite.revoke': 'Davet iptal etti',
   'template.create': 'Şablon ekledi', 'template.delete': 'Şablon sildi', 'roster.sync': 'Google E-Tablolar’dan güncellendi', 'roster.link': 'Listeyi Google E-Tablolar’a bağladı', 'roster.unlink': 'Liste bağlantısını kaldırdı',
-  'side.draw': 'Taraf kurası çekti', 'side.save': 'Taraf kaydı ekledi', 'side.delete': 'Taraf kaydı sildi', 'swap.request': 'Nöbet değişim isteği', 'swap.accept': 'Nöbet değişimini kabul etti', 'swap.decline': 'Nöbet değişimini reddetti', 'swap.cancel': 'Nöbet isteğini iptal etti', 'swap.done': 'Nöbet değişimini işlendi saydı', 'swap.delete': 'Nöbet değişim isteğini sildi', 'phonebook.create': 'Rehbere numara ekledi', 'phonebook.save': 'Rehberde numara düzenledi', 'phonebook.delete': 'Rehberden numara sildi', 'phonebook.import': 'Rehbere liste ekledi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
+  'side.draw': 'Taraf kurası çekti', 'side.save': 'Taraf kaydı ekledi', 'side.delete': 'Taraf kaydı sildi', 'swap.request': 'Değişim / devir teklifi', 'swap.accept': 'Nöbet değişimini kabul etti', 'swap.decline': 'Nöbet değişimini reddetti', 'swap.cancel': 'Teklifi iptal etti', 'swap.done': 'Nöbet değişimini işlendi saydı', 'swap.delete': 'Değişim / devir teklifini sildi', 'phonebook.create': 'Rehbere numara ekledi', 'phonebook.save': 'Rehberde numara düzenledi', 'phonebook.delete': 'Rehberden numara sildi', 'phonebook.import': 'Rehbere liste ekledi', 'passkey.add': 'Parmak izi ekledi', 'passkey.delete': 'Parmak izi kaldırdı',
 };
 async function drawAudit(body, more, keepInput) {
   if (!more) {
@@ -1297,7 +1297,7 @@ function settingsExtrasHtml(A) {
     ${brandCardHtml()}
     <div class="card card-pad stack" data-sec="bildirim">
       <div><h3 style="font-size:15px">${icon('clock', 'sm')} Hatırlatmalar ve sabah özeti</h3><p class="small muted">Kendiliğinden çalışır. Tam saatinde gitmesi için hPanel’de zamanlanmış görev (Cron Jobs) kurun — Kurulum rehberi, 13. bölüm.</p></div>
-      ${SWX('shift_remind_on', A.shift_remind_on, 'Nöbetten bir gün önce hatırlat', 'Excel listesinde adı geçen kişiye e-posta ve telefon bildirimi.')}
+      ${SWX('shift_remind_on', A.shift_remind_on, 'Nöbetten bir gün önce hatırlat', 'Nöbet listesinde adı geçen kişiye e-posta ve telefon bildirimi.')}
       <div class="row wrap"><span class="small muted">Hatırlatma saati</span>${hours('shift_remind_hour', A.shift_remind_hour)}</div>
       ${SWX('digest_on', A.digest_on, 'Sabah özeti e-postası', '“Sabah özeti” seçenlere her sabah tek e-posta: bugünkü nöbet, yeni duyurular, okunacaklar, onay bekleyenler.')}
       <div class="row wrap"><span class="small muted">Özet saati</span>${hours('digest_hour', A.digest_hour)}
@@ -1380,12 +1380,12 @@ function maybeShowTour() {
 }
 function showTour() {
   const steps = [
-    ['calendar', 'tone-indigo', 'Nöbetin burada', (window.innerWidth > 900 ? 'Soldaki menüde <b>Nöbet</b> bölümünde' : 'Alttaki <b>Nöbet</b> sekmesinde') + ' takvimini, hangi gün kimin nöbette olduğunu ve Excel listenin kendisini bulursun. Takvimde renkler: <span class="code-chip tone-amber">G</span> gündüz, <span class="code-chip tone-indigo">N</span> gece, <span class="code-chip tone-emerald">24</span> 24 saat, <span class="code-chip tone-slate">İ</span> izin.'],
-    ['checkCircle', 'tone-amber', 'Okuman gerekenler', 'Zorunlu duyuru ve protokolleri açıp <b>“Okudum, anladım”</b> demen yeterli. Kaç tane kaldığı ana sayfanın en üstünde yazar.'],
-    ['bell', 'tone-teal', 'Hiçbir şeyi kaçırma', 'Yeni duyurular ve nöbet hatırlatmaları sağ üstteki zilde toplanır. Telefon bildirimlerini açarsan nöbetinden bir gün önce de haber verilir.'],
+    ['calendar', 'tone-indigo', 'Nöbetiniz burada', (window.innerWidth > 900 ? 'Soldaki menüde <b>Nöbet</b> bölümünde' : 'Alttaki <b>Nöbet</b> sekmesinde') + ' takviminizi, hangi gün kimin nöbette olduğunu ve nöbet listesinin kendisini bulursunuz. Takvimde renkler: <span class="code-chip tone-amber">G</span> gündüz, <span class="code-chip tone-indigo">N</span> gece, <span class="code-chip tone-emerald">24</span> 24 saat, <span class="code-chip tone-slate">İ</span> izin.'],
+    ['checkCircle', 'tone-amber', 'Okunacaklar', 'Zorunlu duyuru ve protokolleri açıp <b>“Okudum, anladım”</b> demeniz yeterli. Kaç tane kaldığı ana sayfanın en üstünde yazar.'],
+    ['bell', 'tone-teal', 'Hiçbir şeyi kaçırmayın', 'Yeni duyurular ve nöbet hatırlatmaları sağ üstteki zilde toplanır. Telefon bildirimlerini açarsanız nöbetinizden bir gün önce de haber verilir.'],
   ];
   let i = 0;
-  const m = openModal({ title: 'Hoş geldin', size: 'narrow' });
+  const m = openModal({ title: 'Hoş geldiniz', size: 'narrow' });
   m.el.classList.add('tour');
   const draw = async () => {
     const [ic, tone, t, d] = steps[i];
@@ -1421,7 +1421,7 @@ async function mountSetupBox(box) {
   try { st = (await api('setup.status')).status; } catch (e) { return; }
   const team = st.roster_people ? st.matched >= Math.ceil(st.roster_people * 0.6) : st.users > 3;
   const items = [
-    [st.roster, 'Nöbet listesini yükle', 'Excel listeyi yükleyin; herkes açık görür.', '#/nobet'],
+    [st.roster, 'Nöbet listesini yükle', 'Nöbet listesini yükleyin; herkes açık görür.', '#/nobet'],
     [st.parsed, 'Nöbetleri okut', 'Listeyi bir kez açmanız yeterli. Takvimim ve hatırlatmalar buradan beslenir.', '#/nobet'],
     [team, 'Ekibi davet et' + (st.roster_people ? ` (${st.matched}/${st.roster_people})` : ''), 'QR kod veya nöbet listesinden kişiye özel davet bağlantısı.', '#/yonetim/kullanicilar'],
     [st.mail, 'E-posta gönderimini ayarla', 'Duyuru, hatırlatma ve şifre e-postaları için.', '#/yonetim/ayarlar/bildirim'],
@@ -1461,7 +1461,7 @@ ACT['set-sec'] = (el) => { applySettingsSec(el.dataset.s); navStep('#/yonetim/ay
 const CODES = { list: [], dirty: false };
 function shiftCodesCardHtml() {
   return html`<div class="card card-pad stack" data-sec="nobet">
-    <div><h3 style="font-size:15px">${icon('table', 'sm')} Nöbet kodları</h3><p class="small muted">Excel listedeki kısaltmaların anlamı. Takvimde, hatırlatmalarda, renklerde ve saat/fazla mesai hesabında kullanılır. Değiştirince listeler yeniden okunur.</p></div>
+    <div><h3 style="font-size:15px">${icon('table', 'sm')} Nöbet kodları</h3><p class="small muted">Nöbet listesindeki kısaltmaların anlamı. Takvimde, hatırlatmalarda, renklerde ve saat/fazla mesai hesabında kullanılır. Değiştirince listeler yeniden okunur.</p></div>
     <div id="codesBox"></div></div>`;
 }
 function mountCodesBox() {
@@ -1779,7 +1779,7 @@ function drawPhonebook() {
   const card = (title, ic, rows, cls = '') => html`<div class="sec-title">${icon(ic, 'sm')} ${title}</div><div class="card ${cls}"><div class="list">${rows}</div></div>`;
   if (!PB.items.length && !q) {
     setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('phone')}</div><h3>Rehber henüz boş</h3>
-      <p class="small">${isPublisher() ? html`Hastanenin dahili listesini Excel'den kopyalayıp <b>Listeyi yapıştır</b> ile tek seferde ekleyebilirsiniz.` : 'Yöneticiniz dahili numaraları eklediğinde burada görünür.'}</p>
+      <p class="small">${isPublisher() ? html`Hastanenin dahili listesini Excel’den kopyalayıp <b>Listeyi yapıştır</b> ile tek seferde ekleyebilirsiniz.` : 'Yöneticiniz dahili numaraları eklediğinde burada görünür.'}</p>
       ${isPublisher() ? html`<div class="row" style="justify-content:center;gap:8px;margin-top:12px"><button class="btn primary" data-act="pb-import">${icon('upload', 'sm')}Listeyi yapıştır</button><button class="btn" data-act="pb-add">${icon('plus', 'sm')}Tek tek ekle</button></div>` : ''}</div>
       ${people.length ? card('Ekip', 'users', people.map(pbPersonHtml)) : ''}`);
     return;
@@ -1948,7 +1948,7 @@ ACT['pb-import'] = (el) => {
   const m = openModal({
     title: 'Listeyi yapıştır', size: 'wide',
     body: html`<div class="stack">
-      <p class="small muted">Excel'deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın <b>ya da dosyayı seçin</b>. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
+      <p class="small muted">Excel’deki dahili listesini seçip kopyalayın ve aşağıya yapıştırın <b>ya da dosyayı seçin</b>. Her satırda bir ad ve numara olsun; numarası olmayan başlık satırları (ör. <b>LABORATUVAR</b>) altındaki satırların grubu olur.</p>
       <label class="btn primary">${icon('table', 'sm')}<span>Excel / CSV dosyası seç</span><input type="file" hidden accept=".xlsx,.xlsm,.xls,.ods,.csv,.txt" id="pbFile"></label>
       <textarea class="textarea" id="pbPaste" style="min-height:180px" placeholder="ACİL SERVİS&#10;Acil triaj	2201&#10;Acil sorumlu hemşire	2205 / 2206&#10;LABORATUVAR&#10;Biyokimya 2310&#10;Kan merkezi: 2315"></textarea>
       <div class="grid2"><div class="field"><label>Grup <span class="faint">(boşsa başlık satırlarından alınır)</span></label><input class="input" id="pbCat" maxlength="60" placeholder="Örn. Birimler"></div>

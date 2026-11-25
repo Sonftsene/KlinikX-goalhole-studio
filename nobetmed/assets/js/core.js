@@ -63,9 +63,9 @@ function guardOf(action, d) {
     'chat.block': () => (d.on ? ['Kişi engellensin mi?', 'Size mesaj gönderemez ve sizi arayamaz.', 'Engelle'] : null),
     'chat.members': () => ({ remove: ['Kişi gruptan çıkarılsın mı?', '', 'Çıkar'], ban: ['Kişi gruptan atılıp engellensin mi?', 'Davet bağlantısıyla da geri katılamaz.', 'At ve engelle'],
       restrict: ['Kişi kısıtlansın mı?', 'Grupta mesaj yazamaz.', 'Kısıtla'], member: ['Yöneticilik kaldırılsın mı?', '', 'Kaldır'] }[d.op] || null),
-    'extra.cancel': () => ['Ekstra nöbet isteği geri çekilsin mi?', '', 'Geri çek'],
-    'extra.take.cancel': () => ['Devir isteği iptal edilsin mi?', '', 'İptal et'],
-    'extra.take.respond': () => (d.accept ? ['Nöbet devrini kabul ediyor musunuz?', 'Kabul edince nöbet size geçer.', 'Kabul et', false] : ['Devir isteği reddedilsin mi?', '', 'Reddet']),
+    'extra.cancel': () => ['Gönüllülük geri çekilsin mi?', '', 'Geri çek'],
+    'extra.take.cancel': () => ['Devir teklifi iptal edilsin mi?', '', 'İptal et'],
+    'extra.take.respond': () => (d.accept ? ['Nöbet devrini kabul ediyor musunuz?', 'Kabul edince nöbet size geçer.', 'Kabul et', false] : ['Devir teklifi reddedilsin mi?', '', 'Reddet']),
     'gsync.source.delete': () => del('Google bağlantısı silinsin mi?', 'Bu kaynaktan liste güncellemesi durur.'),
     'hdoc.delete': () => del('Belge silinsin mi?', 'Belge hastane genelinden kaldırılır.'),
     'listing.cancel': () => ['İlan iptal edilsin mi?', '', 'İptal et'],
@@ -103,10 +103,10 @@ function guardOf(action, d) {
     'sa.billing.plan.del': () => del('Paket silinsin mi?'),
     'side.delete': () => del('Kayıt silinsin mi?', 'Bu geçiş kaydı ve sayımı silinir.'),
     'sp.close': () => ['Destek talebi kapatılsın mı?', '', 'Kapat'],
-    'swap.cancel': () => ['Değişim isteği iptal edilsin mi?', '', 'İptal et'],
+    'swap.cancel': () => ['Teklif iptal edilsin mi?', '', 'İptal et'],
     'swap.delete': () => del('Değişim kaydı silinsin mi?'),
     'swap.hide': () => ['Kayıt listeden kaldırılsın mı?', '', 'Kaldır'],
-    'swap.respond': () => (d.accept ? ['Değişimi kabul ediyor musunuz?', 'Kabul edince sorumluya iletilir.', 'Kabul et', false] : ['Değişim isteği reddedilsin mi?', '', 'Reddet']),
+    'swap.respond': () => (d.accept ? ['Değişimi kabul ediyor musunuz?', 'Kabul edince sorumluya iletilir.', 'Kabul et', false] : ['Teklif reddedilsin mi?', '', 'Reddet']),
     'tax.delete': () => del('Kayıt silinsin mi?'),
     'templates.delete': () => del('Şablon silinsin mi?'),
     'update.apply': () => ['Güncelleme kurulsun mu?', 'Site birkaç saniye bakım moduna girer.', 'Kur', false],
@@ -170,14 +170,14 @@ async function apiCall0(action, data = {}) {
     break;
   }
   updatingNotice(false);
-  if (!json) throw new ApiError('Sunucudan geçersiz yanıt alındı (' + res.status + ').', res.status);
+  if (!json) throw new ApiError('Bir sorun oluştu; işleminiz kaydedilmemiş olabilir. Sayfayı yenileyip tekrar deneyin. Sürerse Destek’e yazın. (' + res.status + ')', res.status);
   if (!json.ok) {
     if ((res.status === 401 || res.status === 419) && S.me && action !== 'auth.login') {
       if (typeof secureWipe === 'function') secureWipe(); // başka cihazdan kapatıldıysa yerel izler silinsin
       toast('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.', 'err');
       setTimeout(() => location.reload(), 1200);
     }
-    throw new ApiError(json.error || 'İşlem başarısız.', res.status);
+    throw new ApiError(json.error || 'Bir sorun oluştu; işleminiz kaydedilmemiş olabilir. Sayfayı yenileyip tekrar deneyin. Sürerse Destek’e yazın.', res.status);
   }
   if (json.csrf) S.csrf = json.csrf;
   if (ck) offlinePut(ck, json, action);
@@ -615,7 +615,7 @@ const byId = (list, id) => list.find((x) => x.id === id) || null;
 const catOf = (id) => byId(S.categories, id) || { id, name: 'Bölüm', icon: 'folder', color: 'slate' };
 const unitName = (id) => (byId(S.units, id) || {}).name || '';
 const titleName = (id) => (byId(S.titles, id) || {}).name || '';
-const ROLE_LABEL = { admin: 'Yönetici', editor: 'Yayıncı', member: 'Üye' };
+const ROLE_LABEL = { admin: 'Yönetici', editor: 'Sorumlu', member: 'Üye' };
 const ROLE_HINT = {
   admin: 'Tüm ayarlar, kullanıcılar ve içerikler',
   editor: 'Onaysız yayın, içerik onayı ve nöbet çizelgesi',
@@ -719,7 +719,7 @@ async function submitForm(form, fn) {
   try {
     await busy(btn, () => fn(formData(form)));
   } catch (e) {
-    showFormError(form, e.message || 'İşlem başarısız.');
+    showFormError(form, e.message || 'Bir sorun oluştu; işleminiz kaydedilmemiş olabilir. Sayfayı yenileyip tekrar deneyin. Sürerse Destek’e yazın.');
   }
 }
 

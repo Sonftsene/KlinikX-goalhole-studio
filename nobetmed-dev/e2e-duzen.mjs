@@ -45,7 +45,7 @@ try {
   await A.p.locator('#ulCard').screenshot({ path: path.join(OUT, 'duzen-yonetici.png') });
   await A.p.click('#ulCard [data-act=ul-save]');
   await A.p.locator('.modal [data-ok]').click();
-  await A.p.getByText('Ana ekran herkes için kaydedildi').first().waitFor();
+  await A.p.getByText('Ana sayfa herkes için kaydedildi').first().waitFor();
   const saved = await call(A.p, 'ui.layout.get');
   if (!saved.base || saved.base.preset !== 'sade' || !saved.base.lock || !saved.base.chips_big || !saved.base.chips.length) fail('düzen kaydedilmedi: ' + JSON.stringify(saved.base));
   step(`yönetici “Sade” düzeni herkese uyguladı (${saved.base.chips.length} büyük kısayol, kilitli, üstte ${saved.base.top_hide.length} simge gizli)`);
@@ -90,7 +90,7 @@ try {
   await A.p.locator('#ulCard [data-change=ul-pub]').check({ force: true });
   await A.p.click('#ulCard [data-act=ul-preset][data-k=standart]');
   await A.p.click('#ulCard [data-act=ul-save]');
-  await A.p.getByText('Ana ekran herkes için kaydedildi').first().waitFor();
+  await A.p.getByText('Ana sayfa herkes için kaydedildi').first().waitFor();
   const mine = await A.p.evaluate(() => S.ui_layout);
   if (!mine || mine.scope !== 'publisher' || mine.chips_big) fail('yöneticiye sorumlu düzeni uygulanmadı: ' + JSON.stringify(mine));
   const mm = (await call(M.p, 'boot')).ui_layout;

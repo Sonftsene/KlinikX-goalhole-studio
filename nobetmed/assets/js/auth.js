@@ -14,7 +14,7 @@ function authLayout(inner) {
         <p>WhatsApp gruplarında kaybolan bilgiler yerine düzenli, aranabilir ve kimin okuduğu belli olan bir klinik portalı.</p>
         <div class="auth-feats">
           <div class="auth-feat"><span class="fi">${icon('checkCircle')}</span><div><b>Okundu takibi</b><span>Zorunlu protokolleri kimin okuduğunu anında görün.</span></div></div>
-          <div class="auth-feat"><span class="fi">${icon('calendar')}</span><div><b>Excel nöbet listeleri</b><span>Excel'de hazırladığınız liste sitede açık görünür; herkes adını tek tıkla bulur.</span></div></div>
+          <div class="auth-feat"><span class="fi">${icon('calendar')}</span><div><b>Nöbet listeleri</b><span>Excel’de ya da Google E-Tablolar’da hazırladığınız liste sitede açık görünür; herkes adını tek tıkla bulur.</span></div></div>
           <div class="auth-feat"><span class="fi">${icon('lock')}</span><div><b>Kapalı ve güvenli</b><span>Arama motorlarına kapalı, yalnızca onaylı üyeler erişir.</span></div></div>
         </div>
       </div>
@@ -104,7 +104,7 @@ function renderAuth(mode = 'login') {
       <form class="stack" data-form="register">
         <div class="field"><label>Ad soyad</label><input class="input" name="name" autocomplete="name" required minlength="3"></div>
         <div class="grid2">
-          <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, null, 'Seçin')}</select></div>
+          <div class="field"><label>Unvan</label><select class="select" name="title_id">${options(S.titles, null, 'Seçin')}</select></div>
           <div class="field"><label>Birim</label><select class="select" name="unit_id">${options(S.units, null, 'Seçin')}</select></div>
         </div>
         <div class="field"><label>E-posta</label><input class="input" type="email" name="email" autocomplete="email" required></div>

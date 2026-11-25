@@ -5,10 +5,10 @@
 
 NM_EXT.routes.cizelge = (view, r) => planPage(view, r);
 NM_EXT.hubTabs.push({ key: 'cizelge', mod: 'cizelge', pub: true, href: '#/cizelge', icon: 'edit', label: 'Çizelge' });
-Object.assign(NM_EXT.audit, { 'plan.publish': 'Nöbet çizelgesini yayınladı' });
+Object.assign(NM_EXT.audit, { 'plan.publish': 'Nöbet çizelgesini yayımladı' });
 
 const PL2 = { rid: 0, ym: '', d: null, codes: [], req: {}, hol: {}, half: [], brush: null, dirty: false, chk: null, timer: null, roster: null, tab: 'grid', marks: {}, signed: null, published: false, synced: 0, rules: null, setOpen: null };
-const PL2_TABS = [['grid', 'Çizelge', 'table'], ['chg', 'Değişiklikler', 'history'], ['resmi', 'Resmi liste', 'file']];
+const PL2_TABS = [['grid', 'Çizelge', 'table'], ['chg', 'Değişiklikler', 'history'], ['resmi', 'Resmî liste', 'file']];
 const PL2_TAB_URL = { grid: '', chg: 'degisiklik', resmi: 'resmi' };
 
 function planRosters() { return (S.rosters || []).filter((r) => r.kind !== 'tablo' && !r.linked); }
@@ -278,10 +278,10 @@ function planDraw() {
         ${(PL2.undo || []).length ? html`<button class="btn sm" data-act="pl2-undo" title="Son toplu işlemi geri al: ${PL2.undo[PL2.undo.length - 1].label}">${icon('history', 'sm')}<span>Geri al</span></button>` : ''}
         <button class="btn sm pl2-more" data-act="pl2-more" aria-label="Diğer işlemler">${icon('more', 'sm')}<span>Diğer</span></button>
         <button class="btn sm" data-act="pl2-save">${icon('check', 'sm')}<span>Kaydet</span></button>
-        <button class="btn sm primary" data-act="pl2-publish">${icon('send', 'sm')}<span>Yayınla</span></button>
+        <button class="btn sm primary" data-act="pl2-publish">${icon('send', 'sm')}<span>Yayımla</span></button>
       </div>
       ${PL2.info ? html`<div class="tiny faint">${PL2.info}</div>` : ''}
-      ${PL2.synced ? html`<div class="mk-box warn" id="pl2Synced">${icon('history', 'sm')}<span>Yayından sonra kabul edilen değişim / devir / çağrılar çizelgeye işlendi (<b>${PL2.synced}</b> hücre). Saatler güncel; listeye de işlemek için <b>Yayınla</b>.</span></div>` : ''}
+      ${PL2.synced ? html`<div class="mk-box warn" id="pl2Synced">${icon('history', 'sm')}<span>Yayından sonra kabul edilen değişim / devir / çağrılar çizelgeye işlendi (<b>${PL2.synced}</b> hücre). Saatler güncel; listeye de işlemek için <b>Yayımla</b>.</span></div>` : ''}
       <details class="pl2-set" ${PL2.setOpen ? raw('open') : ''}><summary class="small"><b>Çizelge ayarları</b> <span class="faint">· gereken kişi, kodlar, birim kuralları</span></summary>
       <div class="row wrap pl2-needs" style="gap:10px">
         <span class="small muted">Gereken kişi</span>
@@ -316,7 +316,7 @@ function planDraw() {
       <tfoot><tr><th class="pl2-name">Gündüz / gece</th>${days.map((d) => { const n = need(d); const bad = cov[d].day < n.day - 0.01 || cov[d].night < n.night - 0.01; return html`<td class="pl2-cov ${bad ? 'bad' : ''}" title="Gereken: ${n.day} / ${n.night}">${fmtN(cov[d].day)}<br>${fmtN(cov[d].night)}</td>`; })}<td></td><td></td><td></td></tr></tfoot></table></div>
     <div class="row wrap" style="gap:8px"><button type="button" class="btn sm" data-act="pl2-addp" id="pl2AddBtn">${icon('plus', 'sm')}<span>Kişi ekle</span></button><span class="tiny faint">${PL2.d.people.length} kişi</span></div>
     <div id="plIssues">${planIssuesHtml()}</div>
-    <p class="tiny faint">B: boşluk isteği · İ: yıllık izin isteği (onaylı ya da sizin elle girdiğiniz). Köşesinde nokta olan hücre yayından sonra değişti (ayrıntı: Değişiklikler). Kırmızı hücre kural uyarısı, kırmızı sayı eksik gün. Ger. / Çal. / Fazla: resmi listedeki saatler (kişi adına dokunup gereken saati elle düzeltebilirsiniz). Değişiklikler 20 saniyede bir kendiliğinden kaydedilir; ekip yayınlayana kadar görmez.</p>
+    <p class="tiny faint">B: boşluk isteği · İ: yıllık izin isteği (onaylı ya da sizin elle girdiğiniz). Köşesinde nokta olan hücre yayından sonra değişti (ayrıntı: Değişiklikler). Kırmızı hücre kural uyarısı, kırmızı sayı eksik gün. Ger. / Çal. / Fazla: resmî listedeki saatler (kişi adına dokunup gereken saati elle düzeltebilirsiniz). Değişiklikler 20 saniyede bir kendiliğinden kaydedilir; ekip yayımlayana kadar görmez.</p>
   </div>`);
   if (keep) { const w1 = $('.pl2-wrap', box); if (w1) { w1.scrollLeft = keep.x; w1.scrollTop = keep.y; } if (Math.abs(window.scrollY - keep.py) > 2) window.scrollTo(0, keep.py); }
   const det = $('.pl2-set', box); if (det) det.addEventListener('toggle', () => { PL2.setOpen = det.open; });
@@ -509,7 +509,7 @@ function planTitlePick(n) {
   const empty = PL2.d.people.filter((p) => !String(p.title || '').trim() && p.name !== n).length;
   const m = openModal({ title: `${n} · unvan`, size: 'narrow', body: html`<div class="stack">
     ${known.length ? html`<div><div class="tiny faint" style="margin-bottom:6px">Daha önce eklenen unvanlar — dokunun:</div><div class="row wrap" style="gap:6px" id="pl2TChips">${known.map((t) => html`<button type="button" class="chip-btn ${trLower(t) === trLower(cur) ? 'on' : ''}" data-t="${t}" aria-pressed="${trLower(t) === trLower(cur) ? 'true' : 'false'}">${t}</button>`)}</div></div>` : ''}
-    <div class="field"><label for="pl2TIn">Unvan (resmi listede yazar)</label><input class="input" id="pl2TIn" list="pl2TDL" maxlength="80" value="${cur}" placeholder="Listeden seçin ya da yeni unvan yazın" autocomplete="off"><datalist id="pl2TDL">${known.map((t) => html`<option value="${t}"></option>`)}</datalist></div>
+    <div class="field"><label for="pl2TIn">Unvan (resmî listede yazar)</label><input class="input" id="pl2TIn" list="pl2TDL" maxlength="80" value="${cur}" placeholder="Listeden seçin ya da yeni unvan yazın" autocomplete="off"><datalist id="pl2TDL">${known.map((t) => html`<option value="${t}"></option>`)}</datalist></div>
     ${empty ? html`<label class="small row" style="gap:8px;align-items:center"><input type="checkbox" id="pl2TAll"> Unvanı boş olan ${empty} kişiye de ver</label>` : ''}
     <label class="small row" style="gap:8px;align-items:center"><input type="checkbox" id="pl2TDef" ${PL2.titles.def && trLower(PL2.titles.def) === trLower(cur) ? raw('checked') : ''}> Yeni eklenen kişilere bu unvan kendiliğinden verilsin</label>
     <p class="tiny faint" style="margin:0">Kişiye verilen unvan hatırlanır: sonraki aylarda ve kişi yeniden eklendiğinde kendiliğinden gelir.</p></div>`,
@@ -747,14 +747,14 @@ async function planPublishCtx(ctx, el) {
   const base = `Çizelge “${ctx.roster.name}” listesinin ${TR_MONTHS[m - 1]} ${y} ayı olur; ekip Takvimim’de ve listede görür, nöbeti değişenlere bildirim gider.`;
   let primary = true;
   if (!curP || curP === ctx.ym) {
-    if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, text: base, ok: 'Yayınla' }))) return;
+    if (!(await confirmDialog({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayımlansın mı?`, text: base, ok: 'Yayımla' }))) return;
   } else {
     primary = await new Promise((resolve) => {
       let done = false;
-      const dm = openModal({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayınlansın mı?`, size: 'narrow',
+      const dm = openModal({ title: `${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} yayımlansın mı?`, size: 'narrow',
         body: html`<p class="muted">${base}</p>
-          <label class="small row" style="gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="pubPrim" ${ctx.ym > curP ? raw('checked') : ''}><span><b>${TR_MONTHS[m - 1]} ${y} güncel ay olsun</b><br><span class="tiny muted">Liste açılınca bu ay görünür; ${periodLabel(curP)} ${ctx.ym > curP ? 'geçmiş aylarda' : 'güncel olarak'} kalır. İşaretlemezseniz ${ctx.ym > curP ? 'sıradaki' : 'geçmiş'} ay olarak eklenir. Her iki durumda da iki ayın nöbetleri kendi günlerinde Takvimim’de ve hesaplarda geçerlidir.</span></span></label>`,
-        foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Yayınla</button>`,
+          <label class="small row" style="gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="pubPrim" ${ctx.ym > curP ? raw('checked') : ''}><span><b>${TR_MONTHS[m - 1]} ${y} güncel ay olsun</b><br><span class="tiny muted">Liste açılınca bu ay görünür; ${periodLabel(curP)} ${ctx.ym > curP ? 'geçmiş aylarda' : 'güncel olarak'} kalır. İşaretlemezseniz ${ctx.ym > curP ? 'sıradaki' : 'geçmiş'} ay olarak eklenir.</span></span></label>`,
+        foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Yayımla</button>`,
         onClose: () => { if (!done) resolve(null); } });
       dm.el.querySelector('[data-ok]').addEventListener('click', () => { done = true; const v = $('#pubPrim', dm.el).checked; dm.close(); resolve(v); });
     });
@@ -764,7 +764,7 @@ async function planPublishCtx(ctx, el) {
     try {
       await ctx.save();
       const chk = await api('plan.check', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d });
-      if (chk.issues.some((x) => x.type === 'kural') && !(await confirmDialog({ title: 'Kural uyarıları var', text: `${chk.issues.filter((x) => x.type === 'kural').length} kural uyarısı var (dinlenme / üst üste çalışma). Yine de yayınlansın mı?`, ok: 'Yine de yayınla', danger: true }))) return;
+      if (chk.issues.some((x) => x.type === 'kural') && !(await confirmDialog({ title: 'Kural uyarıları var', text: `${chk.issues.filter((x) => x.type === 'kural').length} kural uyarısı var (dinlenme / üst üste çalışma). Yine de yayımlansın mı?`, ok: 'Yine de yayımla', danger: true }))) return;
       // Daha önce yayınlanmış ayda: güncel hâl ile yeni taslak arasındaki farklar "düzeltme" olarak kaydedilir (Değişiklikler)
       try { await api('plan.mark', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d }); } catch (e) { /* kayıt tutulamadıysa yayın yine yapılır */ }
       const file = await planXlsx(ctx);
@@ -778,7 +778,7 @@ async function planPublishCtx(ctx, el) {
       const r = await api('rosters.shifts', { roster_id: ctx.rid, file_id: att.id, period: ctx.ym, entries, primary });
       await api('plan.save', { roster_id: ctx.rid, ym: ctx.ym, draft: ctx.d, published: true });
       await refreshRosters(); MY.at = 0;
-      toast(`${ctx.roster.name} yayınlandı · ${r.saved} nöbet kaydı`);
+      toast(`${ctx.roster.name} yayımlandı · ${r.saved} nöbet kaydı`);
       if (ctx.after) ctx.after();
     } catch (e) { toast(e.message, 'err'); }
   });
@@ -795,7 +795,7 @@ async function planXlsx(ctx) {
   ws.addRow([`${ctx.roster.name} · ${TR_MONTHS[m - 1]} ${y} nöbet çizelgesi`]);
   ws.mergeCells(1, 1, 1, days.length + 3);
   ws.getRow(1).font = { bold: true, size: 14 };
-  ws.addRow(['Ad Soyad', 'Ünvan', ...days.map((d) => +d.slice(8)), 'Saat']);
+  ws.addRow(['Ad Soyad', 'Unvan', ...days.map((d) => +d.slice(8)), 'Saat']);
   ws.addRow(['', '', ...days.map((d) => TR_DAYS_S[new Date(d).getDay()]), '']);
   const fill = { amber: 'FFFFF1C2', indigo: 'FFD9DCFF', violet: 'FFFFD6A5', emerald: 'FFC9F2D9', slate: 'FFE5E7EB' };
   D.people.forEach((p) => {
@@ -958,7 +958,7 @@ function pjDraw() {
       <div class="card-head"><h3>${sd.name} <span class="tiny faint">· ${sd.units.join(', ')} · liste: ${sd.roster.name}</span></h3><span class="grow"></span>
         ${PJ.dirty[sd.roster.id] ? html`<span class="badge warn sm">kaydedilmedi</span>` : ''}
         <button class="btn sm" data-act="pj-xlsx" data-s="${sd.key}">${icon('download', 'sm')}<span>Excel</span></button>
-        <button class="btn sm primary" data-act="pj-publish" data-s="${sd.key}">${icon('send', 'sm')}<span>Yayınla</span></button></div>
+        <button class="btn sm primary" data-act="pj-publish" data-s="${sd.key}">${icon('send', 'sm')}<span>Yayımla</span></button></div>
       <div class="pl2-wrap"><table class="pl2-grid pj-grid">${head(sd)}${body(sd)}${foot(sd)}</table></div></div>`)}
     <div class="card"><div class="card-head"><h3>${icon('layers', 'sm')} Gün gün toplam</h3><span class="tiny faint">alan / gereken · ↔ karşıya geçecek kişi (bloğu Taraf kurasında belli olur)</span></div>
       <div class="pl2-wrap" style="max-height:none"><table class="pl2-grid"><thead><tr><th class="pl2-name">Gün</th>${days.map((d) => html`<th>${+d.slice(8)}<small>${TR_DAYS_S[new Date(d).getDay()].slice(0, 2)}</small></th>`)}</tr></thead><tbody>${sumRow('night')}${sumRow('day')}</tbody></table></div></div>

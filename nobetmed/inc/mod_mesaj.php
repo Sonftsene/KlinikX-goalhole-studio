@@ -785,7 +785,7 @@ function c_system(int $chatId, array $me, string $text): void
 function a_chat_create(): void
 {
     $me = c_need();
-    if (!is_publisher($me)) fail('Grup kurmak için yetki gerekir (yönetici / yayıncı ya da “Mesajlaşma: Yönetir”).', 403);
+    if (!is_publisher($me)) fail('Grup kurmak için yetki gerekir (yönetici / sorumlu ya da “Mesajlaşma: Yönetir”).', 403);
     $name = s('name', 80);
     if (mb_strlen($name) < 2) fail('Grup adını girin.');
     [$people, $skipped] = c_add_policy($me, c_valid_people($me, arr('members')));
@@ -905,7 +905,7 @@ function a_chat_members(): void
         if ($op === 'member' && $t['role'] === 'admin' && (int)h_val("SELECT COUNT(*) FROM c_members WHERE chat_id = ? AND role = 'admin'", [$c['id']]) <= 1) fail('Grupta en az bir yönetici kalmalı.');
         h_q('UPDATE c_members SET role = ? WHERE chat_id = ? AND tkey = ? AND user_id = ?', [$op, $c['id'], $tk, $uid]);
         c_system((int)$c['id'], $me, $t['name'] . ($op === 'admin' ? ' grup yöneticisi oldu' : ' artık grup yöneticisi değil'));
-    } else fail('Geçersiz işlem.');
+    } else fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     out();
 }
 

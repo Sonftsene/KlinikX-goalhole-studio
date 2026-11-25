@@ -157,7 +157,7 @@ function sp_here(): array
     $t = nm_tenant();
     return [(string)$t['tkey'], (int)$t['hospital_id'], (string)($t['hospital_name'] ?? m_val('SELECT name FROM hospitals WHERE id = ?', [(int)$t['hospital_id']]) ?? ''), (string)$t['name']];
 }
-function sp_role_label(string $r): string { return ['admin' => 'Yönetici', 'editor' => 'Yayıncı (sorumlu)', 'member' => 'Üye'][$r] ?? $r; }
+function sp_role_label(string $r): string { return ['admin' => 'Yönetici', 'editor' => 'Sorumlu', 'member' => 'Üye'][$r] ?? $r; }
 
 /** Kişinin gerçek rolü (rol gözünden önizleme açıksa bile) ve yolu */
 function sp_real(array $me): array
@@ -631,7 +631,7 @@ function a_sa_sp_set(): void
         }
     } elseif ($act === 'delete') {
         sp_delete((int)$t['id']);
-    } else fail('Geçersiz işlem.');
+    } else fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     sa_audit($sa, 'support.' . $act, '#' . $t['id'] . ' ' . $t['subject'], $t['unit_name']);
     out(['ok' => true]);
 }

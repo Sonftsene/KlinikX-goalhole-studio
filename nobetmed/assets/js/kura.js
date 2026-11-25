@@ -21,7 +21,7 @@ function krLetter(i) { let s = ''; i += 1; while (i > 0) { const r = (i - 1) % 2
 
 async function kuraPage(view, r) {
   if (!KR.opts) { try { KR.opts = Object.assign(krDefOpts(), JSON.parse(localStorage.getItem('nm-kura-opts') || '{}')); } catch (e) { KR.opts = krDefOpts(); } }
-  setHTML(view, html`<div class="page-head"><div><h1>${icon('dice')} Kura</h1><p>İsim ya da sayı yazın, kartlar üstü kapalı karışsın; herkes bir karta dokunup altında ne çıktığını görsün. Sonuçlar birimde herkese görünür.</p></div></div>
+  setHTML(view, html`<div class="page-head"><div><h1>${icon('dice')} Kura</h1><p>İsim ya da sayı yazın, kartlar üstü kapalı karışsın; herkes bir karta dokunsun. Sonuçlar birimde herkese görünür.</p></div></div>
     <div id="krBody"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div></div></div>`);
   await kuraLoad();
   if (r && r[1] && /^\d+$/.test(r[1])) krShowResult(+r[1]);
@@ -62,7 +62,7 @@ function kuraDraw() {
         </div></details>
       <div class="row wrap" style="gap:8px"><button class="btn primary" data-act="kr-start" ${n >= 2 ? '' : raw('disabled')}>${icon('dice', 'sm')}<span>Kurayı başlat</span></button>
         ${D.can_manage ? html`<button class="btn" data-act="kr-tpl-save" ${n >= 2 ? '' : raw('disabled')}>${icon('bookmark', 'sm')}<span>${KR.tplId ? 'Şablonu güncelle' : 'Şablon olarak kaydet'}</span></button>` : ''}</div>
-      <p class="tiny faint" style="margin:0">Karıştırma sunucuda yapılır; kartlar açılana kadar içerikleri bu cihaza bile gelmez. Her açılış (kim, ne zaman) kaydedilir.</p>
+      <p class="tiny faint" style="margin:0">Kartın içeriği yalnız açılınca görünür; her açılış kaydedilir.</p>
     </div>
     <div class="card"><div class="card-head"><h3>${icon('bookmark', 'sm')} Hazır şablonlar</h3></div>
       <div class="list">${D.templates.length ? D.templates.map((t) => html`<div class="list-row"><div class="grow" style="min-width:0"><div class="lr-t">${t.name} <span class="tiny faint">${t.items.length} madde</span></div><div class="lr-s ellipsis">${t.items.slice(0, 8).join(', ')}${t.items.length > 8 ? '…' : ''}</div></div>

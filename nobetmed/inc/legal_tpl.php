@@ -120,7 +120,7 @@ Bu koşullar, **{UNVAN}** ("{MARKA}") tarafından {SITE} adresinde sunulan {MARK
 - Bu kurallara aykırılık halinde ilgili içerik kaldırılabilir, hesap ya da birim askıya alınabilir.
 
 ## Nöbet bilgilerinin doğruluğu
-Nöbet listeleri ve çizelgeler birimler tarafından hazırlanır. Portal, kurallara uygunluk denetimi gibi yardımcı araçlar sunar; ancak resmi nöbet listesinin doğruluğu ve kesinleşmesi ilgili birimin ve kurumun sorumluluğundadır.
+Nöbet listeleri ve çizelgeler birimler tarafından hazırlanır. Portal, kurallara uygunluk denetimi gibi yardımcı araçlar sunar; ancak resmî nöbet listesinin doğruluğu ve kesinleşmesi ilgili birimin ve kurumun sorumluluğundadır.
 
 ## Ücretlendirme
 Portalın bazı paketleri ücretlidir. Paketler, fiyatlar ve deneme süresi portalda gösterilir. Ücretli paket satın alımında Mesafeli Hizmet Sözleşmesi ile İptal ve İade Koşulları geçerlidir.

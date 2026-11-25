@@ -47,7 +47,7 @@ function a_qr_new(): void
     $ip = client_ip();
     qr_q('DELETE FROM qr_logins WHERE expires_at < ?', [date('Y-m-d H:i:s', time() - 3600)]);
     $n = (int)qr_one('SELECT COUNT(*) AS n FROM qr_logins WHERE ip = ? AND created_at > ?', [$ip, date('Y-m-d H:i:s', time() - 600)])['n'];
-    if ($n >= 30) fail('Çok fazla karekod istendi. Birkaç dakika sonra deneyin.', 429);
+    if ($n >= 30) fail('Çok fazla QR kod istendi. Birkaç dakika sonra deneyin.', 429);
     $token = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
     $secret = bin2hex(random_bytes(24));
     qr_q('INSERT INTO qr_logins (token_hash, secret_hash, status, label, ip, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -85,7 +85,7 @@ function a_qr_info(): void
     $me = need_user();
     if (!empty($me['sa_virtual'])) fail('Sistem yöneticisi bu yolla giriş onaylayamaz.', 403);
     $r = qr_one('SELECT * FROM qr_logins WHERE token_hash = ?', [qr_hash(s('token', 64))]);
-    if (!$r || !in_array($r['status'], ['wait', 'seen'], true) || $r['expires_at'] < now()) fail('Karekodun süresi dolmuş ya da kullanılmış. Bilgisayarda yeni karekod çıkar.', 410);
+    if (!$r || !in_array($r['status'], ['wait', 'seen'], true) || $r['expires_at'] < now()) fail('QR kodun süresi dolmuş ya da kullanılmış. Bilgisayarda yeni QR kod oluşturun.', 410);
     qr_q("UPDATE qr_logins SET status = 'seen' WHERE token_hash = ? AND status = 'wait'", [$r['token_hash']]);
     $c = qr_code(s('token', 64));
     $opts = [$c];
@@ -100,7 +100,7 @@ function a_qr_approve(): void
     $me = need_user();
     if (!empty($me['sa_virtual'])) fail('Sistem yöneticisi bu yolla giriş onaylayamaz.', 403);
     $r = qr_one('SELECT * FROM qr_logins WHERE token_hash = ?', [qr_hash(s('token', 64))]);
-    if (!$r || !in_array($r['status'], ['wait', 'seen'], true) || $r['expires_at'] < now()) fail('Karekodun süresi dolmuş ya da kullanılmış. Bilgisayarda yeni karekod çıkar.', 410);
+    if (!$r || !in_array($r['status'], ['wait', 'seen'], true) || $r['expires_at'] < now()) fail('QR kodun süresi dolmuş ya da kullanılmış. Bilgisayarda yeni QR kod oluşturun.', 410);
     if (!b('ok')) {
         qr_q("UPDATE qr_logins SET status = 'deny' WHERE token_hash = ?", [$r['token_hash']]);
         out(['state' => 'denied']);
@@ -109,7 +109,7 @@ function a_qr_approve(): void
     if ((int)i('code') !== qr_code(s('token', 64))) {
         qr_q("UPDATE qr_logins SET status = 'deny' WHERE token_hash = ?", [$r['token_hash']]);
         audit($me, 'qr.approve', (string)$r['label'], 'Yanlış sayı seçildi; giriş reddedildi (IP ' . $r['ip'] . ')');
-        fail('Seçtiğiniz sayı bilgisayardakiyle aynı değil; giriş reddedildi. Karekodu siz okutmadıysanız biri hesabınıza girmeye çalışmış olabilir.', 409);
+        fail('Seçtiğiniz sayı bilgisayardakiyle aynı değil; giriş reddedildi. QR kodu siz okutmadıysanız biri hesabınıza girmeye çalışmış olabilir.', 409);
     }
     qr_q("UPDATE qr_logins SET status = 'ok', tkey = ?, user_id = ?, user_name = ?, approved_at = ? WHERE token_hash = ? AND status IN ('wait', 'seen')",
         [(string)nm_tenant()['tkey'], (int)$me['id'], $me['name'], now(), $r['token_hash']]);

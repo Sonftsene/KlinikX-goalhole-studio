@@ -522,7 +522,7 @@ function a_sa_billing_sub(): void
         case 'note':
             bl_sub_put($tk, ['note' => $note], 'note', $note, $who);
             break;
-        default: fail('Geçersiz işlem.');
+        default: fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     }
     sa_audit($sa, 'billing.sub', $label, $op . ($note ? ' · ' . $note : ''));
     $GLOBALS['IN'] = [];
@@ -564,7 +564,7 @@ function a_sa_billing_pay(): void
         m_q('INSERT INTO bl_events (tkey, kind, detail, who, at) VALUES (?, ?, ?, ?, ?)', [$p['tkey'], 'refund', bl_money((int)$p['total']) . ' iade edildi (süreyi gerekirse elle kısaltın)', 'SA:' . $sa['name'], now()]);
     } elseif ($op === 'invoice') {
         m_q('UPDATE bl_payments SET invoice_no = ?, updated_at = ? WHERE id = ?', [s('invoice_no', 60), now(), $p['id']]);
-    } else fail('Geçersiz işlem.');
+    } else fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     sa_audit($sa, 'billing.pay', $p['oid'], $op);
     $GLOBALS['IN'] = [];
     a_sa_billing();

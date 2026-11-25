@@ -87,7 +87,7 @@ function a_ui_layout_save(): void
             $n++;
         }
     }
-    audit($me, 'settings.save', 'Herkes için ana ekran', $base ? ('düzen: ' . $base['preset'] . ($pub ? ' · sorumlulara ayrı düzen' : '') . ($base['lock'] ? ' · kilitli' : '')) : 'kaldırıldı');
+    audit($me, 'settings.save', 'Herkes için ana sayfa', $base ? ('düzen: ' . $base['preset'] . ($pub ? ' · sorumlulara ayrı düzen' : '') . ($base['lock'] ? ' · kilitli' : '')) : 'kaldırıldı');
     $j = ul_get();
     out(['base' => $j['base'] ?? null, 'publisher' => $j['publisher'] ?? null, 'ver' => $j['ver'] ?? null, 'reset' => $n, 'mine' => ul_for($me)]);
 }

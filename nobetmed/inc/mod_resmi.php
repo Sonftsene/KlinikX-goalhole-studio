@@ -330,7 +330,7 @@ function a_plan_tpl_save(): void
     if (b('share') && function_exists('nm_multi') && nm_multi() && function_exists('hdb') && hdb()) {
         h_q('INSERT OR REPLACE INTO h_settings (k, v) VALUES (?, ?)', ['ptpl.' . nm_tenant()['tkey'], json_encode(['unit' => nm_tenant()['name'], 'at' => now(), 'tpl' => $t, 'logo' => (string)setting('plan_tpl_logo', '')], JSON_UNESCAPED_UNICODE)]);
     }
-    audit($me, 'settings.save', 'Resmi liste şablonu', b('share') ? 'hastanedeki birimlerle paylaşıldı' : '');
+    audit($me, 'settings.save', 'Resmî liste şablonu', b('share') ? 'hastanedeki birimlerle paylaşıldı' : '');
     a_plan_tpl_get();
 }
 
@@ -345,7 +345,7 @@ function a_plan_tpl_copy(): void
     set_setting('plan_tpl', json_encode(plan_tpl_clean((array)($j['tpl'] ?? [])), JSON_UNESCAPED_UNICODE));
     $logo = (string)($j['logo'] ?? '');
     if ($logo === '' || (preg_match('#^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$#', $logo) && strlen($logo) <= 60000)) set_setting('plan_tpl_logo', $logo);
-    audit($me, 'settings.save', 'Resmi liste şablonu', ($j['unit'] ?? '') . ' biriminden kopyalandı');
+    audit($me, 'settings.save', 'Resmî liste şablonu', ($j['unit'] ?? '') . ' biriminden kopyalandı');
     a_plan_tpl_get();
 }
 

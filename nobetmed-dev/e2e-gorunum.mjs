@@ -127,7 +127,7 @@ try {
   await Promise.all([A.p.waitForEvent('load'), A.p.click('.vw-opt[data-k=editor]')]);
   await A.p.waitForFunction(() => typeof S !== 'undefined' && S.me && S.me.role === 'editor');
   const bar2 = await A.p.locator('.vw-bar').innerText();
-  if (!/Yayıncı/.test(bar2)) fail('bant yayıncıyı göstermiyor: ' + bar2);
+  if (!/Sorumlu/.test(bar2)) fail('bant yayıncıyı göstermiyor: ' + bar2);
   if (!(await A.p.locator('#sidebar a[href="#/yonetim/onaylar"]').count())) fail('yayıncı görünümünde Onay bekleyenler yok');
   if (await A.p.locator('#sidebar a[href="#/yonetim/kullanicilar"]').count()) fail('yayıncı görünümünde Kullanıcılar var');
   const ePages = await tour(A.p, 'yayıncı');

@@ -99,7 +99,7 @@ function apForm() {
       ${I.doc !== 'off' ? html`<div class="field"><label>Görevlendirme belgesi ya da kurum kimlik kartı ${I.doc === 'required' ? '' : html`<span class="faint">(isteğe bağlı, başvurunuzu hızlandırır)</span>`}</label>
         <input class="input" type="file" id="apDoc" accept="application/pdf,image/jpeg,image/png" data-change="ap-doc">
         <div class="tiny faint" style="margin-top:4px">PDF, JPG ya da PNG, en fazla 3 MB. Belge şifreli saklanır, yalnız sistem yöneticisi görür ve karar verilince silinir. T.C. kimlik numarasını kapatabilirsiniz.</div></div>` : ''}
-      <div class="field"><label>Eklemek istedikleriniz <span class="faint">(isteğe bağlı)</span></label><textarea class="textarea" name="note" rows="2" maxlength="1000" placeholder="Örn: Birimimizde nöbet listesi Excel'de hazırlanıyor"></textarea></div>
+      <div class="field"><label>Eklemek istedikleriniz <span class="faint">(isteğe bağlı)</span></label><textarea class="textarea" name="note" rows="2" maxlength="1000" placeholder="Örn: Birimimizde nöbet listesi Excel’de hazırlanıyor"></textarea></div>
       <input class="ap-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       <label class="ml-opt"><input type="checkbox" name="declare"><span class="small">Bu birimde yetkili olduğumu (ya da birim yöneticisinin bilgisiyle başvurduğumu) ve bilgilerin doğru olduğunu beyan ederim.</span></label>
       <label class="ml-opt"><input type="checkbox" name="kvkk"><span class="small">Aydınlatma metnini okudum, onaylıyorum.${S.legal && S.legal.on ? html` <a href="yasal.php?s=kvkk" target="_blank" rel="noopener">Tam metin</a> · <a href="yasal.php?s=kosullar" target="_blank" rel="noopener">Kullanım koşulları</a>` : ''}

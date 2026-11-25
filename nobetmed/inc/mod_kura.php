@@ -209,7 +209,7 @@ function a_kura_delete(): void
     kr_ensure();
     $r = one('SELECT * FROM kura_draw WHERE id = ?', [(int)i('id')]) ?? fail('Kura bulunamadı.', 404);
     $pub = function_exists('is_publisher') && is_publisher($me);
-    if ((int)$r['created_by'] !== (int)$me['id'] && !$pub) fail('Kura kaydını yalnız başlatan kişi, yönetici ya da yayıncı silebilir.', 403);
+    if ((int)$r['created_by'] !== (int)$me['id'] && !$pub) fail('Kura kaydını yalnız başlatan kişi, yönetici ya da sorumlu silebilir.', 403);
     // Adalet: kart açılmış bir kurayı başlatan kişi silip yeniden çekemez (yalnız yönetici / yayıncı)
     $opened = count(array_filter((array)(json_decode((string)($r['reveals'] ?? ''), true) ?: [])));
     if (!$pub && $opened > 0) fail('Kartı açılmış bir kura silinemez; geçmişte herkese görünür kalır. Gerekirse yöneticinize başvurun.', 403);

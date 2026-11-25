@@ -501,7 +501,7 @@ function a_attachments_text(): void
     $me = need_user();
     $id = (int)i('id');
     $a = one('SELECT * FROM attachments WHERE id = ?', [$id]) ?? fail('Dosya bulunamadı.', 404);
-    if ((int)$a['user_id'] !== (int)$me['id'] && !is_publisher($me)) fail('Yetkiniz yok.', 403);
+    if ((int)$a['user_id'] !== (int)$me['id'] && !is_publisher($me)) fail('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403);
     // Başkasının dosyasında yalnız henüz çıkarılmamış metin doldurulur (var olan arama metni üzerine yazılamaz)
     if ((int)$a['user_id'] !== (int)$me['id'] && (int)($a['text_done'] ?? 0) === 1) out(['length' => mb_strlen((string)($a['text_content'] ?? ''))]);
     global $IN;
@@ -559,7 +559,7 @@ function a_passkey_reg_finish(): void
     passkey_ready();
     try {
         $r = wa_verify_registration(wa_b64u_dec(s('clientDataJSON', 20000)), wa_b64u_dec(s('attestationObject', 20000)), passkey_take_challenge('reg'), wa_origin_from_server(), wa_rp_id_from_server());
-    } catch (Throwable $e) { fail($e->getMessage()); }
+    } catch (Throwable $e) { error_log('passkey kayıt: ' . $e->getMessage()); fail('Parmak izi / Face ID eklenemedi. Tekrar deneyin ya da şifreyle giriş yapın.'); }
     $cid = wa_b64u_enc($r['credential_id']);
     if (one('SELECT id FROM passkeys WHERE credential_id = ?', [$cid])) fail('Bu cihaz zaten kayıtlı.', 409);
     q('INSERT INTO passkeys (user_id, credential_id, public_key, sign_count, name, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -595,12 +595,12 @@ function a_passkey_login_finish(): void
     passkey_ready();
     $cid = s('rawId', 1000);
     $pk = $cid !== '' ? one('SELECT * FROM passkeys WHERE credential_id = ?', [wa_b64u_enc(wa_b64u_dec($cid))]) : null;
-    if (!$pk) fail('Bu cihaz için kayıtlı bir giriş bulunamadı. Önce şifreyle girip Hesabım sayfasından parmak izini ekleyin.', 404);
+    if (!$pk) fail('Bu cihaz için kayıtlı bir giriş bulunamadı. Önce şifreyle girip Hesabım › Güvenlik ve şifre’den parmak izini ekleyin.', 404);
     $uh = s('userHandle', 200);
-    if ($uh !== '' && !in_array(wa_b64u_dec($uh), ['u' . $pk['user_id'], nm_passkey_handle((int)$pk['user_id'])], true)) fail('Doğrulama başarısız.', 401);
+    if ($uh !== '' && !in_array(wa_b64u_dec($uh), ['u' . $pk['user_id'], nm_passkey_handle((int)$pk['user_id'])], true)) fail('Parmak izi / Face ID ile giriş yapılamadı. Tekrar deneyin ya da şifreyle giriş yapın.', 401);
     try {
         $count = wa_verify_assertion(wa_b64u_dec(s('clientDataJSON', 20000)), wa_b64u_dec(s('authenticatorData', 5000)), wa_b64u_dec(s('signature', 2000)), passkey_take_challenge('login'), wa_origin_from_server(), wa_rp_id_from_server(), $pk['public_key'], (int)$pk['sign_count']);
-    } catch (Throwable $e) { fail($e->getMessage(), 401); }
+    } catch (Throwable $e) { error_log('passkey giriş: ' . $e->getMessage()); fail('Parmak izi / Face ID ile giriş yapılamadı. Tekrar deneyin ya da şifreyle giriş yapın.', 401); }
     $u = one('SELECT * FROM users WHERE id = ?', [$pk['user_id']]);
     if (!$u || $u['status'] !== 'active') fail('Hesabınız etkin değil.', 403);
     q('UPDATE passkeys SET sign_count = ?, last_used_at = ? WHERE id = ?', [$count, now(), $pk['id']]);
@@ -720,7 +720,7 @@ function a_me_avatar(): void
     $target = $me;
     // Yönetici, uygunsuz bir fotoğrafı başkası için kaldırabilir
     if (!empty($IN['user_id']) && (int)$IN['user_id'] !== (int)$me['id']) {
-        if ($me['role'] !== 'admin' || empty($IN['remove'])) fail('Yetkiniz yok.', 403);
+        if ($me['role'] !== 'admin' || empty($IN['remove'])) fail('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403);
         $target = one('SELECT * FROM users WHERE id = ?', [(int)$IN['user_id']]) ?? fail('Kullanıcı bulunamadı.', 404);
     }
     if (!empty($IN['remove'])) {
@@ -917,7 +917,7 @@ function a_phonebook_save(): void
     $row = [$name, $num, s('category', 60), s('note', 200), b('pinned') ? 1 : 0, $me['id'], now()];
     if (function_exists('hpb_save') && hpb_save($me, $id, [$name, $num, s('category', 60), s('note', 200), b('pinned') ? 1 : 0])) { a_phonebook_list(); return; }
     if ($id) {
-        if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Kayıt bulunamadı.', 404);
+        if (!one('SELECT id FROM phonebook WHERE id = ?', [$id])) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
         q('UPDATE phonebook SET name = ?, number = ?, category = ?, note = ?, pinned = ?, updated_by = ?, updated_at = ? WHERE id = ?', [...$row, $id]);
         audit($me, 'phonebook.save', $name, $num);
     } else {
@@ -933,7 +933,7 @@ function a_phonebook_delete(): void
     $me = need_publisher();
     if ((int)i('id') < 0 && function_exists('hpb_delete')) { hpb_delete($me, (int)i('id')); a_phonebook_list(); return; }
     $r = one('SELECT name, number FROM phonebook WHERE id = ?', [(int)i('id')]);
-    if (!$r) fail('Kayıt bulunamadı.', 404);
+    if (!$r) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     q('DELETE FROM phonebook WHERE id = ?', [(int)i('id')]);
     audit($me, 'phonebook.delete', $r['name'], $r['number']);
     a_phonebook_list();

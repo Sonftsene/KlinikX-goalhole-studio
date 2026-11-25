@@ -320,7 +320,7 @@ function plDrawDay() {
   const explain = pr ? html`<div class="card pl-explain">
       <div class="card-head"><h3>${icon('info', 'sm')} Nasıl dağıtıldı</h3>${pr.draws.some((x) => x.group.length > 1) ? html`<span class="badge brand">${icon('star', 'sm')}Kura çekildi</span>` : ''}</div>
       <div class="list">
-        ${!pr.has_needs ? html`<div class="list-row small">${icon('alert', 'sm')}<span class="grow">Gereken kişi sayıları girilmemiş: herkes kendi tarafında kaldı. Sayıları aşağıdaki <b>Gereken kişi</b> bölümünden ya da Ayarlar › Nöbet'ten girin.</span></div>` : ''}
+        ${!pr.has_needs ? html`<div class="list-row small">${icon('alert', 'sm')}<span class="grow">Gereken kişi sayıları girilmemiş: herkes kendi tarafında kaldı. Sayıları aşağıdaki <b>Gereken kişi</b> bölümünden ya da Ayarlar › Nöbet’ten girin.</span></div>` : ''}
         ${pr.draws.map((x) => html`<div class="list-row pl-draw"><span class="pl-ul sm tone-${plUnitInfo(x.unit).tone}">${plLetter(x.unit)}</span><div class="grow" style="min-width:0">
           <div class="small"><b>${x.from_name} → ${x.unit || x.to_name}</b> · ${x.period === 'night' ? 'gece eksiği' : 'gündüz eksiği'}</div>
           <div class="small">${x.group.length > 1 ? html`Kura: ${x.group.length} kişi ${x.min} geçişle eşitti → <b>${plName(x.winner)}</b> seçildi` : html`<b>${plName(x.winner)}</b> en az geçen kişi (${x.min} geçiş) → kurasız`}</div>
@@ -375,7 +375,7 @@ function plCountsCard() {
     <div class="card-pad stack">
       <table class="pl-ct"><thead><tr><th>Yer</th><th>${icon('sun', 'sm')} Gündüz <small>08-16</small></th><th>${icon('moon', 'sm')} Gece <small>16-08</small></th></tr></thead>
         <tbody>${units.map((u) => html`<tr><td><span class="pl-ul sm tone-${u.tone}">${plLetter(u.unit, d)}</span> ${u.label} <span class="tiny faint">${u.sideName}</span></td><td>${num(u, 'day')}</td><td>${num(u, 'night')}</td></tr>`)}</tbody></table>
-      <p class="tiny faint">24 saatlik nöbetçi iki dönemde de sayılır. Blok varsayılanları Ayarlar › Nöbet'ten, ${plTeam(d).name} varsayılanı aşağıdaki ekip kartından değiştirilir.</p>
+      <p class="tiny faint">24 saatlik nöbetçi iki dönemde de sayılır. Blok varsayılanları Ayarlar › Nöbet’ten, ${plTeam(d).name} varsayılanı aşağıdaki ekip kartından değiştirilir.</p>
       ${d.can_edit ? html`<div class="row wrap"><button class="btn sm primary" data-act="pl-counts-save">Bu gün için kaydet</button>${d.needs_source === 'day' ? html`<button class="btn sm ghost" data-act="pl-counts-reset">Varsayılana dön</button>` : ''}</div>` : ''}
     </div></details>`;
 }
@@ -914,7 +914,7 @@ function plDrawMonth() {
   const team = d.team;
   const teamCard = html`<div class="card pl-team-card"><div class="card-head"><h3>${icon('shield', 'sm')} ${team.name} ekibi · sabit kişiler</h3>${d.can_edit ? html`<button class="btn sm" data-act="pl-team">${icon('edit', 'sm')}<span>Düzenle</span></button>` : ''}</div>
     <div class="card-pad stack" style="gap:8px"><div class="pl-chips" style="padding:0">${team.members.length ? team.members.map((n) => html`<span class="pl-p"><span class="pl-nm">${plName(n)}</span></span>`) : html`<span class="small muted">Henüz sabit kişi yok.</span>`}</div>
-      <p class="tiny faint">Sabit kişiler nöbetteyse otomatik olarak ${team.name}'a yerleşir; A/B/C'ye ve kuraya girmez. Elle iki yere bölünebilir (ör. gündüz ${team.name}, gece blok).${team.need.day || team.need.night ? ` Gereken: gündüz ${team.need.day}, gece ${team.need.night}.` : ''}</p></div></div>`;
+      <p class="tiny faint">Sabit kişiler nöbetteyse otomatik olarak bu ekibe (${team.name}) yerleşir; A/B/C’ye ve kuraya girmez. Elle iki yere bölünebilir (ör. gündüz ${team.name}, gece blok).${team.need.day || team.need.night ? ` Gereken: gündüz ${team.need.day}, gece ${team.need.night}.` : ''}</p></div></div>`;
 
   // Elle sayılar ve muaflar (yayıncı)
   const adj = d.can_edit ? html`<div class="pl-2col">
@@ -996,7 +996,7 @@ ACT['pl-team'] = () => {
       <div class="field"><label>Sabit kişiler</label><div class="pl-chips" id="ptList" style="padding:0"></div></div>
       <div class="row"><select class="select grow" id="ptAdd"><option value="">Kişi ekle…</option>${ppl.map((p) => html`<option value="${p.name}">${plName(p.name)} · ${plSideName(p.side, d) || '—'}</option>`)}</select></div>
       <div class="grid2"><div class="field"><label>Gereken · gündüz</label><input class="input" type="number" min="0" max="30" id="ptDay" value="${t.need.day}"></div><div class="field"><label>Gereken · gece</label><input class="input" type="number" min="0" max="30" id="ptNight" value="${t.need.night}"></div></div>
-      <p class="tiny faint">Sabit kişiler nöbetteyse otomatik dağıtımda hep ${t.name}'a yerleşir, A/B/C'ye ve kuraya girmez. Gereken sayı isteğe bağlıdır; güne özel sayı “Gereken kişi”den değiştirilir.</p></div>`,
+      <p class="tiny faint">Sabit kişiler nöbetteyse otomatik dağıtımda hep bu ekibe (${t.name}) yerleşir, A/B/C’ye ve kuraya girmez. Gereken sayı isteğe bağlıdır; güne özel sayı “Gereken kişi”den değiştirilir.</p></div>`,
   foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" id="ptGo">Kaydet</button>` });
   const draw = () => setHTML($('#ptList', m.el), members.length ? members.map((n, i) => html`<span class="pl-p"><span class="pl-nm">${plName(n)}</span><button type="button" class="btn ghost icon sm" data-rm="${i}" aria-label="Çıkar">${icon('x', 'sm')}</button></span>`) : html`<span class="tiny faint">Kimse yok</span>`);
   draw();
@@ -1080,7 +1080,7 @@ ACT['pl-setup'] = async () => {
       <div class="field"><label>Nöbet listesi</label><select class="select" name="roster_id"><option value="0">— Seçin</option>${rosters.map((r) => html`<option value="${r.id}" ${r.id === +s.roster_id ? raw('selected') : ''}>${r.name}</option>`)}</select></div></div>
     <div class="field"><label>Bloklar / alanlar <span class="faint">(virgülle; sıra öncelik: eksikte önce üstteki dolar, eşitlemede alttaki)</span></label><input class="input" name="units" value="${s.units}" placeholder="A blok, C blok"><input type="hidden" name="key" value="${s.key}"></div>
     <div class="grid2"><div class="field"><label>Karşı taraftan gelen yalnız şu bloklara</label><div class="row wrap pl-cins" style="gap:10px">${crossHtml(String(s.units).split(',').map((x) => x.trim()).filter(Boolean), s.cross_in || [])}</div><p class="hint">Hiçbiri seçilmezse tüm bloklara. Ör. 3. basamaktan gelen yalnız A blok.</p></div>
-      <div class="field"><label>Aynı blokta üst üste en fazla</label><input class="input" type="number" min="0" max="10" name="max_streak" value="${s.max_streak || 0}" style="max-width:110px"><p class="hint">Ör. 2: A'da üst üste 2 nöbetten sonra C'ye (tersi de). 0: sınırsız. Önceki ay da sayılır.</p></div></div></div>`;
+      <div class="field"><label>Aynı blokta üst üste en fazla</label><input class="input" type="number" min="0" max="10" name="max_streak" value="${s.max_streak || 0}" style="max-width:110px"><p class="hint">Ör. 2: A’da üst üste 2 nöbetten sonra C’ye (tersi de). 0: sınırsız. Önceki ay da sayılır.</p></div></div></div>`;
   const m = openModal({ title: 'Taraflar ve bloklar', size: 'wide', body: html`<div class="stack"><p class="small muted">Her taraf bir nöbet listesine bağlanır. Listesindeki kişiler normalde o tarafın bloklarında çalışır; karşı tarafın bloğuna gece içeren nöbetle geçenler sayılır. Tek servisli birimde tek taraf ve tek alan yeterlidir. Sorumlular ekibi ayrıdır (Taraf sayfasındaki ekip kartı).</p>
       <div class="stack" id="plSidesL">${list.map(row)}</div>
       <div><button type="button" class="btn sm" id="plSideAdd">${icon('plus', 'sm')}Taraf ekle</button></div>

@@ -378,7 +378,7 @@ function a_rules_exempt_save(): void
 function a_rules_exempt_delete(): void
 {
     $me = need_publisher();
-    $r = one('SELECT name FROM rule_exempt WHERE id = ?', [(int)i('id')]) ?? fail('Kayıt bulunamadı.', 404);
+    $r = one('SELECT name FROM rule_exempt WHERE id = ?', [(int)i('id')]) ?? fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     q('DELETE FROM rule_exempt WHERE id = ?', [(int)i('id')]);
     audit($me, 'settings.save', 'Muafiyet kaldırıldı: ' . $r['name']);
     out(['exempt' => rules_exempt_list()]);

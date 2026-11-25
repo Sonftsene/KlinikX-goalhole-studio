@@ -30,9 +30,9 @@ function renderRosters(view, id) {
   }
   RS.views.clear();
   if (!S.rosters.length) {
-    setHTML(view, html`${hubHead('list', 'Excel nöbet listeleri, yüklendiği gibi açık görünür')}
+    setHTML(view, html`${hubHead('list', '')}
       <div class="card empty"><div class="e-ico">${icon('table', 'lg')}</div><h3>Henüz nöbet listesi yok</h3>
-      ${isPublisher() ? html`<p class="small" style="margin-bottom:14px">Bir liste oluşturup Excel dosyanızı yükleyin.</p><button class="btn primary" data-act="rs-new">${icon('plus', 'sm')}Liste oluştur</button>` : html`<p class="small">Yöneticiniz liste yüklediğinde burada görünecek.</p>`}</div>`);
+      ${isPublisher() ? html`<p class="small" style="margin-bottom:14px">Bir liste oluşturup Excel dosyanızı yükleyin.</p><button class="btn primary" data-act="rs-new">${icon('plus', 'sm')}Liste oluştur</button>` : html`<p class="small">Sorumlunuz liste yüklediğinde burada görünecek.</p>`}</div>`);
     return;
   }
   const nob = S.rosters.filter((x) => x.kind !== 'tablo');
@@ -111,19 +111,19 @@ function drawRosterInfo() {
       ${past.length ? html`<button type="button" class="chip-btn rs-mo ${mo && prim && mo.ym < prim ? 'on' : ''}" data-act="rs-past">${icon('history', 'sm')}${mo && prim && mo.ym < prim ? periodLabel(mo.ym) : `Geçmiş aylar (${past.length})`}${icon('chevD', 'sm')}</button>` : ''}
       ${isPublisher() ? html`<button type="button" class="chip-btn ghost" data-act="rs-addmo">${icon('plus', 'sm')}Ay ekle</button>` : ''}
     </div>
-    ${suggest ? html`<div class="tiny rs-suggest">${icon('calendar', 'sm')}<span><b>${periodLabel(nowYm)}</b> başladı; liste hâlâ ${periodLabel(prim)} ayını güncel gösteriyor.</span><button type="button" class="btn sm" data-act="rs-primary" data-ym="${nowYm}">${periodLabel(nowYm)}’ı güncel yap</button></div>` : ''}
-    ${mo && !isPrim ? html`<div class="tiny rs-notcur">${icon(prim && mo.ym < prim ? 'history' : 'clock', 'sm')}<span>${prim && mo.ym < prim ? html`<b>Geçmiş ay</b> · arşivden görüntüleniyor` : html`<b>Sıradaki ay</b> · nöbetler Takvimim’de ve hesaplarda kendi günlerinde zaten geçerli`}</span>
+    ${suggest ? html`<div class="tiny rs-suggest">${icon('calendar', 'sm')}<span><b>${periodLabel(nowYm)}</b> başladı; liste hâlâ ${periodLabel(prim)} ayını güncel gösteriyor.</span><button type="button" class="btn sm" data-act="rs-primary" data-ym="${nowYm}">Güncel ay yap: ${periodLabel(nowYm)}</button></div>` : ''}
+    ${mo && !isPrim ? html`<div class="tiny rs-notcur">${icon(prim && mo.ym < prim ? 'history' : 'clock', 'sm')}<span>${prim && mo.ym < prim ? html`<b>Geçmiş ay</b> · arşivden görüntüleniyor` : html`<b>Sıradaki ay</b> · nöbetler takvimde yine görünür`}</span>
       ${isPublisher() ? html`<button type="button" class="btn sm" data-act="rs-primary" data-ym="${mo.ym}">${icon('star', 'sm')}Güncel ay yap</button>` : ''}<a href="#" data-act="rs-mo" data-ym="${prim}">Güncel aya dön</a></div>` : ''}` : '';
   setHTML(box, html`
     <div class="grow" style="min-width:0">
       <h1 class="rs-title ellipsis">${r.name}${mo ? html` <span class="rs-title-mo">· ${periodLabel(mo.ym)}</span>` : ''}</h1>
       ${monthBar}
-      <div class="small muted rs-meta">${f ? html`${icon('clock', 'sm')}<span>${fmtRel(f.updated_at)} güncellendi${r.linked ? ' · Google E-Tablolar' : f.user_name ? ' · ' + f.user_name : ''}</span><span class="faint ellipsis rs-file">· ${f.name}</span>` : 'Henüz dosya yüklenmedi'}</div>
-      ${r.linked ? html`<div class="tiny rs-linked">${icon('link', 'sm')}<span><b>Google E-Tablolar’a bağlı</b> · Excel’de değişince kendiliğinden güncellenir${r.sync_at ? ' · son kontrol ' + fmtRel(r.sync_at) : ''}${r.tab ? ' · sekme: ' + r.tab : ''}</span></div>
+      <div class="small muted rs-meta">${f ? html`${icon('clock', 'sm')}<span>${fmtRel(f.updated_at)} güncellendi${r.linked ? ' · Google E-Tablolar' : f.user_name ? ' · ' + f.user_name : ''}</span>${isPublisher() ? html`<span class="faint ellipsis rs-file">· ${f.name}</span>` : ''}` : 'Henüz dosya yüklenmedi'}</div>
+      ${r.linked ? html`${isPublisher() ? html`<div class="tiny rs-linked">${icon('link', 'sm')}<span><b>Google E-Tablolar’a bağlı</b> · tablo değişince kendiliğinden güncellenir${r.sync_at ? ' · son kontrol ' + fmtRel(r.sync_at) : ''}${r.tab ? ' · sekme: ' + r.tab : ''}</span></div>` : ''}
         ${isPublisher() && r.sync_status ? html`<div class="tiny ${String(r.sync_status).startsWith('!') ? 'err-text' : 'faint'} rs-parsed">${icon('calendar', 'sm')}<span>${String(r.sync_status).replace(/^!/, '')}</span></div>` : ''}`
       : f && isPublisher() && mo && mo.parsed ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(mo.ym)}</b> · ${mo.count || 0} nöbet kaydı okundu</span>${isPrim ? html`<a href="#" data-act="rs-period">Ayı değiştir</a>` : ''}</div>`
       : f && isPublisher() && !mo && r.period && r.parsed_file_id === f.id ? html`<div class="tiny faint rs-parsed">${icon('calendar', 'sm')}<span><b>${periodLabel(r.period)}</b> · ${r.parsed_count || 0} nöbet kaydı okundu</span><a href="#" data-act="rs-period">Ayı değiştir</a></div>` : ''}
-      ${r.signed ? html`<div class="tiny rs-signed">${icon('checkCircle', 'sm')}<span><b>İmzalı resmi liste</b> (${periodLabel(r.signed.ym)})</span><a href="${r.signed.url}" target="_blank" rel="noopener">Aç</a></div>` : ''}
+      ${r.signed ? html`<div class="tiny rs-signed">${icon('checkCircle', 'sm')}<span><b>İmzalı resmî liste</b> (${periodLabel(r.signed.ym)})</span><a href="${r.signed.url}" target="_blank" rel="noopener">Aç</a></div>` : ''}
       <div class="rs-progress hidden" id="rsProgress"><div class="progress"><span style="width:0%"></span></div><span class="tiny muted">Yükleniyor…</span></div>
     </div>
     <div class="row wrap rs-actions">
@@ -237,7 +237,7 @@ async function uploadRosterFile(file, opt = {}) {
     // Yükleme sırasında liste yenilenmiş olabilir: güncel nesneyi güncelle
     const cur = rosterById(r.id) || r;
     Object.assign(cur, res.roster);
-    toast(`“${cur.name}” · ${periodLabel(ym)} güncellendi` + (res.post_id ? ' · duyuru yayınlandı' : '') + (res.mailed ? ` · ${res.mailed} kişiye e-posta` : ''));
+    toast(`“${cur.name}” · ${periodLabel(ym)} güncellendi` + (res.post_id ? ' · duyuru yayımlandı' : '') + (res.mailed ? ` · ${res.mailed} kişiye e-posta` : ''));
     if (res.post_id) refreshCounts();
     if (RS.active === cur.id) showRoster(cur.id);
   } catch (e) {
@@ -368,7 +368,7 @@ function rmAddMonth(r, file) {
   const m = openModal({ title: `${r.name} · ay ekle`, size: 'narrow', body: html`<form class="stack" id="rmAddF">
       <div class="field"><label for="rmYm">Hangi ayın listesi?</label><select class="select" id="rmYm" name="ym">${opts.map((y) => html`<option value="${y}" ${y === def ? raw('selected') : ''}>${periodLabel(y)}${ms.some((x) => x.ym === y) ? ' · listede var (yeni sürüm olur)' : ''}${y === nowYm ? ' · bu ay' : ''}</option>`)}</select></div>
       <label class="dropzone rs-drop" style="padding:16px">${icon('upload', 'sm')} <span id="rmFn">${picked ? picked.name : 'Excel dosyasını seçin'}</span><input type="file" hidden accept="${ROSTER_ACCEPT}" id="rmFile"></label>
-      <label class="small row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="rmPrim"><span><b>Güncel ay yap</b><br><span class="tiny muted">Liste açılınca bu ay görünür. İşaretlemezseniz sıradaki / geçmiş ay olarak eklenir; nöbetleri yine kendi günlerinde Takvimim’de ve hesaplarda geçerlidir.</span></span></label>
+      <label class="small row" style="gap:8px;align-items:flex-start"><input type="checkbox" id="rmPrim"><span><b>Güncel ay yap</b><br><span class="tiny muted">Liste açılınca bu ay görünür. İşaretlemezseniz sıradaki / geçmiş ay olarak eklenir.</span></span></label>
       <p class="tiny err-text hidden" id="rmErr"></p></form>`,
     foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-ok>Yükle</button>` });
   const sel = $('#rmYm', m.el), chk = $('#rmPrim', m.el);
@@ -405,7 +405,7 @@ function rmAskYm(r, det, view) {
     const m = openModal({ title: 'Bu dosya hangi ayın?', size: 'narrow',
       body: html`<p class="muted">Dosya <b>${periodLabel(det)}</b> listesi gibi görünüyor; açık olan ay <b>${periodLabel(view)}</b>.</p>
         <p class="tiny muted">${has ? `${periodLabel(det)} listede var; yeni sürümü olur.` : `${periodLabel(det)} listeye yeni ay olarak eklenir; ${periodLabel(view)} olduğu gibi kalır.`}</p>`,
-      foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn" data-ym="${view}">${periodLabel(view)}’a yükle</button><button class="btn primary" data-ym="${det}">${periodLabel(det)}’a yükle</button>`,
+      foot: html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn" data-ym="${view}">${periodLabel(view)} olarak yükle</button><button class="btn primary" data-ym="${det}">${periodLabel(det)} olarak yükle</button>`,
       onClose: () => { if (!done) resolve(null); } });
     m.el.addEventListener('click', (e) => { const b = e.target.closest('[data-ym]'); if (!b) return; done = true; m.close(); resolve(b.dataset.ym); });
   });

@@ -150,7 +150,7 @@ function drawGsync() {
   if (!box || !g) return;
   setHTML(box, html`
     <div><h3 style="font-size:15px">${icon('link', 'sm')} Google E-Tablolar bağlantısı</h3>
-      <p class="small muted">Excel listeleriniz Google E-Tablolar’daysa uygulama onları kendiliğinden izler; sorumlu tabloyu düzenledikçe yaklaşık 1–2 dakika içinde güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
+      <p class="small muted">Nöbet listeleriniz Google E-Tablolar’daysa uygulama onları kendiliğinden izler; sorumlu tabloyu düzenledikçe yaklaşık 1–2 dakika içinde güncellenir. Uygulamada kimse listeyi değiştiremez.</p></div>
     <div class="seg seg-block gs-mode">
       <button type="button" class="${g.mode === 'push' ? 'on' : ''}" data-act="gs-mode" data-m="push">Yalnızca bana paylaşıldı</button>
       <button type="button" class="${g.mode === 'pull' ? 'on' : ''}" data-act="gs-mode" data-m="pull">Bağlantıya sahip herkes görebiliyor</button></div>
@@ -507,7 +507,7 @@ ACT['tr-setup'] = () => {
 /* Nöbet değişimi / devri                                               */
 /* =================================================================== */
 const SWAP = { items: [], todo: [] };
-const SWAP_ST = { pending: ['Yanıt bekleniyor', 'warn'], accepted: ['Kabul edildi · Excel’e işlenmesi bekleniyor', 'info'], applied: ['Listeye işlendi', 'success'], declined: ['Reddedildi', 'danger'], cancelled: ['İptal edildi', ''], expired: ['Süresi geçti', ''] };
+const SWAP_ST = { pending: ['Yanıt bekleniyor', 'warn'], accepted: ['Kabul edildi · Listeye işlenmeyi bekliyor', 'info'], applied: ['Listeye işlendi', 'success'], declined: ['Reddedildi', 'danger'], cancelled: ['İptal edildi', ''], expired: ['Süresi doldu', ''] };
 /** 24 saatlik nöbetin parçası: '' (tümü) | 'day' | 'night' */
 const PART_TXT = { day: 'yalnız gündüz 08-16', night: 'yalnız gece 16-08' };
 function partTxt(p) { return PART_TXT[p] || ''; }
@@ -530,14 +530,14 @@ function drawSwapBox() {
     return html`<div class="list-row swap-row"><span class="np-ico tone-violet">${icon('history', 'sm')}</span>
       <div class="grow" style="min-width:0"><div class="small">${swapText(r)}</div><div class="tiny"><span class="badge ${tone}">${t}</span>${r.note ? html` <span class="faint">“${r.note}”</span>` : ''}</div></div>
       <div class="row" style="gap:6px">${r.incoming && r.status === 'pending' ? html`<button class="btn sm primary" data-act="swap-ans" data-id="${r.id}" data-a="1">Kabul et</button><button class="btn sm" data-act="swap-ans" data-id="${r.id}" data-a="0">Reddet</button>` : ''}
-        ${pub && r.status === 'accepted' ? html`<button class="btn sm" data-act="swap-done" data-id="${r.id}" title="Excel’de güncellendi ama otomatik eşleşmediyse">${icon('check', 'sm')}İşlendi</button>` : ''}
+        ${pub && r.status === 'accepted' ? html`<button class="btn sm" data-act="swap-done" data-id="${r.id}" title="Listede güncellendi ama otomatik eşleşmediyse">${icon('check', 'sm')}İşlendi</button>` : ''}
         ${(r.mine || pub) && ['pending', 'accepted'].includes(r.status) ? html`<button class="btn sm ghost" data-act="swap-cancel" data-id="${r.id}">İptal</button>` : ''}
         ${!pub && swapHideable(r) ? html`<button class="btn sm ghost icon" data-act="swap-hide" data-id="${r.id}" aria-label="Listemden kaldır" title="Listemden kaldır">${icon('x', 'sm')}</button>` : ''}
-        ${isPublisher() ? html`<button class="btn sm ghost icon" data-act="swap-del" data-id="${r.id}" aria-label="İsteği sil" title="İsteği tamamen sil (sorumlu)">${icon('trash', 'sm')}</button>` : ''}</div></div>`;
+        ${isPublisher() ? html`<button class="btn sm ghost icon" data-act="swap-del" data-id="${r.id}" aria-label="Teklifi sil" title="Teklifi tamamen sil (sorumlu)">${icon('trash', 'sm')}</button>` : ''}</div></div>`;
   };
   const doneN = live.filter(swapHideable).length;
-  setHTML(box, html`${live.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('history', 'sm')} Nöbet değişim istekleri</h3>${doneN > 1 ? html`<button class="btn ghost sm" data-act="swap-hide-all">Sonuçlananları kaldır (${doneN})</button>` : ''}</div><div class="list">${live.map((r) => row(r, false))}</div></div>` : ''}
-    ${todo.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('table', 'sm')} Excel’e işlenecek değişimler (${todo.length})</h3><span class="tiny faint">Excel güncellenince kendiliğinden kapanır</span></div><div class="list">${todo.map((r) => row(r, true))}</div></div>` : ''}`);
+  setHTML(box, html`${live.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('history', 'sm')} Değişim ve devir teklifleri</h3>${doneN > 1 ? html`<button class="btn ghost sm" data-act="swap-hide-all">Sonuçlananları kaldır (${doneN})</button>` : ''}</div><div class="list">${live.map((r) => row(r, false))}</div></div>` : ''}
+    ${todo.length ? html`<div class="card swap-card"><div class="card-head"><h3>${icon('table', 'sm')} Listeye işlenmeyi bekleyen değişimler (${todo.length})</h3><span class="tiny faint">Liste güncellenince kendiliğinden kapanır</span></div><div class="list">${todo.map((r) => row(r, true))}</div></div>` : ''}`);
 }
 ACT['swap-ans'] = (el) => busy(el, async () => {
   try { await api('swap.respond', { id: +el.dataset.id, accept: el.dataset.a === '1' }); toast(el.dataset.a === '1' ? 'Kabul edildi; sorumluya iletildi' : 'Reddedildi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
@@ -550,21 +550,21 @@ async function swapHide(ids) {
 ACT['swap-hide'] = (el) => swapHide([+el.dataset.id]);
 ACT['swap-hide-all'] = () => swapHide(SWAP.items.filter(swapHideable).map((x) => x.id));
 ACT['swap-done'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Değişim işlendi sayılsın mı?', text: 'Excel’de güncellendiği hâlde otomatik eşleşmediyse kullanın. İki kişiye bildirim gider.', ok: 'İşlendi say' }))) return;
+  if (!(await confirmDialog({ title: 'Değişim işlendi sayılsın mı?', text: 'Listede güncellendiği hâlde otomatik eşleşmediyse kullanın. İki kişiye bildirim gider.', ok: 'İşlendi say' }))) return;
   try { await api('swap.done', { id: +el.dataset.id }); toast('İşlendi olarak kapatıldı'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
 };
 ACT['swap-del'] = async (el) => {
-  if (!(await confirmDialog({ title: 'İstek tamamen silinsin mi?', text: 'Hatalı veya gereksiz istekler için. Kimseye bildirim gitmez; işlem günlüğünde kalır.', ok: 'Sil', danger: true }))) return;
-  try { await api('swap.delete', { id: +el.dataset.id }); toast('İstek silindi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
+  if (!(await confirmDialog({ title: 'Teklif tamamen silinsin mi?', text: 'Hatalı veya gereksiz teklifler için. Kimseye bildirim gitmez; işlem günlüğünde kalır.', ok: 'Sil', danger: true }))) return;
+  try { await api('swap.delete', { id: +el.dataset.id }); toast('Teklif silindi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
 };
 ACT['swap-cancel'] = async (el) => {
-  if (!(await confirmDialog({ title: 'İstek iptal edilsin mi?', text: 'Karşı tarafa bildirim gider.', ok: 'İptal et', danger: true }))) return;
+  if (!(await confirmDialog({ title: 'Teklif iptal edilsin mi?', text: 'Karşı tarafa bildirim gider.', ok: 'İptal et', danger: true }))) return;
   try { await api('swap.cancel', { id: +el.dataset.id }); toast('İptal edildi'); mountSwapBox(); } catch (e) { toast(e.message, 'err'); }
 };
 
 ACT['swap-open'] = async (el) => {
   const date = el.dataset.d;
-  const m = openModal({ title: 'Nöbetini değiş veya devret', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  const m = openModal({ title: 'Nöbetinizi değişin veya devredin', size: 'wide', body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
   let o;
   try { o = await api('swap.options', { date }); } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
   const st = { tab: o.swap.length || !o.give.length ? 'swap' : 'give', same: true, pick: null, why: false, part: '' };
@@ -582,31 +582,31 @@ ACT['swap-open'] = async (el) => {
         ${swaps.length ? html`<div class="card"><div class="list">${swaps.map((p, pi) => html`<div class="list-row sw-row"><div class="grow" style="min-width:0"><div class="lr-t">${p.name}${p.user_id ? '' : html` <span class="badge">hesabı yok</span>`}</div><div class="lr-s">${p.title || ''}</div></div>
             <div class="sw-opts">${p.options.map((x, xi) => html`<button type="button" class="sw-opt" data-p="${o.swap.indexOf(o.swap.find((q) => q.name === p.name))}" data-x="${p.options[xi].date}">${shortDate(x.date)} ${codeChip({ code: x.code, kind: 'shift', hours: x.hours })}</button>`)}</div></div>`)}</div></div>`
           : html`<div class="card empty"><p class="small">Kurallara uyan değişim seçeneği yok${st.same ? '; “aynı süre” işaretini kaldırmayı deneyin' : ''}.</p></div>`}
-        <p class="tiny faint">Seçtiğin gün onun nöbeti olur, bu gün senin nöbetin ona geçer.</p>`
+        <p class="tiny faint">Seçtiğiniz gün karşı tarafın nöbetidir; o günü siz tutarsınız, bu günkü nöbetiniz ona geçer.</p>`
       : html`
         ${o.mine.parts ? html`<div class="seg seg-block sw-parts" role="group" aria-label="Nöbetin hangi kısmı">${[['', 'Tümü (24 saat)'], ['day', 'Yalnız gündüz 08-16'], ['night', 'Yalnız gece 16-08']].map(([k, l]) => html`<button type="button" class="${st.part === k ? 'on' : ''}" data-part="${k}">${l}</button>`)}</div>
-          <p class="tiny faint" style="margin:-4px 0 0">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} devredilir; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sende kalır.` : '24 saatlik nöbetin yalnız gündüzünü ya da gecesini de devredebilirsin.'}</p>` : ''}
-        ${o.give_error ? html`<div class="banner danger">${icon('alert')}<span>Devredemezsin: ${o.give_error}</span></div>` : ''}
+          <p class="tiny faint" style="margin:-4px 0 0">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} devredilir; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sizde kalır.` : '24 saatlik nöbetinizin yalnız gündüzünü ya da gecesini de devredebilirsiniz.'}</p>` : ''}
+        ${o.give_error ? html`<div class="banner danger">${icon('alert')}<span>Devredemezsiniz: ${o.give_error}</span></div>` : ''}
         ${o.give.length ? html`<div class="card"><div class="list">${o.give.map((p, i) => html`<button type="button" class="list-row sw-give" data-g="${i}"><div class="grow" style="min-width:0;text-align:left"><div class="lr-t">${p.name}${p.user_id ? '' : html` <span class="badge">hesabı yok</span>`}</div><div class="lr-s">${p.title || ''} · o gün boş</div></div>${icon('chevR', 'sm')}</button>`)}</div></div>`
           : !o.give_error ? html`<div class="card empty"><p class="small">Bu nöbeti kurallara uyarak alabilecek kimse yok.</p></div>` : ''}`}
       ${o.blocked.length ? html`<button type="button" class="btn sm ghost" data-why="1">${icon('info', 'sm')}${st.why ? 'Gizle' : `Neden bazı kişiler listede yok? (${o.blocked.length})`}</button>
         ${st.why ? html`<div class="card"><div class="list">${o.blocked.map((b) => html`<div class="list-row"><div class="grow"><div class="lr-t small">${b.name}</div><div class="lr-s" style="white-space:normal">${b.reason}</div></div></div>`)}</div></div>` : ''}` : ''}
-      <p class="tiny faint">Kurallar: üst üste en fazla ${o.rules.max_cont} saat (24 saat çıkışına nöbet eklenemez) · nöbetler arası en fazla ${o.rules.max_gap} boş gün · izinli günler boşluk sayılmaz.</p></div>`);
+      <p class="tiny faint">Nöbet kuralları: en az ${o.rules.rest} saat dinlenme · üst üste en fazla ${o.rules.max_cont} saat (24 saat çıkışına nöbet eklenemez) · nöbetler arası en fazla ${o.rules.max_gap} boş gün · izinli günler boşluk sayılmaz.</p></div>`);
     m.setFoot('');
   };
   const drawPick = () => {
     const p = st.pick;
     const x = p.x;
     const pt = st.part ? ` (${partTxt(st.part)})` : '';
-    const txt = x ? `${p.name} ile değiş: sen ${shortDate(x.date)} (${x.code}) nöbetini tutarsın, ${p.name.split(' ')[0]} ${shortDate(o.mine.date)} (${o.mine.code}) nöbetini tutar.`
-      : `${shortDate(o.mine.date)} (${o.mine.code})${pt} nöbetini ${p.name}’e devret.${st.part ? ` ${st.part === 'day' ? 'Gecesi (16-08)' : 'Gündüzü (08-16)'} sende kalır.` : ''}`;
+    const txt = x ? `${p.name} ile değişim: ${shortDate(x.date)} (${x.code}) nöbetini siz, ${shortDate(o.mine.date)} (${o.mine.code}) nöbetini ${p.name.split(' ')[0]} tutar.`
+      : `Kime: ${p.name} · ${shortDate(o.mine.date)} (${o.mine.code})${pt} nöbetinizi devredin.${st.part ? ` ${st.part === 'day' ? 'Gecesi (16-08)' : 'Gündüzü (08-16)'} sizde kalır.` : ''}`;
     const wa = `Merhaba ${p.name.split(' ')[0]}, ${x ? `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimi senin ${shortDate(x.date)} (${x.code}) nöbetinle değişebilir miyiz?` : `${shortDate(o.mine.date)} (${o.mine.code}) nöbetimin${st.part ? ' ' + (st.part === 'day' ? 'gündüzünü (08-16)' : 'gecesini (16-08)') : 'i'} alabilir misin?`}`;
     m.setBody(html`<div class="stack"><div class="sw-sum">${txt}</div>
       ${p.user_id ? html`<div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="swNote" maxlength="300" placeholder="Örn. ailevi bir durum var"></div>
-        <p class="tiny faint">${p.name.split(' ')[0]} kabul ederse sorumluya iletilir. Sorumlu Excel’de güncelleyince takvimlerinize kendiliğinden işlenir.</p>`
-        : html`<p class="small muted">${p.name} uygulamada kayıtlı değil. İsteği WhatsApp ile iletebilir, anlaşınca sorumluya bildirebilirsiniz.</p>
+        <p class="tiny faint">${p.name.split(' ')[0]} kabul ederse sorumluya iletilir. Sorumlu listeyi güncelleyince takvimlerinize işlenir.</p>`
+        : html`<p class="small muted">${p.name} uygulamada kayıtlı değil. Teklifi WhatsApp ile iletebilir, anlaşınca sorumluya bildirebilirsiniz.</p>
           ${p.phone ? html`<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${waNumber(p.phone)}?text=${encodeURIComponent(wa)}">${icon('chat', 'sm')}WhatsApp ile sor</a>` : html`<button type="button" class="btn" data-copy="1">${icon('copy', 'sm')}Mesajı kopyala</button>`}`}</div>`);
-    m.setFoot(html`<button class="btn" data-back="1">Geri</button>${p.user_id ? html`<button class="btn primary" data-send="1">İstek gönder</button>` : ''}`);
+    m.setFoot(html`<button class="btn" data-back="1">Geri</button>${p.user_id ? html`<button class="btn primary" data-send="1">Teklif gönder</button>` : ''}`);
     st.wa = wa;
   };
   m.el.addEventListener('click', async (e) => {
@@ -631,7 +631,7 @@ ACT['swap-open'] = async (el) => {
       await busy(t, async () => {
         try {
           await api('swap.request', { date: o.mine.date, to_name: st.pick.name, to_date: st.pick.x ? st.pick.x.date : '', part: st.pick.x ? '' : st.part, note: ($('#swNote', m.el) || {}).value || '' });
-          m.close(); toast('İstek gönderildi'); mountSwapBox();
+          m.close(); toast('Teklif gönderildi'); mountSwapBox();
         } catch (er) { toast(er.message, 'err'); }
       });
     }

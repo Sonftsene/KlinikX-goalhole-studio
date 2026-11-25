@@ -313,7 +313,7 @@ function a_side_day(): void
 function side_need_recorder(array $me, string $date): void
 {
     // Geçiş sayıları kurayı belirlediği için kaydı yalnız yayıncı/yönetici yapabilir (blok yerleşimi sayfası)
-    if (!is_publisher($me)) fail('Taraf kaydını yalnızca yayıncı veya yönetici yapabilir.', 403);
+    if (!is_publisher($me)) fail('Taraf kaydını yalnızca sorumlu veya yönetici yapabilir.', 403);
 }
 
 /** Birimin ait olduğu taraf */
@@ -369,7 +369,7 @@ function side_store(array $me, string $date, array $p, string $fromKey, string $
     $id = insert_id();
     if ($u && (int)$u['id'] !== (int)$me['id']) {
         $full = one('SELECT * FROM users WHERE id = ?', [(int)$u['id']]);
-        if ($full) notify_users([$full], 'side', ($date === date('Y-m-d') ? 'Bugün ' : swap_fmt_date($date) . ' günü ') . $unit . '’ta çalışacaksın',
+        if ($full) notify_users([$full], 'side', ($date === date('Y-m-d') ? 'Bugünkü bloğunuz: ' : swap_fmt_date($date) . ' günkü bloğunuz: ') . $unit,
             ($method === 'kura' ? 'Kura sonucu' : 'Görevlendirme') . ' · ' . $p['code'] . ($counted ? ' · karşı tarafa geçiş olarak sayıldı' : ''), '#/taraf', null);
     }
     return $id;
@@ -397,8 +397,8 @@ function a_side_save(): void
 function a_side_delete(): void
 {
     $me = need_user();
-    $m = one('SELECT * FROM side_moves WHERE id = ?', [(int)i('id')]) ?? fail('Kayıt bulunamadı.', 404);
-    if (!is_publisher($me)) fail('Bu kaydı yalnızca yayıncı veya yönetici silebilir.', 403);
+    $m = one('SELECT * FROM side_moves WHERE id = ?', [(int)i('id')]) ?? fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
+    if (!is_publisher($me)) fail('Bu kaydı yalnızca sorumlu veya yönetici silebilir.', 403);
     q('DELETE FROM side_moves WHERE id = ?', [$m['id']]);
     audit($me, 'side.delete', $m['date'] . ' ' . $m['unit'], $m['name']);
     out(['ok' => true]);
@@ -489,16 +489,16 @@ function a_swap_request(): void
         foreach ($o['blocked'] as $b) if ($b['name'] === $toName) fail($b['reason']);
         fail('Bu seçenek artık uygun değil; liste değişmiş olabilir.');
     }
-    if (!$target['user_id']) fail($toName . ' uygulamada kayıtlı değil. İsteği WhatsApp ile iletebilirsiniz.');
-    if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND to_name = ? AND COALESCE(to_date, '') = ? AND COALESCE(part, '') = ? AND status IN ('pending', 'accepted')", [$me['id'], $date, $toName, $toDate, $part])) fail('Bu istek zaten gönderildi.');
+    if (!$target['user_id']) fail($toName . ' uygulamada kayıtlı değil. Teklifi WhatsApp ile iletebilirsiniz.');
+    if (one("SELECT id FROM swap_requests WHERE from_user = ? AND from_date = ? AND to_name = ? AND COALESCE(to_date, '') = ? AND COALESCE(part, '') = ? AND status IN ('pending', 'accepted')", [$me['id'], $date, $toName, $toDate, $part])) fail('Bu teklif zaten gönderildi.');
     q('INSERT INTO swap_requests (roster_id, kind, from_user, from_name, from_date, from_code, to_user, to_name, to_date, to_code, status, note, created_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [$o['mine']['roster_id'], $toDate === '' ? 'give' : 'swap', $me['id'], $o['mine']['name'], $date, $o['mine']['code'], $target['user_id'], $toName, $toDate ?: null, $code, 'pending', s('note', 300) ?: null, now(), $part ?: null]);
     $id = insert_id();
     $r = one('SELECT * FROM swap_requests WHERE id = ?', [$id]);
     $to = one('SELECT * FROM users WHERE id = ?', [$target['user_id']]);
-    $title = $toDate === '' ? 'Nöbet devir isteği' : 'Nöbet değişim isteği';
+    $title = $toDate === '' ? 'Devir teklifi' : 'Değişim teklifi';
     notify_users([$to], 'swap', $title . ': ' . $me['name'], swap_req_text($r) . (s('note', 300) ? ' · “' . s('note', 300) . '”' : ''), '#/nobetim', [
-        'subject' => $title . ' · ' . $me['name'], 'heading' => $title, 'lines' => [swap_req_text($r), 'Kabul veya reddetmek için uygulamayı açın.'], 'button' => 'İsteği gör',
+        'subject' => $title . ' · ' . $me['name'], 'heading' => $title, 'lines' => [swap_req_text($r), 'Kabul veya reddetmek için uygulamayı açın.'], 'button' => 'Teklifi gör',
     ], 'notoff');
     audit($me, 'swap.request', swap_req_text($r));
     out(['request' => swap_req_out($r, $me)]);
@@ -516,9 +516,9 @@ function a_swap_list(): void
 function a_swap_respond(): void
 {
     $me = need_user();
-    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
-    if ((int)$r['to_user'] !== (int)$me['id']) fail('Bu istek size gönderilmemiş.', 403);
-    if ($r['status'] !== 'pending') fail('Bu istek artık beklemede değil.');
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu teklif silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
+    if ((int)$r['to_user'] !== (int)$me['id']) fail('Bu teklif size gönderilmemiş.', 403);
+    if ($r['status'] !== 'pending') fail('Bu teklif artık beklemede değil.');
     $from = one('SELECT * FROM users WHERE id = ?', [(int)$r['from_user']]);
     if (b('accept')) {
         // Başlamış ya da geçmiş nöbet devredilemez / değişilemez (4.55.0)
@@ -526,7 +526,7 @@ function a_swap_respond(): void
             if (!$who || !$dd) continue;
             $sr = swap_my_shift($who, (string)$dd);
             $iv = $sr ? swap_interval((string)$dd, $sr) : null;
-            if ($iv && $iv[0] <= time()) fail('Bu nöbet başladı ya da geçti; istek artık kabul edilemez.');
+            if ($iv && $iv[0] <= time()) fail('Bu nöbet başladı ya da geçti; teklif artık kabul edilemez.');
         }
         // Liste değişmiş olabilir: kuralları yeniden denetle
         try { $o = $from ? swap_options($from, $r['from_date'], swap_part($r['part'] ?? null)) : null; } catch (RuntimeException $e) { $o = null; }
@@ -536,18 +536,18 @@ function a_swap_respond(): void
             else foreach ($o['swap'] as $p) if ($p['name'] === $r['to_name']) foreach ($p['options'] as $x) if ($x['date'] === $r['to_date']) $ok = true;
         }
         if (!$ok) fail('Liste değiştiği için bu değişim artık kurallara uymuyor.');
-        if (q("UPDATE swap_requests SET status = 'accepted', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek artık beklemede değil.');
+        if (q("UPDATE swap_requests SET status = 'accepted', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu teklif artık beklemede değil.');
         $r['status'] = 'accepted';
-        if ($from) notify_users([$from], 'swap', 'İsteğin kabul edildi', swap_req_text($r) . ' · Sorumlu Excel’de güncelleyince listene işlenir.', '#/nobetim', null);
+        if ($from) notify_users([$from], 'swap', 'Teklifiniz kabul edildi', swap_req_text($r) . ' · Sorumlu listeyi güncelleyince takviminize işlenir.', '#/nobetim', null);
         $pubs = array_filter(module_managers('ilan'), fn($u) => (int)$u['id'] !== (int)$me['id'] && (int)$u['id'] !== (int)$r['from_user']);
-        if ($pubs) notify_users($pubs, 'swap', 'Excel’e işlenecek nöbet değişimi', swap_req_text($r), '#/nobetim', [
-            'subject' => 'Excel’e işlenecek nöbet değişimi', 'heading' => 'İki kişi nöbet değişiminde anlaştı',
-            'lines' => [swap_req_text($r), 'Excel listesinde güncellediğinizde uygulama değişimi kendiliğinden işler.'], 'button' => 'Uygulamada gör',
+        if ($pubs) notify_users($pubs, 'swap', 'Listeye işlenmeyi bekleyen nöbet değişimi', swap_req_text($r), '#/nobetim', [
+            'subject' => 'Listeye işlenmeyi bekleyen nöbet değişimi', 'heading' => 'İki kişi nöbet değişiminde anlaştı',
+            'lines' => [swap_req_text($r), 'Nöbet listesini güncellediğinizde uygulama değişimi kendiliğinden işler.'], 'button' => 'Uygulamada gör',
         ], 'notoff');
         audit($me, 'swap.accept', swap_req_text($r));
     } else {
-        if (q("UPDATE swap_requests SET status = 'declined', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek artık beklemede değil.');
-        if ($from) notify_users([$from], 'swap', 'İsteğin reddedildi', $me['name'] . ' isteğini kabul etmedi: ' . swap_fmt_date($r['from_date']), '#/nobetim', null);
+        if (q("UPDATE swap_requests SET status = 'declined', decided_at = ? WHERE id = ? AND status = 'pending'", [now(), $r['id']])->rowCount() !== 1) fail('Bu teklif artık beklemede değil.');
+        if ($from) notify_users([$from], 'swap', 'Teklifiniz reddedildi', $me['name'] . ' teklifinizi kabul etmedi: ' . swap_fmt_date($r['from_date']), '#/nobetim', null);
         audit($me, 'swap.decline', swap_req_text($r));
     }
     out(['request' => swap_req_out(one('SELECT * FROM swap_requests WHERE id = ?', [$r['id']]), $me)]);
@@ -556,12 +556,12 @@ function a_swap_respond(): void
 function a_swap_cancel(): void
 {
     $me = need_user();
-    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
-    if ((int)$r['from_user'] !== (int)$me['id'] && !is_publisher($me)) fail('Bu isteği iptal edemezsiniz.', 403);
-    if (!in_array($r['status'], ['pending', 'accepted'], true)) fail('Bu istek zaten sonuçlandı.');
-    if (q("UPDATE swap_requests SET status = 'cancelled', decided_at = ? WHERE id = ? AND status IN ('pending', 'accepted')", [now(), $r['id']])->rowCount() !== 1) fail('Bu istek zaten sonuçlandı.');
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu teklif silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
+    if ((int)$r['from_user'] !== (int)$me['id'] && !is_publisher($me)) fail('Bu teklifi iptal edemezsiniz.', 403);
+    if (!in_array($r['status'], ['pending', 'accepted'], true)) fail('Bu teklif zaten sonuçlandı.');
+    if (q("UPDATE swap_requests SET status = 'cancelled', decided_at = ? WHERE id = ? AND status IN ('pending', 'accepted')", [now(), $r['id']])->rowCount() !== 1) fail('Bu teklif zaten sonuçlandı.');
     $other = one('SELECT * FROM users WHERE id = ?', [(int)$r['to_user']]);
-    if ($other && (int)$other['id'] !== (int)$me['id']) notify_users([$other], 'swap', 'Nöbet isteği iptal edildi', swap_req_text($r), '#/nobetim', null);
+    if ($other && (int)$other['id'] !== (int)$me['id']) notify_users([$other], 'swap', 'Teklif iptal edildi', swap_req_text($r), '#/nobetim', null);
     audit($me, 'swap.cancel', swap_req_text($r));
     out(['ok' => true]);
 }
@@ -591,7 +591,7 @@ function a_swap_hide(): void
 function a_swap_done(): void
 {
     $me = need_publisher();
-    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu teklif silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     if ($r['status'] !== 'accepted') fail('Yalnızca kabul edilmiş değişimler işlendi sayılabilir.');
     q("UPDATE swap_requests SET status = 'applied', applied_at = ? WHERE id = ?", [now(), $r['id']]);
     $users = array_filter([one('SELECT * FROM users WHERE id = ?', [(int)$r['from_user']]), $r['to_user'] ? one('SELECT * FROM users WHERE id = ?', [(int)$r['to_user']]) : null]);
@@ -604,7 +604,7 @@ function a_swap_done(): void
 function a_swap_delete(): void
 {
     $me = need_publisher();
-    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
+    $r = one('SELECT * FROM swap_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu teklif silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     q('DELETE FROM swap_requests WHERE id = ?', [$r['id']]);
     audit($me, 'swap.delete', swap_req_text($r));
     out(['ok' => true]);

@@ -1073,7 +1073,7 @@ function unsupported(el, att, msg, detail) {
   const ext = extOf(att.name);
   const tip = ['ppt', 'pptx', 'doc', 'odt', 'rtf'].includes(ext) ? 'İpucu: Dosyayı PDF olarak kaydedip yüklerseniz herkes sitede doğrudan görebilir.' : '';
   setHTML(el, html`<div class="fv-none"><span class="a-ico tone-${fk.tone}" style="width:52px;height:52px;border-radius:12px;font-size:12px">${fk.label}</span>
-    <div><b>${msg || 'Bu dosya türü sitede önizlenemiyor.'}</b><div class="small muted">İndirerek cihazınızdaki uygulamayla açabilirsiniz.${tip ? ' ' + tip : ''}</div>${detail ? html`<div class="tiny faint" style="margin-top:4px">Teknik ayrıntı: ${detail}</div>` : ''}</div>
+    <div><b>${msg || 'Bu dosya türü sitede önizlenemiyor.'}</b><div class="small muted">İndirerek cihazınızdaki uygulamayla açabilirsiniz.${tip ? ' ' + tip : ''}</div>${detail && S.me && S.me.role === 'admin' ? html`<div class="tiny faint" style="margin-top:4px">Teknik ayrıntı: ${detail}</div>` : ''}</div>
     <button class="btn sm" data-act="fv-dl" data-url="${att.url}" data-name="${att.name}">${icon('download', 'sm')}İndir</button></div>`);
 }
 function mountMedia(el, att, kind) {

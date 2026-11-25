@@ -361,17 +361,17 @@ function gs_notify_changes(array $roster, array $old, array $new, bool $hadData)
         ksort($changes);
         foreach ($changes as $d => [$a, $b]) $lines[] = gs_short_date($d) . ': ' . ($a ?? '—') . ' → ' . ($b ?? '—');
         if ($lines) {
-            notify_users([$u], 'shift', 'Nöbetinde değişiklik var', mb_substr(implode(' · ', $lines), 0, 380), '#/nobetim', [
-                'subject' => 'Nöbetinde değişiklik: ' . $roster['name'],
-                'heading' => 'Nöbet listesinde senin günlerin değişti',
-                'lines' => array_merge(['“' . $roster['name'] . '” listesi Excel’de güncellendi. Değişen günlerin:'], $lines),
+            notify_users([$u], 'shift', 'Nöbetinizde değişiklik var', mb_substr(implode(' · ', $lines), 0, 380), '#/nobetim', [
+                'subject' => 'Nöbetinizde değişiklik: ' . $roster['name'],
+                'heading' => 'Nöbet listesinde sizin günleriniz değişti',
+                'lines' => array_merge(['“' . $roster['name'] . '” listesi güncellendi. Değişen günleriniz:'], $lines),
                 'button' => 'Takvimimi aç',
             ], 'notoff');
             $notified++;
         }
         if ($hadData) foreach ($newMonths as $ym => $cnt) {
             $mn = GS_MONTH_NAMES[(int)substr($ym, 5, 2) - 1];
-            notify_users([$u], 'roster', $mn . ' nöbet listesi yayınlandı', $mn . ' ayında ' . $cnt . ' nöbet/izin kaydın var. Takviminde görebilirsin.', '#/nobetim', null);
+            notify_users([$u], 'roster', $mn . ' nöbet listesi yayımlandı', $mn . ' ayında ' . $cnt . ' nöbet/izin kaydınız var. Takviminizde görebilirsiniz.', '#/nobetim', null);
             $notified++;
         }
     }

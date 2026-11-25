@@ -16,11 +16,11 @@ async function qrLoginScreen() {
       <div class="qrl-code" id="qrlCode"><div class="spinner"></div></div>
       <ol class="qrl-steps">
         <li>Telefonunuzda <b>dupcii</b>’yi açın (giriş yapmış olun).</li>
-        <li><b>Hesabım › Güvenlik › Bilgisayarda oturum aç</b>’a dokunun ya da telefonun kamerasıyla bu kodu okutun.</li>
+        <li><b>Hesabım › Güvenlik ve şifre › Bilgisayarda oturum aç</b>’a dokunun ya da telefonun kamerasıyla bu kodu okutun.</li>
         <li>Telefonda bu bilgisayarda görünen <b>sayıya</b> dokunun.</li>
       </ol>
     </div>
-    <div class="qrl-st" id="qrlSt" role="status">Karekod hazırlanıyor…</div>
+    <div class="qrl-st" id="qrlSt" role="status">QR kod hazırlanıyor…</div>
     <label class="switch" style="margin-top:12px"><input type="checkbox" id="qrlKeep"><span class="track"></span><span class="s-text"><b>Bu bilgisayarda oturumum açık kalsın</b><span>Yalnız kendi bilgisayarınızda açın. Kapalıysa tarayıcı kapanınca ya da 8 saat işlem yapılmayınca oturum kendiliğinden kapanır.</span></span></label>
     <p class="small muted" style="margin-top:18px;text-align:center"><a href="#" data-act="qr-back">${icon('chevL', 'sm')} E-posta ve şifreyle giriş</a></p>`));
   $('#qrlKeep').addEventListener('change', (e) => { QRL.keep = e.target.checked; });
@@ -30,7 +30,7 @@ async function qrLoginScreen() {
 ACT['qr-back'] = (el, ev) => { if (ev) ev.preventDefault(); qrLoginStop(); renderAuth('login'); };
 async function qrLoginNew() {
   qrLoginStop();
-  if (++QRL.tries > 5) { qrLoginExpired('Karekod süresi doldu.'); return; }
+  if (++QRL.tries > 5) { qrLoginExpired('QR kodun süresi doldu.'); return; }
   let r;
   try { r = await api('qr.new'); } catch (e) { setHTML($('#qrlSt'), html`<span class="mk-no">${e.message}</span>`); return; }
   const box = $('#qrlCode'); if (!box) return;
@@ -55,7 +55,7 @@ async function qrLoginNew() {
       return;
     }
     if (p.state === 'seen') setHTML($('#qrlSt'), html`${icon('phone', 'sm')} Telefonda onay bekleniyor…`);
-    if (p.state === 'denied') { qrLoginStop(); setHTML($('#qrlSt'), html`<span class="mk-no">Telefondan reddedildi.</span> <a href="#" data-act="qr-renew">Yeni karekod</a>`); $('#qrlCode').classList.add('dim'); return; }
+    if (p.state === 'denied') { qrLoginStop(); setHTML($('#qrlSt'), html`<span class="mk-no">Telefondan reddedildi.</span> <a href="#" data-act="qr-renew">Yeni QR kod</a>`); $('#qrlCode').classList.add('dim'); return; }
     if (p.state === 'expired' || p.state === 'none' || left <= 0) { qrLoginNew(); return; }
     QRL.timer = setTimeout(poll, 2000);
   };
@@ -64,7 +64,7 @@ async function qrLoginNew() {
 function qrLoginExpired(msg) {
   qrLoginStop();
   const b = $('#qrlCode'); if (b) b.classList.add('dim');
-  setHTML($('#qrlSt'), html`${msg} <a href="#" data-act="qr-renew">Yeni karekod</a>`);
+  setHTML($('#qrlSt'), html`${msg} <a href="#" data-act="qr-renew">Yeni QR kod</a>`);
 }
 ACT['qr-renew'] = (el, ev) => { if (ev) ev.preventDefault(); QRL.tries = 0; qrLoginNew(); };
 
@@ -73,15 +73,15 @@ NM_EXT.routes.qr = async (view, r) => {
   const token = r[1] || '';
   setHTML(view, html`<div class="page-head"><div><h1>Bilgisayarda oturum aç</h1></div></div><div id="qrBody"><div class="card card-pad"><div class="skel" style="height:16px"></div></div></div>`);
   let d;
-  try { d = await api('qr.info', { token }); } catch (e) { setHTML($('#qrBody'), html`<div class="card empty"><div class="e-ico">${icon('qr', 'lg')}</div><h3>Karekod kullanılamıyor</h3><p class="small">${e.message}</p><button class="btn" data-act="qr-scan">${icon('camera', 'sm')}Yeniden okut</button></div>`); return; }
+  try { d = await api('qr.info', { token }); } catch (e) { setHTML($('#qrBody'), html`<div class="card empty"><div class="e-ico">${icon('qr', 'lg')}</div><h3>QR kod kullanılamıyor</h3><p class="small">${e.message}</p><button class="btn" data-act="qr-scan">${icon('camera', 'sm')}Yeniden okut</button></div>`); return; }
   setHTML($('#qrBody'), html`<div class="card card-pad stack qra">
     <div class="qra-dev">${icon('grid', 'lg')}<div><b>${d.label}</b><div class="small muted">IP ${d.ip}${d.same_net ? ' · telefonunuzla aynı ağ' : ''}</div><div class="tiny faint">${fmtDateTime(d.at)}</div></div></div>
     <p><b>${S.me.name}</b> hesabıyla bu bilgisayarda oturum açılacak.</p>
-    <div class="mk-box warn">${icon('alert', 'sm')}<span>Karekodu <b>siz</b> okutmadıysanız ya da bilgisayar şu an önünüzde değilse <b>onaylamayın</b>. Başkası size karekod okutarak hesabınıza girmeye çalışıyor olabilir.</span></div>
-    <div><b>Bilgisayarda karekodun yanında görünen sayıya dokunun:</b></div>
+    <div class="mk-box warn">${icon('alert', 'sm')}<span>QR kodu <b>siz</b> okutmadıysanız ya da bilgisayar şu an önünüzde değilse <b>onaylamayın</b>. Başkası size QR kod okutarak hesabınıza girmeye çalışıyor olabilir.</span></div>
+    <div><b>Bilgisayarda QR kodun yanında görünen sayıya dokunun:</b></div>
     <div class="qra-codes">${(d.codes || []).map((c) => html`<button class="btn qra-code" data-act="qr-ok" data-t="${token}" data-c="${c}">${c}</button>`)}</div>
-    <div class="row wrap" style="gap:8px"><button class="btn ghost danger" data-act="qr-no" data-t="${token}">Reddet — karekodu ben okutmadım</button></div>
-    <p class="tiny faint">Bilgisayardaki oturumu istediğiniz an Hesabım › Güvenlik › Bağlı cihazlar’dan kapatabilirsiniz.</p></div>`);
+    <div class="row wrap" style="gap:8px"><button class="btn ghost danger" data-act="qr-no" data-t="${token}">Reddet — QR kodu ben okutmadım</button></div>
+    <p class="tiny faint">Bilgisayardaki oturumu istediğiniz an Hesabım › Güvenlik ve şifre › Bağlı cihazlar’dan kapatabilirsiniz.</p></div>`);
 };
 ACT['qr-ok'] = (el) => busy(el, async () => {
   try {
@@ -101,7 +101,7 @@ ACT['qr-no'] = async (el) => {
 ACT['qr-scan'] = async () => {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Bu cihazda kamera kullanılamıyor; telefonun kamerasıyla okutun.', 'err'); return; }
   let stream = null; let raf = 0; let det = null; let done = false;
-  const md = openModal({ title: 'Bilgisayardaki karekodu okutun', body: html`<div class="qrs"><video id="qrsV" playsinline muted autoplay></video><div class="qrs-frame"></div></div><p class="small muted" style="text-align:center;margin-top:8px">Bilgisayarda giriş ekranındaki “Telefonla QR kod okutarak giriş”e basın, çıkan kodu çerçeveye getirin.</p>`,
+  const md = openModal({ title: 'Bilgisayardaki QR kodu okutun', body: html`<div class="qrs"><video id="qrsV" playsinline muted autoplay></video><div class="qrs-frame"></div></div><p class="small muted" style="text-align:center;margin-top:8px">Bilgisayarda giriş ekranındaki “Telefonla QR kod okutarak giriş”e basın, çıkan kodu çerçeveye getirin.</p>`,
     onClose: () => { done = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); } });
   try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); } catch (e) { md.close(); toast('Kameraya izin verilmedi. Tarayıcı ayarlarından izin verin ya da telefonun kamerasıyla okutun.', 'err'); return; }
   const v = $('#qrsV', md.el); v.srcObject = stream;
@@ -137,7 +137,7 @@ ACT['qr-scan'] = async () => {
 /* ---------------- Hesabım › Güvenlik: bilgisayarda oturum aç + bağlı cihazlar ---------------- */
 function qrSecHtml() {
   return html`<div class="card card-pad stack"><h3 class="ph">${icon('qr', 'sm')} Bilgisayarda oturum aç</h3>
-      <p class="small muted">Bilgisayarda giriş ekranındaki “Telefonla QR kod okutarak giriş”e basın, çıkan karekodu buradan okutun. Şifre yazmanıza gerek kalmaz.</p>
+      <p class="small muted">Bilgisayarda giriş ekranındaki “Telefonla QR kod okutarak giriş”e basın, çıkan QR kodu buradan okutun. Şifre yazmanıza gerek kalmaz.</p>
       <div><button class="btn primary" data-act="qr-scan">${icon('camera', 'sm')}QR kodu okut</button></div></div>
     <div class="card card-pad stack" id="usBox"><h3 class="ph">${icon('lock', 'sm')} Bağlı cihazlar</h3><div class="skel" style="height:14px;width:60%"></div></div>`;
 }

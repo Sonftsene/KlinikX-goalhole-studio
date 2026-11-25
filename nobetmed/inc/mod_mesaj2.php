@@ -159,7 +159,7 @@ function a_chat_state(): void
             if ($c['kind'] === 'unit') fail('Birim grubu silinemez; temizleyebilir ya da arşivleyebilirsiniz.');
             h_q('UPDATE c_members SET cleared_id = ?, deleted = 1, pinned_at = NULL, archived = 0' . $w, [(int)$c['last_id'], ...$k]);
             break;
-        default: fail('Geçersiz işlem.');
+        default: fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     }
     out();
 }

@@ -39,7 +39,7 @@ function sitePages() {
     add('#/rehber', uiL('#/rehber', 'Kim nöbette', g), g);
     if (modOn('taraf')) add('#/taraf', uiL('#/taraf', 'Taraf listesi', g), g);
     (NM_EXT.hubTabs || []).filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).forEach((x) => add(x.href, uiL(x.href, x.label, g), g));
-    add('#/nobet', uiL('#/nobet', 'Excel liste', g), g);
+    add('#/nobet', uiL('#/nobet', 'Liste', g), g);
   }
   if (typeof profTabs === 'function') profTabs().forEach(([k, l]) => add('#/profil/' + k, l, 'Hesabım'));
   // Grupları menüdeki ilk görünüş sırasıyla bir arada tut

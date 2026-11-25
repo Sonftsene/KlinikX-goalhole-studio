@@ -62,11 +62,11 @@ else {
   await G.p.locator('.modal .seg [data-t=give]').click();
   await G.p.locator('.modal [data-part=day]').waitFor();
   await G.p.locator('.modal [data-part=day]').click();
-  await G.p.getByText('gecesi (16-08) sende kalır').first().waitFor({ timeout: 8000 }).catch(() => fail('pencerede “gecesi sende kalır” yok'));
+  await G.p.getByText('gecesi (16-08) sizde kalır').first().waitFor({ timeout: 8000 }).catch(() => fail('pencerede “gecesi sizde kalır” yok'));
   await G.p.screenshot({ path: path.join(OUT, 'p-devret-parca.png') });
   await G.p.locator('.modal .sw-give', { hasText: target }).first().click();
   await G.p.locator('.modal [data-send]').click();
-  await G.p.getByText('İstek gönderildi').first().waitFor();
+  await G.p.getByText('Teklif gönderildi').first().waitFor();
   const req = (await apiCall(G.p, 'swap.list')).items.find((r) => r.from_date === date && r.to_name === target && r.status === 'pending');
   if (!req || req.part !== 'day') fail('devir isteği parçasız kaydedildi: ' + JSON.stringify(req));
   const T = P[accOf(target)];
@@ -143,7 +143,7 @@ if (found) {
   await P[n].p.screenshot({ path: path.join(OUT, 'p-devral-parca.png') });
   await pbtn.click();
   await P[n].p.locator('.modal [data-go]').click();
-  await P[n].p.getByText('İstek gönderildi').first().waitFor();
+  await P[n].p.getByText('Teklif gönderildi').first().waitFor();
   const GV = P[accOf(it.display)];
   // Önceki adımdan kalan bildirim beklemeyi erken bitirebilir: istek kaydını birkaç saniye yokla
   let tr = null;

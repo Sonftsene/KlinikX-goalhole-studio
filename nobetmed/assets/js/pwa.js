@@ -189,7 +189,7 @@ async function pushEnable() {
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
     } catch (e) {
       if (Notification.permission === 'denied') throw new Error('Bildirim izni reddedildi. Tarayıcı ya da telefon ayarlarından dupcii için bildirimlere izin verin.');
-      throw new Error('Bildirim aboneliği oluşturulamadı: ' + (e && e.message ? e.message : 'bilinmeyen hata'));
+      console.warn('push subscribe', e); throw new Error('Bildirimler açılamadı. Sayfayı yenileyip tekrar deneyin; sürerse Hesabım › Bildirimler’deki adımlara bakın.');
     }
   }
   await _nmPushSend(sub);

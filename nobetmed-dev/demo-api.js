@@ -142,7 +142,7 @@
   const me = () => { const u = db.users.find((x) => x.id === db.me); return u && u.status === 'active' ? u : null; };
   const needUser = () => me() || err('Bu işlem için giriş yapmalısınız.', 401);
   const isPub = (u) => u && (u.role === 'admin' || u.role === 'editor');
-  const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için yayın yetkisi gerekir.', 403); return u; };
+  const needPub = () => { const u = needUser(); if (!isPub(u)) err('Bu işlem için sorumlu yetkisi gerekir. Gerekirse birim yöneticinize başvurun.', 403); return u; };
   const needAdmin = () => { const u = needUser(); if (u.role !== 'admin') err('Bu işlem yalnızca yöneticiler içindir.', 403); return u; };
   const userOut = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, title_id: u.title_id, unit_id: u.unit_id, created_at: u.created_at, last_seen_at: u.last_seen_at, has_password: true, email_notify: u.email_notify !== false, notify_mode: u.notify_mode || 'instant', push_on: false, phone: u.phone || null, extension: u.extension || null, avatar: u.avatar || null, must_change: false });
   const brandOut = () => { const b = db.settings.brand || {}; return { logo: b.logo || null, logo_dark: b.logo_dark || null, icon: b.icon || null, icon192: b.icon192 || null, logo_h: b.logo_h || 36 }; };
@@ -166,7 +166,7 @@
   const allShifts = () => db.rosters.flatMap((r) => { const sh = db.shifts[r.id]; const ro = rosterOut(r); return sh && ro.file && sh.file_id === ro.file.id ? sh.entries.map((e) => ({ ...e, roster_id: r.id, roster: r.name })) : []; });
   const nameMatch = (a, b) => (typeof matchPersonName === 'function' ? matchPersonName(a, b) : lower(a) === lower(b));
   const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
-  const EVENTS = [['notify_post', 'Yeni duyuru / içerik yayınlandığında (ilgili birimdeki herkese)'], ['notify_roster', 'Nöbet listesi güncellendiğinde (herkese)'], ['notify_pending_post', 'Onay bekleyen içerik gönderildiğinde (yönetici ve yayıncılara)'], ['notify_pending_user', 'Yeni üyelik başvurusu geldiğinde (yöneticilere)'], ['notify_user_approved', 'Üyelik onaylandığında (başvuran kişiye)']];
+  const EVENTS = [['notify_post', 'Yeni duyuru / içerik yayımlandığında (ilgili birimdeki herkese)'], ['notify_roster', 'Nöbet listesi güncellendiğinde (herkese)'], ['notify_pending_post', 'Onay bekleyen içerik gönderildiğinde (yönetici ve yayıncılara)'], ['notify_pending_user', 'Yeni üyelik başvurusu geldiğinde (yöneticilere)'], ['notify_user_approved', 'Üyelik onaylandığında (başvuran kişiye)']];
   const mailReady = () => !!db.settings.mail_on && !!db.settings.mail_from;
   const evOn = (k) => mailReady() && db.settings.events[k] !== false;
   const recipients = (exceptId) => db.users.filter((x) => x.status === 'active' && x.id !== exceptId && x.email_notify !== false).length;
@@ -270,7 +270,7 @@
       const u = needUser();
       let list;
       if (d.filter === 'mine') list = db.posts.filter((p) => p.author_id === u.id);
-      else if (d.filter === 'pending') { if (!isPub(u)) err('Yetkiniz yok.', 403); list = db.posts.filter((p) => p.status === 'pending'); }
+      else if (d.filter === 'pending') { if (!isPub(u)) err('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403); list = db.posts.filter((p) => p.status === 'pending'); }
       else {
         list = db.posts.filter((p) => visible(u, p));
         if (d.filter === 'unread') list = list.filter((p) => !has(db.views, p, u));
@@ -339,7 +339,7 @@
     'posts.bookmark'(d) { const u = needUser(); const p = db.posts.find((x) => x.id === d.id) || err('İçerik bulunamadı.', 404); db.saves = db.saves.filter((s) => !(s.post_id === p.id && s.user_id === u.id)); if (d.saved) db.saves.push({ post_id: p.id, user_id: u.id }); return {}; },
     'posts.share'(d) {
       const u = needUser(); const p = db.posts.find((x) => x.id === d.id);
-      if (!p || p.status !== 'published') err('Yalnızca yayınlanmış içerikler paylaşılabilir.');
+      if (!p || p.status !== 'published') err('Yalnızca yayımlanmış içerikler paylaşılabilir.');
       if (!isPub(u) && p.author_id !== u.id) err('Paylaşım bağlantısı oluşturma yetkiniz yok.', 403);
       if (!d.days) { p.share_token = null; p.share_expires = null; return { share: null }; }
       p.share_token = token(); p.share_expires = fmt(new Date(Date.now() + Math.min(d.days, 365) * 86400000));
@@ -428,7 +428,7 @@
       if ((d.name || '').trim().length < 2) err('Ad en az 2 karakter olmalıdır.');
       const vals = { name: d.name.trim() };
       if (d.kind === 'categories') Object.assign(vals, { icon: d.icon, color: d.color });
-      if (d.id) Object.assign(list.find((x) => x.id === d.id) || err('Kayıt bulunamadı.', 404), vals);
+      if (d.id) Object.assign(list.find((x) => x.id === d.id) || err('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404), vals);
       else list.push({ id: ++db.seq, ...vals });
       return { id: d.id, ...lists() };
     },
@@ -560,7 +560,7 @@
       if (name.length < 2) err('Ad en az 2 karakter olmalı.');
       if (!/\d/.test(number) || !/^[0-9+()/\-., ]{1,40}$/.test(number)) err('Numara yalnızca rakam ve + ( ) - / işaretleri içerebilir.');
       const row = { name, number, category: String(d.category || '').trim(), note: String(d.note || '').trim(), pinned: !!d.pinned };
-      if (d.id) { const it = db.phonebook.find((x) => x.id === d.id); if (!it) err('Kayıt bulunamadı.', 404); Object.assign(it, row); audit('phonebook.save', name, number); }
+      if (d.id) { const it = db.phonebook.find((x) => x.id === d.id); if (!it) err('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404); Object.assign(it, row); audit('phonebook.save', name, number); }
       else { db.phonebook.push({ id: ++db.seq, ...row }); audit('phonebook.create', name, number); }
       return this['phonebook.list']();
     },
@@ -624,7 +624,7 @@
     'me.avatar'(d) {
       const u = needUser();
       let t = u;
-      if (d.user_id && d.user_id !== u.id) { if (u.role !== 'admin' || !d.remove) err('Yetkiniz yok.', 403); t = db.users.find((x) => x.id === d.user_id) || err('Kullanıcı bulunamadı.', 404); }
+      if (d.user_id && d.user_id !== u.id) { if (u.role !== 'admin' || !d.remove) err('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403); t = db.users.find((x) => x.id === d.user_id) || err('Kullanıcı bulunamadı.', 404); }
       if (d.remove) { t.avatar = null; return { avatar: null }; }
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(d.data || '') || d.data.length > 600000) err('Geçersiz fotoğraf.');
       u.avatar = d.data;
@@ -736,7 +736,7 @@
       @media print{#demoBar{display:none}}
     </style><span>Önizleme</span><select aria-label="Kullanıcı"></select><button type="button" data-r>Sıfırla</button>`;
     const sel = el.querySelector('select');
-    const roleTr = { admin: 'Yönetici', editor: 'Yayıncı', member: 'Üye' };
+    const roleTr = { admin: 'Yönetici', editor: 'Sorumlu', member: 'Üye' };
     const fill = () => {
       sel.innerHTML = '<option value="0">Çıkış yapmış</option>' + window.NM_DEMO_API.users().map((u) => `<option value="${u.id}">${u.name} — ${roleTr[u.role]}</option>`).join('');
       sel.value = String(window.NM_DEMO_API.current() || 0);
