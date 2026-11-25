@@ -235,8 +235,10 @@ try {
   await A.p.locator('#nbPolicy .nb-stat').waitFor();
   await A.p.locator('#nbPolicy input[data-pol=hide_preview]').locator('..').click();
   await A.p.locator('#nbPolicy input[data-pol=locked][data-k=mesaj]').locator('..').click();
-  await A.p.click('[data-act=nbp-save]');
+  // 4.56.0: politika kendiliğinden kaydedilir (ayrı “kaydet” düğmesi yok)
+  if (await A.p.locator('[data-act=nbp-save]').count()) fail('politika kartında ayrı kaydet düğmesi duruyor');
   await expectText(A.p, 'Bildirim politikası kaydedildi');
+  await A.p.waitForTimeout(400);
   const pol = (await apiCall(A.p, 'notif.policy.get')).policy;
   if (!pol.hide_preview || !pol.locked.includes('mesaj') || !pol.locked.includes('eksik')) fail('politika kaydı: ' + JSON.stringify(pol));
   await A.p.locator('#nbPolicy .nb-stat').waitFor();

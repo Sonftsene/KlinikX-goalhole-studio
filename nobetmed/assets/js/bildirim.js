@@ -422,8 +422,14 @@ function nbPolicyDraw() {
         <label class="switch only"><input type="checkbox" data-pol="locked" data-k="${k.key}" ${lk ? raw('checked') : ''}><span class="track"></span></label></div>`; })}</div>
     <label class="switch"><input type="checkbox" data-pol="hide_preview" ${p.hide_preview ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Telefon bildirimlerinde içeriği gizle (KVKK)</b><span>Kilit ekranında mesaj/duyuru metni yerine yalnız “Yeni mesaj”, “Yeni duyuru” yazar. Hasta bilgisinin görünme riskini azaltır.</span></span></label>
     <label class="switch"><input type="checkbox" data-pol="quiet_allowed" ${p.quiet_allowed ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Kişiler sessiz saat seçebilsin</b><span>Kapalıysa herkesin bildirimi her saatte sesli gelir.</span></span></label>
-    <div><button type="button" class="btn primary" data-act="nbp-save">Politikayı kaydet</button></div>`);
+    <p class="tiny faint nbp-auto">${icon('check', 'sm')} Değişiklikler hemen kaydedilir.</p>`);
+  // Politika ayrı bir “kaydet” düğmesi istemez: her değişiklik kendiliğinden kaydedilir (sayfada tek kaydet düğmesi kalsın — 4.56.0)
+  c.querySelectorAll('input[data-pol]').forEach((i) => i.addEventListener('change', () => {
+    if (i.dataset.pol === 'locked') { const pu = $(`input[data-pol=push][data-k="${i.dataset.k}"]`, c); if (pu) { if (i.checked) pu.checked = true; pu.disabled = i.checked; } }
+    nbPolicyAutoSave();
+  }));
 }
+const nbPolicyAutoSave = debounce(() => ACT['nbp-save'](null), 600);
 ACT['nbp-save'] = (el) => busy(el, async () => {
   const c = $('#nbPolicy'); if (!c) return;
   const defaults = {}; const locked = [];
@@ -432,7 +438,6 @@ ACT['nbp-save'] = (el) => busy(el, async () => {
   try {
     await api('notif.policy.save', { defaults, locked, hide_preview: $('input[data-pol=hide_preview]', c).checked, quiet_allowed: $('input[data-pol=quiet_allowed]', c).checked });
     toast('Bildirim politikası kaydedildi');
-    nbPolicyLoad();
   } catch (e) { toast(e.message, 'err'); }
 });
 NM_EXT.audit['notif.policy'] = 'Bildirim politikasını değiştirdi';
@@ -501,13 +506,13 @@ function nbStatusDraw() {
     <div class="row wrap" style="gap:8px;align-items:center"><input class="input" type="search" placeholder="Kişi ara" value="${NBS.q}" data-input="nbs-q" style="flex:1;min-width:150px">
       <button type="button" class="btn sm" data-act="nbs-remind-sel" ${NBS.sel.size ? '' : raw('disabled')}>${icon('bell', 'sm')}<span>Seçilenlere hatırlat${NBS.sel.size ? ` (${NBS.sel.size})` : ''}</span></button>
       ${notOn.length ? html`<button type="button" class="btn sm primary" data-act="nbs-remind-all">${icon('bell', 'sm')}<span>Açmayan herkese hatırlat (${notOn.length})</span></button>` : ''}</div>
-    <div class="list nbs-list">${list.length ? list.map((p) => { const L = NBS_L[p.state] || [p.state, 'info']; return html`<div class="list-row" style="gap:10px;align-items:center">
+    <div class="list nbs-list">${list.length ? list.map((p) => { const L = NBS_L[p.state] || [p.state, 'info']; return html`<div class="list-row nbs-row" style="gap:10px;align-items:center">
       ${p.state !== 'on' ? html`<input type="checkbox" data-change="nbs-sel" data-id="${p.id}" ${NBS.sel.has(p.id) ? raw('checked') : ''} aria-label="${p.name}: seç">` : html`<span style="width:16px"></span>`}
       ${avatar(p.name, 'sm')}
       <div class="grow" style="min-width:0"><b class="small">${p.name}</b>
         <div class="tiny faint">${[p.state === 'on' ? `${p.devices} cihaz` : '', NBS_PL[p.platform] || '', p.seen ? 'son giriş ' + fmtRel(p.seen) : 'hiç giriş yok', p.reminded_at ? `hatırlatıldı ${fmtRel(p.reminded_at)}${p.reminds > 1 ? ` (${p.reminds}. kez)` : ''}` : '', !p.email ? 'e-posta yok' : ''].filter(Boolean).join(' · ')}</div></div>
-      <span class="badge ${L[1]}">${L[0]}</span>
-      ${p.state !== 'on' ? html`<button type="button" class="btn sm ghost" data-act="nbs-remind" data-id="${p.id}">Hatırlat</button>` : ''}</div>`; }) : html`<div class="list-row small muted">${NBS.f === 'noton' ? 'Herkeste telefon bildirimi açık.' : 'Kimse yok.'}</div>`}</div>`);
+      <div class="nbs-act"><span class="badge ${L[1]}">${L[0]}</span>
+      ${p.state !== 'on' ? html`<button type="button" class="btn sm ghost" data-act="nbs-remind" data-id="${p.id}">Hatırlat</button>` : ''}</div></div>`; }) : html`<div class="list-row small muted">${NBS.f === 'noton' ? 'Herkeste telefon bildirimi açık.' : 'Kimse yok.'}</div>`}</div>`);
 }
 ACT['nbs-reload'] = () => nbStatusLoad();
 ACT['nbs-f'] = (el) => { NBS.f = el.dataset.f; nbStatusDraw(); };

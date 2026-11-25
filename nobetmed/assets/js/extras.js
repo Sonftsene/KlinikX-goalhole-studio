@@ -157,7 +157,7 @@ function heroHtml() {
   return html`<section class="hero" data-home="hero">
     <div class="hero-head"><div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div></div>
     <a class="hero-shift" id="heroShift" href="#/nobetim"><span class="hs-ico tone-slate">${icon('calendar')}</span><span class="grow"><span class="skel" style="display:block;height:18px;width:62%"></span><span class="skel" style="display:block;height:13px;width:40%;margin-top:8px"></span></span></a>
-    <div class="hero-chips ${S.ui_layout && S.ui_layout.chips_big ? 'big' : ''}" data-home="chips">${heroChipsHtml()}</div>
+    <div class="${heroChipsCls()}" style="${heroChipsStyle()}" data-home="chips">${heroChipsHtml()}</div>
   </section>`;
 }
 /* ---------------- Ana sayfa kısayolları (kişiye özel; hesabına kaydedilir) ---------------- */
@@ -207,7 +207,10 @@ function heroChipsHtml() {
   };
   return html`${chipList().map(one)}${chipCanEdit() ? html`<button type="button" class="hchip ghost" data-act="chips-edit" aria-label="Kısayolları düzenle" title="Kısayolları düzenle">${icon('edit', 'sm')}</button>` : ''}`;
 }
-function heroChipsRefresh() { const el = $('[data-home="chips"]'); if (el) { el.classList.toggle('big', !!(S.ui_layout && S.ui_layout.chips_big)); setHTML(el, heroChipsHtml()); } }
+/** Büyük kısayol kutuları: boyut (s/m/l/xl) ve telefonda yan yana kutu sayısı — yöneticinin “Herkes için ana sayfa” ayarı (4.56.0) */
+function heroChipsCls() { const L = S.ui_layout; return 'hero-chips' + (L && L.chips_big ? ' big hs-' + (L.chips_size || 'm') + (L.chips_cols ? ' hs-cols' : '') : ''); }
+function heroChipsStyle() { const L = S.ui_layout; return L && L.chips_big && L.chips_cols ? '--hc-cols:' + L.chips_cols : ''; }
+function heroChipsRefresh() { const el = $('[data-home="chips"]'); if (el) { el.className = heroChipsCls(); el.setAttribute('style', heroChipsStyle()); setHTML(el, heroChipsHtml()); } }
 ACT['chips-edit'] = () => {
   if (!chipCanEdit()) return;
   const L = S.ui_layout;
@@ -1788,7 +1791,10 @@ function drawPhonebook() {
   }
   const favItems = favs.map((id) => PB.items.find((x) => x.id === id)).filter(Boolean);
   const groups = new Map();
-  PB.items.filter((it) => !it.pinned).forEach((it) => { const k = it.category || 'Diğer'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
+  // Aynı grup farklı yazılmışsa (“LABORATUVAR” / “Laboratuvar”) tek grup; büyük harfle yazılmış ad düzgün gösterilir (4.56.0)
+  const tc = (x) => (x === x.toLocaleUpperCase('tr') && /[A-ZÇĞİÖŞÜ]{2}/.test(x) ? x.toLocaleLowerCase('tr').replace(/(^|[\s/(-])(\S)/g, (m, a, b) => a + b.toLocaleUpperCase('tr')) : x);
+  const gname = new Map();
+  PB.items.filter((it) => !it.pinned).forEach((it) => { const raw0 = (it.category || 'Diğer').trim(); const key = avKey(raw0); if (!gname.has(key)) gname.set(key, tc(raw0)); const k = gname.get(key); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
   const pinned = PB.items.filter((it) => it.pinned);
   setHTML(box, html`
     ${!PB.santral && isPublisher() && PB.items.some((it) => pbSplit(it.number).some(pbIsExt)) ? html`<div class="banner info pb-tip">${icon('info')}<span>Santral numarasını girerseniz ekip cep telefonundan dahilileri tek dokunuşla arayabilir.</span><button class="btn sm" data-act="pb-santral">Santral gir</button></div>` : ''}

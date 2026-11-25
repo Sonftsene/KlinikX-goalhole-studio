@@ -110,11 +110,26 @@ function chatStop() {
   // Sohbetten çıkınca süren sesli kayıt iptal edilir (mikrofon kapanır; kayıt başka sohbete gitmez — 4.55.0)
   if (CH.rec) { CH.recCancel = true; try { CH.rec.stop(); } catch (e) { /* */ } }
 }
+/** Masaüstü sohbet ekranının sol listesi (yalnız geniş ekranda doldurulur) */
+async function chatSideFill(id) {
+  const box = $('#chSide');
+  if (!box || window.innerWidth < 1100) return;
+  let r;
+  try { r = await api('chat.list', { open: id }); } catch (e) { return; }
+  if (CH.id !== id || !document.contains(box)) return;
+  const items = (r.items || []).filter((c) => !c.archived).slice(0, 60);
+  setHTML(box, html`<div class="ch-side-h"><b>Sohbetler</b><a class="btn ghost icon sm" href="#/mesaj" aria-label="Tüm sohbetler">${icon('grid', 'sm')}</a></div>
+    <div class="ch-side-l">${items.map((c) => html`<a class="ch-side-r ${c.id === id ? 'on' : ''} ${c.unread ? 'unread' : ''}" href="#/mesaj/${c.id}">
+      <span class="ch-ava2 sm">${c.photo ? html`<img src="${c.photo}" alt="">` : c.kind === 'direct' ? avatar(c.name, 'sm') : html`<span class="ch-ava2-i">${icon(c.kind === 'unit' ? 'users' : 'chat', 'sm')}</span>`}</span>
+      <span class="grow" style="min-width:0"><b class="ellipsis">${c.name}</b><span class="tiny faint ellipsis">${c.last || ''}</span></span>
+      ${c.unread ? html`<span class="ch-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}</a>`)}</div>`);
+}
 async function chatOpen(view, id) {
   chatStop();
   CH.id = id; CH.msgs = []; CH.last = 0; CH.reply = null; CH.read = null; CH.rc = { d: 0, r: 0 }; CH.stick = true; CH.seen = null;
   window.scrollTo(0, 0);
-  setHTML(view, html`<div class="ch-view ${typeof chatThemeClass === 'function' ? chatThemeClass() : ''}" id="chatView">
+  // Masaüstünde iki panel: solda sohbet listesi, sağda açık sohbet (4.56.0); telefonda liste gizli
+  setHTML(view, html`<div class="ch-split"><aside class="ch-side" id="chSide" aria-label="Sohbetler"></aside><div class="ch-view ${typeof chatThemeClass === 'function' ? chatThemeClass() : ''}" id="chatView">
     <div class="ch-head"><a class="btn ghost icon" href="#/mesaj" aria-label="Sohbetler">${icon('chevL')}</a>
       <button type="button" class="grow ch-headbtn" data-act="ch-info" style="min-width:0"><div class="ch-title ellipsis" id="chTitle">…</div><div class="tiny faint ellipsis" id="chSub"></div></button>
       <span id="chCallBtns" class="row" style="gap:0"></span>
@@ -123,8 +138,9 @@ async function chatOpen(view, id) {
     <div id="chPin"></div>
     <div class="ch-scroll ${chatUiClass()}" id="chScroll"><div id="chMore"></div><div id="chMsgs"></div></div>
     <button type="button" class="ch-down hidden" id="chDown" data-act="ch-down" aria-label="En alta in">${icon('chevD')}<span class="count hidden" id="chDownN"></span></button>
-    <div class="ch-compose" id="chCompose"></div></div>`);
+    <div class="ch-compose" id="chCompose"></div></div></div>`);
   CH.sel = null; CH.divider = 0;
+  chatSideFill(id);
   let r;
   try { r = await api('chat.open', { id }); } catch (e) { setHTML($('#chMsgs'), html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
   if (CH.id !== id) return;
@@ -415,6 +431,7 @@ async function chatPoll() {
     const sc = $('#chScroll');
     if (r.msgs.length && sc && sc.scrollHeight - sc.scrollTop - sc.clientHeight > 300) CH.downN = (CH.downN || 0) + r.msgs.filter((x) => !x.mine).length;
     if (r.msgs.length) chatAdd(r.msgs); else if (changed || readChanged) chatDraw();
+    CH.sideTick = ((CH.sideTick || 0) + 1) % 5; if (!CH.sideTick) chatSideFill(cid); // sol liste ~15 sn’de bir tazelenir
     if (r.msgs.length) chatScrollEnd();
   } catch (e) { if (CH.id === cid && (e.status === 403 || e.status === 404)) { chatStop(); toast(e.message, 'err'); location.hash = '#/mesaj'; } } finally { CH.busy = false; }
 }

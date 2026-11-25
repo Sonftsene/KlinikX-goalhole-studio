@@ -177,7 +177,7 @@ function homeListHtml(scope) {
   const row = (x, list, i) => {
     const off = homeOff(x.id, P);
     return html`<div class="hl-item ${off ? 'off' : ''}">
-      <span class="hl-t">${x.title}${x.fixed ? html`<span class="hl-s">Her zaman görünür</span>` : HOME_OPTIN.includes(x.id) ? html`<span class="hl-s">Varsayılan kapalı · göz simgesiyle açın</span>` : ''}</span>
+      <span class="hl-t">${x.title}${off && !x.fixed ? html` <span class="badge sm hl-off">Gizli</span>` : ''}${x.fixed ? html`<span class="hl-s">Her zaman görünür</span>` : HOME_OPTIN.includes(x.id) ? html`<span class="hl-s">Varsayılan kapalı · göz simgesiyle açın</span>` : ''}</span>
       ${list.length > 1 && (x.place === 'top' || x.place === 'side') ? html`<button type="button" class="btn ghost icon sm" data-act="hl-move" data-scope="${scope}" data-id="${x.id}" data-d="-1" ${i === 0 ? raw('disabled') : ''} aria-label="Yukarı taşı">${icon('up', 'sm')}</button>
         <button type="button" class="btn ghost icon sm" data-act="hl-move" data-scope="${scope}" data-id="${x.id}" data-d="1" ${i === list.length - 1 ? raw('disabled') : ''} aria-label="Aşağı taşı">${icon('down', 'sm')}</button>` : ''}
       ${x.fixed ? '' : html`<button type="button" class="btn ghost icon sm" data-act="hl-toggle" data-scope="${scope}" data-id="${x.id}" aria-label="${off ? 'Göster' : 'Gizle'}">${icon(off ? 'eyeOff' : 'eye', 'sm')}</button>`}
@@ -676,13 +676,13 @@ function applyShellLayout() {
 }
 /** Hazır düzenler */
 function ulPreset(k) {
-  const std = { preset: 'standart', home: { hidden: [], shown: [], order: [], side_first: false }, lock: false, top_hide: [], bottom_hide: [], chips: null, chips_big: false, chips_own: true };
+  const std = { preset: 'standart', home: { hidden: [], shown: [], order: [], side_first: false }, lock: false, top_hide: [], bottom_hide: [], chips: null, chips_big: false, chips_size: 'm', chips_cols: 0, chips_own: true };
   if (k === 'tam') return Object.assign({}, std, { preset: 'tam', home: { hidden: [], shown: ['countdown'], order: [], side_first: false } });
   if (k === 'sade') {
     const cat = chipCatalog().map((x) => x.id);
     const want = ['todo', 'p:#/nobetim', 'rehber', 'p:#/istekler', 'telefon'].filter((x) => cat.includes(x)).slice(0, 4);
     return { preset: 'sade', home: { hidden: ['feed', 'rosters', 'tips', ...NM_EXT.homeCards.map((c) => c.id)], shown: [], order: [], side_first: true },
-      lock: true, top_hide: ['phone', 'search', 'compose', 'theme'], bottom_hide: ['compose'], chips: want, chips_big: true, chips_own: false };
+      lock: true, top_hide: ['phone', 'search', 'compose', 'theme'], bottom_hide: ['compose'], chips: want, chips_big: true, chips_size: 'l', chips_cols: 2, chips_own: false };
   }
   return std;
 }
@@ -720,7 +720,7 @@ function ulPreviewHtml(L) {
     <div class="ul-top">${icon('menu', 'sm')}<b class="grow">dupcii</b>${top.map(([, i]) => icon(i, 'sm'))}${icon('bell', 'sm')}<span class="ul-av"></span></div>
     <div class="ul-body">
       <div class="ul-hero"><b>Günaydın</b><div class="ul-shift">${icon('calendar', 'sm')} Sıradaki nöbetin</div>
-        ${homeOff('chips', P) ? '' : html`<div class="ul-chips ${L.chips_big ? 'big' : ''}">${chips.map((k) => html`<span class="ul-chip">${k.svg ? raw(k.svg) : icon(ic(k), 'sm')}<span>${k.label}</span></span>`)}</div>`}</div>
+        ${homeOff('chips', P) ? '' : html`<div class="ul-chips ${L.chips_big ? 'big us-' + (L.chips_size || 'm') : ''}" style="${L.chips_big && L.chips_cols ? '--uc-cols:' + L.chips_cols : ''}">${chips.map((k) => html`<span class="ul-chip">${k.svg ? raw(k.svg) : icon(ic(k), 'sm')}<span>${k.label}</span></span>`)}</div>`}</div>
       ${secs.map((x) => html`<div class="ul-sec">${x.title}</div>`)}
     </div>
     <div class="ul-bot">${bot.map(([k, i, l]) => html`<span class="${k === 'compose' ? 'pl' : ''}">${icon(i, 'sm')}${l ? html`<i>${l}</i>` : ''}</span>`)}</div></div>`;
@@ -753,6 +753,11 @@ function ulDraw() {
             <button type="button" class="btn sm ghost icon" data-act="ul-chip" data-op="del" data-i="${i}" aria-label="Çıkar">${icon('x', 'sm')}</button></div>`; }) : html`<div class="list-row small muted">Kısayol seçilmedi.</div>`}</div>
           <details class="ul-add"><summary class="small">${icon('plus', 'sm')} Kısayol ekle</summary>${groups.map((g) => html`<div class="tiny faint" style="margin:8px 0 4px">${g.g}</div><div class="row wrap" style="gap:6px">${g.items.map((k) => html`<button type="button" class="chip-btn" data-act="ul-chip" data-op="add" data-id="${k.id}" ${L.chips.length >= 12 ? raw('disabled') : ''}>${icon('plus', 'sm')} ${k.label}</button>`)}</div>`)}</details>
           <div class="stack" style="gap:8px;margin-top:8px">${sw(L.chips_big, 'ul-big', 'Büyük düğmeler', 'Simgeli büyük kutucuklar; okuması ve dokunması kolay.')}
+          ${L.chips_big ? html`<div class="ul-size"><div class="tiny muted">Kutu boyutu</div>
+            <div class="seg" role="group" aria-label="Kutu boyutu">${[['s', 'Küçük'], ['m', 'Orta'], ['l', 'Büyük'], ['xl', 'Çok büyük']].map(([k, l]) => html`<button type="button" class="${(L.chips_size || 'm') === k ? 'on' : ''}" data-act="ul-size" data-k="${k}" aria-pressed="${(L.chips_size || 'm') === k ? 'true' : 'false'}">${l}</button>`)}</div>
+            <div class="tiny muted" style="margin-top:6px">Telefonda yan yana</div>
+            <div class="seg" role="group" aria-label="Telefonda yan yana kutu">${[[0, 'Otomatik'], [1, '1'], [2, '2'], [3, '3'], [4, '4']].map(([k, l]) => html`<button type="button" class="${(L.chips_cols || 0) === k ? 'on' : ''}" data-act="ul-cols" data-k="${k}" aria-pressed="${(L.chips_cols || 0) === k ? 'true' : 'false'}">${l}</button>`)}</div>
+            <p class="tiny muted" style="margin:6px 0 0">Önizlemede hemen görünür; “Herkese uygula” ile kaydedilir.</p></div>` : ''}
           ${sw(L.chips_own, 'ul-own', 'Kişi yanına kendi kısayolunu ekleyebilsin', 'Sizin kısayollarınız sabit kalır; kişinin eklediği yanına gelir.')}</div>` : ''}</div>
       <div><div class="ph-sec">Üst çubuk simgeleri</div><div class="ul-tog">${UL_TOP.map(([k, i, l]) => html`<button type="button" class="chip-btn ${(L.top_hide || []).includes(k) ? '' : 'on'}" data-act="ul-top" data-k="${k}" aria-pressed="${(L.top_hide || []).includes(k) ? 'false' : 'true'}">${icon(i, 'sm')} ${l}</button>`)}</div>
         <p class="tiny muted" style="margin:6px 0 0">Bildirim zili ve profil her zaman görünür. Seçili olanlar görünür.</p></div>
@@ -771,6 +776,8 @@ ACT['ul-preset'] = (el) => ulSet(ulPreset(el.dataset.k), true);
 CHANGE['ul-lock'] = (el) => ulSet({ lock: !el.checked });
 CHANGE['ul-chips'] = (el) => ulSet({ chips: el.checked ? chipList().filter((id) => chipCatalog().some((k) => k.id === id)).slice(0, 12) : null });
 CHANGE['ul-big'] = (el) => ulSet({ chips_big: el.checked });
+ACT['ul-size'] = (el) => ulSet({ chips_size: el.dataset.k });
+ACT['ul-cols'] = (el) => ulSet({ chips_cols: +el.dataset.k });
 CHANGE['ul-own'] = (el) => ulSet({ chips_own: el.checked });
 ACT['ul-chip'] = (el) => {
   const a = (ulCur().chips || []).slice(); const i = +el.dataset.i;
@@ -833,10 +840,10 @@ function lbDraw() {
       <p class="small muted" style="margin:4px 0 0">Menüdeki ve sayfalardaki adları biriminize göre değiştirin (ör. “Takvimim” → “Nöbetlerim”). Boş bırakılan varsayılan adla kalır. Adlar veritabanında saklanır; <b>güncellemeler bu adları değiştirmez</b>. Bölüm (kategori) ve nöbet listesi adları kendi sayfalarından değiştirilir.</p></div>
       ${n ? html`<span class="badge brand">${n} özel ad</span>` : ''}</div>
     <input class="input" type="search" id="lbQ" placeholder="Ad ara…" aria-label="Ad ara">
-    <div class="lb-list">${groups.map((g) => html`<div class="lb-g"><div class="ph-sec">${g.g}</div>${g.items.map(([k, def]) => html`<label class="lb-row" data-k="${(def + ' ' + (LB.draft[k] || '')).toLocaleLowerCase('tr')}"><span class="small lb-def">${def}</span>${icon('chevR', 'sm')}<input class="input" maxlength="40" data-lb="${k}" value="${LB.draft[k] || ''}" placeholder="${def}"></label>`)}</div>`)}</div>
+    <div class="lb-list">${groups.map((g) => html`<details class="lb-g" open><summary class="ph-sec">${g.g}${g.items.some(([k]) => LB.draft[k]) ? html` <span class="badge sm brand">${g.items.filter(([k]) => LB.draft[k]).length} değişti</span>` : ''}</summary><div class="lb-gi">${g.items.map(([k, def]) => html`<label class="lb-row ${LB.draft[k] ? 'set' : ''}" data-k="${(def + ' ' + (LB.draft[k] || '')).toLocaleLowerCase('tr')}"><span class="small lb-def">${def}</span><span class="lb-arr" aria-hidden="true">→</span><input class="input" maxlength="40" data-lb="${k}" value="${LB.draft[k] || ''}" placeholder="Değişmedi"></label>`)}</div></details>`)}</div>
     <div class="row wrap" style="gap:8px"><button type="button" class="btn primary" data-act="lb-save">${icon('check', 'sm')}Adları kaydet</button>
       ${n ? html`<button type="button" class="btn ghost sm" data-act="lb-reset">Tümünü varsayılana döndür</button>` : ''}</div>`);
-  c.querySelectorAll('[data-lb]').forEach((i) => i.addEventListener('input', () => { const v = i.value.trim(); if (v) LB.draft[i.dataset.lb] = v; else delete LB.draft[i.dataset.lb]; }));
+  c.querySelectorAll('[data-lb]').forEach((i) => i.addEventListener('input', () => { const v = i.value.trim(); if (v) LB.draft[i.dataset.lb] = v; else delete LB.draft[i.dataset.lb]; i.closest('.lb-row').classList.toggle('set', !!v); }));
   const q = $('#lbQ', c);
   q.addEventListener('input', () => { const v = q.value.trim().toLocaleLowerCase('tr'); c.querySelectorAll('.lb-row').forEach((r) => r.classList.toggle('hidden', !!v && !r.dataset.k.includes(v))); c.querySelectorAll('.lb-g').forEach((g) => g.classList.toggle('hidden', ![...g.querySelectorAll('.lb-row')].some((r) => !r.classList.contains('hidden')))); });
 }

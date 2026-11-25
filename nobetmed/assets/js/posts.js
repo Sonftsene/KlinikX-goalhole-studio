@@ -109,9 +109,10 @@ function renderNav() {
     <div class="sidebar-foot">
       <button class="me-card" data-act="me-menu">${avatar(me.name)}<div class="grow"><div class="n ellipsis">${me.name}</div><div class="t ellipsis">${titleName(me.title_id) || ROLE_LABEL[me.role]}${unitName(me.unit_id) ? ' · ' + unitName(me.unit_id) : ''}</div></div>${icon('more', 'sm')}</button>
     </div>`);
-  const tab = (href, ic, label, on, count, cls = '', bn = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}" data-bn="${bn}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
+  // Ana sayfa sekmesinde sayı yerine nokta (üst çubuktaki mesaj / bildirim sayılarıyla karışmasın — 4.56.0)
+  const tab = (href, ic, label, on, count, cls = '', bn = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}" data-bn="${bn}">${ic}<span>${label}</span>${count ? (bn === 'home' ? html`<span class="count dot" aria-label="${count} okunmamış içerik"></span>` : html`<span class="count">${count > 99 ? '99+' : count}</span>`) : ''}</button>`;
   setHTML($('#bottomNav'), html`
-    ${tab('#/', icon('home'), uiL('bn:home', 'Ana sayfa', 'Alt menü (telefon)'), !r[0], c.unread)}
+    ${tab('#/', icon('home'), uiL('bn:home', 'Ana sayfa', 'Alt menü (telefon)'), !r[0], c.unread, '', 'home')}
     ${modOn('nobet') ? tab(hubHref(), icon('calendar'), uiL('@nobet', 'Nöbet'), (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0, '', 'nobet') : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0, '', 'nobet')}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
     ${tab('#/okunacak', icon('checkCircle'), uiL('bn:todo', 'Okunacak', 'Alt menü (telefon)'), r[0] === 'okunacak', c.todo, '', 'todo')}
@@ -137,7 +138,7 @@ NM_EXT.routes.menu = (view) => {
   const me = S.me;
   setHTML(view, html`<div class="mn-page">
     <h1 class="mn-h">${uiL('bn:menu', 'Menü', 'Alt menü (telefon)')}</h1>
-    <label class="mn-q">${icon('search', 'sm')}<input class="input" type="search" id="mnQ" placeholder="Ne arıyorsunuz? (takvim, izin, liste, telefon…)" autocomplete="off" aria-label="Menüde ara"></label>
+    <label class="mn-q">${icon('search', 'sm')}<input class="input" type="search" id="mnQ" placeholder="Ara: takvim, izin, telefon…" autocomplete="off" aria-label="Menüde ara (takvim, izin, liste, telefon…)"></label>
     <p class="small muted hidden" id="mnNone">Menüde bulunamadı. <a href="#" data-act="search-open">İçeriklerde arayın</a></p>
     <a class="mn-me" href="#/profil">${avatar(me.name, 'lg')}<span class="grow" style="min-width:0"><b class="ellipsis" style="display:block">${me.name}</b><span class="small muted">Hesabım, bildirimler, ayarlar</span></span><span class="badge danger hidden" id="mnPush">Bildirim kapalı</span>${icon('chevR', 'sm')}</a>
     ${groups.filter((g) => g.items.length).map((g) => html`<div class="mn-sec">${g.t}</div>
@@ -298,7 +299,7 @@ function renderHome(view) {
         <div class="card" data-home="rosters" id="rosterCard">${rosterCard()}</div>` : ''}
       </aside>
     </div>`);
-  mountFeed($('#feedHost'), { filter: 'all' });
+  mountFeed($('#feedHost'), { filter: 'all', home: true });
   loadHomeExtras();
   mountHomeExt();
   if (typeof applyHomeLayout === 'function') applyHomeLayout();
@@ -358,8 +359,9 @@ function renderFeedPage(view, opts) {
   mountFeed($('#feedHost'), { filter: opts.filter || 'all', cat: opts.cat || null, q: opts.q || '', fixed: opts.fixed });
 }
 
-function mountFeed(host, { filter = 'all', cat = null, q = '', fixed = false }) {
-  FEED = { host, filter, cat, q, fixed, items: [], offset: 0, hasMore: false, loading: false, token: 0 };
+function mountFeed(host, { filter = 'all', cat = null, q = '', fixed = false, home = false }) {
+  // Ana sayfada telefonda ilk 8 kart; “Tümünü göster” ile devamı (bugünkü nöbet ve diğer kartlar aşağıda gömülmesin — 4.56.0)
+  FEED = { host, filter, cat, q, fixed, items: [], offset: 0, hasMore: false, loading: false, token: 0, cap: home && window.innerWidth < 900 ? 8 : 0 };
   renderFeed();
   loadFeed(true);
 }
@@ -386,8 +388,9 @@ function renderFeed() {
     }[F.filter] || (F.q ? ['Sonuç bulunamadı', 'Farklı bir kelimeyle aramayı deneyin.'] : ['Henüz içerik yok', 'İlk duyuruyu veya belgeyi eklemek için “Yeni içerik” butonunu kullanın.']);
     list = html`<div class="card empty"><div class="e-ico">${icon(F.filter === 'saved' ? 'bookmark' : F.filter === 'todo' ? 'checkCircle' : 'inbox', 'lg')}</div><h3>${msg[0]}</h3><p class="small">${msg[1]}</p></div>`;
   } else {
-    list = html`<div class="feed">${F.items.map(postCard)}</div>
-      ${F.hasMore ? html`<div style="text-align:center;margin-top:14px"><button class="btn" data-act="feed-more" ${F.loading ? raw('disabled') : ''}>${F.loading ? 'Yükleniyor…' : 'Daha fazla göster'}</button></div>` : ''}`;
+    const capped = F.cap && F.items.length > F.cap;
+    list = html`<div class="feed">${(capped ? F.items.slice(0, F.cap) : F.items).map(postCard)}</div>
+      ${capped ? html`<div style="text-align:center;margin-top:14px"><button class="btn" data-act="feed-all">Tümünü göster (${F.items.length - F.cap}${F.hasMore ? '+' : ''} içerik daha)</button></div>` : F.hasMore ? html`<div style="text-align:center;margin-top:14px"><button class="btn" data-act="feed-more" ${F.loading ? raw('disabled') : ''}>${F.loading ? 'Yükleniyor…' : 'Daha fazla göster'}</button></div>` : ''}`;
   }
   setHTML(F.host, html`${toolbar}${list}`);
 }
@@ -412,6 +415,7 @@ async function loadFeed(reset) {
   F.loading = false;
   renderFeed();
 }
+ACT['feed-all'] = () => { if (FEED) { FEED.cap = 0; renderFeed(); } };
 ACT['feed-filter'] = (el) => {
   if (!FEED || !document.body.contains(FEED.host)) return;
   FEED.filter = el.dataset.filter;

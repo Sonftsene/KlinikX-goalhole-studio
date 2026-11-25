@@ -750,7 +750,7 @@ async function mountSheet(el, att, opts = {}) {
     if (keep.length) model = { ...model, sheets: keep, active: 0 };
   }
   if (!model.sheets.length) throw new Error('Bu dosyada görüntülenecek sayfa yok.');
-  const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.7 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
+  const state = { limit: {}, sheet: Math.min(model.active || 0, model.sheets.length - 1), z: opts.zoom || (window.innerWidth < 700 ? 0.9 : 0), hits: [], hitIdx: -1, mine: [], mineIdx: -1, q: '' };
   if (opts.sheetName) { const si = model.sheets.findIndex((x) => x.name === opts.sheetName); if (si >= 0) state.sheet = si; }
   const meMatch = S.me ? nameMatcher(S.me.name) : () => false;
   const meExact = S.me ? nameExact(S.me.name) : () => false;
@@ -766,6 +766,7 @@ async function mountSheet(el, att, opts = {}) {
         <button class="btn sm xv-zr" type="button" style="min-width:58px">100%</button>
         <button class="btn sm icon xv-zi" type="button" aria-label="Yakınlaştır">+</button>
         <button class="btn sm xv-fit" type="button" title="Genişliğe sığdır">Sığdır</button>
+        <button class="btn sm icon xv-dark" type="button" title="Koyu tablo" aria-label="Koyu tablo" aria-pressed="false">${icon('moon', 'sm')}</button>
       </div>
     </div>
     <div class="xv-scroll"></div>
@@ -907,7 +908,7 @@ async function mountSheet(el, att, opts = {}) {
     tabs.classList.toggle('hidden', model.sheets.length < 2);
     const tds = scroll.querySelectorAll('td.xc');
     state.mine = [];
-    tds.forEach((td) => { if (td.textContent && meMatch(td.textContent)) { td.classList.add('me'); state.mine.push(td); } });
+    tds.forEach((td) => { if (td.textContent && meMatch(td.textContent)) { td.classList.add('me'); state.mine.push(td); const tr = td.closest('tr'); if (tr) tr.classList.add('me-row'); } });
     const meBtn = el.querySelector('.xv-me');
     if (meBtn) meBtn.classList.toggle('hidden', !state.mine.length);
     applySearch(false);
@@ -954,6 +955,12 @@ async function mountSheet(el, att, opts = {}) {
     draw();
     countEl.textContent = state.onlyMe ? 'Yalnızca sizin satırlarınız gösteriliyor' : '';
   });
+  // Koyu temada tablo isteğe bağlı koyulaşır (gece nöbetinde göz almasın); tercih bu cihazda saklanır (4.56.0)
+  const darkBtn = el.querySelector('.xv-dark');
+  const darkSet = (on) => { el.querySelector('.xv').classList.toggle('xv-dk', on); darkBtn.classList.toggle('on', on); darkBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+  let dk0 = false; try { dk0 = localStorage.getItem('nm-xv-dark') === '1'; } catch (e) { /* */ }
+  darkSet(dk0);
+  darkBtn.addEventListener('click', () => { const on = !el.querySelector('.xv').classList.contains('xv-dk'); darkSet(on); try { localStorage.setItem('nm-xv-dark', on ? '1' : '0'); } catch (e) { /* */ } });
   const meBtn = el.querySelector('.xv-me');
   if (meBtn) meBtn.addEventListener('click', () => {
     if (!state.mine.length) return;

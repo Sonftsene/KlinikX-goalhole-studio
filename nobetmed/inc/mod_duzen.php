@@ -4,7 +4,7 @@
  *
  * Yönetici ana ekranı bir kez herkes için kurar (Ayarlar › Genel › Herkes için ana ekran):
  *  - hazır düzen (sade / standart / tam / ozel), ana sayfa bölümleri (gizli / açık / sıra), kilit (kişi değiştiremez)
- *  - üst çubuk simgeleri, kısayollar (herkes için; büyük düğme; kişi kendine ekleyebilir mi), alt menü sekmeleri
+ *  - üst çubuk simgeleri, kısayollar (herkes için; büyük düğme, kutu boyutu ve sütun sayısı; kişi kendine ekleyebilir mi), alt menü sekmeleri
  *  - Sorumlular (yayıncı + yönetici) için isteğe bağlı ayrı düzen
  * setting ui_layout = {base: L, publisher: L|null, ver: zaman}; kişi boot'ta kendi rolünün düzenini alır (ui_layout).
  * Eski “Herkesin ana sayfası” (setting home_default, inc/mod_anasayfa.php) temel düzenin home alanıyla eşitlenir.
@@ -37,6 +37,9 @@ function ul_clean(?array $L): ?array
         'bottom_hide' => array_values(array_intersect($ids($L['bottom_hide'] ?? [], 10), UL_BOTTOM)),
         'chips' => $chips,
         'chips_big' => !empty($L['chips_big']),
+        // Büyük kısayol kutularının boyutu ve telefonda yan yana kaç kutu (0 = kendiliğinden) (4.56.0)
+        'chips_size' => in_array($L['chips_size'] ?? '', ['s', 'm', 'l', 'xl'], true) ? $L['chips_size'] : 'm',
+        'chips_cols' => in_array((int)($L['chips_cols'] ?? 0), [0, 1, 2, 3, 4], true) ? (int)($L['chips_cols'] ?? 0) : 0,
         'chips_own' => !array_key_exists('chips_own', $L) || !empty($L['chips_own']),
     ];
 }

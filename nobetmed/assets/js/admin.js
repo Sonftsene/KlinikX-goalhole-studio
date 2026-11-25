@@ -365,7 +365,7 @@ async function drawSettings(body) {
   try { A = (await api('settings.get')).admin; } catch (e) { toast(e.message, 'err'); return; }
   const st = S.settings;
   const sec = settingsSecNow();
-  setHTML(body, html`<form class="stack" data-form="settings" style="max-width:760px;gap:16px">
+  setHTML(body, html`<form class="stack set-form" data-form="settings" style="gap:16px">
     ${settingsTabsHtml(sec)}
     <div class="card card-pad stack" data-sec="genel">
       <h3 style="font-size:15px">Genel</h3>
@@ -444,6 +444,8 @@ async function drawSettings(body) {
     <div class="settings-save"><button class="btn primary" type="submit">Ayarları kaydet</button></div>
   </form>`);
   applySettingsSec(sec);
+  // Telefonda “Ayarları kaydet” çubuğu yalnız bir şey değişince görünür (ekranda yer kaplamasın — 4.56.0)
+  { const sf = $('.settings-save', body); const fm = sf && sf.closest('form'); if (fm) ['input', 'change'].forEach((t) => fm.addEventListener(t, (ev) => { if (!ev.target.closest('[data-nodirty]')) sf.classList.add('show'); })); }
   bnPreview();
   mountBackupBox();
   mountCodesBox();

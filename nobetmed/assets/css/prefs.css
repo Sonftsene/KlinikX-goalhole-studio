@@ -88,7 +88,7 @@
 /* ================= Ana sayfa düzeni ================= */
 .hl-list { display: flex; flex-direction: column; gap: 6px; }
 .hl-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-.hl-item.off { opacity: .55; background: var(--surface-2); }
+.hl-item.off { background: var(--surface-2); }
 .hl-item .hl-t { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
 .hl-item .hl-s { display: block; font-size: 11.5px; color: var(--text-3); font-weight: 500; }
 .hl-item .btn.icon { width: 30px; height: 30px; }

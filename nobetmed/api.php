@@ -1629,12 +1629,23 @@ function a_rosters_upload(): void
         $file = one('SELECT orig_name FROM attachments WHERE id = ?', [$attId]);
         $cat = val("SELECT id FROM categories WHERE icon = 'megaphone' ORDER BY sort, id LIMIT 1") ?: val('SELECT id FROM categories ORDER BY sort, id LIMIT 1');
         $required = setting('auto_post_required', '0') === '1' ? 1 : 0;
-        q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?, ?, ?)',
-            ['“' . $roster['name'] . '”' . ($ym !== '' ? ' · ' . rm_label($ym) : '') . ' nöbet listesi güncellendi',
-             $me['name'] . ' güncel nöbet listesini yükledi.' . ($file ? "\nDosya: " . $file['orig_name'] : '') . "\n\nListeyi açmak için: " . base_url() . '#/nobet/' . $id,
-             $cat, $me['id'], 'published', $required, now(), now(), now()]);
-        $postId = insert_id();
-        q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$postId, $me['id']]);
+        $ptitle = '“' . $roster['name'] . '”' . ($ym !== '' ? ' · ' . rm_label($ym) : '') . ' nöbet listesi güncellendi';
+        $pbody = $me['name'] . ' güncel nöbet listesini yükledi.' . ($file ? "\nDosya: " . $file['orig_name'] : '') . "\n\nListeyi açmak için: " . base_url() . '#/nobet/' . $id;
+        // Aynı liste / ay için son 45 günde açılmış duyuru varsa yenisi açılmaz: o duyuru güncellenip başa gelir ve herkese
+        // yeniden okunmamış görünür (ana sayfa art arda “… güncellendi” kartlarıyla dolmasın — 4.56.0)
+        $old = one("SELECT id FROM posts WHERE title = ? AND status = 'published' AND created_at >= ? ORDER BY id DESC LIMIT 1", [$ptitle, date('Y-m-d H:i:s', time() - 45 * 86400)]);
+        if ($old) {
+            $postId = (int)$old['id'];
+            q('UPDATE posts SET body = ?, author_id = ?, required = ?, updated_at = ?, published_at = ? WHERE id = ?', [$pbody, $me['id'], $required, now(), now(), $postId]);
+            q('DELETE FROM views WHERE post_id = ? AND user_id <> ?', [$postId, $me['id']]);
+            if ($required) q('DELETE FROM acks WHERE post_id = ? AND user_id <> ?', [$postId, $me['id']]); // zorunlu okumada yeni sürüm yeniden onaylanır
+            if (!val('SELECT 1 FROM views WHERE post_id = ? AND user_id = ?', [$postId, $me['id']])) q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$postId, $me['id']]);
+        } else {
+            q('INSERT INTO posts (title, body, category_id, unit_id, author_id, status, pinned, required, created_at, updated_at, published_at) VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?, ?, ?)',
+                [$ptitle, $pbody, $cat, $me['id'], 'published', $required, now(), now(), now()]);
+            $postId = insert_id();
+            q('INSERT INTO views (post_id, user_id) VALUES (?, ?)', [$postId, $me['id']]);
+        }
     }
     $mailed = notify_roster_updated($roster, $me);
     out(['roster' => roster_out($roster), 'post_id' => $postId, 'mailed' => $mailed]);
