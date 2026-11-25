@@ -873,7 +873,8 @@ function co_candidates(string $date, string $shift, array $scope, ?array $C = nu
             // dinlenme / 48 saat denetimi için komşu günler yine okunur
             if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, $ym, 7) === 0)) continue;
             $seen[$k] = true;
-            $days = $p['days'];
+            $days = swap_days_full($k, $p['days'], $from, $to); // diğer listelerdeki ve önceki aydaki nöbetleri de
+            $p['days'] = $days;
             $dRow = $days[$date] ?? null;
             [$c, $why] = $dayConds($p, $dRow, 'cagri');
             $ev = co_eval($days, $date, $row, $rules);

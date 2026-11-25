@@ -188,6 +188,20 @@ function plan_prev_rows(int $rid, string $ym, int $n = 10): array
             if ($days) { ksort($days); $out[swap_key((string)$name)] = ['name' => (string)$name, 'days' => $days]; }
         }
     }
+    // Önceki ayın son günleri başka listedeyse (ör. Kasım bir listede, Aralık çizelgesi başka listede) onlar da
+    if (function_exists('swap_all_days')) {
+        try {
+            foreach (swap_all_days($from, $to) as $k => $dd) {
+                foreach ($dd as $d => $row) {
+                    if ($d < $from || $d > $to) continue;
+                    if (!isset($out[$k])) $out[$k] = ['name' => (string)($row['name'] ?? $k), 'days' => []];
+                    $cur = $out[$k]['days'][$d] ?? null;
+                    if (!$cur || (in_array($row['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $out[$k]['days'][$d] = $row;
+                }
+                if (isset($out[$k])) ksort($out[$k]['days']);
+            }
+        } catch (Throwable $e) { /* */ }
+    }
     return $cache[$ck] = $out;
 }
 function plan_prev_for(array $prev, string $name): array

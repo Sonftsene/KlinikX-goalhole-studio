@@ -53,6 +53,8 @@ function ex_locate(string $name, string $ym): ?array
         }
     }
     ksort($tl[$k]['days']);
+    // Önceki / sonraki ayın başka listelerdeki nöbetleri de (ör. 31 Aralık 24 saat başka listede → 1 Ocak ekstra alınamaz)
+    $tl[$k]['days'] = swap_days_full($k, $tl[$k]['days'], mk_shift_day($first, -40), mk_shift_day($last, 40));
     return [$rid, $tl, $k];
 }
 
@@ -244,7 +246,10 @@ function tk_eval(array $tl, string $myK, string $myName, string $pk, string $dat
     $rules = rules_cfg();
     $p = $tl[$pk];
     $row = $p['days'][$date];
-    $mine = $tl[$myK]['days'];
+    // Her iki kişinin de tüm listelerindeki ve önceki aydaki nöbetleri (ör. 30 Kasım 24 saat → 1 Aralık alınamaz)
+    $wf = mk_shift_day($date, -45); $wt = mk_shift_day($date, 45);
+    $p['days'] = swap_days_full($pk, $p['days'], $wf, $wt);
+    $mine = swap_days_full($myK, $tl[$myK]['days'], $wf, $wt);
     $part = swap_part($part);
     $kept = null;
     if ($part !== '') {

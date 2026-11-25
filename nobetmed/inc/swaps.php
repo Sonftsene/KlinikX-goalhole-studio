@@ -80,6 +80,37 @@ function swap_merge(?array $cur, array $given, int $rid): ?array
     return null;
 }
 
+/**
+ * Herkesin TÜM nöbet listelerindeki günleri (4.54.0): anahtar => [tarih => satır].
+ * Kişi birden çok listede olabilir, önceki ay başka listede olabilir (ör. Kasım bir listede, Aralık başka listede):
+ * dinlenme, üst üste çalışma, boşluk kuralları her zaman bunların hepsine göre denetlenir.
+ */
+function swap_all_days(string $from, string $to): array
+{
+    static $c = [];
+    $ck = "$from|$to";
+    if (isset($c[$ck])) return $c[$ck];
+    $o = [];
+    foreach (all("SELECT id FROM rosters WHERE kind <> 'tablo'") as $r) {
+        $tl = swap_pending_overlay(swap_timeline((int)$r['id'], $from, $to), $from, $to, (int)$r['id']);
+        foreach ($tl as $k => $p) foreach ($p['days'] as $d => $x) {
+            $cur = $o[$k][$d] ?? null;
+            if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $o[$k][$d] = $x;
+        }
+    }
+    return $c[$ck] = $o;
+}
+/** Kişinin bu listedeki günlerine diğer listelerdeki günlerini ekler (eklenenlerde _ext = 1: bu listenin nöbeti değil; seçenek / sayım olmaz) */
+function swap_days_full(string $key, array $days, string $from, string $to): array
+{
+    foreach (swap_all_days($from, $to)[$key] ?? [] as $d => $x) {
+        $cur = $days[$d] ?? null;
+        if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $days[$d] = $x + ['_ext' => 1];
+    }
+    ksort($days);
+    return $days;
+}
+
 /** Bir listedeki kişilerin gün gün kayıtları: key => ['name','title','days' => [date => row]] */
 function swap_timeline(int $rid, string $from, string $to): array
 {
@@ -254,7 +285,7 @@ function swap_options(array $me, string $date, string $part = ''): array
     if (!isset($tl[$mk]['days'][$date])) throw new RuntimeException('Bu nöbetin için kabul edilmiş bir değişim/devir zaten var.');
     $rules = swap_rules();
     $today = date('Y-m-d');
-    $myDays = $tl[$mk]['days'];
+    $myDays = swap_days_full($mk, $tl[$mk]['days'], $from, $to); // diğer listelerdeki ve önceki aydaki nöbetlerim de
     $myRow = $myDays[$date];
     $fullRow = $myRow;
     if ($part !== '' && !swap_splittable($myRow)) throw new RuntimeException('Yalnız 24 saatlik (08-08) nöbetin gündüzü ya da gecesi ayrı devredilebilir.');
@@ -274,7 +305,7 @@ function swap_options(array $me, string $date, string $part = ''): array
         if (!array_filter(array_keys($p['days']), fn($d) => strncmp((string)$d, substr($date, 0, 7), 7) === 0)) continue;
         $u = swap_user_for((string)$p['name'], $users);
         $person = ['name' => $p['name'], 'title' => $p['title'], 'user_id' => $u ? (int)$u['id'] : null, 'phone' => $u['phone'] ?? null];
-        $pd = $p['days'];
+        $pd = swap_days_full($k, $p['days'], $from, $to);
         $first = explode(' ', trim((string)$p['name']))[0];
         // Devir (parçalıda: tamamlayan parçası olan kişi 24 saate tamamlayabilir)
         $merged = $part !== '' ? swap_merge($pd[$date] ?? null, $myRow, $rid) : (isset($pd[$date]) ? null : $myRow);
@@ -291,7 +322,7 @@ function swap_options(array $me, string $date, string $part = ''): array
         // Değişim: onun nöbetlerinden biriyle (yalnız nöbetin tamamı)
         $opts = [];
         if ($part === '') foreach ($pd as $e => $row) {
-            if ($e === $date || $row['kind'] !== 'shift' || $e < $today || isset($myDays[$e]) || isset($pd[$date])) continue;
+            if ($e === $date || $row['kind'] !== 'shift' || !empty($row['_ext']) || $e < $today || isset($myDays[$e]) || isset($pd[$date])) continue;
             if (abs(strtotime($e) - strtotime($date)) > 31 * 86400) continue;
             $nm = $meWithout;
             $nm[$e] = $row;
