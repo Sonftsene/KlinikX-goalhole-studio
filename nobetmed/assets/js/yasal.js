@@ -52,7 +52,7 @@ async function lgPrivDraw() {
       <div><a class="btn primary" href="api.php?action=me.export" download>${icon('download', 'sm')}<span>Verilerimi indir</span></a></div></div>
     <div class="card card-pad stack"><div><h3 class="ph">${icon('trash', 'sm')} Hesabımın silinmesi</h3>
       ${d.del_req ? html`<div class="mk-box warn">${icon('clock', 'sm')}<span><b>${fmtDateTime(d.del_req)}</b> tarihinde silme talebinde bulundunuz. Birim yöneticiniz en geç 30 gün içinde hesabınızı siler.</span></div>`
-        : html`<p class="small muted">Hesabınız ve kişisel verileriniz birim yöneticiniz tarafından silinir; talebiniz yöneticiye bildirilir ve en geç 30 gün içinde sonuçlandırılır. Nöbet listelerindeki adınız biriminizin resmi kaydı olduğu için listelerden çıkarılmaz.</p>`}</div>
+        : html`<p class="small muted">Hesabınız ve kişisel verileriniz birim yöneticiniz tarafından silinir; talebiniz yöneticiye bildirilir ve en geç 30 gün içinde sonuçlandırılır. Nöbet listelerindeki adınız biriminizin resmî kaydı olduğu için listelerden çıkarılmaz.</p>`}</div>
       <div>${d.del_req ? html`<button class="btn" data-act="lg-del-cancel">Talebimi geri al</button>` : html`<button class="btn danger" data-act="lg-del">${icon('trash', 'sm')}<span>Hesabımın silinmesini istiyorum</span></button>`}</div></div>`);
 }
 ACT['lg-del'] = async () => {

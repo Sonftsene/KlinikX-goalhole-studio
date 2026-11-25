@@ -76,7 +76,7 @@ try {
   if (!still.some((r) => r.mine)) fail('rozete dokununca tepki kaldırıldı');
   await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-tepkiler.png') }).catch(() => {});
   await A.click('.modal [data-rx-del]');
-  await A.getByText('Tepkin kaldırıldı').first().waitFor({ timeout: 5000 });
+  await A.getByText('Tepkiniz kaldırıldı').first().waitFor({ timeout: 5000 });
   const after = (await call(A, 'chat.open', { id })).msgs.find((x) => x.id === msgId).reacts || [];
   if (after.some((r) => r.mine)) fail('“Kaldır” tepkiyi kaldırmadı');
   step('tepki rozetine dokununca “Tepkiler” listesi açıldı (tepki kalktı değil); kendi tepkisi “Kaldır” ile kaldırıldı');

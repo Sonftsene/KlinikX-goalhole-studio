@@ -287,14 +287,14 @@ function swap_options(array $me, string $date, string $part = ''): array
 {
     $part = swap_part($part);
     $mine = swap_my_shift($me, $date);
-    if (!$mine) throw new RuntimeException('Bu gün listede nöbetin görünmüyor.');
+    if (!$mine) throw new RuntimeException('Bu gün listede nöbetiniz görünmüyor. Liste güncel değilse sorumlunuza yazın.');
     $rid = (int)$mine['roster_id'];
     $from = date('Y-m-d', strtotime($date . ' -45 days'));
     $to = date('Y-m-d', strtotime($date . ' +45 days'));
     $tl = swap_pending_overlay(swap_timeline($rid, $from, $to), $from, $to, $rid);
     $mk = swap_key((string)$mine['name']);
-    if (!isset($tl[$mk])) throw new RuntimeException('Listede adın bulunamadı.');
-    if (!isset($tl[$mk]['days'][$date])) throw new RuntimeException('Bu nöbetin için kabul edilmiş bir değişim/devir zaten var.');
+    if (!isset($tl[$mk])) throw new RuntimeException('Listede adınız bulunamadı; adınız farklı yazılmışsa sorumlunuza yazın.');
+    if (!isset($tl[$mk]['days'][$date])) throw new RuntimeException('Bu nöbetiniz için kabul edilmiş bir değişim/devir zaten var.');
     $rules = swap_rules();
     $today = date('Y-m-d');
     $myDays = swap_days_full($mk, $tl[$mk]['days'], $from, $to); // diğer listelerdeki ve önceki aydaki nöbetlerim de
@@ -308,7 +308,7 @@ function swap_options(array $me, string $date, string $part = ''): array
     // Devredersem bende boşluk oluşur mu? (parçalı devirde o gün nöbetim kalır: boşluk oluşmaz)
     $meWithout = $myDays;
     if ($kept) $meWithout[$date] = $kept; else unset($meWithout[$date]);
-    $myGive = $kept ? null : swap_check($meWithout, [], [$date], $rules, 'Senin');
+    $myGive = $kept ? null : swap_check($meWithout, [], [$date], $rules, 'Sizin');
     $give = [];
     $swap = [];
     $blocked = [];
@@ -342,7 +342,7 @@ function swap_options(array $me, string $date, string $part = ''): array
             $np = $pd;
             unset($np[$e]);
             $np[$date] = $myRow;
-            $err = swap_check($nm, [$e], [$date], $rules, 'Senin') ?? swap_check($np, [$date], [$e], $rules, $first);
+            $err = swap_check($nm, [$e], [$date], $rules, 'Sizin') ?? swap_check($np, [$date], [$e], $rules, $first);
             if (!$err) $opts[] = ['date' => $e, 'code' => $row['code'], 'label' => $row['label'], 'hours' => $row['hours'] !== null ? (int)$row['hours'] : null];
         }
         if ($opts) $swap[] = $person + ['options' => $opts];

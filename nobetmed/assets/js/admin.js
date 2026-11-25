@@ -62,7 +62,7 @@ async function drawUsers(body) {
         <div class="search us-search" style="flex:1 1 200px;min-width:180px;max-width:100%">${icon('search')}<input class="input" placeholder="Kullanıcı ara" value="${AD.userQ}" data-input="u-search" style="height:36px"></div>
         <select class="select us-sel" data-change="us-sort" aria-label="Sırala" title="Sırala">${[['name', 'Ada göre (A–Z)'], ['name_desc', 'Ada göre (Z–A)'], ['online', 'Çevrimiçi olanlar önce'], ['seen', 'Son görülme (yeniden eskiye)'], ['seen_old', 'Son görülme (eskiden yeniye)'], ['new', 'Kayıt tarihi (yeni önce)'], ['role', 'Yetkiye göre']].map(([k, l]) => html`<option value="${k}" ${US.sort === k ? raw('selected') : ''}>${l}</option>`)}</select>
         <select class="select us-sel" data-change="us-act" aria-label="Etkinlik" title="Etkinlik">${[['all', 'Tüm etkinlik'], ['online', `Şu an çevrimiçi (${users.filter((u) => usState(u) !== 'off').length})`], ['today', 'Bugün girenler'], ['week', 'Son 7 günde girenler'], ['idle30', '30 günden uzun girmeyenler'], ['never', 'Hiç girmeyenler']].map(([k, l]) => html`<option value="${k}" ${US.act === k ? raw('selected') : ''}>${l}</option>`)}</select>
-        <select class="select us-sel" data-change="us-role" aria-label="Yetki" title="Yetki"><option value="">Tüm yetkiler</option>${[['admin', 'Yönetici'], ['editor', 'Yayıncı'], ['member', 'Üye']].map(([k, l]) => html`<option value="${k}" ${US.role === k ? raw('selected') : ''}>${l}</option>`)}${(S.roles || []).map((ro) => html`<option value="r${ro.id}" ${US.role === 'r' + ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
+        <select class="select us-sel" data-change="us-role" aria-label="Yetki" title="Yetki"><option value="">Tüm yetkiler</option>${[['admin', 'Yönetici'], ['editor', 'Sorumlu'], ['member', 'Üye']].map(([k, l]) => html`<option value="${k}" ${US.role === k ? raw('selected') : ''}>${l}</option>`)}${(S.roles || []).map((ro) => html`<option value="r${ro.id}" ${US.role === 'r' + ro.id ? raw('selected') : ''}>${ro.name}</option>`)}</select>
         <button class="btn" data-act="inv-roster" title="Nöbet listesinde adı geçip hesabı olmayanlara davet">${icon('table', 'sm')}Listeden davet et</button>
         <button class="btn" data-act="inv-qr" title="Servise asılacak QR kod">${icon('qr', 'sm')}QR ile kayıt</button>
         ${modOn('mesaj') && S.hosp && isAdmin() ? html`<button class="btn" data-act="adc-all">${icon('chat', 'sm')}Tüm sohbetler</button>` : ''}
@@ -70,7 +70,7 @@ async function drawUsers(body) {
       </div>
     </div>
     <div class="card"><div class="table-wrap"><table class="t users-t">
-      <thead><tr><th>Kişi</th><th>Ünvan / Birim</th><th>Yetki</th><th>Durum</th><th>Çevrimiçi / son görülme</th><th></th></tr></thead>
+      <thead><tr><th>Kişi</th><th>Unvan / Birim</th><th>Yetki</th><th>Durum</th><th>Çevrimiçi / son görülme</th><th></th></tr></thead>
       <tbody>${list.length ? list.map((u) => html`<tr class="${u.status === 'disabled' ? 'dim' : ''}" data-uid="${u.id}">
         <td><div class="row"><span class="us-av">${avatar(u.name)}<i class="us-dot ${usState(u)}"></i></span><div><div><b>${u.name}</b>${u.id === S.me.id ? html` <span class="tiny faint">(siz)</span>` : ''}${u.no_duty ? html` <span class="badge" title="Blok yerleşimi, kura, eksik çağrısı ve değişimlere dahil edilmez">Nöbet hesabı dışı</span>` : ''}</div><div class="tiny faint">${u.email}</div></div></div></td>
         <td><div class="small">${titleName(u.title_id) || html`<span class="faint">—</span>`}</div><div class="tiny faint">${unitName(u.unit_id)}</div></td>
@@ -244,7 +244,7 @@ function userModal(u) {
       <div class="field"><label>Ad soyad</label><input class="input" name="name" required minlength="3" value="${u ? u.name : ''}"></div>
       <div class="field"><label>E-posta</label><input class="input" type="email" name="email" required value="${u ? u.email : ''}"></div>
       <div class="grid2">
-        <div class="field"><label>Ünvan</label><select class="select" name="title_id">${options(S.titles, u ? u.title_id : null, '—')}</select></div>
+        <div class="field"><label>Unvan</label><select class="select" name="title_id">${options(S.titles, u ? u.title_id : null, '—')}</select></div>
         <div class="field"><label>Birim</label><select class="select" name="unit_id">${options(S.units, u ? u.unit_id : (S.units[0] || {}).id, '—')}</select></div>
       </div>
       <div class="grid2">
@@ -285,7 +285,7 @@ FORMS.user = (f) => submitForm(f, async (d) => {
 const TAX = {
   categories: { title: 'Bölümler', desc: 'Ana menüdeki içerik bölümleri', add: 'Bölüm ekle' },
   units: { title: 'Birimler', desc: 'Servisler; içerikleri belirli bir birime hedeflemek için', add: 'Birim ekle' },
-  titles: { title: 'Ünvanlar', desc: 'Kayıt ve profillerde görünen ünvanlar', add: 'Ünvan ekle' },
+  titles: { title: 'Unvanlar', desc: 'Kayıt ve profillerde görünen unvanlar', add: 'Unvan ekle' },
 };
 const CAT_ICONS = ['megaphone', 'play', 'stethoscope', 'file', 'users', 'book', 'pill', 'shield', 'clipboard', 'heart', 'folder', 'bell'];
 const COLORS = ['teal', 'sky', 'indigo', 'violet', 'rose', 'amber', 'emerald', 'slate'];
@@ -375,7 +375,7 @@ async function drawSettings(body) {
 
     <div class="card card-pad stack" data-sec="nobet">
       <div><h3 style="font-size:15px">${icon('megaphone', 'sm')} Otomatik duyuru</h3><p class="small muted">Nöbet listesi yüklenince ekip ana sayfada görsün.</p></div>
-      ${SW('auto_post_roster', A.auto_post_roster, 'Nöbet listesi güncellenince duyuru yayınla', 'Duyurular bölümüne “… nöbet listesi güncellendi” başlıklı, listeye bağlantı veren bir duyuru eklenir.')}
+      ${SW('auto_post_roster', A.auto_post_roster, 'Nöbet listesi güncellenince duyuru yayımla', 'Duyurular bölümüne “… nöbet listesi güncellendi” başlıklı, listeye bağlantı veren bir duyuru eklenir.')}
       ${SW('auto_post_required', A.auto_post_required, 'Bu duyuruyu zorunlu okuma yap', 'Ekip “Okudum, anladım” ile onaylar; kimin listeye baktığını takip edersiniz.')}
     </div>
 
@@ -436,7 +436,7 @@ async function drawSettings(body) {
           <input class="input" name="banner_btn_url" value="${bc.btn_url || ''}" data-input="bn-prev" placeholder="#/sayfa ya da https://…" style="margin-top:6px"></div></div>
       <div class="grid2"><div class="field"><label>Başlangıç <span class="faint">(boşsa hemen)</span></label><input class="input" type="datetime-local" name="banner_from" value="${(bc.from || '').replace(' ', 'T')}"></div>
         <div class="field"><label>Bitiş <span class="faint">(boşsa kapatana kadar)</span></label><input class="input" type="datetime-local" name="banner_until" value="${(bc.until || '').replace(' ', 'T')}"></div></div>
-      <div class="grid2"><div class="field"><label>Kimler görsün</label><select class="select" name="banner_aud"><option value="all" ${bc.aud !== 'staff' ? raw('selected') : ''}>Herkes</option><option value="staff" ${bc.aud === 'staff' ? raw('selected') : ''}>Yalnız yöneticiler ve yayıncılar</option></select></div>
+      <div class="grid2"><div class="field"><label>Kimler görsün</label><select class="select" name="banner_aud"><option value="all" ${bc.aud !== 'staff' ? raw('selected') : ''}>Herkes</option><option value="staff" ${bc.aud === 'staff' ? raw('selected') : ''}>Yalnız yöneticiler ve sorumlular</option></select></div>
         <div class="field"><label>Kapatma</label><select class="select" name="banner_close" data-change="bn-prev">${[['session', 'Kapatılabilir, sayfa yenilenince yine görünür'], ['until', 'Kapatılabilir, duyuru değişene kadar görünmez'], ['none', 'Kapatılamaz (sabit)']].map(([k, l]) => html`<option value="${k}" ${(bc.close || 'session') === k ? raw('selected') : ''}>${l}</option>`)}</select></div></div>
       <div class="field"><label>Önizleme</label><div id="bnPrev" class="bn-prev"></div></div>`; })()}
     </div>

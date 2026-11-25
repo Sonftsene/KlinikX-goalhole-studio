@@ -7,7 +7,7 @@ ROUTE_MOD.ekstra = 'ilan';
 NM_EXT.hubTabs.push({ key: 'ekstra', mod: 'ilan', href: '#/ekstra', icon: 'plus', label: 'Ekstra nöbet' });
 NM_EXT.routes.ekstra = (view, r) => (r[1] === 'liste' ? exBoardPage(view, r[2]) : r[1] === 'gonullu' ? exMePage(view, r[2]) : tkPage(view, r[1], r[2]));
 NM_EXT.notif.extra = ['emerald', 'plus'];
-Object.assign(NM_EXT.audit, { 'extra.save': 'Ekstra nöbet isteği verdi', 'extra.cancel': 'Ekstra nöbet isteğini geri çekti' });
+Object.assign(NM_EXT.audit, { 'extra.save': 'Ekstra nöbete gönüllü oldu', 'extra.cancel': 'Ekstra nöbet gönüllülüğünü geri çekti' });
 
 const EX = { d: null, sel: null };
 const EX_SHORT = { 24: '24 sa', day: 'Gündüz', night: 'Gece' };
@@ -24,8 +24,8 @@ function exHead(cur, tab, ym) {
   if (modOn('eksik')) tabs.push(['me', 'Eksik çağrılarına gönüllü', '#/ekstra/gonullu/' + ym]);
   if (modOn('eksik') && isPublisherBase()) tabs.push(['board', 'Gönüllüler', '#/ekstra/liste/' + ym]);
   const pre = { take: '', me: 'gonullu/', board: 'liste/' }[tab];
-  const sub = { take: 'Kimden nöbet alabilirsin? Hem senin hem nöbet sahibinin kurallarına uyan nöbetler, bugünden ay sonuna kadar. Seçip iste; kabul edilince sorumluya iletilir.',
-    me: 'Eksik personel çağrılarında öncelikli sorulmak için gönüllü ol; kurallara uyan günlerin listelenir.', board: 'Eksik çağrılarına gönüllü olanlar ve kurallara göre uygun oldukları günler' }[tab];
+  const sub = { take: 'Alabileceğiniz nöbetler (bugünden ay sonuna).',
+    me: 'Eksik personel çağrılarında öncelikli sorulmak için gönüllü olun; kurallara uyan günleriniz listelenir.', board: 'Eksik çağrılarına gönüllü olanlar ve kurallara göre uygun oldukları günler' }[tab];
   return html`<div class="page-head"><div><h1>Ekstra nöbet</h1><p>${sub}</p></div></div>
     ${tabs.length > 1 ? html`<div class="seg">${tabs.map(([k, l, h]) => html`<a class="${tab === k ? 'on' : ''}" href="${h}">${l}</a>`)}</div>` : ''}
     <div class="seg ex-months">${exMonths().map((m) => html`<a class="${m === cur ? 'on' : ''}" href="#/ekstra/${pre}${m}">${exMonthName(m)}</a>`)}</div>`;
@@ -44,19 +44,19 @@ async function exMePage(view, ym0) {
 }
 function exMeDraw() {
   const box = $('#exBody'); const r = EX.d; if (!box || !r) return;
-  if (!r.found) { setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${exMonthName(r.ym)} listesinde adın yok</h3><p class="small">Ayın nöbet listesi yayımlanınca ekstra nöbet isteği verebilir, uygun günlerini görebilirsin.</p></div>`); return; }
+  if (!r.found) { setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${exMonthName(r.ym)} listesinde adınız yok</h3><p class="small">Ayın nöbet listesi yayımlanınca gönüllü olabilir, uygun günlerinizi görebilirsiniz.</p></div>`); return; }
   const reg = r.reg;
   const okFor = (d) => [...EX.shifts].filter((s) => d.types[s].ok);
   const okDays = r.days.filter((d) => okFor(d).length);
   const rules = r.rules || {};
   setHTML(box, html`
     <div class="card card-pad stack ex-reg">
-      ${reg ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>Ekstra nöbet isteğin kayıtlı.</b> ${fmtDate(reg.from)} tarihinden ay sonuna kadar · ${reg.shifts.map((s) => EX_SHORT[s]).join(', ')} · ${reg.days ? reg.days.length + ' seçili gün' : 'uygun tüm günler'}. Sorumlular eksik çağrılarında seni en üstte görür.</span></div>` : ''}
-      <div class="field"><label>Hangi vardiyaları alabilirsin?</label><div class="row wrap" style="gap:8px">${Object.entries(r.shifts).map(([k, l]) => html`<label class="ex-chk"><input type="checkbox" data-change="ex-shift" value="${k}" ${EX.shifts.has(k) ? raw('checked') : ''}><span>${l}</span></label>`)}</div></div>
+      ${reg ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>Gönüllülüğünüz kayıtlı.</b> ${fmtDate(reg.from)} tarihinden ay sonuna kadar · ${reg.shifts.map((s) => EX_SHORT[s]).join(', ')} · ${reg.days ? reg.days.length + ' seçili gün' : 'uygun tüm günler'}. Sorumlular eksik çağrılarında sizi en üstte görür.</span></div>` : ''}
+      <div class="field"><label>Hangi vardiyaları alabilirsiniz?</label><div class="row wrap" style="gap:8px">${Object.entries(r.shifts).map(([k, l]) => html`<label class="ex-chk"><input type="checkbox" data-change="ex-shift" value="${k}" ${EX.shifts.has(k) ? raw('checked') : ''}><span>${l}</span></label>`)}</div></div>
       <div class="field"><label>Hangi günler?</label><div class="seg">${[['all', 'Uygun tüm günler'], ['pick', 'Seçtiğim günler']].map(([k, l]) => html`<button type="button" class="${EX.mode === k ? 'on' : ''}" data-act="ex-mode" data-m="${k}">${l}</button>`)}</div></div>
       <div class="field"><label>Not (isteğe bağlı)</label><input class="input" id="exNote" maxlength="200" value="${reg ? reg.note : ''}" placeholder="ör. Hafta sonları tercihim, akşamları ulaşılabilirim"></div>
-      <div class="row wrap" style="gap:6px"><button class="btn primary" data-act="ex-save">${icon('check', 'sm')}${reg ? 'İsteği güncelle' : 'Ekstra nöbet istiyorum'}</button>${reg ? html`<button class="btn ghost danger" data-act="ex-cancel">İsteği geri çek</button>` : ''}</div>
-      <p class="tiny faint">Kurallar: o gün nöbet/izin yok · onaylı ya da bekleyen boşluk/izin isteği yok · hafta içi en az ${rules.leave_wknd || 5} iş günü izinliysen izninin öncesi/sonrasındaki hafta sonu yok · nöbetten çıkınca en az ${rules.rest} saat dinlenme · üst üste en fazla ${rules.max_cont} saat.</p>
+      <div class="row wrap" style="gap:6px"><button class="btn primary" data-act="ex-save">${icon('check', 'sm')}${reg ? 'Gönüllülüğü güncelle' : 'Gönüllü ol'}</button>${reg ? html`<button class="btn ghost danger" data-act="ex-cancel">Gönüllülüğü geri çek</button>` : ''}</div>
+      <p class="tiny faint">Nöbet kuralları: o gün nöbet/izin yok · onaylı ya da bekleyen boşluk/izin isteği yok · hafta içi en az ${rules.leave_wknd || 5} iş günü izinliyseniz izninizin öncesi/sonrasındaki hafta sonu yok · en az ${rules.rest} saat dinlenme · üst üste en fazla ${rules.max_cont} saat.</p>
     </div>
     <div class="sec-title mk-sec">${fmtDate(r.days.length ? r.days[0].date : r.ym + '-01')} – ay sonu · <span class="faint">${okDays.length} gün uygun</span></div>
     ${r.days.length ? html`<div class="card"><div class="list ex-days">${r.days.map((d) => { const ok = okFor(d); const why = !ok.length ? (Object.values(d.types).find((t) => t.why) || {}).why : ''; const pick = EX.mode === 'pick';
@@ -74,12 +74,12 @@ ACT['ex-save'] = (el) => busy(el, async () => {
   if (!EX.shifts.size) { toast('En az bir vardiya türü seçin', 'err'); return; }
   try {
     EX.d = await api('extra.save', { ym: EX.d.ym, shifts: [...EX.shifts], days: EX.mode === 'pick' ? [...EX.sel] : null, note: ($('#exNote') || {}).value || '' });
-    toast('Ekstra nöbet isteğin kaydedildi'); exMeDraw();
+    toast('Gönüllülüğünüz kaydedildi'); exMeDraw();
   } catch (e) { toast(e.message, 'err'); }
 });
 ACT['ex-cancel'] = async () => {
-  if (!(await confirmDialog({ title: 'Ekstra nöbet isteği geri çekilsin mi?', ok: 'Geri çek', danger: true }))) return;
-  try { await api('extra.cancel', { ym: EX.d.ym }); toast('İstek geri çekildi'); route(); } catch (e) { toast(e.message, 'err'); }
+  if (!(await confirmDialog({ title: 'Gönüllülük geri çekilsin mi?', ok: 'Geri çek', danger: true }))) return;
+  try { await api('extra.cancel', { ym: EX.d.ym }); toast('Gönüllülüğünüz geri çekildi'); route(); } catch (e) { toast(e.message, 'err'); }
 };
 
 /* ---------------- Sorumlu: gün gün uygun gönüllüler ---------------- */
@@ -90,11 +90,11 @@ async function exBoardPage(view, ym0) {
   let r;
   try { r = await api('extra.board', { ym }); } catch (e) { setHTML($('#exBody'), mkErr(e.message)); return; }
   const box = $('#exBody'); if (!box) return;
-  if (!r.people.length) { setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('users', 'lg')}</div><h3>${exMonthName(ym)} için ekstra nöbet isteyen yok</h3><p class="small">Kişiler Nöbet › Ekstra nöbet’ten istek verince burada, uygun oldukları günlerle görünür.</p></div>`); return; }
+  if (!r.people.length) { setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('users', 'lg')}</div><h3>${exMonthName(ym)} için gönüllü yok</h3><p class="small">Kişiler Nöbet › Ekstra nöbet sayfasında gönüllü olunca burada, uygun oldukları günlerle görünür.</p></div>`); return; }
   setHTML(box, html`
-    <div class="sec-title mk-sec">İsteyenler <span class="faint">(${r.people.length})</span></div>
+    <div class="sec-title mk-sec">Gönüllüler <span class="faint">(${r.people.length})</span></div>
     <div class="card"><div class="list">${r.people.map((p) => html`<div class="list-row">${pAvatar(p.name, 'sm', null, p.user_id)}<div class="grow" style="min-width:0"><div class="lr-t">${pName(p.name, p.user_id)}${p.roster ? html` <span class="tiny faint">· ${p.roster}</span>` : ''}</div>
-      <div class="lr-s">${fmtDate(p.from)}’den itibaren · ${p.shifts.map((s) => EX_SHORT[s]).join(', ')} · ${p.days ? p.days.length + ' seçili gün' : 'uygun tüm günler'}${p.note ? ' · “' + p.note + '”' : ''}</div></div>
+      <div class="lr-s">Başlangıç: ${fmtDate(p.from)} · ${p.shifts.map((s) => EX_SHORT[s]).join(', ')} · ${p.days ? p.days.length + ' seçili gün' : 'uygun tüm günler'}${p.note ? ' · “' + p.note + '”' : ''}</div></div>
       <span class="badge ${p.ok_days ? 'success' : 'warn'}">${p.found ? p.ok_days + ' gün uygun' : 'listede yok'}</span></div>`)}</div></div>
     <div class="sec-title mk-sec">Gün gün uygun olanlar</div>
     ${r.days.length ? html`<div class="card"><div class="list ex-days">${r.days.map((d) => html`<div class="list-row ex-day">${mkDayBlock(d.date)}<div class="grow" style="min-width:0">
@@ -130,17 +130,17 @@ function tkReqHtml(reqs) {
   const inc = reqs.filter((r) => r.dir === 'in' && r.status === 'pending');
   const out = reqs.filter((r) => r.dir === 'out');
   if (!inc.length && !out.length) return '';
-  return html`${inc.length ? html`<div class="sec-title mk-sec">Senden nöbet isteyenler <span class="faint">(${inc.length})</span></div>
-    <div class="card"><div class="list">${inc.map((r) => html`<div class="list-row tk-req">${mkDayBlock(r.date)}<div class="grow" style="min-width:0"><div class="lr-t"><b>${r.taker}</b> ${r.code} nöbetinin ${r.part ? html`<b>yalnız ${TK_PART[r.part]}</b>` : 'tamamını'} senden almak istiyor</div>${r.note ? html`<div class="lr-s">“${r.note}”</div>` : ''}</div>
+  return html`${inc.length ? html`<div class="sec-title mk-sec">Sizden nöbet isteyenler <span class="faint">(${inc.length})</span></div>
+    <div class="card"><div class="list">${inc.map((r) => html`<div class="list-row tk-req">${mkDayBlock(r.date)}<div class="grow" style="min-width:0"><div class="lr-t"><b>${r.taker}</b> ${r.code} nöbetinin ${r.part ? html`<b>yalnız ${TK_PART[r.part]}</b>` : 'tamamını'} sizden almak istiyor</div>${r.note ? html`<div class="lr-s">“${r.note}”</div>` : ''}</div>
       <div class="row" style="gap:6px"><button class="btn sm primary" data-act="tk-resp" data-id="${r.id}" data-a="1">Ver</button><button class="btn sm ghost" data-act="tk-resp" data-id="${r.id}" data-a="0">Verme</button></div></div>`)}</div></div>` : ''}
-    ${out.length ? html`<div class="sec-title mk-sec">İsteklerim</div>
+    ${out.length ? html`<div class="sec-title mk-sec">Gönderdiğim teklifler</div>
     <div class="card"><div class="list">${out.map((r) => html`<div class="list-row tk-req">${mkDayBlock(r.date)}<div class="grow" style="min-width:0"><div class="lr-t"><b>${r.giver}</b> · ${r.code}${r.part ? html` <span class="badge warn">yalnız ${TK_PART[r.part]}</span>` : ''}</div>${r.reason ? html`<div class="lr-s">${r.reason}</div>` : ''}</div>
       <span class="badge ${(TK_ST[r.status] || [])[1] || ''}">${(TK_ST[r.status] || [r.status])[0]}</span>${r.status === 'pending' ? html`<button class="btn sm ghost" data-act="tk-cancel" data-id="${r.id}">Geri çek</button>` : ''}</div>`)}</div></div>` : ''}`;
 }
 function tkDraw() {
   const box = $('#tkBody'); const d = TK.d; if (!box || !d) return;
   const gen = TK.gen[TK.ym] || d;
-  if (!d.found) { setHTML(box, html`${tkReqHtml(d.requests)}<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${exMonthName(TK.ym)} listesinde adın yok</h3><p class="small">Ayın nöbet listesi yayımlanınca kimden nöbet alabileceğini burada görürsün.</p></div>`); return; }
+  if (!d.found) { setHTML(box, html`${tkReqHtml(d.requests)}<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${exMonthName(TK.ym)} listesinde adınız yok</h3><p class="small">Ayın nöbet listesi yayımlanınca kimden nöbet alabileceğinizi burada görürsünüz.</p></div>`); return; }
   // Gün şeridi (genel listeden sayılar)
   const counts = {}; gen.days.forEach((x) => { counts[x.date] = x.items.filter(tkAny).length; });
   const start = new Date(); const s0 = TK.ym === ymd(start).slice(0, 7) ? ymd(start) : TK.ym + '-01';
@@ -163,33 +163,33 @@ function tkDraw() {
       <div class="lr-t"><b>${pName(x.display, x.user_id)}</b>${x.title ? html` <span class="tiny faint">· ${x.title}</span>` : ''}</div>
       <div class="row wrap" style="gap:4px;margin-top:2px">${codeChip(mkEntry(x))}<span class="small muted">${shiftDesc(mkEntry(x))}</span>${x.listed ? html`<span class="badge brand" title="Bu nöbeti ilana koydu">${icon('megaphone', 'sm')}İlanda</span>` : ''}${x.roster ? html`<span class="tiny faint">${x.roster}</span>` : ''}</div>
       ${x.ok ? '' : x.parts && tkAny(x)
-        ? html`<div class="tk-why"><span class="tk-can">${x.parts.day.ok && x.parts.night.ok ? 'Gündüzü ya da gecesi alınabilir' : x.parts.day.ok ? 'Yalnız gündüzü (08-16) alınabilir' : 'Yalnız gecesi (16-08) alınabilir'}</span>${x.my_why || x.their_why ? html`<span class="mk-no">Tamamı alınamaz: ${x.my_why ? x.my_why.replace(/^Senin için /, '') : x.display.split(' ')[0] + ' için ' + x.their_why}</span>` : ''}</div>`
+        ? html`<div class="tk-why"><span class="tk-can">${x.parts.day.ok && x.parts.night.ok ? 'Gündüzü ya da gecesi alınabilir' : x.parts.day.ok ? 'Yalnız gündüzü (08-16) alınabilir' : 'Yalnız gecesi (16-08) alınabilir'}</span>${x.my_why || x.their_why ? html`<span class="mk-no">Tamamı alınamaz: ${x.my_why ? x.my_why.replace(/^Sizin için /, '') : x.display.split(' ')[0] + ' için ' + x.their_why}</span>` : ''}</div>`
         : html`${x.my_why ? html`<div class="tiny mk-no">Sen: ${x.my_why}</div>` : ''}${x.their_why ? html`<div class="tiny mk-no">${x.display.split(' ')[0]}: ${x.their_why}</div>` : ''}`}</div>
     ${acts(x, date)}</div>`;
   setHTML(box, html`${tkReqHtml(d.requests)}
     <div class="tk-strip"><a class="tk-dc all ${TK.date ? '' : 'on'}" href="#/ekstra/${TK.ym}"><b>Tümü</b><span>gün</span><em>${gen.days.reduce((a, x) => a + x.items.filter(tkAny).length, 0)}</em></a>${strip}</div>
     <div class="row wrap" style="gap:8px;margin:10px 0"><div class="seg">${[['all', 'Tüm vardiyalar'], ['24', '24 saat'], ['day', 'Gündüz'], ['night', 'Gece']].map(([k, l]) => html`<button type="button" class="${TK.f === k ? 'on' : ''}" data-act="tk-f" data-f="${k}">${l}</button>`)}</div>
       <span class="small muted">${TK.date ? dateLabel(TK.date) + ' · ' : ''}${total} nöbet alınabilir</span></div>
-    ${TK.date && d.days[0] && d.days[0].mine ? html`<div class="mk-box">${icon('info', 'sm')}<span>${d.days[0].items.some(tkAny) ? `O gün senin ${d.days[0].mine} nöbetin var; 24 saatlik nöbetlerin yalnız tamamlayan kısmını alabilirsin (ikisi 24 saate birleşir).` : `O gün senin de ${d.days[0].mine} kaydın var; bu yüzden o günün nöbetlerini alamazsın.`}</span></div>` : ''}
+    ${TK.date && d.days[0] && d.days[0].mine ? html`<div class="mk-box">${icon('info', 'sm')}<span>${d.days[0].items.some(tkAny) ? `O gün sizin ${d.days[0].mine} nöbetiniz var; 24 saatlik nöbetlerin yalnız tamamlayan kısmını alabilirsiniz (ikisi 24 saate birleşir).` : `O gün sizin de ${d.days[0].mine} kaydınız var; bu yüzden o günün nöbetlerini alamazsınız.`}</span></div>` : ''}
     ${days.length ? days.map((x) => html`${TK.date ? '' : html`<div class="sec-title mk-sec">${dateLabel(x.date)} <span class="faint">(${x.items.length})</span></div>`}<div class="card"><div class="list">${x.items.map((i) => item(i, x.date))}</div></div>`)
-      : html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${TK.date ? 'Bu gün alabileceğin nöbet yok' : 'Alabileceğin nöbet yok'}</h3><p class="small">${TK.date ? 'O gün nöbeti olan kimse yok ya da kurallar uymuyor.' : 'Kalan günlerde hem senin hem nöbet sahibinin kurallarına uyan bir nöbet bulunamadı.'}</p></div>`}
-    <p class="tiny faint" style="margin-top:10px">Senin için: o gün boş olman, boşluk/izin isteğin olmaması, nöbetten çıkınca en az ${d.rules.rest} saat dinlenme, üst üste en fazla ${d.rules.max_cont} saat. Nöbet sahibi için: bırakınca ${d.rules.max_gap + 1} günlük boşluk oluşmaması. Kabul edilmiş değişimler hesaba katılır.</p>`);
+      : html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>${TK.date ? 'O gün alabileceğiniz nöbet yok' : 'Alabileceğiniz nöbet yok'}</h3><p class="small">${TK.date ? 'O gün nöbeti olan kimse yok ya da kurallar uymuyor.' : 'Kalan günlerde hem sizin hem nöbet sahibinin kurallarına uyan bir nöbet bulunamadı.'}</p></div>`}
+    <p class="tiny faint" style="margin-top:10px">Nöbet kuralları · sizin için: o gün boş olmanız, boşluk/izin isteğinizin olmaması, en az ${d.rules.rest} saat dinlenme, üst üste en fazla ${d.rules.max_cont} saat. Nöbet sahibi için: bırakınca ${d.rules.max_gap + 1} günlük boşluk oluşmaması. Kabul edilmiş değişimler hesaba katılır.</p>`);
   const on = $('.tk-dc.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 ACT['tk-f'] = (el) => { TK.f = el.dataset.f; tkDraw(); };
 ACT['tk-ask'] = (el) => {
   const part = el.dataset.p || '';
-  const md = openModal({ title: 'Nöbeti iste', size: 'narrow', body: html`<div class="stack"><p class="small"><b>${el.dataset.l}</b> kişisinden <b>${dateLabel(el.dataset.d)}</b> ${el.dataset.c} nöbetinin ${part ? html`<b>yalnız ${TK_PART[part]}</b>` : 'tamamını'} istiyorsun.${part ? ` ${part === 'day' ? 'Gecesi (16-08)' : 'Gündüzü (08-16)'} onda kalır.` : ''} Kabul ederse sorumluya “Excel’e işlenecek” olarak iletilir.</p>
+  const md = openModal({ title: 'Devir teklifi', size: 'narrow', body: html`<div class="stack"><p class="small">Nöbet sahibi: <b>${el.dataset.l}</b> · <b>${dateLabel(el.dataset.d)}</b> ${el.dataset.c} nöbetinin ${part ? html`<b>yalnız ${TK_PART[part]}</b>` : 'tamamını'} istiyorsunuz.${part ? ` ${part === 'day' ? 'Gecesi (16-08)' : 'Gündüzü (08-16)'} nöbet sahibinde kalır.` : ''} Kabul ederse sorumluya “Listeye işlenmeyi bekliyor” olarak iletilir.</p>
     <div class="field"><label>Not (isteğe bağlı)</label><input class="input" id="tkNote" maxlength="200" placeholder="ör. Uygunsa ben alabilirim"></div></div>`,
     foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>${icon('send', 'sm')}İste</button>` });
   md.el.querySelector('[data-go]').addEventListener('click', (ev) => busy(ev.currentTarget, async () => {
-    try { await api('extra.take.ask', { date: el.dataset.d, name: el.dataset.n, part, roster_id: +el.dataset.r || 0, note: $('#tkNote', md.el).value.trim() }); md.close(); toast('İstek gönderildi'); route(); } catch (e) { toast(e.message, 'err'); }
+    try { await api('extra.take.ask', { date: el.dataset.d, name: el.dataset.n, part, roster_id: +el.dataset.r || 0, note: $('#tkNote', md.el).value.trim() }); md.close(); toast('Devir teklifi gönderildi'); route(); } catch (e) { toast(e.message, 'err'); }
   }));
 };
 ACT['tk-resp'] = async (el) => {
   const yes = el.dataset.a === '1';
-  if (yes && !(await confirmDialog({ title: 'Nöbeti veriyor musun?', text: 'Kabul edince nöbet devri sorumluya “Excel’e işlenecek” olarak iletilir.', ok: 'Ver' }))) return;
-  try { await api('extra.take.respond', { id: +el.dataset.id, accept: yes }); toast(yes ? 'Nöbet devri kabul edildi' : 'İstek reddedildi'); route(); } catch (e) { toast(e.message, 'err'); }
+  if (yes && !(await confirmDialog({ title: 'Nöbeti devrediyor musunuz?', text: 'Kabul edince nöbet devri sorumluya “Listeye işlenmeyi bekliyor” olarak iletilir.', ok: 'Devret' }))) return;
+  try { await api('extra.take.respond', { id: +el.dataset.id, accept: yes }); toast(yes ? 'Nöbet devri kabul edildi' : 'Devir teklifi reddedildi'); route(); } catch (e) { toast(e.message, 'err'); }
 };
-ACT['tk-cancel'] = async (el) => { try { await api('extra.take.cancel', { id: +el.dataset.id }); toast('İstek geri çekildi'); route(); } catch (e) { toast(e.message, 'err'); } };
-Object.assign(NM_EXT.audit, { 'take.ask': 'Nöbet devralma isteği gönderdi', 'take.accept': 'Nöbetini devretmeyi kabul etti', 'take.decline': 'Nöbet devralma isteğini reddetti' });
+ACT['tk-cancel'] = async (el) => { try { await api('extra.take.cancel', { id: +el.dataset.id }); toast('Devir teklifi geri çekildi'); route(); } catch (e) { toast(e.message, 'err'); } };
+Object.assign(NM_EXT.audit, { 'take.ask': 'Devir teklifi gönderdi', 'take.accept': 'Nöbetini devretmeyi kabul etti', 'take.decline': 'Devir teklifini reddetti' });

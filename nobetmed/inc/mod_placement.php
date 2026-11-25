@@ -1028,7 +1028,7 @@ function a_placement_adjust_save(): void
         foreach (pl_tl($sd['roster_id'], date('Y-m-01', strtotime('-2 months')), date('Y-m-t', strtotime('+1 month'))) as $p) if (names_match((string)$p['name'], $name)) { $side = $sd['key']; break 2; }
     }
     if ($id) {
-        one('SELECT id FROM placement_adjust WHERE id = ?', [$id]) ?? fail('Kayıt bulunamadı.', 404);
+        one('SELECT id FROM placement_adjust WHERE id = ?', [$id]) ?? fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
         q('UPDATE placement_adjust SET name = ?, user_id = ?, side = ?, unit = ?, cross_count = ?, unit_count = ?, note = ? WHERE id = ?',
             [$name, $u ? (int)$u['id'] : null, $side, $unit ?: null, $cross, $uc, $note, $id]);
     } else {
@@ -1045,7 +1045,7 @@ function a_placement_adjust_save(): void
 function a_placement_adjust_delete(): void
 {
     $me = need_publisher();
-    $a = one('SELECT * FROM placement_adjust WHERE id = ?', [(int)(i('id') ?? 0)]) ?? fail('Kayıt bulunamadı.', 404);
+    $a = one('SELECT * FROM placement_adjust WHERE id = ?', [(int)(i('id') ?? 0)]) ?? fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     q('DELETE FROM placement_adjust WHERE id = ?', [$a['id']]);
     audit($me, 'placement.adjust', $a['name'], 'silindi (geçiş ' . $a['cross_count'] . ($a['unit'] ? ' · ' . pl_unit_label((string)$a['unit']) . ' ' . $a['unit_count'] : '') . ')');
     out([]);

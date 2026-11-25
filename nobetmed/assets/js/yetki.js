@@ -41,7 +41,7 @@ function roleModal(ro) {
       <div class="field"><label>Rol adı</label><input class="input" name="name" required minlength="2" maxlength="80" value="${ro ? ro.name : ''}" placeholder="ör. Sorumlu hemşire"></div>
       <div class="role-grid">${mods.map((md) => html`<div class="role-row"><div class="grow"><div class="small"><b>${md.name}</b></div><div class="tiny faint">${md.desc}</div></div>
         <div class="seg role-seg" data-k="${md.key}">${['off', 'use', 'manage'].map((v) => html`<button type="button" class="${cur(md.key) === v ? 'on' : ''}" data-v="${v}">${PERM_LBL[v][0]}</button>`)}</div></div>`)}</div>
-      <p class="tiny faint">Duyurular, belgeler ve okuma takibi herkes için açıktır; onlarda temel yetki (yayıncı / üye) geçerlidir.</p>
+      <p class="tiny faint">Duyurular, belgeler ve okuma takibi herkes için açıktır; onlarda temel yetki (sorumlu / üye) geçerlidir.</p>
       <div class="form-error hidden" data-err></div></form>`,
   foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" type="submit" form="roleF">Kaydet</button>` });
   m.el.addEventListener('click', (ev) => {
@@ -84,7 +84,7 @@ async function sysModules(kind, id, title) {
  * Yönetici kendi hesabıyla sitenin yayıncı (sorumlu), üye ya da birime özel bir rolün gözünden nasıl göründüğüne bakar.
  * Başkasının hesabına girilmez; önizleme salt okunurdur (sunucu değişiklik isteklerini durdurur). */
 const VW_BASE = [
-  { role: 'editor', name: 'Yayıncı (sorumlu)', desc: 'Duyuru yayınlar, nöbet modüllerini yönetir; kullanıcılar ve ayarlar görünmez.', ic: 'megaphone' },
+  { role: 'editor', name: 'Sorumlu', desc: 'Duyuru yayımlar, nöbet modüllerini yönetir; kullanıcılar ve ayarlar görünmez.', ic: 'megaphone' },
   { role: 'member', name: 'Üye (normal kullanıcı)', desc: 'Duyuruları okur; kendi nöbetleri, ilanlar, istekler ve mesajlar.', ic: 'user' },
 ];
 function vwCanUse() { return !!(S.me && (S.me.view_as || (S.me.role === 'admin' && !S.me.sa_virtual && !(S.sa && S.sa.in)))); }

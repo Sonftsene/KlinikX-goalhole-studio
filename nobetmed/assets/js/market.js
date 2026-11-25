@@ -33,7 +33,7 @@ function mkDayBlock(d) {
 }
 function mkEntry(o) { return { code: o.part_code || o.code, kind: 'shift', hours: o.hours, start: o.start, end: o.end, label: o.label }; }
 function mkSpin() { return html`<div class="mk-spin"><div class="spinner"></div></div>`; }
-function mkErr(msg) { return html`<div class="card empty"><div class="e-ico">${icon('alert', 'lg')}</div><h3>Yüklenemedi</h3><p class="small">${msg}</p></div>`; }
+function mkErr(msg) { return html`<div class="card empty"><div class="e-ico">${icon('alert', 'lg')}</div><h3>Yüklenemedi</h3><p class="small">${msg}</p><button class="btn" data-act="reload" style="margin-top:12px">Tekrar dene</button></div>`; }
 function mkDT(s) { const d = parseDT(s); return d ? `${d.getDate()} ${TR_MONTHS_S[d.getMonth()]} ${hm(d)}` : ''; }
 
 /* =================================================================== */
@@ -43,13 +43,13 @@ const MKT = { tab: 'board', data: null };
 const MK_ST = {
   open: ['Açık', 'brand'], taken: ['Alındı', 'success'], cancelled: ['Geri çekildi', ''], expired: ['Süresi doldu', ''], closed: ['Kapandı', ''],
 };
-const MK_SW = { accepted: ['Excel’e işlenmesi bekleniyor', 'info'], applied: ['Listeye işlendi', 'success'], cancelled: ['Değişim iptal edildi', 'danger'], expired: ['Değişimin süresi geçti', ''] };
+const MK_SW = { accepted: ['Listeye işlenmeyi bekliyor', 'info'], applied: ['Listeye işlendi', 'success'], cancelled: ['İptal edildi', 'danger'], expired: ['Süresi doldu', ''] };
 
 async function mkPage(view, sub) {
   const openId = sub && /^\d+$/.test(sub) ? +sub : null;
   if (sub === 'mine' || sub === 'applied' || sub === 'board') MKT.tab = sub;
   else if (!openId) MKT.tab = 'board';
-  setHTML(view, html`${hubHead('ilan', 'Nöbetini ilana koy ya da arkadaşının ilanına başvur', html`<button class="btn primary" data-act="mk-new">${icon('plus', 'sm')}<span>İlana koy</span></button>`)}
+  setHTML(view, html`${hubHead('ilan', 'Nöbetinizi ilana koyun ya da bir arkadaşınızın ilanına başvurun', html`<button class="btn primary" data-act="mk-new">${icon('plus', 'sm')}<span>İlana koy</span></button>`)}
     <div id="mkBody">${mkSpin()}</div>`);
   await mkLoad();
   if (openId) mkOpenListing(openId);
@@ -71,7 +71,7 @@ function mkDraw() {
   else body = mkBoardHtml(D);
   setHTML(box, html`<div class="toolbar"><div class="seg" role="tablist">${tab('board', 'Pano', nOpen)}${tab('mine', 'İlanlarım', nWait, true)}${tab('applied', 'Başvurularım', D.applied.filter((x) => x.my_app && x.my_app.status === 'applied' && x.status === 'open').length)}</div></div>
     ${body}
-    <p class="tiny faint mk-foot">${icon('lock', 'sm')} Başvuranları ve ilanı kimin aldığını yalnız ilan sahibi ve sorumlular görür. Kurallar: dinlenme en az ${D.rules.rest} saat · üst üste en fazla ${D.rules.max_cont} saat · nöbetler arası en fazla ${D.rules.max_gap} boş gün.</p>`);
+    <p class="tiny faint mk-foot">${icon('lock', 'sm')} Başvuranları ve ilanı kimin aldığını yalnız ilan sahibi ve sorumlular görür. Nöbet kuralları: en az ${D.rules.rest} saat dinlenme · üst üste en fazla ${D.rules.max_cont} saat · nöbetler arası en fazla ${D.rules.max_gap} boş gün.</p>`);
 }
 ACT['mk-tab'] = (el) => { MKT.tab = el.dataset.t; navStep(MKT.tab === 'board' ? '#/ilanlar' : '#/ilanlar/' + MKT.tab); mkDraw(); };
 
@@ -84,10 +84,10 @@ function mkBoardItem(L) {
   const app = L.my_app;
   let act;
   if (closed) act = html`<span class="badge">${(MK_ST[L.status] || MK_ST.closed)[0]}</span>`;
-  else if (app && app.status === 'applied') act = html`<span class="badge info">${icon('check', 'sm')}Başvurdun</span><button class="btn sm ghost" data-act="mk-withdraw" data-id="${L.id}">Geri çek</button>`;
-  else if (app && app.status === 'chosen') act = html`<span class="badge success">Seçildin</span>`;
+  else if (app && app.status === 'applied') act = html`<span class="badge info">${icon('check', 'sm')}Başvurdunuz</span><button class="btn sm ghost" data-act="mk-withdraw" data-id="${L.id}">Geri çek</button>`;
+  else if (app && app.status === 'chosen') act = html`<span class="badge success">Seçildiniz</span>`;
   else if (L.elig && L.elig.ok) act = html`<button class="btn sm primary" data-act="mk-apply" data-id="${L.id}">${icon(L.kind === 'swap' ? 'history' : 'check', 'sm')}<span>${L.kind === 'swap' ? 'Değiş öner' : 'Başvur'}</span></button>`;
-  else act = html`<button class="btn sm" disabled title="${(L.elig && L.elig.reason) || ''}">Başvuramazsın</button>`;
+  else act = html`<button class="btn sm" disabled title="${(L.elig && L.elig.reason) || ''}">Başvuramazsınız</button>`;
   return html`<div class="mk-item ${closed ? 'closed' : ''}" data-lid="${L.id}">
     ${mkDayBlock(L.date)}
     <div class="mk-main">
@@ -95,7 +95,7 @@ function mkBoardItem(L) {
       <div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b>${L.roster ? ' · ' + L.roster : ''} · ${fmtRel(L.created_at)}</span></div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${!closed && !app && L.elig && !L.elig.ok ? html`<div class="mk-why">${icon('info', 'sm')}<span>${L.elig.reason}</span></div>` : ''}
-      ${!closed && L.kind === 'swap' && L.elig && L.elig.ok && !app ? html`<div class="tiny faint">${L.elig.offers.length} nöbetinle değişebilirsin</div>` : ''}
+      ${!closed && L.kind === 'swap' && L.elig && L.elig.ok && !app ? html`<div class="tiny faint">${L.elig.offers.length} nöbetinizle değişebilirsiniz</div>` : ''}
     </div>
     <div class="mk-act">${act}${L.manage && !closed ? html`<button class="btn sm ghost" data-act="mk-open" data-id="${L.id}">${icon('users', 'sm')}<span>Başvuranlar${L.apps_n ? ` (${L.apps_n})` : ''}</span></button>` : ''}</div>
   </div>`;
@@ -103,12 +103,12 @@ function mkBoardItem(L) {
 function mkBoardHtml(D) {
   if (!D.board.length) {
     return html`<div class="card empty"><div class="e-ico">${icon('megaphone', 'lg')}</div><h3>Şu an açık ilan yok</h3>
-      <p class="small">${D.in_roster ? 'Biri nöbetini ilana koyunca burada görünür; devir ilanları tüm listelerdeki uygun kişilere açıktır, uygunsan haber veririz.' : 'Nöbet listesinde adın bulunamadı; ilanlara başvurmak için bir nöbet listesinde adın olmalı.'}</p>
-      ${D.in_roster ? html`<button class="btn" data-act="mk-new" style="margin-top:12px">${icon('plus', 'sm')}Kendi nöbetini ilana koy</button>` : ''}</div>`;
+      <p class="small">${D.in_roster ? 'Biri nöbetini ilana koyunca burada görünür; devir ilanları tüm listelerdeki uygun kişilere açıktır, uygunsanız haber veririz.' : 'Nöbet listesinde adınız bulunamadı; ilanlara başvurmak için bir nöbet listesinde adınızın olması gerekir.'}</p>
+      ${D.in_roster ? html`<button class="btn" data-act="mk-new" style="margin-top:12px">${icon('plus', 'sm')}Kendi nöbetinizi ilana koyun</button>` : ''}</div>`;
   }
   const open = D.board.filter((x) => x.status === 'open');
   const can = open.filter((x) => x.elig && x.elig.ok && !x.my_app);
-  return html`${open.length ? html`<div class="mk-sum small muted">${open.length} açık ilan${can.length ? html` · <b class="mk-ok">${can.length} ilana başvurabilirsin</b>` : ''}</div>` : ''}
+  return html`${open.length ? html`<div class="mk-sum small muted">${open.length} açık ilan${can.length ? html` · <b class="mk-ok">${can.length} ilana başvurabilirsiniz</b>` : ''}</div>` : ''}
     <div class="card mk-list">${D.board.map(mkBoardItem)}</div>`;
 }
 function mkMineItem(L) {
@@ -128,24 +128,24 @@ function mkMineItem(L) {
   </div>`;
 }
 function mkMineHtml(D) {
-  if (!D.mine.length) return html`<div class="card empty"><div class="e-ico">${icon('megaphone', 'lg')}</div><h3>Henüz ilanın yok</h3><p class="small">Takvimim’de bir nöbet gününe dokunup “İlana koy” diyebilir ya da yukarıdaki düğmeyi kullanabilirsin.</p></div>`;
+  if (!D.mine.length) return html`<div class="card empty"><div class="e-ico">${icon('megaphone', 'lg')}</div><h3>Henüz ilanınız yok</h3><p class="small">Takvimim’de bir nöbet gününe dokunup “İlana koy” diyebilir ya da yukarıdaki düğmeyi kullanabilirsiniz.</p></div>`;
   return html`<div class="card mk-list">${D.mine.map(mkMineItem)}</div>`;
 }
 function mkAppState(L) {
   const a = L.my_app || {};
-  if (a.status === 'chosen') return ['Seçildin · Excel’e işlenecek', 'success'];
-  if (a.status === 'rejected') return ['Seçilmedin', ''];
-  if (a.status === 'withdrawn') return ['Geri çektin', ''];
+  if (a.status === 'chosen') return ['Seçildiniz · Listeye işlenmeyi bekliyor', 'success'];
+  if (a.status === 'rejected') return ['Seçilmediniz', ''];
+  if (a.status === 'withdrawn') return ['Geri çektiniz', ''];
   if (L.status !== 'open') return ['İlan kapandı', ''];
   return ['Yanıt bekleniyor', 'warn'];
 }
 function mkAppliedHtml(D) {
-  if (!D.applied.length) return html`<div class="card empty"><div class="e-ico">${icon('inbox', 'lg')}</div><h3>Başvurun yok</h3><p class="small">Panodaki bir ilana başvurduğunda durumunu buradan izlersin.</p></div>`;
+  if (!D.applied.length) return html`<div class="card empty"><div class="e-ico">${icon('inbox', 'lg')}</div><h3>Başvurunuz yok</h3><p class="small">Panodaki bir ilana başvurduğunuzda durumunu buradan izleyebilirsiniz.</p></div>`;
   return html`<div class="card mk-list">${D.applied.map((L) => {
     const [t, tone] = mkAppState(L);
     const a = L.my_app || {};
     return html`<div class="mk-item ${L.status === 'open' ? '' : 'closed'}">${mkDayBlock(L.date)}
-      <div class="mk-main">${mkHead(L)}<div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b> · ${fmtRel(a.created_at)} başvurdun</span></div>
+      <div class="mk-main">${mkHead(L)}<div class="mk-l2">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="ellipsis"><b>${pName(L.poster, L.poster_user)}</b> · ${fmtRel(a.created_at)} başvurdunuz</span></div>
         ${a.offer_date ? html`<div class="small">Karşılığında: <b>${mkShort(a.offer_date)}</b> ${codeChip({ code: a.offer_code, kind: 'shift' })}</div>` : ''}
         <div><span class="badge ${tone}">${t}</span></div></div>
       <div class="mk-act">${a.status === 'applied' && L.status === 'open' ? html`<button class="btn sm ghost" data-act="mk-withdraw" data-id="${L.id}">Geri çek</button>` : ''}</div></div>`;
@@ -155,18 +155,18 @@ function mkAppliedHtml(D) {
 /* ---- İlana koy ---- */
 ACT['mk-post'] = (el) => mkPostModal(el.dataset.d);
 ACT['mk-new'] = async () => {
-  const m = openModal({ title: 'Hangi nöbetini ilana koyacaksın?', body: mkSpin() });
+  const m = openModal({ title: 'Hangi nöbetinizi ilana koyacaksınız?', body: mkSpin() });
   const my = await loadMyShifts(true);
   const today = ymd(new Date());
   const list = (my.entries || []).filter((e) => e.kind === 'shift' && e.date >= today).slice(0, 40);
   const listed = new Set(((MKT.data && MKT.data.mine) || []).filter((x) => x.status === 'open').map((x) => x.date));
   m.setBody(list.length ? html`<div class="card"><div class="list">${list.map((e) => html`<button type="button" class="list-row mk-pick" data-d="${e.date}" ${listed.has(e.date) ? raw('disabled') : ''}>
       ${codeChip(e, true)}<div class="grow" style="text-align:left"><div class="lr-t">${dateLabel(e.date)}</div><div class="lr-s">${shiftDesc(e)}${e.roster ? ' · ' + e.roster : ''}</div></div>${listed.has(e.date) ? html`<span class="badge brand">İlanda</span>` : icon('chevR', 'sm')}</button>`)}</div></div>`
-    : html`<div class="empty" style="padding:24px"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>İleri tarihli nöbetin yok</h3><p class="small">Listede adına yazılı gelecek bir nöbet olduğunda ilana koyabilirsin.</p></div>`);
+    : html`<div class="empty" style="padding:24px"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>İleri tarihli nöbetiniz yok</h3><p class="small">Listede adınıza yazılı gelecek bir nöbet olduğunda ilana koyabilirsiniz.</p></div>`);
   m.el.addEventListener('click', (ev) => { const b = ev.target.closest('.mk-pick'); if (b && !b.disabled) { m.close(); mkPostModal(b.dataset.d); } });
 };
 async function mkPostModal(date) {
-  const m = openModal({ title: 'Nöbetini ilana koy', body: mkSpin() });
+  const m = openModal({ title: 'Nöbetinizi ilana koyun', body: mkSpin() });
   let o;
   try { o = await api('listing.check', { date }); } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
   const e = mkEntry(o.mine);
@@ -184,13 +184,13 @@ async function mkPostModal(date) {
     m.setBody(html`<div class="stack">${head}
       <div class="seg seg-block" role="tablist"><button type="button" class="${st.kind === 'give' ? 'on' : ''}" data-k="give">Devret</button><button type="button" class="${st.kind === 'swap' ? 'on' : ''}" data-k="swap">Değiş</button></div>
       ${st.kind === 'give' && o.mine.parts ? html`<div class="seg seg-block mk-parts" role="group" aria-label="Nöbetin hangi kısmı">${[['', 'Tümü (24 saat)'], ['day', 'Yalnız gündüz 08-16'], ['night', 'Yalnız gece 16-08']].map(([k, l]) => html`<button type="button" class="${st.part === k ? 'on' : ''}" data-part="${k}">${l}</button>`)}</div>` : ''}
-      ${st.kind === 'give' ? html`<p class="small muted">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} başkasına geçer; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sende kalır.` : 'Nöbetin başkasına geçer.'} Kurallara uyan liste arkadaşların başvurur, sen aralarından seçersin.</p>
-        ${gerr ? html`<div class="mk-box danger">${icon('alert', 'sm')}<span>Devredemezsin: ${gerr}. ${o.mine.parts ? 'Yalnız gündüzünü ya da gecesini vermeyi' : '“Değiş” seçeneğini'} deneyebilirsin.</span></div>`
-          : html`<div class="mk-box ${nCan ? 'ok' : 'warn'}">${icon(nCan ? 'users' : 'info', 'sm')}<span>${nCan ? `Şu an ${nCan} kişi kurallara uyarak ${st.part ? 'bu kısmı' : 'bu nöbeti'} alabilir; onlara haber veririz.` : 'Şu an kurallara uyarak alabilecek kimse yok; yine de ilana koyabilirsin, liste değişince başvurabilirler.'}</span></div>`}`
+      ${st.kind === 'give' ? html`<p class="small muted">${st.part ? `Yalnız ${st.part === 'day' ? 'gündüzü (08-16)' : 'gecesi (16-08)'} başkasına geçer; ${st.part === 'day' ? 'gecesi (16-08)' : 'gündüzü (08-16)'} sizde kalır.` : 'Nöbetiniz başkasına geçer.'} Kurallara uyan liste arkadaşlarınız başvurur, siz aralarından seçersiniz.</p>
+        ${gerr ? html`<div class="mk-box danger">${icon('alert', 'sm')}<span>Devredemezsiniz: ${gerr}. ${o.mine.parts ? 'Yalnız gündüzünü ya da gecesini vermeyi' : '“Değiş” seçeneğini'} deneyebilirsiniz.</span></div>`
+          : html`<div class="mk-box ${nCan ? 'ok' : 'warn'}">${icon(nCan ? 'users' : 'info', 'sm')}<span>${nCan ? `Şu an ${nCan} kişi kurallara uyarak ${st.part ? 'bu kısmı' : 'bu nöbeti'} alabilir; onlara haber veririz.` : 'Şu an kurallara uyarak alabilecek kimse yok; yine de ilana koyabilirsiniz, liste değişince başvurabilirler.'}</span></div>`}`
         : html`<p class="small muted">Başvuran, kendi nöbetlerinden birini karşılık önerir. Yalnız ikiniz için de kurallara uyan günler önerilebilir.</p>
-          <div class="mk-box ${o.can.swap ? 'ok' : 'warn'}">${icon(o.can.swap ? 'users' : 'info', 'sm')}<span>${o.can.swap ? `${o.can.swap} kişinin kurallara uyan bir değişim seçeneği var.` : 'Şu an uygun değişim seçeneği olan kimse yok; yine de ilana koyabilirsin.'}</span></div>`}
+          <div class="mk-box ${o.can.swap ? 'ok' : 'warn'}">${icon(o.can.swap ? 'users' : 'info', 'sm')}<span>${o.can.swap ? `${o.can.swap} kişinin kurallara uyan bir değişim seçeneği var.` : 'Şu an uygun değişim seçeneği olan kimse yok; yine de ilana koyabilirsiniz.'}</span></div>`}
       <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="mkNote" maxlength="300" placeholder="Örn. ailevi bir durum var" value="${note}"></div>
-      <p class="tiny faint">${icon('lock', 'sm')} Başvuranları yalnız sen ve sorumlular görür. Seçtiğin kişi sorumluya iletilir; Excel güncellenince takvimlere işlenir.</p></div>`);
+      <p class="tiny faint">${icon('lock', 'sm')} Başvuranları yalnız siz ve sorumlular görür. Seçtiğiniz kişi sorumluya iletilir; sorumlu listeyi güncelleyince takvimlere işlenir.</p></div>`);
     m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-go="1" ${st.kind === 'give' && gerr ? raw('disabled') : ''}>${icon('megaphone', 'sm')}İlana koy</button>`);
   };
   m.el.addEventListener('click', async (ev) => {
@@ -229,10 +229,10 @@ function mkApplyModal(L, after) {
     m.setBody(html`<div class="stack">
       <div class="sw-mine">${codeChip(e, true)}<div><b>${dateLabel(L.date)}</b><div class="tiny faint">${shiftDesc(e)} · ${L.poster} ${L.kind === 'give' ? 'devrediyor' : 'değişmek istiyor'}</div></div></div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
-      ${L.kind === 'swap' ? html`<div class="field"><label>Karşılığında vereceğin nöbet</label>
+      ${L.kind === 'swap' ? html`<div class="field"><label>Karşılığında vereceğiniz nöbet</label>
         <div class="mk-offers">${offers.map((x) => html`<button type="button" class="sw-opt ${st.pick === x.date ? 'on' : ''}" data-o="${x.date}">${mkShort(x.date)} ${codeChip(mkEntry(x))}${x.same ? '' : html`<span class="tiny faint">${x.hours || '?'} sa</span>`}</button>`)}</div>
-        <p class="tiny faint">Yalnız ikiniz için de kurallara uyan nöbetlerin gösterilir (±31 gün).</p></div>`
-        : html`<p class="small muted">Başvurunu ${L.poster.split(' ')[0]} görür ve başvuranlar arasından seçer. Seçilirsen sorumluya iletilir.</p>`}
+        <p class="tiny faint">Yalnız ikiniz için de kurallara uyan nöbetleriniz gösterilir (±31 gün).</p></div>`
+        : html`<p class="small muted">Başvurunuzu ${L.poster.split(' ')[0]} görür ve başvuranlar arasından seçer. Seçilirseniz sorumluya iletilir.</p>`}
       <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="mkApNote" maxlength="300" placeholder="Örn. o gün rahatım"></div></div>`);
     m.setFoot(html`<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" data-go="1" ${L.kind === 'swap' && !st.pick ? raw('disabled') : ''}>${L.kind === 'swap' ? 'Değişim öner' : 'Başvur'}</button>`);
   };
@@ -244,15 +244,15 @@ function mkApplyModal(L, after) {
     await busy(go, async () => {
       try {
         await api('listing.apply', { id: L.id, offer_date: st.pick || '', note: ($('#mkApNote', m.el) || {}).value || '' });
-        m.close(); toast('Başvurun iletildi'); if (after) after(); else mkLoad();
+        m.close(); toast('Başvurunuz iletildi'); if (after) after(); else mkLoad();
       } catch (er) { toast(er.message, 'err'); }
     });
   });
   draw();
 }
 ACT['mk-withdraw'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Başvurun geri çekilsin mi?', text: 'İlan açık kaldıkça yeniden başvurabilirsin.', ok: 'Geri çek' }))) return;
-  try { await api('listing.withdraw', { id: +el.dataset.id }); toast('Başvurun geri çekildi'); mkReloadAny(); } catch (e) { toast(e.message, 'err'); }
+  if (!(await confirmDialog({ title: 'Başvurunuz geri çekilsin mi?', text: 'İlan açık kaldıkça yeniden başvurabilirsiniz.', ok: 'Geri çek' }))) return;
+  try { await api('listing.withdraw', { id: +el.dataset.id }); toast('Başvurunuz geri çekildi'); mkReloadAny(); } catch (e) { toast(e.message, 'err'); }
 };
 ACT['mk-cancel'] = async (el) => {
   if (!(await confirmDialog({ title: 'İlan geri çekilsin mi?', text: 'Başvuranlara ilanın kapandığı bildirilir.', ok: 'Geri çek', danger: true }))) return;
@@ -282,7 +282,7 @@ async function mkOpenListing(id) {
         ${a.offer_date ? html`<div class="small">Karşılığında <b>${mkShort(a.offer_date)}</b> ${codeChip(mkEntry({ code: a.offer_code, ...(a.offer || {}) }))} ${a.offer ? html`<span class="tiny faint">${shiftDesc(mkEntry({ code: a.offer_code, ...a.offer }))}</span>` : ''}</div>` : ''}
         ${a.note ? html`<div class="tiny muted">“${a.note}”</div>` : ''}
         <div class="tiny faint">${fmtRel(a.created_at)} başvurdu</div>
-        ${a.other_list ? html`<div class="tiny faint">${icon('layers', 'sm')} Başka listeden · Excel’de bu listeye eklenir</div>` : ''}
+        ${a.other_list ? html`<div class="tiny faint">${icon('layers', 'sm')} Başka listeden · sorumlu bu listeye ekler</div>` : ''}
         ${a.valid ? html`<div class="tiny ${a.valid.ok ? 'mk-ok' : 'mk-no'}">${icon(a.valid.ok ? 'check' : 'x', 'sm')} ${a.valid.ok ? 'Kurallara uygun' : a.valid.reason}</div>` : ''}</div>
       <div class="mk-act">${a.status === 'chosen' ? html`<span class="badge success">Seçildi</span>` : a.status === 'rejected' ? html`<span class="badge">Seçilmedi</span>` : a.status === 'withdrawn' ? html`<span class="badge">Geri çekti</span>`
         : L.mine && L.status === 'open' ? html`<button class="btn sm primary" data-ch="${a.id}" data-n="${a.name}" ${a.valid && !a.valid.ok ? raw('disabled') : ''}>Seç</button>` : html`<span class="badge warn">Bekliyor</span>`}</div></div>`;
@@ -291,7 +291,7 @@ async function mkOpenListing(id) {
       <div class="row wrap">${pAvatar(L.poster, 'sm', null, L.poster_user)}<span class="small"><b>${pName(L.poster, L.poster_user)}</b> · ${fmtRel(L.created_at)}</span><span class="badge ${tone}">${t}</span>${sw ? html`<span class="badge ${sw[1]}">${sw[0]}</span>` : ''}</div>
       ${L.note ? html`<div class="mk-note">“${L.note}”</div>` : ''}
       ${L.manage ? html`
-        ${L.status === 'taken' && L.taker ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>${L.taker}</b> aldı${L.taker_date ? ` · karşılığında ${mkShort(L.taker_date)} (${L.taker_code})` : ''}. ${L.swap_status === 'applied' ? 'Listeye işlendi.' : 'Sorumlu Excel’de güncelleyince listeye işlenir.'}</span></div>` : ''}
+        ${L.status === 'taken' && L.taker ? html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>${L.taker}</b> aldı${L.taker_date ? ` · karşılığında ${mkShort(L.taker_date)} (${L.taker_code})` : ''}. ${L.swap_status === 'applied' ? 'Listeye işlendi.' : 'Listeye işlenmeyi bekliyor.'}</span></div>` : ''}
         <div class="card"><div class="card-head"><div><h3>${icon('users', 'sm')} Başvuranlar (${live.length})</h3><div class="tiny faint">${icon('lock', 'sm')} Yalnız ilan sahibi ve sorumlular görür</div></div></div>
           <div class="list">${apps.length ? apps.map(appRow) : html`<div class="list-row small muted">Henüz başvuru yok. Uygun olanlara haber verildi.</div>`}</div></div>
         ${!L.mine && L.status === 'open' && live.length ? html`<p class="tiny faint">Seçimi ilan sahibi yapar.</p>` : ''}`
@@ -311,7 +311,7 @@ async function mkOpenListing(id) {
     if (ev.target.closest('[data-ap]')) { m.close(); mkApplyModal(m.L); return; }
     const b = ev.target.closest('[data-ch]');
     if (!b) return;
-    if (!(await confirmDialog({ title: `${b.dataset.n} seçilsin mi?`, text: 'Sorumluya “Excel’e işlenecek” diye iletilir; diğer başvuranlara ilanın kapandığı bildirilir (kimin seçildiği söylenmez).', ok: 'Seç ve gönder' }))) return;
+    if (!(await confirmDialog({ title: `${b.dataset.n} seçilsin mi?`, text: 'Sorumluya “Listeye işlenmeyi bekliyor” olarak iletilir; diğer başvuranlara ilanın kapandığı bildirilir (kimin seçildiği söylenmez).', ok: 'Seç ve gönder' }))) return;
     try { await api('listing.choose', { id, app_id: +b.dataset.ch }); toast('Seçildi; sorumluya iletildi'); await load(); mkReloadAny(); } catch (er) { toast(er.message, 'err'); }
   });
   await load();
@@ -326,10 +326,10 @@ async function mkHomeCard(el) {
   const rows = [];
   (r.asks || []).forEach((c) => rows.push(html`<div class="list-row mk-ask"><span class="np-ico tone-rose">${icon('alert', 'sm')}</span>
     <a class="grow" href="#/eksik/${c.id}" style="color:inherit;text-decoration:none;min-width:0"><div class="lr-t">${mkShort(c.date)} ${c.text} için ${c.need} kişi eksik</div>
-      <div class="lr-s">${c.move_from ? `${mkShort(c.move_from)} nöbetini bu güne kaydırabilir misin?` : 'Gelebilir misin?'}${c.unit ? ' · ' + c.unit : ''}</div></a>
+      <div class="lr-s">${c.move_from ? `${mkShort(c.move_from)} nöbetinizi bu güne kaydırabilir misiniz?` : 'Gelebilir misiniz?'}${c.unit ? ' · ' + c.unit : ''}</div></a>
     <div class="row" style="gap:6px"><button class="btn sm primary" data-act="co-ans" data-id="${c.id}" data-y="1">Gelebilirim</button><button class="btn sm" data-act="co-ans" data-id="${c.id}" data-y="0">Gelemem</button></div></div>`));
-  if (L.waiting) rows.push(html`<a class="list-row" href="#/ilanlar/mine" style="color:inherit;text-decoration:none"><span class="np-ico tone-violet">${icon('users', 'sm')}</span><div class="grow"><div class="lr-t">İlanına ${L.waiting} başvuru var</div><div class="lr-s">Başvuranlar arasından seç</div></div>${icon('chevR', 'sm')}</a>`);
-  if (L.can) rows.push(html`<a class="list-row" href="#/ilanlar" style="color:inherit;text-decoration:none"><span class="np-ico tone-violet">${icon('megaphone', 'sm')}</span><div class="grow"><div class="lr-t">${L.can} nöbet ilanına başvurabilirsin</div><div class="lr-s">Kurallara uyan ilanlar</div></div>${icon('chevR', 'sm')}</a>`);
+  if (L.waiting) rows.push(html`<a class="list-row" href="#/ilanlar/mine" style="color:inherit;text-decoration:none"><span class="np-ico tone-violet">${icon('users', 'sm')}</span><div class="grow"><div class="lr-t">İlanınıza ${L.waiting} başvuru var</div><div class="lr-s">Başvuranlar arasından seçin</div></div>${icon('chevR', 'sm')}</a>`);
+  if (L.can) rows.push(html`<a class="list-row" href="#/ilanlar" style="color:inherit;text-decoration:none"><span class="np-ico tone-violet">${icon('megaphone', 'sm')}</span><div class="grow"><div class="lr-t">${L.can} nöbet ilanına başvurabilirsiniz</div><div class="lr-s">Kurallara uyan ilanlar</div></div>${icon('chevR', 'sm')}</a>`);
   if (P.open) rows.push(html`<a class="list-row" href="#/eksik" style="color:inherit;text-decoration:none"><span class="np-ico tone-rose">${icon('alert', 'sm')}</span><div class="grow"><div class="lr-t">${P.open} açık eksik çağrısı</div><div class="lr-s">${P.yes ? `${P.yes} kişi gelebilir dedi · seçim bekliyor` : 'Yanıt bekleniyor'}</div></div>${icon('chevR', 'sm')}</a>`);
   if (!rows.length) { el.innerHTML = ''; el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
@@ -477,7 +477,7 @@ function coRow(P, x, ties) {
     <td class="co-name"><div class="co-who">${pAvatar(x.display, 'sm', null, x.user_id)}<div style="min-width:0"><b>${pName(x.display, x.user_id)}</b>${x.user_id ? '' : html` <span class="badge" title="Uygulamada hesabı yok; telefonla sorun">hesabı yok</span>`}
       <div class="tiny faint">${[x.title, x.other ? x.side_name : ''].filter(Boolean).join(' · ')}</div>
       ${x.move ? html`<div class="tiny co-mv">${icon('history', 'sm')} ${mkShort(x.move.from)} ${x.move.code} → ${mkShort(D.date)}</div>${x.move.warn ? html`<div class="tiny mk-no">${icon('alert', 'sm')} ${x.move.warn}</div>` : ''}` : ''}
-      <div class="co-tags">${x.extra ? html`<span class="badge success" title="Bu gün için ekstra nöbet almak istediğini bildirdi">${icon('plus', 'sm')}Ekstra istiyor</span>` : ''}${pass && !x.move && !asked && x.rank === top ? html`<span class="badge brand">Öncelikli</span>` : ''}
+      <div class="co-tags">${x.extra ? html`<span class="badge success" title="Bu gün için ekstra nöbet almak istediğini bildirdi">${icon('plus', 'sm')}Gönüllü</span>` : ''}${pass && !x.move && !asked && x.rank === top ? html`<span class="badge brand">Öncelikli</span>` : ''}
         ${tie ? html`<span class="badge warn" title="Adalet ölçüleri eşit">eşit</span><button type="button" class="btn sm ghost co-kura" data-act="co-draw" data-fair="${x.fair}">${icon('star', 'sm')}Kura</button>` : ''}
         ${drawn ? html`<span class="badge tone-violet">Kura ile seçildi</span>` : ''}
         ${asked ? html`<span class="badge ${(CO_ANS[x.resp.answer] || [])[1] || ''}">${x.resp.chosen ? 'Seçildi' : 'Soruldu · ' + (CO_ANS[x.resp.answer] || ['?'])[0]}</span>` : ''}</div></div></div></td>
@@ -582,7 +582,7 @@ ACT['co-xlsx'] = (el) => busy(el, async () => {
   const host = el.dataset.host ? document.getElementById(el.dataset.host) : $('.co-panel');
   const P = host && host.__co;
   if (!P || !P.data) return toast('Önce adaylar yüklensin', 'err');
-  try { await coXlsx(P); } catch (e) { toast('Excel oluşturulamadı: ' + e.message, 'err'); }
+  try { await coXlsx(P); } catch (e) { toast('Excel dosyası hazırlanamadı. Sayfayı yenileyip tekrar deneyin.', 'err'); }
 });
 async function coXlsx(P) {
   const D = P.data;
@@ -595,7 +595,7 @@ async function coXlsx(P) {
   const title = `Eksik personel — ${dateLabel(D.date).replace(/^(Bugün|Yarın|Dün) · /, '')} ${D.text} (${D.row.code})`;
   // 1) Adaylar
   const ws = wb.addWorksheet('Adaylar', { views: [{ state: 'frozen', xSplit: 2, ySplit: 3 }] });
-  const cols = ['Sıra', 'Ad soyad', 'Ünvan', 'Taraf', 'Tür', 'Uygun', ...D.conds.map((c) => c.label), 'Neden', 'Son nöbet çıkışı', 'Dinlenme (sa)', 'Sonraki nöbet', 'Sonrasına (sa)', 'Bu ay saat', 'Fazla mesai', 'Son 7 gün', 'Boşluk (gün)', 'Kaydırılacak gün'];
+  const cols = ['Sıra', 'Ad soyad', 'Unvan', 'Taraf', 'Tür', 'Uygun', ...D.conds.map((c) => c.label), 'Neden', 'Son nöbet çıkışı', 'Dinlenme (sa)', 'Sonraki nöbet', 'Sonrasına (sa)', 'Bu ay saat', 'Fazla mesai', 'Son 7 gün', 'Boşluk (gün)', 'Kaydırılacak gün'];
   ws.mergeCells(1, 1, 1, cols.length);
   ws.getCell(1, 1).value = title; ws.getCell(1, 1).font = { bold: true, size: 13 };
   ws.mergeCells(2, 1, 2, cols.length);
@@ -626,7 +626,7 @@ async function coXlsx(P) {
   const sel = new Set([...P.sel.values()].map((v) => v.name));
   ms.mergeCells(1, 1, 1, 3 + nd);
   ms.getCell(1, 1).value = `${TR_MONTHS[mm - 1]} ${yy} çizelgesi · ${title}`; ms.getCell(1, 1).font = { bold: true, size: 13 };
-  ['Ad soyad', 'Ünvan'].forEach((h, i) => { const c = ms.getCell(2, i + 1); c.value = h; Object.assign(c, head); ms.mergeCells(2, i + 1, 3, i + 1); });
+  ['Ad soyad', 'Unvan'].forEach((h, i) => { const c = ms.getCell(2, i + 1); c.value = h; Object.assign(c, head); ms.mergeCells(2, i + 1, 3, i + 1); });
   for (let d = 1; d <= nd; d++) {
     const dt = new Date(yy, mm - 1, d);
     const c1 = ms.getCell(2, 2 + d); c1.value = d; Object.assign(c1, head);
@@ -671,8 +671,8 @@ async function coXlsx(P) {
 /* ---- Çağrı listesi sayfası ---- */
 const CO_STATUS = { open: ['Açık', 'warn'], filled: ['Tamamlandı', 'success'], cancelled: ['İptal', ''] };
 function coStatusBadge(c) {
-  if (c.status === 'filled') return c.applied ? html`<span class="badge success">Listeye işlendi</span>` : html`<span class="badge info">Excel’e işlenecek</span>`;
-  if (c.status === 'cancelled') return html`<span class="badge">${c.expired ? 'Süresi geçti' : 'İptal edildi'}</span>`;
+  if (c.status === 'filled') return c.applied ? html`<span class="badge success">Listeye işlendi</span>` : html`<span class="badge info">Listeye işlenmeyi bekliyor</span>`;
+  if (c.status === 'cancelled') return html`<span class="badge">${c.expired ? 'Süresi doldu' : 'İptal edildi'}</span>`;
   return html`<span class="badge warn">Açık</span>`;
 }
 function coItem(c, pub) {
@@ -685,13 +685,13 @@ function coItem(c, pub) {
     </div><div class="mk-act">${coStatusBadge(c)}${icon('chevR', 'sm')}</div></a>`;
 }
 function coMeTxt(c, me) {
-  if (me.chosen) return html`<span class="badge success">Seçildin</span>`;
+  if (me.chosen) return html`<span class="badge success">Seçildiniz</span>`;
   if (c.status !== 'open') return html`<span class="badge">Kapandı</span>`;
-  return html`<span class="badge ${(CO_ANS[me.answer] || [])[1]}">${me.answer === 'asked' ? 'Yanıtın bekleniyor' : me.answer === 'yes' ? 'Gelebilirim dedin' : 'Gelemem dedin'}</span>`;
+  return html`<span class="badge ${(CO_ANS[me.answer] || [])[1]}">${me.answer === 'asked' ? 'Yanıtınız bekleniyor' : me.answer === 'yes' ? '“Gelebilirim” dediniz' : '“Gelemem” dediniz'}</span>`;
 }
 async function coListPage(view) {
   const pub = isPublisher();
-  setHTML(view, html`<div class="page-head"><div><h1>Eksik personel</h1><p>${pub ? 'Eksik kalan vardiya için kurallara uyan kişilere sor, gönüllüler arasından seç' : 'Sana sorulan eksik personel çağrıları'}</p></div>
+  setHTML(view, html`<div class="page-head"><div><h1>Eksik personel</h1><p>${pub ? 'Eksik kalan vardiya için kurallara uyan kişilere sorun, gönüllüler arasından seçin' : 'Size sorulan eksik personel çağrıları'}</p></div>
     ${pub ? html`<button class="btn primary" data-act="co-new">${icon('plus', 'sm')}<span>Yeni çağrı</span></button>` : ''}</div><div id="coBody">${mkSpin()}</div>`);
   let r;
   try { r = await api('callout.list'); } catch (e) { setHTML($('#coBody'), mkErr(e.message)); return; }
@@ -702,12 +702,12 @@ async function coListPage(view) {
   const todo = r.items.filter((c) => c.status === 'filled' && !c.applied);
   const rest = r.items.filter((c) => !open.includes(c) && !todo.includes(c));
   if (!r.items.length) {
-    setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('alert', 'lg')}</div><h3>${pub ? 'Henüz çağrı yok' : 'Sana sorulan bir çağrı yok'}</h3>
-      <p class="small">${pub ? 'Bir vardiyada eksik olduğunda “Yeni çağrı” ile uygun kişileri listeleyip sorabilirsin.' : 'Bir vardiyada eksik olur ve sana sorulursa burada ve bildirimlerde görürsün.'}</p></div>`);
+    setHTML(box, html`<div class="card empty"><div class="e-ico">${icon('alert', 'lg')}</div><h3>${pub ? 'Henüz çağrı yok' : 'Size sorulan bir çağrı yok'}</h3>
+      <p class="small">${pub ? 'Bir vardiyada eksik olduğunda “Yeni çağrı” ile uygun kişileri listeleyip sorabilirsiniz.' : 'Bir vardiyada eksik olur ve size sorulursa burada ve bildirimlerde görürsünüz.'}</p></div>`);
     return;
   }
   const sec = (t, list) => (list.length ? html`<div class="sec-title mk-sec">${t} <span class="faint">(${list.length})</span></div><div class="card mk-list">${list.map((c) => coItem(c, pub))}</div>` : '');
-  setHTML(box, html`${sec('Açık çağrılar', open)}${pub ? sec('Excel’e işlenecek', todo) : ''}${sec(pub ? 'Geçmiş' : 'Önceki çağrılar', pub ? rest : [...todo, ...rest])}`);
+  setHTML(box, html`${sec('Açık çağrılar', open)}${pub ? sec('Listeye işlenmeyi bekliyor', todo) : ''}${sec(pub ? 'Geçmiş' : 'Önceki çağrılar', pub ? rest : [...todo, ...rest])}`);
 }
 ACT['co-new'] = () => openCalloutModal({});
 
@@ -726,16 +726,16 @@ async function coDetailPage(view, id) {
   if (!r.pub) {
     const me = r.me;
     let body;
-    if (me.chosen) body = html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>Seçildin.</b> ${me.move_from ? `${mkShort(me.move_from)} nöbetin ${mkShort(c.date)} gününe kayıyor.` : `${mkShort(c.date)} ${c.text} nöbetine geliyorsun.`} Sorumlu Excel’e işleyince takvimine eklenir.</span></div>`;
-    else if (c.status !== 'open') body = html`<div class="mk-box">${icon('info', 'sm')}<span>Bu çağrı kapandı. ${me.answer === 'yes' ? 'Gönüllü olduğun için teşekkürler!' : ''}</span></div>`;
+    if (me.chosen) body = html`<div class="mk-box ok">${icon('checkCircle', 'sm')}<span><b>Seçildiniz.</b> ${me.move_from ? `${mkShort(me.move_from)} nöbetiniz ${mkShort(c.date)} gününe kayıyor.` : `${mkShort(c.date)} ${c.text} nöbetine geliyorsunuz.`} Sorumlu listeyi güncelleyince takviminize işlenir.</span></div>`;
+    else if (c.status !== 'open') body = html`<div class="mk-box">${icon('info', 'sm')}<span>Bu çağrı kapandı. ${me.answer === 'yes' ? 'Gönüllü olduğunuz için teşekkürler!' : ''}</span></div>`;
     else {
-      body = html`${me.move_from ? html`<div class="mk-box info">${icon('history', 'sm')}<span>${mkShort(me.move_from)} nöbetini ${mkShort(c.date)} gününe kaydırman soruluyor.</span></div>` : ''}
-        ${me.answer === 'yes' ? html`<div class="mk-box ok">${icon('check', 'sm')}<span>“Gelebilirim” dedin. Sorumlu seçerse sana haber vereceğiz.</span></div>`
-          : me.answer === 'no' ? html`<div class="mk-box">${icon('x', 'sm')}<span>“Gelemem” dedin.</span></div>` : html`<p class="co-q">Gelebilir misin?</p>`}
+      body = html`${me.move_from ? html`<div class="mk-box info">${icon('history', 'sm')}<span>${mkShort(me.move_from)} nöbetinizi ${mkShort(c.date)} gününe kaydırmanız soruluyor.</span></div>` : ''}
+        ${me.answer === 'yes' ? html`<div class="mk-box ok">${icon('check', 'sm')}<span>“Gelebilirim” dediniz. Sorumlu seçerse size haber vereceğiz.</span></div>`
+          : me.answer === 'no' ? html`<div class="mk-box">${icon('x', 'sm')}<span>“Gelemem” dediniz.</span></div>` : html`<p class="co-q">Gelebilir misiniz?</p>`}
         <div class="co-ans">${me.answer !== 'yes' ? html`<button class="btn primary" data-act="co-ans" data-id="${c.id}" data-y="1">${icon('check', 'sm')}Gelebilirim</button>` : ''}
           ${me.answer !== 'no' ? html`<button class="btn" data-act="co-ans" data-id="${c.id}" data-y="0">${icon('x', 'sm')}Gelemem</button>` : ''}</div>`;
     }
-    setHTML(box, html`<div class="stack co-member">${headCard}${body}<p class="tiny faint">${icon('lock', 'sm')} Yanıtını yalnız sen ve sorumlular görür.</p></div>`);
+    setHTML(box, html`<div class="stack co-member">${headCard}${body}<p class="tiny faint">${icon('lock', 'sm')} Yanıtınızı yalnız siz ve sorumlular görür.</p></div>`);
     return;
   }
   const resp = r.resp || [];
@@ -751,14 +751,14 @@ async function coDetailPage(view, id) {
   };
   const chosenTxt = (c.chosen || []).map((x) => x.name + (x.move_from ? ` (${mkShort(x.move_from)} nöbeti ${mkShort(c.date)} gününe kayacak)` : '')).join(', ');
   // Yayıncıya da sorulduysa (ör. yayıncı hemşire) kendi yanıtı
-  const mine = r.me && open && !r.me.chosen ? html`<div class="mk-box info">${icon('user', 'sm')}<span class="grow">Bu çağrı sana da soruldu${r.me.answer === 'yes' ? ' · “Gelebilirim” dedin' : r.me.answer === 'no' ? ' · “Gelemem” dedin' : ''}.</span>
+  const mine = r.me && open && !r.me.chosen ? html`<div class="mk-box info">${icon('user', 'sm')}<span class="grow">Bu çağrı size de soruldu${r.me.answer === 'yes' ? ' · “Gelebilirim” dediniz' : r.me.answer === 'no' ? ' · “Gelemem” dediniz' : ''}.</span>
       ${r.me.answer !== 'yes' ? html`<button class="btn sm primary" data-act="co-ans" data-id="${c.id}" data-y="1">Gelebilirim</button>` : ''}${r.me.answer !== 'no' ? html`<button class="btn sm" data-act="co-ans" data-id="${c.id}" data-y="0">Gelemem</button>` : ''}</div>` : '';
   setHTML(box, html`<div class="stack">${headCard}${mine}
-    ${c.status === 'filled' ? html`<div class="mk-box ${c.applied ? 'ok' : 'info'}">${icon(c.applied ? 'checkCircle' : 'table', 'sm')}<span>${c.applied ? html`<b>Listeye işlendi:</b> ${chosenTxt}` : html`<b>Excel’e işlenecek:</b> ${chosenTxt} · ${mkShort(c.date)} ${c.text}. Excel güncellenince kendiliğinden “listeye işlendi” olur.`}</span></div>` : ''}
+    ${c.status === 'filled' ? html`<div class="mk-box ${c.applied ? 'ok' : 'info'}">${icon(c.applied ? 'checkCircle' : 'table', 'sm')}<span>${c.applied ? html`<b>Listeye işlendi:</b> ${chosenTxt}` : html`<b>Listeye işlenmeyi bekliyor:</b> ${chosenTxt} · ${mkShort(c.date)} ${c.text}. Sorumlu listeyi güncelleyince kendiliğinden “Listeye işlendi” olur.`}</span></div>` : ''}
     <div class="card"><div class="card-head"><div><h3>${icon('users', 'sm')} Yanıtlar (${resp.length})</h3><div class="tiny faint">${icon('lock', 'sm')} Yanıtları yalnız sorumlular ve kişinin kendisi görür</div></div>
       <div class="row" style="gap:6px">${open ? html`<button class="btn sm ghost danger" data-act="co-cancel" data-id="${c.id}">Çağrıyı iptal et</button>` : ''}
         <button class="btn sm ghost danger" data-act="co-del" data-id="${c.id}" title="Çağrıyı ve yanıtları tamamen sil">${icon('trash', 'sm')}<span>Sil</span></button></div></div>
-      <div class="list">${resp.length ? resp.map(respRow) : html`<div class="list-row small muted">Henüz kimseye sorulmadı. Aşağıdan aday seçip sorabilirsin.</div>`}</div></div>
+      <div class="list">${resp.length ? resp.map(respRow) : html`<div class="list-row small muted">Henüz kimseye sorulmadı. Aşağıdan aday seçip sorabilirsiniz.</div>`}</div></div>
     ${(c.draws || []).length ? html`<div class="tiny faint">${icon('star', 'sm')} Kura kayıtları: ${c.draws.map((d) => `${mkDT(d.at)} · ${d.by}: ${d.picked} (eşitler: ${d.group.join(', ')})`).join(' — ')}</div>` : ''}
     ${open ? html`<div class="co-bar"><h3>Adaylar</h3><span class="grow"></span><button class="btn sm" data-act="co-xlsx" data-host="coPagePanel">${icon('download', 'sm')}<span>Excel indir</span></button><button class="btn sm primary" id="coAskBtn" data-act="co-ask" data-id="${c.id}" disabled>${icon('send', 'sm')}<span>Seçilenlere de sor</span></button></div>
       <div id="coPagePanel"></div>`
@@ -775,12 +775,12 @@ ACT['co-ans'] = (el) => busy(el, async () => {
   const yes = el.dataset.y === '1';
   try {
     await api('callout.answer', { id: +el.dataset.id, yes, resp_id: el.dataset.r ? +el.dataset.r : undefined });
-    toast(el.dataset.r ? 'Yanıt kaydedildi' : yes ? 'Teşekkürler! Sorumluya iletildi' : 'Yanıtın kaydedildi');
+    toast(el.dataset.r ? 'Yanıt kaydedildi' : yes ? 'Teşekkürler! Sorumluya iletildi' : 'Yanıtınız kaydedildi');
     if (location.hash.startsWith('#/eksik')) route(); else mkReloadAny();
   } catch (e) { toast(e.message, 'err'); }
 });
 ACT['co-choose'] = async (el) => {
-  if (!(await confirmDialog({ title: `${el.dataset.n} seçilsin mi?`, text: 'Kişiye ve sorumlulara “Excel’e işlenecek” bildirimi gider. Gereken sayı dolunca diğerlerine teşekkür mesajı gider.', ok: 'Seç' }))) return;
+  if (!(await confirmDialog({ title: `${el.dataset.n} seçilsin mi?`, text: 'Kişiye ve sorumlulara “Listeye işlenmeyi bekliyor” bildirimi gider. Gereken sayı dolunca diğerlerine teşekkür mesajı gider.', ok: 'Seç' }))) return;
   try { const r = await api('callout.choose', { id: +el.dataset.id, resp_id: +el.dataset.r }); toast(r.filled ? 'Seçildi · çağrı tamamlandı' : 'Seçildi'); route(); } catch (e) { toast(e.message, 'err'); }
 };
 ACT['co-ask'] = (el) => busy(el, async () => {
@@ -789,7 +789,7 @@ ACT['co-ask'] = (el) => busy(el, async () => {
   try { const r = await api('callout.ask', { id: +el.dataset.id, asks: [...P.sel.values()] }); toast(`${r.asked} kişiye soruldu`); route(); } catch (e) { toast(e.message, 'err'); }
 });
 ACT['co-cancel'] = async (el) => {
-  if (!(await confirmDialog({ title: 'Çağrı iptal edilsin mi?', text: 'Sorulan ve seçilmemiş kişilere “gelmene gerek yok” bildirimi gider.', ok: 'İptal et', danger: true }))) return;
+  if (!(await confirmDialog({ title: 'Çağrı iptal edilsin mi?', text: 'Sorulan ve seçilmemiş kişilere “gelmenize gerek yok” bildirimi gider.', ok: 'İptal et', danger: true }))) return;
   try { await api('callout.cancel', { id: +el.dataset.id }); toast('Çağrı iptal edildi'); route(); } catch (e) { toast(e.message, 'err'); }
 };
 
@@ -803,9 +803,9 @@ ACT['co-del'] = async (el) => {
 /* =================================================================== */
 const HIST = { month: '', type: 'all', state: '', q: '', items: [] };
 const HIST_TYPE = { swap: ['Değişim', 'violet'], give: ['Devir', 'indigo'], listing: ['İlan', 'sky'], callout: ['Eksik çağrısı', 'rose'] };
-const HIST_STATE = { open: ['Açık', 'warn'], waiting: ['Excel’e işlenecek', 'info'], applied: ['Listeye işlendi', 'success'], closed: ['Kapandı', ''] };
+const HIST_STATE = { open: ['Açık', 'warn'], waiting: ['Listeye işlenmeyi bekliyor', 'info'], applied: ['Listeye işlendi', 'success'], closed: ['Kapandı', ''] };
 const HIST_RAW = {
-  pending: 'yanıt bekliyor', accepted: 'kabul edildi', declined: 'reddedildi', cancelled: 'iptal', applied: 'uygulandı', expired: 'süresi geçti',
+  pending: 'yanıt bekliyor', accepted: 'kabul edildi', declined: 'reddedildi', cancelled: 'iptal', applied: 'listeye işlendi', expired: 'süresi doldu',
   open: 'açık', taken: 'alındı', filled: 'tamamlandı',
 };
 function histText(x) {
@@ -864,7 +864,7 @@ function histDraw() {
 ACT['hist-del'] = async (el) => {
   const t = el.dataset.t;
   const what = { swap: 'değişim kaydı', give: 'devir kaydı', listing: 'ilan', callout: 'eksik çağrısı' }[t] || 'kayıt';
-  if (!(await confirmDialog({ title: `Bu ${what} silinsin mi?`, text: 'Kayıt kalıcı olarak silinir; işlem günlüğünde kim sildiği kalır. Kabul edilmiş ama Excel’e işlenmemiş bir değişimse kurallar hesabından da çıkar.', ok: 'Sil', danger: true }))) return;
+  if (!(await confirmDialog({ title: `Bu ${what} silinsin mi?`, text: 'Kayıt kalıcı olarak silinir; işlem günlüğünde kim sildiği kalır. Kabul edilmiş ama listeye işlenmemiş bir değişimse kurallar hesabından da çıkar.', ok: 'Sil', danger: true }))) return;
   const action = t === 'listing' ? 'listing.delete' : t === 'callout' ? 'callout.delete' : 'swap.delete';
   try { await api(action, { id: +el.dataset.id }); HIST.items = HIST.items.filter((x) => !(x.type === t && x.id === +el.dataset.id)); histDraw(); toast('Silindi'); } catch (e) { toast(e.message, 'err'); }
 };
@@ -900,5 +900,5 @@ ACT['hist-xlsx'] = (el) => busy(el, async () => {
     ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: HIST_COLS.length } };
     const buf = await wb.xlsx.writeBuffer();
     if (downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `degisim-gecmisi-${HIST.month}.xlsx`) !== false) toast('Excel indirildi');
-  } catch (e) { toast('Excel oluşturulamadı: ' + e.message, 'err'); }
+  } catch (e) { toast('Excel dosyası hazırlanamadı. Sayfayı yenileyip tekrar deneyin.', 'err'); }
 });

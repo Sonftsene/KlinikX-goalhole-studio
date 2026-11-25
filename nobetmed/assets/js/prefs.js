@@ -144,7 +144,7 @@ const HOME_BUILTIN = [
   { id: 'chips', title: 'Kısayol düğmeleri', place: 'hero' },
   { id: 'feed', title: 'Duyuru ve belge akışı', place: 'main' },
   { id: 'today', title: 'Bugün nöbette', place: 'side' },
-  { id: 'rosters', title: 'Nöbet listeleri', place: 'side' },
+  { id: 'rosters', title: 'Nöbet listesi', place: 'side' },
   { id: 'tips', title: 'İpuçları', place: 'side' },
 ];
 /** Varsayılan kapalı kartlar: kişi Hesabım › Görünüm › Ana sayfam'dan açarsa görünür */
@@ -197,7 +197,7 @@ function homeLayoutHtml() {
 }
 function homeDefHtml() {
   return html`<div><h3 style="font-size:15px">${icon('grid', 'sm')} Herkesin ana sayfası (varsayılan düzen)</h3>
-      <p class="small muted">Kartların görünüp görünmeyeceğini ve sırasını herkes için belirleyin. Kendi düzenini değiştirmemiş herkes bu düzeni görür; kişiler isterse Hesabım › Görünüm › Ana sayfam'dan kendine göre değiştirebilir.</p></div>
+      <p class="small muted">Kartların görünüp görünmeyeceğini ve sırasını herkes için belirleyin. Kendi düzenini değiştirmemiş herkes bu düzeni görür; kişiler isterse Hesabım › Görünüm › Ana sayfam’dan kendine göre değiştirebilir.</p></div>
     ${homeListHtml('def')}
     <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" id="hldAll"><span class="track"></span></span>
       <span class="grow small">Kendi düzenini yapmış kişileri de bu düzene döndür</span></label>
@@ -483,7 +483,7 @@ function remindCardHtml() {
   return html`<form class="card card-pad stack" data-form="remind-save" id="remindCard">
     <div><h3 class="ph">${icon('clock', 'sm')} Nöbet hatırlatmam</h3><p class="tiny faint">Hatırlatma, listede adınız olan nöbetler için telefon bildirimi ve e-posta ile gelir.</p></div>
     <div class="seg seg-block"><button type="button" class="${custom ? '' : 'on'}" data-act="remind-mode" data-v="def">Varsayılan</button><button type="button" class="${custom ? 'on' : ''}" data-act="remind-mode" data-v="own">Kendi saatim</button></div>
-    <p class="tiny faint ${custom ? 'hidden' : ''}" data-rm="def">${defOn ? `Nöbetten bir gün önce saat ${pad(defH)}:00’de hatırlatılır (yöneticinin ayarı).` : 'Yönetici genel hatırlatmayı kapattı. Kendi saatinizi seçerek hatırlatma alabilirsiniz.'}</p>
+    <p class="tiny faint ${custom ? 'hidden' : ''}" data-rm="def">${defOn ? `Nöbetten bir gün önce hatırlatılır · saat: ${pad(defH)}:00 (yöneticinin ayarı).` : 'Yönetici genel hatırlatmayı kapattı. Kendi saatinizi seçerek hatırlatma alabilirsiniz.'}</p>
     <div class="stack ${custom ? '' : 'hidden'}" data-rm="own" style="gap:10px">
       <div class="row wrap" style="gap:10px"><label class="row grow" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" name="day_on" ${day.on ? raw('checked') : ''}><span class="track"></span></span><span class="small">Bir gün önce, saat</span></label>${hours('day_hour', day.hour)}</div>
       <div class="row wrap" style="gap:10px"><label class="row grow" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" name="pre_on" ${pre.on ? raw('checked') : ''}><span class="track"></span></span><span class="small">Nöbet başlamadan</span></label>
@@ -664,7 +664,7 @@ ACT['nl-link'] = (el) => busy(el, async () => {
 /* Herkes için ana ekran (yönetici; 4.50.0) — inc/mod_duzen.php          */
 /* =================================================================== */
 const UL_TOP = [['phone', 'phone', 'Telefon rehberi'], ['search', 'search', 'Arama'], ['chat', 'chat', 'Mesajlar'], ['compose', 'plus', 'Yeni içerik (bilgisayarda)'], ['theme', 'moon', 'Tema düğmesi (bilgisayarda)']];
-const UL_BOTTOM = [['nobet', 'calendar', 'Nöbet'], ['compose', 'plus', '“+” yeni içerik'], ['todo', 'checkCircle', 'Okunacak']];
+const UL_BOTTOM = [['nobet', 'calendar', 'Nöbet'], ['compose', 'plus', '“+” yeni içerik'], ['todo', 'checkCircle', 'Okunacaklar']];
 const UL = { d: null, scope: 'base', reset: false };
 /** Üst çubuk ve alt menü: yöneticinin gizlediği simgeler */
 function applyShellLayout() {
@@ -697,7 +697,7 @@ function ulSet(patch, keepPreset) {
 }
 NM_EXT.settingsCards.push({
   sec: 'genel', admin: true,
-  html: () => html`<div class="card card-pad stack" data-sec="genel" id="ulCard"><h3 style="font-size:15px">${icon('grid', 'sm')} Herkes için ana ekran</h3><div class="skel" style="height:14px;width:55%"></div></div>`,
+  html: () => html`<div class="card card-pad stack" data-sec="genel" id="ulCard"><h3 style="font-size:15px">${icon('grid', 'sm')} Herkes için ana sayfa</h3><div class="skel" style="height:14px;width:55%"></div></div>`,
   mount: () => ulLoad(),
 });
 async function ulLoad() {
@@ -719,7 +719,7 @@ function ulPreviewHtml(L) {
   return html`<div class="ul-phone" aria-label="Önizleme">
     <div class="ul-top">${icon('menu', 'sm')}<b class="grow">dupcii</b>${top.map(([, i]) => icon(i, 'sm'))}${icon('bell', 'sm')}<span class="ul-av"></span></div>
     <div class="ul-body">
-      <div class="ul-hero"><b>Günaydın</b><div class="ul-shift">${icon('calendar', 'sm')} Sıradaki nöbetin</div>
+      <div class="ul-hero"><b>Günaydın</b><div class="ul-shift">${icon('calendar', 'sm')} Sıradaki nöbetiniz</div>
         ${homeOff('chips', P) ? '' : html`<div class="ul-chips ${L.chips_big ? 'big' : ''}">${chips.map((k) => html`<span class="ul-chip">${k.svg ? raw(k.svg) : icon(ic(k), 'sm')}<span>${k.label}</span></span>`)}</div>`}</div>
       ${secs.map((x) => html`<div class="ul-sec">${x.title}</div>`)}
     </div>
@@ -735,7 +735,7 @@ function ulDraw() {
   const chipsOn = Array.isArray(L.chips);
   const groups = [];
   cat.filter((k) => !chipsOn || !L.chips.includes(k.id)).forEach((k) => { let g = groups.find((x) => x.g === k.g); if (!g) groups.push(g = { g: k.g, items: [] }); g.items.push(k); });
-  setHTML(c, html`<div class="row between wrap" style="gap:8px"><div><h3 style="font-size:15px;margin:0">${icon('grid', 'sm')} Herkes için ana ekran</h3>
+  setHTML(c, html`<div class="row between wrap" style="gap:8px"><div><h3 style="font-size:15px;margin:0">${icon('grid', 'sm')} Herkes için ana sayfa</h3>
       <p class="small muted" style="margin:4px 0 0">Ana sayfayı, kısayolları, üst simgeleri ve alt menüyü herkes için bir kez kurun. Kişiler ayar yapmadan hazır ve sade bir ekran görür.</p></div>
       ${UL.d.saved ? html`<span class="badge success">Uygulanıyor · ${({ sade: 'Sade', standart: 'Standart', tam: 'Tam', ozel: 'Özel' })[UL.d.base.preset] || 'Özel'}</span>` : html`<span class="badge">Henüz uygulanmadı</span>`}</div>
     <div class="seg ul-scope"><button type="button" class="${UL.scope === 'base' ? 'on' : ''}" data-act="ul-scope" data-s="base">${icon('users', 'sm')}Herkes</button><button type="button" class="${UL.scope === 'publisher' ? 'on' : ''}" data-act="ul-scope" data-s="publisher">${icon('shield', 'sm')}Sorumlular${pubOn ? '' : ' (aynı)'}</button></div>
@@ -795,7 +795,7 @@ async function ulSaveNow(body, msg) {
 }
 ACT['ul-save'] = (el) => busy(el, async () => {
   if (UL.reset && !(await confirmDialog({ title: 'Herkesin düzeni sıfırlansın mı?', text: 'Kendi ana sayfa ve kısayol düzenini yapmış kişilerin değişiklikleri silinir; herkes bu düzeni görür.', ok: 'Herkese uygula', danger: true }))) return;
-  try { await ulSaveNow({ base: UL.d.base, publisher: UL.d.publisher, reset_users: UL.reset }, 'Ana ekran herkes için kaydedildi'); } catch (e) { toast(e.message, 'err'); }
+  try { await ulSaveNow({ base: UL.d.base, publisher: UL.d.publisher, reset_users: UL.reset }, 'Ana sayfa herkes için kaydedildi'); } catch (e) { toast(e.message, 'err'); }
 });
 ACT['ul-off'] = async (el) => {
   if (!(await confirmDialog({ title: 'Herkes için düzen kaldırılsın mı?', text: 'Kişiler yeniden kendi ana sayfa ve kısayollarını düzenleyebilir; üst simgeler ve alt menü eski hâline döner.', ok: 'Kaldır', danger: true }))) return;
@@ -809,7 +809,7 @@ function ulNoticeMount() {
   let seen = ''; try { seen = localStorage.getItem('nm-ul-seen') || ''; } catch (e) { /* */ }
   if (seen === L.ver) return;
   const hero = $('#view .hero'); if (!hero) return;
-  hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box info ul-note" id="ulNote">${icon('info', 'sm')}<div class="grow small"><b>Ana ekranınız sadeleştirildi.</b> Aradığınız her şey alttaki <b>Menü</b>’de; oradaki arama kutusuna “izin”, “takvim”, “telefon” gibi yazabilirsiniz.</div><button type="button" class="btn sm" data-act="ul-note-ok">Tamam</button></div>`));
+  hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box info ul-note" id="ulNote">${icon('info', 'sm')}<div class="grow small"><b>Ana sayfanız sadeleştirildi.</b> Aradığınız her şey alttaki <b>Menü</b>’de; oradaki arama kutusuna “izin”, “takvim”, “telefon” gibi yazabilirsiniz.</div><button type="button" class="btn sm" data-act="ul-note-ok">Tamam</button></div>`));
 }
 ACT['ul-note-ok'] = () => { try { localStorage.setItem('nm-ul-seen', (S.ui_layout && S.ui_layout.ver) || ''); } catch (e) { /* */ } const n = $('#ulNote'); if (n) n.remove(); };
 
@@ -824,8 +824,8 @@ NM_EXT.settingsCards.push({
 function lbDraw() {
   const c = $('#lbCard'); if (!c) return;
   // Düzenlenebilir adlar: yan menü (bölüm ve liste adları hariç), menü başlıkları, nöbet sekmeleri, alt menü
-  ['#/nobetim', '#/rehber', '#/nobet'].forEach((k) => { uiL(k, { '#/nobetim': 'Takvimim', '#/rehber': 'Kim nöbette', '#/nobet': 'Excel liste' }[k], 'Nöbet'); UI_DEF[k].g = 'Nöbet'; });
-  ['bn:home', 'bn:todo', 'bn:menu'].forEach((k) => uiL(k, { 'bn:home': 'Ana sayfa', 'bn:todo': 'Okunacak', 'bn:menu': 'Menü' }[k], 'Alt menü (telefon)'));
+  ['#/nobetim', '#/rehber', '#/nobet'].forEach((k) => { uiL(k, { '#/nobetim': 'Takvimim', '#/rehber': 'Kim nöbette', '#/nobet': 'Liste' }[k], 'Nöbet'); UI_DEF[k].g = 'Nöbet'; });
+  ['bn:home', 'bn:todo', 'bn:menu'].forEach((k) => uiL(k, { 'bn:home': 'Ana sayfa', 'bn:todo': 'Okunacaklar', 'bn:menu': 'Menü' }[k], 'Alt menü (telefon)'));
   const groups = [];
   Object.entries(UI_DEF).filter(([k]) => !/^#\/(b|nobet)\/\d+$/.test(k)).forEach(([k, d]) => { let g = groups.find((x) => x.g === d.g); if (!g) groups.push(g = { g: d.g, items: [] }); g.items.push([k, d.l]); });
   const n = Object.keys(LB.draft).length;

@@ -45,7 +45,7 @@ function up_who(bool $sa): array
     if ($sa) { $u = need_sa(); return ['sa' => $u, 'name' => (string)$u['name']]; }
     if (nm_multi()) fail('Güncellemeyi sistem yöneticisi yapar.', 403);
     $me = need_admin();
-    if (!empty($me['sa_virtual'])) fail('Yetkiniz yok.', 403);
+    if (!empty($me['sa_virtual'])) fail('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403);
     return ['me' => $me, 'name' => (string)$me['name']];
 }
 function up_audit(array $w, string $act, string $target, string $detail = ''): void

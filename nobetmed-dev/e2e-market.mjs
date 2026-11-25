@@ -85,7 +85,7 @@ const swapL = (await apiCall(m, 'listing.create', { date: d1(12), kind: 'swap', 
 const pastL = await apiErr(m, 'listing.create', { date: '2020-01-01', kind: 'give' });
 if (!/Geçmiş/.test(pastL)) fail('geçmiş nöbet ilana kondu: ' + pastL);
 const notMine = await apiErr(m, 'listing.create', { date: d1(2), kind: 'give' });
-if (!/nöbetin görünmüyor/.test(notMine)) fail('başkasının nöbeti ilana kondu: ' + notMine);
+if (!/nöbetiniz görünmüyor/.test(notMine)) fail('başkasının nöbeti ilana kondu: ' + notMine);
 step(`ilan: Takvimim'den "İlana koy" (${d1(7)} devret), değiş ilanı, tekrar/geçmiş/başkasının nöbeti engellendi`);
 
 // 2) Burak panoda: kurallara göre Başvur açık/kapalı + neden
@@ -108,13 +108,13 @@ step(`pano: Burak ${d1(7)} için başvurabilir, ${d1(12)} kapalı (“${why.slic
 // 3) Burak başvurur (arayüz), Deniz de başvurur (API)
 await giveRow.locator('[data-act=mk-apply]').click();
 await bp.locator('.modal [data-go]').click();
-await expectText(bp, 'Başvurun iletildi');
+await expectText(bp, 'Başvurunuz iletildi');
 await apiCall(dz, 'listing.apply', { id: give.id, note: 'Gelebilirim' });
 const again = await apiErr(bp, 'listing.apply', { id: give.id });
 if (!/zaten başvurdun/.test(again)) fail('iki kez başvurulabildi: ' + again);
 const ownApply = await apiErr(m, 'listing.apply', { id: give.id });
-if (!/Kendi ilanına/.test(ownApply)) fail('kendi ilanına başvurulabildi');
-const nE = (await apiCall(m, 'notif.list')).items.find((x) => x.title === 'İlanına başvuru var');
+if (!/Kendi ilanınıza/.test(ownApply)) fail('kendi ilanına başvurulabildi');
+const nE = (await apiCall(m, 'notif.list')).items.find((x) => x.title === 'İlanınıza başvuru var');
 if (!nE) fail('ilan sahibine başvuru bildirimi gitmedi');
 // Gizlilik: üçüncü kişi başvuranları görmez
 const dzList = JSON.stringify(await apiCall(dz, 'listing.list'));
@@ -141,8 +141,8 @@ const sr = todo.find((x) => x.from_date === d1(7) && /BURAK/i.test(x.to_name));
 if (!sr || sr.kind !== 'give' || sr.status !== 'accepted') fail('sorumlunun Excel’e işlenecek listesinde yok: ' + JSON.stringify(todo));
 await a.goto(BASE + '#/nobetim');
 await a.locator('#swapBox .swap-card').first().waitFor({ timeout: 8000 }).catch(() => {});
-if (!/Excel’e işlenecek/.test(await a.locator('#swapBox').innerText())) fail('yöneticinin Takvimim’inde Excel’e işlenecek kartı yok');
-const nBur = (await apiCall(bp, 'notif.list')).items.find((x) => x.title === 'İlan: seçildin');
+if (!/Listeye işlenmeyi bekleyen/.test(await a.locator('#swapBox').innerText())) fail('yöneticinin Takvimim’inde Excel’e işlenecek kartı yok');
+const nBur = (await apiCall(bp, 'notif.list')).items.find((x) => x.title === 'İlan: seçildiniz');
 const nDen = (await apiCall(dz, 'notif.list')).items.find((x) => x.title === 'İlan kapandı');
 if (!nBur) fail('seçilen kişiye bildirim gitmedi');
 if (!nDen || /Burak/i.test(nDen.body)) fail('seçilmeyene bildirim yok ya da alan kişinin adı var: ' + JSON.stringify(nDen));
@@ -230,7 +230,7 @@ step(`eksik çağrısı: ${d1(11)} 16-08 adaylar (Burak ✓, Elif dinlenme ✗),
 
 // 6) Burak yanıtlar; gizlilik
 const nCall = (await apiCall(bp, 'notif.list')).items.find((x) => x.kind === 'callout');
-if (!nCall || !/16-08 için 1 kişi eksik\. Gelebilir misin\?/.test(nCall.body) || nCall.url !== '#/eksik/' + coId) fail('çağrı bildirimi: ' + JSON.stringify(nCall));
+if (!nCall || !/16-08 için 1 kişi eksik\. Gelebilir misiniz\?/.test(nCall.body) || nCall.url !== '#/eksik/' + coId) fail('çağrı bildirimi: ' + JSON.stringify(nCall));
 if (!/forbidden|gönderilmemiş/i.test(await apiErr(m, 'callout.get', { id: coId }))) fail('sorulmayan kişi çağrıyı görebildi');
 if ((await apiErr(bp, 'callout.candidates', { id: coId })) === 'kabul') fail('üye aday listesini görebildi');
 if ((await apiErr(bp, 'history.list', {})) === 'kabul') fail('üye geçmişi görebildi');
@@ -258,8 +258,8 @@ await go(a, '#/eksik/' + coId);
 await a.locator('[data-act=co-choose]').click();
 await confirmOk(a);
 await expectText(a, 'çağrı tamamlandı');
-await a.locator('.mk-box', { hasText: 'Excel’e işlenecek' }).waitFor();
-const nSel = (await apiCall(bp, 'notif.list')).items.find((x) => /seçildin/.test(x.title) && x.kind === 'callout');
+await a.locator('.mk-box', { hasText: 'Listeye işlenmeyi bekliyor' }).waitFor();
+const nSel = (await apiCall(bp, 'notif.list')).items.find((x) => /seçildiniz/.test(x.title) && x.kind === 'callout');
 if (!nSel) fail('seçilen kişiye çağrı bildirimi gitmedi');
 const coL = (await apiCall(a, 'callout.list')).items.find((x) => x.id === coId);
 if (coL.status !== 'filled' || !coL.chosen.some((x) => /Burak/i.test(x.name))) fail('çağrı tamamlanmadı: ' + JSON.stringify(coL));
@@ -368,7 +368,7 @@ else {
   await bp.locator('.mk-home .mk-ask').waitFor({ timeout: 8000 }).catch(() => fail('ana sayfada çağrı kartı yok'));
   await bp.screenshot({ path: path.join(OUT, 'mk-home-mobile.png') });
   await bp.locator('.mk-home [data-act=co-ans][data-y="0"]').click();
-  await expectText(bp, 'Yanıtın kaydedildi');
+  await expectText(bp, 'Yanıtınız kaydedildi');
   const r2 = await apiCall(bp, 'callout.get', { id: c2.id });
   if (r2.me.answer !== 'no') fail('ana sayfadan “Gelemem” kaydedilmedi');
   await apiCall(a, 'callout.cancel', { id: c2.id });

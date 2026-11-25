@@ -664,7 +664,7 @@ function a_sa_apply_decide(): void
             m_q('DELETE FROM ap_apps WHERE id = ?', [$a['id']]);
             break;
         default:
-            fail('Geçersiz işlem.');
+            fail('Bu işlem yapılamadı. Sayfayı yenileyip tekrar deneyin.');
     }
     sa_audit($sa, 'apply.' . $act, (string)$a['unit_name'], (string)$a['email']);
     out(['mailed' => $mailed]);

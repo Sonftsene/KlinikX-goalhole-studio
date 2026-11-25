@@ -3,8 +3,8 @@
 'use strict';
 
 const NB = { since: '', seen: new Set(), timer: 0, active: Date.now(), audio: null, install: null, busy: false, cats: null, base: document.title };
-const NB_CAT_UI = { mesaj: ['violet', 'chat', 'Mesaj'], eksik: ['rose', 'alert', 'Eksik personel'], duyuru: ['teal', 'megaphone', 'Duyuru'], belge: ['sky', 'file', 'Hastane belgesi'],
-  nobet: ['emerald', 'calendar', 'Nöbet'], degisim: ['amber', 'history', 'Değişim / ilan'], istek: ['indigo', 'inbox', 'Nöbet isteği'], yonetim: ['rose', 'inbox', 'Onay bekliyor'], sistem: ['slate', 'bell', 'Bildirim'] };
+const NB_CAT_UI = { mesaj: ['violet', 'chat', 'Mesajlar'], eksik: ['rose', 'alert', 'Eksik personel çağrısı'], duyuru: ['teal', 'megaphone', 'Duyurular'], belge: ['sky', 'file', 'Hastane belgeleri'],
+  nobet: ['emerald', 'calendar', 'Nöbet'], degisim: ['amber', 'history', 'Değişim ve ilanlar'], istek: ['indigo', 'inbox', 'Nöbet istekleri'], yonetim: ['rose', 'inbox', 'Onay bekleyenler'], sistem: ['slate', 'bell', 'Sistem'] };
 const NB_KIND_CAT = { chat: 'mesaj', post: 'duyuru', remind: 'duyuru', digest: 'duyuru', hdoc: 'belge', roster: 'nobet', shift: 'nobet', side: 'nobet', callout: 'eksik',
   swap: 'degisim', listing: 'degisim', request: 'istek', review: 'yonetim', pending_post: 'yonetim', pending_user: 'yonetim', call: 'mesaj', extra: 'yonetim' };
 const nbCatOf = (n) => n.cat || NB_KIND_CAT[n.kind] || 'sistem';
@@ -305,7 +305,7 @@ async function nbDraw() {
         <span class="row" style="gap:10px;min-width:0"><span class="nbc-ico tone-${tone}">${icon(ic, 'sm')}</span><span style="min-width:0"><b class="small">${c.label}</b>${lk ? html` <span class="badge warn" title="Yöneticiniz bu bildirimleri zorunlu tuttu">${icon('lock', 'sm')}zorunlu</span>` : ''}<span class="tiny faint" style="display:block">${c.descr}</span></span></span>
         <label class="switch only" title="Telefon / masaüstü bildirimi"><input type="checkbox" data-change="nb-cat" data-k="${c.key}" data-f="push" ${v.push ? raw('checked') : ''} ${lk ? raw('disabled') : ''}><span class="track"></span></label>
         <label class="switch only" title="Uygulama açıkken ekranda kart"><input type="checkbox" data-change="nb-cat" data-k="${c.key}" data-f="pop" ${v.pop ? raw('checked') : ''}><span class="track"></span></label></div>`; })}</div>
-      <p class="tiny faint">“Telefon”: uygulama kapalıyken de telefona/bilgisayara gelir. “Ekranda”: uygulama açıkken sağ üstte kart olarak görünür. Hepsi zil simgesindeki bildirim merkezinde her zaman durur.</p>
+      <p class="tiny faint">Telefon (uygulama kapalıyken) · Ekranda (uygulama açıkken). Hepsi zil simgesinde de durur.</p>
     </div>
     <div class="card card-pad stack">
       <h3 class="ph">${icon('moon', 'sm')} Sessiz saatler</h3>
@@ -533,7 +533,7 @@ ACT['nbs-remind-all'] = async (el) => {
 
 /* ---------------- Yönetici: E-posta tasarımı (Ayarlar › Bildirimler) ---------------- */
 const MD = { d: null, logo: null, siteLogo: null, domain: '', t: 0, wide: false };
-const MD_STYLES = [['kurumsal', 'Kurumsal', 'Üstte renkli çizgi, beyaz kart'], ['sade', 'Sade', 'Kartsız, ince çizgiler'], ['modern', 'Modern', 'Ortalanmış logo, geniş düğme'], ['resmi', 'Resmi yazı', 'Tırnaklı yazı, çift çizgi'], ['bant', 'Renkli başlık', 'Başlık bandı kurum renginde']];
+const MD_STYLES = [['kurumsal', 'Kurumsal', 'Üstte renkli çizgi, beyaz kart'], ['sade', 'Sade', 'Kartsız, ince çizgiler'], ['modern', 'Modern', 'Ortalanmış logo, geniş düğme'], ['resmi', 'Resmî yazı', 'Tırnaklı yazı, çift çizgi'], ['bant', 'Renkli başlık', 'Başlık bandı kurum renginde']];
 const MD_COLORS = ['#0b7a75', '#1d4ed8', '#0f172a', '#b91c1c', '#7c3aed', '#047857', '#c2410c', '#be185d'];
 NM_EXT.settingsCards.push({
   sec: 'bildirim', admin: true,

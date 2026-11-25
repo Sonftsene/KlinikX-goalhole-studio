@@ -183,7 +183,7 @@ function drawRqTop() {
   if (!p) {
     setHTML(top, '');
     setHTML($('#rqBody'), html`<div class="card empty"><div class="e-ico">${icon('calendar', 'lg')}</div><h3>Açık istek dönemi yok</h3>
-      <p class="small">${RQ.can ? 'Sonraki ayı isteğe açın: herkes boşluk ve yıllık izin isteklerini yazar, siz panelden görür ve onaylarsınız.' : 'Sorumlular sonraki ayı isteğe açtığında boşluk ve yıllık izin isteklerini buradan yazabilirsin.'}</p>
+      <p class="small">${RQ.can ? 'Sonraki ayı isteğe açın: herkes boşluk ve yıllık izin isteklerini yazar, siz panelden görür ve onaylarsınız.' : 'Sorumlular sonraki ayı isteğe açtığında boşluk ve yıllık izin isteklerinizi buradan yazabilirsiniz.'}</p>
       ${RQ.can ? html`<button class="btn primary" data-act="rq-new" style="margin-top:12px">${icon('plus', 'sm')}<span>Dönem aç</span></button>` : ''}</div>`);
     return;
   }
@@ -265,8 +265,8 @@ function drawMine() {
       <div class="rq-col">
         ${d.can_edit ? html`<div class="card card-pad rq-text">
           <label class="label" for="rqTxt">${icon('edit', 'sm')} Yazarak ekle</label>
-          <div class="rq-text-row"><input class="input" id="rqTxt" data-input="rq-txt" autocomplete="off" placeholder="Örn: 2,3,4 boşluk; 15-19 yıllık izin"><button class="btn primary" data-act="rq-apply" id="rqApply" disabled>Ekle</button></div>
-          <div id="rqPrev" class="rq-prev"><span class="tiny faint">Gün numaralarını ve türünü yaz: <b>boşluk</b> (nöbet istemiyorum) ya da <b>yıllık izin</b>. Art arda günler için 15-19 ya da “15, 19 arası” yaz. Aydan aya: “28 aralık - 2 ocak izin”.</span></div>
+          <div class="rq-text-row"><input class="input" id="rqTxt" data-input="rq-txt" autocomplete="off" placeholder="Örn: 3-5 boşluk, 20 yıllık izin"><button class="btn primary" data-act="rq-apply" id="rqApply" disabled>Ekle</button></div>
+          <div id="rqPrev" class="rq-prev"><span class="tiny faint">Gün numaralarını ve türünü yazın: <b>boşluk</b> ya da <b>yıllık izin</b>.</span></div>
         </div>` : ''}
         <div class="card rq-calc" id="rqCal"></div>
       </div>
@@ -291,9 +291,9 @@ function drawRqRoster() {
   if (ro.merged) inner = ''; // tüm birim tek havuz: liste sorulmaz, not da gösterilmez (yer kaplamasın)
   else if (ro.fixed) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${ro.name}</b></div>`;
   else if (d.choices.length <= 1 && ro.id) inner = html`<div class="small">${icon('table', 'sm')} Liste: <b>${nm(ro.id)}</b></div>`;
-  else if (ro.found && RQ.rosterSel) inner = html`<div class="row between wrap"><div class="small">${icon('table', 'sm')} ${d.target.self ? 'Listen' : 'Listesi'}: <b>${nm(RQ.rosterSel)}</b> <span class="tiny faint">${ro.auto ? '(adından bulundu)' : ''}</span></div>${d.can_edit ? html`<button class="btn sm ghost" data-act="rq-roster-pick">Değiştir</button>` : ''}</div>`;
-  else inner = html`<div class="field"><label>${d.target.self ? 'Hangi listedesin?' : 'Hangi listede?'}</label><select class="select" data-change="rq-roster" ${d.can_edit ? '' : raw('disabled')}><option value="">Seçin</option>${d.choices.map((c) => html`<option value="${c.id}" ${c.id === RQ.rosterSel ? raw('selected') : ''}>${c.name}</option>`)}</select>
-    <span class="hint">${ro.found ? '' : 'Adın listelerde bulunamadı; isteklerin doğru panoya düşmesi için listeni seç.'}</span></div>`;
+  else if (ro.found && RQ.rosterSel) inner = html`<div class="row between wrap"><div class="small">${icon('table', 'sm')} ${d.target.self ? 'Listeniz' : 'Listesi'}: <b>${nm(RQ.rosterSel)}</b> <span class="tiny faint">${ro.auto ? '(ada göre bulundu)' : ''}</span></div>${d.can_edit ? html`<button class="btn sm ghost" data-act="rq-roster-pick">Değiştir</button>` : ''}</div>`;
+  else inner = html`<div class="field"><label>${d.target.self ? 'Hangi listedesiniz?' : 'Hangi listede?'}</label><select class="select" data-change="rq-roster" ${d.can_edit ? '' : raw('disabled')}><option value="">Seçin</option>${d.choices.map((c) => html`<option value="${c.id}" ${c.id === RQ.rosterSel ? raw('selected') : ''}>${c.name}</option>`)}</select>
+    <span class="hint">${ro.found ? '' : 'Ad listelerde bulunamadı; isteklerin doğru panoya düşmesi için listeyi seçin.'}</span></div>`;
   setHTML(box, inner);
   box.classList.toggle('hidden', !inner);
 }
@@ -341,11 +341,11 @@ function drawRqCal() {
   const cnt = { bosluk: 0, izin: 0 };
   RQ.draft.forEach((v) => { cnt[v.kind]++; });
   setHTML(box, html`<div class="cal-head"><b>${TR_MONTHS[m - 1]} ${y}</b><span class="small muted">${cnt.bosluk ? html`<b>${cnt.bosluk}</b> boşluk` : ''}${cnt.bosluk && cnt.izin ? ' · ' : ''}${cnt.izin ? html`<b>${cnt.izin}</b> yıllık izin` : ''}${!cnt.bosluk && !cnt.izin ? 'Henüz istek yok' : ''}</span></div>
-    ${d.can_edit ? html`<div class="rq-how" role="note"><b class="rq-how-t">${icon('info', 'sm')}Nasıl istek yapılır?</b>
+    ${d.can_edit ? html`<div class="rq-how" role="note"><b class="rq-how-t">${icon('info', 'sm')}Nasıl?</b>
       <span class="rq-how-r"><span class="rq-sw k-bosluk">B</span><span><b>Boşluk</b> için güne <b>bir kez</b> dokunun</span></span>
       <span class="rq-how-r"><span class="rq-sw k-izin">Yİ</span><span><b>Yıllık izin</b> için <b>iki kez</b> dokunun</span></span>
       <span class="rq-how-r"><span class="rq-sw rq-sw-x">${icon('x', 'sm')}</span><span>Vazgeçmek için <b>bir kez daha</b> dokunun</span></span>
-      <span class="tiny muted">Ayın başındaki / sonundaki gri günler önceki / sonraki aya aittir: aydan aya istek (ör. 28 Aralık – 2 Ocak) de yazabilirsiniz; her gün kendi ayının listesine düşer. Bitince aşağıdaki <b>Kaydet</b> düğmesine basın.</span></div>` : ''}
+      <span class="tiny muted">Gri günler önceki / sonraki aya aittir; aydan aya istek de olur. Yukarıya yazarak da ekleyebilirsiniz (ör. “15-19 yıllık izin”, “28 aralık - 2 ocak izin”). Bitince <b>Kaydet</b>’e basın.</span></div>` : ''}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
     <div class="cal-legend"><span><span class="rq-sw k-bosluk">B</span>Boşluk</span><span><span class="rq-sw k-izin">Yİ</span>Yıllık izin</span><span><i class="rq-mk ok static">${icon('check')}</i>Onaylandı</span><span><i class="rq-mk no static">${icon('x')}</i>Reddedildi</span></div>`);
 }
@@ -366,7 +366,7 @@ CHANGE['rq-txt'] = (el) => {
   const pv = RQ.preview;
   if (btn) btn.disabled = !pv || !pv.groups.length;
   if (prev) {
-    if (!pv) setHTML(prev, html`<span class="tiny faint">Gün numaralarını ve türünü yaz: <b>boşluk</b> ya da <b>yıllık izin</b>.</span>`);
+    if (!pv) setHTML(prev, html`<span class="tiny faint">Gün numaralarını ve türünü yazın: <b>boşluk</b> ya da <b>yıllık izin</b>.</span>`);
     else {
       const byKind = { bosluk: [], izin: [] };
       Object.entries(pv.map).forEach(([ds, k]) => byKind[k].push(ds));
@@ -390,7 +390,7 @@ ACT['rq-apply'] = () => {
   const inp = $('#rqTxt');
   if (inp) { inp.value = ''; CHANGE['rq-txt'](inp); }
   drawRqCal(); drawRqList(); drawRqSave();
-  toast(locked ? `Takvime eklendi · ${locked} gün kapanmış dönemde olduğu için eklenmedi` : 'Takvime eklendi · kaydetmeyi unutma');
+  toast(locked ? `Takvime eklendi · ${locked} gün kapanmış dönemde olduğu için eklenmedi` : 'Takvime eklendi · kaydetmeyi unutmayın');
 };
 
 /** Ardışık, aynı tür/durum/notlu günleri tek satırda toplar */
@@ -424,8 +424,8 @@ function drawRqList() {
         ${d.can_edit ? html`<input class="input rq-note" maxlength="200" placeholder="Kısa not (isteğe bağlı)" value="${g.note}" data-input="rq-note" data-dates="${g.dates.join(',')}">` : g.note ? html`<div class="tiny faint">Not: ${g.note}</div>` : ''}
       </div>
       ${d.can_edit ? html`<button class="btn sm icon ghost" data-act="rq-rm" data-dates="${g.dates.join(',')}" aria-label="Kaldır">${icon('trash', 'sm')}</button>` : ''}
-    </div>`) : html`<div class="list-row small muted">${d.can_edit ? 'Henüz isteğin yok. Takvimde güne dokun ya da yukarıya yaz.' : 'Bu dönemde isteğin yok.'}</div>`}</div>
-    <div class="rq-foot tiny faint">${icon('lock', 'sm')} Ret gerekçesini yalnızca sen ve sorumlular görür. Panoda herkes yalnızca günleri ve durumu görür.</div>`);
+    </div>`) : html`<div class="list-row small muted">${d.can_edit ? 'Henüz isteğiniz yok. Takvimde güne dokunun ya da yukarıya yazın.' : 'Bu dönemde isteğiniz yok.'}</div>`}</div>
+    <div class="rq-foot tiny faint">${icon('lock', 'sm')} Ret gerekçesini yalnızca siz ve sorumlular görür. Panoda herkes yalnızca günleri ve durumu görür.</div>`);
 }
 CHANGE['rq-note'] = (el) => {
   el.dataset.dates.split(',').forEach((ds) => { const x = RQ.draft.get(ds); if (x) x.note = el.value.slice(0, 200); });
@@ -517,7 +517,7 @@ function drawBoard() {
   setHTML(body, html`${seg}<div class="cal-wrap">
     <div class="card cal-card"><div class="cal-head"><b>${TR_MONTHS[m - 1]} ${y}</b><span class="tiny faint">sayı: o gün isteyen kişi</span></div>
       <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
-      <div class="cal-legend"><span><i class="rq-dot k-bosluk"></i>Boşluk</span><span><i class="rq-dot k-izin"></i>Yıllık izin</span><span><i class="rq-me-dot static"></i>Senin isteğin</span></div></div>
+      <div class="cal-legend"><span><i class="rq-dot k-bosluk"></i>Boşluk</span><span><i class="rq-dot k-izin"></i>Yıllık izin</span><span><i class="rq-me-dot static"></i>Sizin isteğiniz</span></div></div>
     <div class="card"><div class="card-head"><h3>${dateLabel(RQ.bsel)}</h3><span class="tiny faint">${sel.filter((x) => x.status !== 'rejected').length} kişi</span></div>
       <div class="list">${sel.length ? sel.map((x) => html`<div class="list-row ${x.status === 'rejected' ? 'rq-dim' : ''}">${pAvatar(rqName(x.name), 'sm', null, x.user_id)}<div class="grow" style="min-width:0"><div class="lr-t ellipsis">${pName(rqName(x.name), x.user_id)}${x.me ? html` <span class="tiny faint">(sen)</span>` : ''}</div></div>${rqKindBadge(x.kind)}${rqStBadge(x.status)}</div>`)
         : html`<div class="list-row small muted">Bu gün için istek yok.</div>`}</div></div></div>`);
@@ -586,7 +586,7 @@ function drawPanel() {
         <div class="card" id="rqPile"></div>
       </div>
       <div class="rq-col"><div class="card" id="rqDay"></div></div>
-    </div>` : html`<div class="card empty"><p class="small">Bu dönem için liste bulunamadı. Taraflar Taraf sekmesinden, listeler Excel liste sekmesinden tanımlanır.</p></div>`}
+    </div>` : html`<div class="card empty"><p class="small">Bu dönem için liste bulunamadı. Taraflar Taraf sekmesinden, listeler Liste sekmesinden tanımlanır.</p></div>`}
     ${d.draws.length ? html`<div class="card"><div class="card-head"><h3>${icon('layers', 'sm')} Kura kayıtları</h3></div><div class="list">${d.draws.map((x) => html`<div class="list-row"><div class="grow"><div class="lr-t">${rqShort(x.date)} · ${rqSideName(x.side)}</div><div class="lr-s">Adaylar: ${(x.cands || []).map(rqName).join(', ')} → ret önerisi: <b>${(x.picked || []).map(rqName).join(', ')}</b> · ${x.by || ''} · ${fmtRel(x.at)}</div></div></div>`)}</div></div>` : ''}`);
   drawHeat(); drawPile(); drawDay(); drawPeople();
 }
@@ -816,7 +816,7 @@ ACT['rq-xlsx'] = (el) => busy(el, async () => {
     a.autoFilter = { from: 'A1', to: 'H1' };
     const buf = await wb.xlsx.writeBuffer();
     if (downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `nobet-istekleri-${p.ym}.xlsx`) !== false) toast('Excel indirildi');
-  } catch (e) { toast('Excel oluşturulamadı: ' + e.message, 'err'); }
+  } catch (e) { toast('Excel dosyası hazırlanamadı. Sayfayı yenileyip tekrar deneyin.', 'err'); }
 });
 
 /* =================================================================== */

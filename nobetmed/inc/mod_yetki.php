@@ -14,13 +14,13 @@ const NM_MODULES = [
     'nobet' => ['Nöbet listeleri ve takvim', 'Excel / Google E-Tablolar listeleri, Takvimim, Kim nöbette, hatırlatmalar, kurallar', null],
     'taraf' => ['Taraf / blok yerleşimi', 'Günlük blok yerleşimi, Sorumlular ekibi, kura, WhatsApp görseli', 'nobet'],
     'istekler' => ['Nöbet istekleri', 'Boşluk ve yıllık izin istekleri, dönemler, onay paneli', 'nobet'],
-    'ilan' => ['Nöbet ilanı ve değişim', 'Nöbet devretme / değiştirme ilanları ve kişiler arası değişim istekleri', 'nobet'],
+    'ilan' => ['Nöbet ilanı ve değişim', 'Nöbet devretme / değiştirme ilanları ve kişiler arası değişim teklifleri', 'nobet'],
     'eksik' => ['Eksik personel çağrısı', 'Eksik vardiya için uygun kişilere sorma, gönüllü seçme', 'nobet'],
     'gecmis' => ['Değişim geçmişi', 'Değişim, devir, ilan ve çağrı kayıtları (yönetenler)', 'nobet'],
     'rehber' => ['Telefon rehberi', 'Dahili numaralar, santral, acil numaralar (birim + hastane ortak rehberi)', null],
     'mesaj' => ['Mesajlaşma', 'Birim grubu, özel gruplar (birimler arası olabilir), birebir sohbet, dosya ve fotoğraf', null],
-    'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okudum onayı', null],
-    'cizelge' => ['Nöbet çizelgesi hazırlama', 'Excel kullanmayan birimler için çizelgeyi portalda hazırlama: kural denetimi, otomatik doldurma, yayınlama', 'nobet'],
+    'hbelge' => ['Hastane belgeleri', 'Hastane geneli protokol, talimat, form ve duyurular; birimler arası ortak, okundu onayı', null],
+    'cizelge' => ['Nöbet çizelgesi hazırlama', 'Excel kullanmayan birimler için çizelgeyi portalda hazırlama: kural denetimi, otomatik doldurma, yayımlama', 'nobet'],
     'yemek' => ['Yemek listesi', 'Hastane yemek menüsü: aylık listeyi PDF / Excel’den yükleme, gün gün menü, saate göre sıradaki öğün, nöbetteki öğünler', null],
     'ucret' => ['Fazla mesai ücreti', 'Kişinin kendi ücretini girip tahmini tutarı görmesi (yalnız kendisi görür)', 'nobet'],
 ];
@@ -209,7 +209,7 @@ function a_sa_modules_get(): void
     $kind = s('kind', 10) === 'hospital' ? 'h' : 't';
     $id = (int)(i('id') ?? 0);
     $row = $kind === 'h' ? m_one('SELECT * FROM hospitals WHERE id = ?', [$id]) : m_one('SELECT * FROM tenants WHERE id = ?', [$id]);
-    if (!$row) fail('Bulunamadı.', 404);
+    if (!$row) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     $own = [];
     foreach (m_all('SELECT module, on_ FROM module_cfg WHERE scope = ? AND sid = ?', [$kind, $id]) as $r) $own[$r['module']] = (int)$r['on_'] === 1;
     $hosp = [];
@@ -230,7 +230,7 @@ function a_sa_modules_save(): void
     $kind = s('kind', 10) === 'hospital' ? 'h' : 't';
     $id = (int)(i('id') ?? 0);
     $row = $kind === 'h' ? m_one('SELECT * FROM hospitals WHERE id = ?', [$id]) : m_one('SELECT * FROM tenants WHERE id = ?', [$id]);
-    if (!$row) fail('Bulunamadı.', 404);
+    if (!$row) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     $vals = is_array($IN['modules'] ?? null) ? $IN['modules'] : [];
     $changed = [];
     foreach (array_keys(NM_MODULES) as $m) {

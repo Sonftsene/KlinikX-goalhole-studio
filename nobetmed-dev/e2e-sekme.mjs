@@ -36,7 +36,7 @@ async function check(tag, email, pws, big) {
   const out = tabs.filter((t) => t.l < 0 || t.r > 360);
   if (out.length) fail(`[${tag}] ekran dışında kalan sekmeler: ${out.map((t) => t.t).join(', ')}`);
   const names = tabs.map((t) => t.t);
-  for (const want of ['Takvimim', 'Kim nöbette', 'İstekler', 'İlanlar', 'Excel liste']) if (!names.some((n) => n.includes(want))) fail(`[${tag}] “${want}” sekmesi yok: ${names.join(' | ')}`);
+  for (const want of ['Takvimim', 'Kim nöbette', 'İstekler', 'İlanlar', 'Liste']) if (!names.some((n) => n.includes(want))) fail(`[${tag}] “${want}” sekmesi yok: ${names.join(' | ')}`);
   const w = await p.evaluate(() => document.documentElement.scrollWidth);
   if (w > 360) fail(`[${tag}] yatay taşma ${w}px`);
   await p.screenshot({ path: path.join(OUT, `sekme-${tag}.png`) });

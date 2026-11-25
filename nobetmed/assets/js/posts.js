@@ -23,7 +23,7 @@ function renderShell() {
         <button class="btn ghost icon mobile-only" data-act="search-open" aria-label="Ara">${icon('search')}</button>
         <button class="btn primary desk-only" data-act="compose">${icon('plus')}Yeni içerik</button>
         ${notifButtonHtml()}
-        <a class="top-me" href="#/profil" id="topMe" aria-label="Hesabım ve profil ayarları" title="Hesabım">${avatar(S.me.name, 'sm')}</a>
+        <a class="top-me" href="#/profil" id="topMe" aria-label="Hesabım" title="Hesabım">${avatar(S.me.name, 'sm')}</a>
         <button class="btn ghost icon desk-only" data-act="theme" aria-label="Tema" id="themeBtn">${icon(isDark() ? 'sun' : 'moon')}</button>
       </header>
       <div class="content" id="view"></div>
@@ -80,7 +80,7 @@ function renderNav() {
   setHTML($('#sidebar'), html`
     <a class="brand ${(S.settings.brand || {}).logo ? 'custom' : ''}" href="#/" aria-label="Ana sayfa">${brandLogo()}<div class="brand-org ellipsis">${S.settings.org_name}</div></a>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
-    ${navItem('#/okunacak', icon('checkCircle'), 'Okumam gerekenler', c.todo, r[0] === 'okunacak', 'warn')}
+    ${navItem('#/okunacak', icon('checkCircle'), 'Okunacaklar', c.todo, r[0] === 'okunacak', 'warn')}
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
     ${modOn('rehber') ? navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon') : ''}
     ${NM_EXT.nav.filter((n) => n.sec === 'genel' && modOn(n.mod) && (!n.visible || n.visible())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
@@ -91,7 +91,7 @@ function renderNav() {
     ${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => navItem(x.href, icon(x.icon), x.label, 0, x.href.slice(2).split('/')[0] === r[0]))}
     ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && modOn(n.mod) && (!n.pub || canManage(n.mod)) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
     ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
-      : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
+      : navItem('#/nobet', icon('table'), 'Nöbet listesi', 0, r[0] === 'nobet')}
     ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">${uiSec('@tablolar', 'Tablolar')}</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}` : ''}
     <div class="nav-sec">${uiSec('@bolumler', 'Bölümler')}</div>
     ${S.categories.map((cat) => navItem('#/b/' + cat.id, html`<span class="cat-ico sm tone-${cat.color}">${icon(cat.icon)}</span>`, cat.name, (c.unread_by_cat || {})[cat.id] || 0, r[0] === 'b' && +r[1] === cat.id, 'muted'))}
@@ -114,7 +114,7 @@ function renderNav() {
     ${tab('#/', icon('home'), uiL('bn:home', 'Ana sayfa', 'Alt menü (telefon)'), !r[0], c.unread)}
     ${modOn('nobet') ? tab(hubHref(), icon('calendar'), uiL('@nobet', 'Nöbet'), (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0, '', 'nobet') : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0, '', 'nobet')}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
-    ${tab('#/okunacak', icon('checkCircle'), uiL('bn:todo', 'Okunacak', 'Alt menü (telefon)'), r[0] === 'okunacak', c.todo, '', 'todo')}
+    ${tab('#/okunacak', icon('checkCircle'), uiL('bn:todo', 'Okunacaklar', 'Alt menü (telefon)'), r[0] === 'okunacak', c.todo, '', 'todo')}
     ${tab('#/menu', icon('grid'), uiL('bn:menu', 'Menü', 'Alt menü (telefon)'), ['menu', 'profil', 'yonetim'].includes(r[0]), isPublisherBase() ? pendingAdmin : 0, 'bn-menu')}`);
 }
 
@@ -172,7 +172,7 @@ document.addEventListener('click', (e) => {
 });
 ACT['me-menu'] = (el) => openMenu(el, [
   { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''}</div></div>` },
-  { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
+  { id: 'p', icon: 'user', label: 'Hesabım', run: () => { location.hash = '#/profil'; } },
   ...(S.support ? [{ id: 's', icon: 'help', label: 'Destek', run: () => ACT['sp-open']() }] : []),
   ...(typeof vwCanUse === 'function' && vwCanUse() ? [{ id: 'v', icon: 'eye', label: S.me.view_as ? 'Rol önizlemesi: değiştir / çık' : 'Başka rolün gözünden gör', run: () => ACT['vw-pick']() }] : []),
   { id: 't', icon: isDark() ? 'sun' : 'moon', label: isDark() ? 'Açık tema' : 'Koyu tema', run: () => ACT.theme() },
@@ -327,7 +327,7 @@ function mountHomeExt() {
 }
 
 function rosterCard() {
-  return html`<div class="card-head"><h3>Nöbet listeleri</h3>${isPublisher() ? html`<a class="small" href="#/nobet">Yönet</a>` : ''}</div>
+  return html`<div class="card-head"><h3>Nöbet listesi</h3>${isPublisher() ? html`<a class="small" href="#/nobet">Yönet</a>` : ''}</div>
     <div class="list">${S.rosters.length ? S.rosters.map((r) => html`<a class="list-row" href="#/nobet/${r.id}" style="color:inherit;text-decoration:none">
       <span class="cat-ico sm tone-emerald">${icon('table')}</span>
       <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${r.name}</div><div class="lr-s">${r.file ? fmtRel(r.file.updated_at) + ' güncellendi' : 'Henüz yüklenmedi'}</div></div>
@@ -338,7 +338,7 @@ function rosterCard() {
 /* ================= Akış ================= */
 let FEED = null;
 const FILTERS = [
-  ['all', 'Tümü'], ['unread', 'Okunmamış'], ['todo', 'Okumam gerekenler'], ['saved', 'Kaydedilenler'],
+  ['all', 'Tümü'], ['unread', 'Okunmamış'], ['todo', 'Okunacaklar'], ['saved', 'Kaydedilenler'],
 ];
 
 function renderFeedPage(view, opts) {
@@ -346,13 +346,13 @@ function renderFeedPage(view, opts) {
   if (opts.cat) {
     const cat = byId(S.categories, opts.cat);
     if (!cat) { location.hash = '#/'; return; }
-    head = html`<div class="row" style="gap:12px">${catIcon(cat)}<div><h1>${cat.name}</h1><p>Bu bölümdeki tüm içerikler</p></div></div>`;
+    head = html`<div class="row" style="gap:12px">${catIcon(cat)}<div><h1>${cat.name}</h1></div></div>`;
   } else if (opts.filter === 'todo') {
-    head = html`<div><h1>Okumam gerekenler</h1><p>Okuduğunuzu onaylamanız beklenen zorunlu içerikler</p></div>`;
+    head = html`<div><h1>Okunacaklar</h1><p>Okuduğunuzu onaylamanız beklenen zorunlu içerikler</p></div>`;
   } else if (opts.filter === 'saved') {
-    head = html`<div><h1>Kaydedilenler</h1><p>Hızlı erişim için işaretlediğiniz içerikler</p></div>`;
+    head = html`<div><h1>Kaydedilenler</h1></div>`;
   } else {
-    head = html`<div><h1>Arama sonuçları</h1><p>“${opts.q}” için bulunan içerikler</p></div>`;
+    head = html`<div><h1>Arama sonuçları</h1><p>“${opts.q}”</p></div>`;
   }
   setHTML(view, html`<div class="page-head">${head}</div><section id="feedHost"></section>`);
   mountFeed($('#feedHost'), { filter: opts.filter || 'all', cat: opts.cat || null, q: opts.q || '', fixed: opts.fixed });
@@ -379,7 +379,7 @@ function renderFeed() {
   } else if (!F.items.length) {
     const msg = {
       unread: ['Okunmamış içerik yok', 'Tüm içerikleri görüntülediniz.'],
-      todo: ['Bekleyen zorunlu okuma yok', 'Onaylamanız gereken bir içerik kalmadı.'],
+      todo: ['Okunacak içerik yok', 'Onaylamanız gereken bir içerik kalmadı.'],
       saved: ['Kaydedilen içerik yok', 'İçeriklerdeki yer imi simgesiyle kaydedebilirsiniz.'],
       pending: ['Onay bekleyen içerik yok', 'Ekibin gönderdiği içerikler burada onayınıza sunulur.'],
       mine: ['Henüz içerik göndermediniz', 'Eklediğiniz duyuru ve belgelerin durumunu burada takip edebilirsiniz.'],
@@ -535,7 +535,7 @@ function renderDetail() {
     ? html`<div class="ack-box done">${icon('checkCircle', 'lg')}<div class="grow"><b>Okudunuz ve onayladınız</b><div class="small muted">Teşekkürler, onayınız kaydedildi.</div></div></div>`
     : html`<div class="ack-box todo"><span style="color:var(--warn)">${icon('alert', 'lg')}</span><div class="grow"><b>Bu içeriği okuduğunuzu onaylayın</b><div class="small muted">Zorunlu okuma olarak işaretlendi.</div></div><button class="btn primary" data-act="ack" data-id="${p.id}">${icon('check')}Okudum, anladım</button></div>`) : '';
   const statusNote = p.status === 'pending'
-    ? html`<div class="form-note warn">${isPublisher() ? 'Bu içerik onayınızı bekliyor. Onayladığınızda tüm ilgili üyelere yayınlanır.' : 'İçeriğiniz yönetici onayı bekliyor. Onaylanınca yayınlanacak.'}</div>`
+    ? html`<div class="form-note warn">${isPublisher() ? 'Bu içerik onayınızı bekliyor. Onayladığınızda tüm ilgili üyelere yayımlanır.' : 'İçeriğiniz yönetici onayı bekliyor. Onaylanınca yayımlanacak.'}</div>`
     : p.status === 'rejected' ? html`<div class="form-note" style="background:var(--danger-soft);color:var(--danger)"><b>Reddedildi.</b> ${p.reject_reason || 'Gerekçe belirtilmedi.'} ${p.author_id === S.me.id ? 'Düzenleyip tekrar gönderebilirsiniz.' : ''}</div>` : '';
 
   m.setBody(html`
@@ -591,7 +591,7 @@ function detailFoot(p) {
     foot.push(html`<button class="btn danger" data-act="reject" data-id="${p.id}">${icon('x')}Reddet</button>`);
     foot.push(html`<div class="grow"></div>`);
     foot.push(html`<button class="btn icon" data-act="post-menu" aria-label="Diğer">${icon('more')}</button>`);
-    foot.push(html`<button class="btn primary" data-act="approve" data-id="${p.id}">${icon('check')}Onayla ve yayınla</button>`);
+    foot.push(html`<button class="btn primary" data-act="approve" data-id="${p.id}">${icon('check')}Onayla ve yayımla</button>`);
   } else {
     if (p.status === 'published') {
       foot.push(html`<button class="btn ${p.saved ? 'active' : ''}" data-act="detail-save">${icon('bookmark')}${p.saved ? 'Kaydedildi' : 'Kaydet'}</button>`);
@@ -647,7 +647,7 @@ ACT['detail-save'] = async () => {
 ACT.approve = (el) => busy(el, async () => {
   try {
     const r = await api('posts.approve', { id: +el.dataset.id });
-    toast(r.mailed ? `İçerik yayınlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayınlandı');
+    toast(r.mailed ? `İçerik yayımlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayımlandı');
     const top = modalStack[modalStack.length - 1];
     if (DETAIL && top === DETAIL.m) DETAIL.m.close();
     reloadCurrent();
@@ -751,7 +751,7 @@ function openComposer(post) {
     size: 'wide',
     body: html`
       <form class="stack" id="composer" data-form="composer" style="gap:16px">
-        ${!isPublisher() ? html`<div class="form-note">${icon('info', 'sm')} İçeriğiniz yönetici onayından sonra yayınlanacaktır.</div>` : ''}
+        ${!isPublisher() ? html`<div class="form-note">${icon('info', 'sm')} İçeriğiniz yönetici onayından sonra yayımlanacaktır.</div>` : ''}
         <div id="tplBox"></div>
         <div class="field"><label>Başlık</label><input class="input" name="title" required minlength="3" maxlength="200" value="${post ? post.title : ''}" placeholder="Örn: Yüksek riskli ilaçlarda çift kontrol protokolü"></div>
         <div class="grid2">
@@ -770,13 +770,13 @@ function openComposer(post) {
         </div>
         <div class="stack" style="gap:12px;padding:14px;border:1px solid var(--border);border-radius:12px">
           <label class="switch"><input type="checkbox" name="required" ${post && post.required ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Okundu onayı iste</b><span>Ekip “Okudum, anladım” ile onaylar; kimin okuduğunu takip edersiniz.</span></span></label>
-          ${isPublisher() && !editing && S.settings.notify_post ? html`<label class="switch"><input type="checkbox" name="notify" checked><span class="track"></span><span class="s-text"><b>E-posta ile bildir</b><span>Yayınlanınca ilgili ekibe e-posta gider.</span></span></label>` : ''}
+          ${isPublisher() && !editing && S.settings.notify_post ? html`<label class="switch"><input type="checkbox" name="notify" checked><span class="track"></span><span class="s-text"><b>E-posta ile bildir</b><span>Yayımlanınca ilgili ekibe e-posta gider.</span></span></label>` : ''}
           ${isPublisher() ? html`<label class="switch"><input type="checkbox" name="pinned" ${post && post.pinned ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>En üste sabitle</b><span>Ana sayfada her zaman ilk sırada görünür.</span></span></label>` : ''}
         </div>
         ${composerExtraFields(post)}
         <div class="form-error hidden" data-err></div>
       </form>`,
-    foot: html`${isPublisher() ? html`<button class="btn desk-only" type="button" data-act="tpl-save" title="Bu metni sonra tekrar kullanmak için saklar">${icon('bookmark', 'sm')}Şablon olarak kaydet</button><div class="grow"></div>` : ''}<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayınla' : 'Onaya gönder'}</button>`,
+    foot: html`${isPublisher() ? html`<button class="btn desk-only" type="button" data-act="tpl-save" title="Bu metni sonra tekrar kullanmak için saklar">${icon('bookmark', 'sm')}Şablon olarak kaydet</button><div class="grow"></div>` : ''}<button class="btn" data-act="close-modal">Vazgeç</button><button class="btn primary" type="submit" form="composer">${icon('send', 'sm')}${editing ? 'Kaydet' : isPublisher() ? 'Yayımla' : 'Onaya gönder'}</button>`,
   });
   const form = m.el.querySelector('#composer');
   form._st = st;
@@ -867,7 +867,7 @@ FORMS.composer = (f) => submitForm(f, async (d) => {
   if (!f._post) { try { localStorage.removeItem(f._dkey); } catch (e) { /* */ } }
   f._modal.guard = null;
   f._modal.close();
-  toast(r.status === 'published' ? (f._post ? 'Değişiklikler kaydedildi' : r.mailed ? `İçerik yayınlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayınlandı') : 'İçerik onaya gönderildi');
+  toast(r.status === 'published' ? (f._post ? 'Değişiklikler kaydedildi' : r.mailed ? `İçerik yayımlandı · ${r.mailed} kişiye e-posta gönderiliyor` : 'İçerik yayımlandı') : 'İçerik onaya gönderildi');
   if (DETAIL && f._post && DETAIL.post && DETAIL.post.id === f._post.id && modalStack.includes(DETAIL.m)) {
     const g = await api('posts.get', { id: f._post.id });
     DETAIL.post = g.post;

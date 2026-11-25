@@ -113,7 +113,7 @@ Google ile gelen yeni kişiler de kayıt ayarınıza (onaylı / açık / kapalı
 - Liste yüklenince ana sayfaya otomatik olarak “… nöbet listesi güncellendi” duyurusu düşer (Ayarlar → Otomatik duyuru; isterseniz zorunlu okuma yapılabilir) ve seçiliyse ekibe e-posta gider.
 - **Nöbetlerim:** Liste yüklendiğinde (yükleyen kişinin tarayıcısında) kişi başı nöbetler okunur. Herkes **Nöbetlerim** sayfasında sıradaki nöbetini, aylık nöbet/saat/fazla mesai özetini görür ve nöbetlerini **telefon takvimine** ekleyebilir. Eşleştirme ad soyada göre yapılır; listedeki ad ile portaldaki ad aynı olmalıdır.
 - Listenin ayı otomatik bulunur. Yanlışsa liste başlığının altındaki **Ayı değiştir** bağlantısıyla düzeltin.
-- **Nöbet sekmesi** tek yerde üç bölümden oluşur: **Takvimim** (renkli ay takvimi; bir güne dokununca o gün kimlerle çalıştığınız görünür), **Kim nöbette** (gün gün nöbetçiler ve ekip rehberi: tek dokunuşla arama, WhatsApp) ve **Excel liste**.
+- **Nöbet sekmesi** tek yerde üç bölümden oluşur: **Takvimim** (renkli ay takvimi; bir güne dokununca o gün kimlerle çalıştığınız görünür), **Kim nöbette** (gün gün nöbetçiler ve ekip rehberi: tek dokunuşla arama, WhatsApp) ve **Liste** (nöbet listesinin aslı).
 - Renkler her yerde aynıdır: sarı gündüz, lacivert gece, yeşil 24 saat, gri izin, turkuaz görev (ör. Sorumlu).
 - **Nöbet kodları:** Ayarlar › Nöbet › Nöbet kodları bölümünden kısaltmaların anlamını, saatlerini ve türünü düzenleyin (ör. “8 16” = Gündüz 08–16). Kaydedince listeler yeniden okunur.
 - Excel listede **Sadece ben** düğmesi, yalnızca başlıkları ve sizin satırınızı gösterir.
@@ -273,7 +273,7 @@ Aynı hastanedeki birimler iki şeyi paylaşır; başka hastaneler hiçbirini g�
 
 Üst çubuktaki konuşma balonu (veya soldaki **Mesajlar**). Her birimin **birim grubu** kendiliğinden vardır; birimin tüm etkin kişileri içindedir.
 
-- **Birebir sohbet:** Yeni sohbet → kişiyi seçin. Kendi biriminizdeki kişilerle ve aynı grupta olduğunuz kişilerle yazışabilirsiniz.
+- **Birebir sohbet:** Yeni sohbet → kişiyi seçin. Kendi biriminizdeki kişilerle, aynı grupta olduğunuz kişilerle ve diğer birimlerden “Hastanedeki diğer birimler beni bulabilsin” seçeneğini açmış kişilerle yazışabilirsiniz.
 - **Grup:** Yönetici / yayıncı (ya da rolünde “Mesajlaşma: Yönetir” olan) **Yeni grup kur** ile grup açar. Kendi biriminden herkesi; hastanenin diğer birimlerinden yönetici ve sorumluları ekleyebilir (ör. “Sorumlu hemşireler” grubu).
 - **Grup yöneticisi:** grup bilgisinden ad/açıklama, “Yalnız yöneticiler yazsın” (duyuru grubu), üye ekle/çıkar, yönetici yap; herkesten mesaj silme. Herkes kendi mesajını herkesten silebilir, sohbeti sessize alabilir, gruptan çıkabilir.
 - Fotoğraf (telefonda küçültülerek), PDF/Word/Excel ve diğer dosyalar (en fazla 25 MB) gönderilir; yalnız sohbetin üyeleri açabilir. Yanıtla, metni kopyala, kimler okudu.
@@ -412,7 +412,7 @@ Kartta şunlar bulunur:
 
 Hesabı olmayan, yalnız listede adı geçen kişide nöbetler görünür.
 
-**İletişim gizliliği (KVKK):** Hesabım › Profil:
+**İletişim gizliliği (KVKK):** Hesabım › Kişisel bilgiler:
 - "Cep telefonum ekip rehberinde görünsün" — varsayılan açık.
 - "E-posta adresim ekip arkadaşlarıma görünsün" — varsayılan kapalı.
 
@@ -889,7 +889,7 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Sistem yöneticisi girişi başkası tarafından e-posta yazılarak kilitlenemez (kilit kişi + cihaz bazında).
 - İlan / çağrı seçiminde aynı anda iki kişi işlem yapınca “database is locked” yerine anlaşılır uyarı; nöbet değişimi kabul / ret / iptal aynı anda iki kez sonuçlanamaz.
 - Sunucu dışı yedeği indirme bağlantısı oturum anahtarı ister; güncelleme paketinde “./config.php” gibi yollar korunan dosyaların üzerine yazamaz; sistem yöneticisi birime girip çıkınca telefondaki ek dosyası önbelleği temizlenir.
-- Not: Excel/ODS okumak için kullanılan SheetJS kütüphanesi 0.18.5 sürümündedir (bilinen iki açığı bulunur; dosyalar zaten tarayıcıda ve sanal alanda açılır). Yeni sürüm yalnız cdn.sheetjs.com'dan indirilebiliyor; bir sonraki güncellemede değiştirilecek.
+- Not: Excel/ODS okumak için kullanılan SheetJS kütüphanesi 0.18.5 sürümündedir (bilinen iki açığı bulunur; dosyalar zaten tarayıcıda ve sanal alanda açılır). Yeni sürüm yalnız cdn.sheetjs.com'dan indirilebiliyor.
 
 ## 43. Blok planı kuralları ve basamakları birlikte planlama (4.30)
 
@@ -969,7 +969,7 @@ Yönetim › **Kullanıcılar** sayfasında:
 - Yönetim › Kullanıcılar'da, birimde açık olduğu hâlde bir bölümü göremeyen kişinin yanında uyarı çıkar: ör. **"Nöbet istekleri görünmüyor"**. Üzerine gelince ya da kişiyi düzenleyince nedeni yazar: ör. "“Destek personeli” rolünde “Göremez”".
 - Düzeltmek için kişinin **Birime özel rol**ünü "Yok" yapın ya da Ayarlar › Güvenlik › Roller'de o rolde bölümü **Kullanır** yapın.
 - Uyarı yoksa ve kişi yine göremiyorsa: kişi uygulamayı kapatıp yeniden açsın (telefonda eski sürüm açık kalmış olabilir) ya da başka bir birimin hesabıyla giriyor olabilir (o birimde modül kapalı olabilir).
-- **4.31.4:** Kişinin kendi ekranında **Hesabım › Profil › Hesap bilgisi** kartı: hangi birimde olduğu (ve hastanesi), yetkisi, sürüm ve **size görünmeyen bölümler** nedeniyle (ör. "Nöbet istekleri: biriminizde kapalı (sistem yöneticisi ayarı)", "abonelik paketinizde yok", "“X” rolünüzde kapalı"). Görünmeyen bölüm varsa kart en üstte çıkar; kişi ekran görüntüsünü yöneticisine gönderir. Kişi sizin Kullanıcılar listenizde yoksa hesabı başka bir birimdedir.
+- **4.31.4:** Kişinin kendi ekranında **Hesabım** sayfasındaki **Hesap bilgisi** kartı: hangi birimde olduğu (ve hastanesi), yetkisi, sürüm ve **size görünmeyen bölümler** nedeniyle (ör. "Nöbet istekleri: biriminizde kapalı (sistem yöneticisi ayarı)", "abonelik paketinizde yok", "“X” rolünüzde kapalı"). Görünmeyen bölüm varsa kart en üstte çıkar; kişi ekran görüntüsünü yöneticisine gönderir. Kişi sizin Kullanıcılar listenizde yoksa hesabı başka bir birimdedir.
 - **4.31.4 — eski iPhone düzeltmesi:** iOS 16.4'ten eski iPhone'larda **İstekler** sekmesi hiç görünmüyordu. İstekler dosyasındaki bir yazı ayrıştırma ifadesini (geriye bakan düzenli ifade) eski Safari tanımıyor ve dosyanın tamamını çalıştırmıyordu. İfade eski Safari'nin anladığı biçimde yeniden yazıldı; sonuç aynı ("2,3 boşluk; 15-19 yıllık izin" gibi yazımlar). Tüm uygulama dosyaları eski iPhone (iOS 15 – 16.3) uyumu için tarandı; bundan sonra her sürümde otomatik denetleniyor.
 
 ## 51. Aydan aya nöbet isteği (4.31.4)
@@ -979,7 +979,7 @@ Yönetim › **Kullanıcılar** sayfasında:
 - **Her gün kendi ayının dönemine düşer:** komşu ayın dönemi açıksa gün oraya yazılır (o ayın panelinde görünür). O ayın dönemi henüz açılmadıysa gün şimdilik bu dönemde bekler; o ay için dönem açılınca kendiliğinden oraya geçer. Kapanmış bir dönemin günlerini üye ekleyemez / değiştiremez (sorumluya yazar).
 - Çizelge hazırlarken onaylı istekler tarihe göre okunur: hangi dönemde yazılmış olursa olsun o ayın çizelgesinde dikkate alınır.
 - **4.32.1:** Ay pazartesi başlıyor ya da pazar bitiyorsa da takvimde önceki / sonraki ayın bir haftası gri olarak görünür; böylece her ayda aydan aya istek takvimden işaretlenebilir. “Yazarak ekle” ipucunda örnek: “28 aralık - 2 ocak izin”.
-- **Gri günleri göremiyorsanız** sitede eski sürüm çalışıyordur: Hesabım › Profil › Hesap bilgisi'nde sürüm 4.31.4 ya da üstü olmalı. Değilse paketi yükleyin; telefonda uygulamayı kapatıp açın.
+- **Gri günleri göremiyorsanız** sitede eski sürüm çalışıyordur: Hesabım sayfasındaki Hesap bilgisi kartında sürüm 4.31.4 ya da üstü olmalı. Değilse paketi yükleyin; telefonda uygulamayı kapatıp açın.
 
 ## 52. Kişi bazlı abonelik (4.32.0)
 Abonelik artık **her kişinin kendisine** aittir; birim başına ödeme yoktur. Her kullanıcı kendi paketini ve süresini seçip kendisi öder.

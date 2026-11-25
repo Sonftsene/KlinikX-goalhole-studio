@@ -7,9 +7,9 @@
 declare(strict_types=1);
 
 const MAIL_EVENTS = [
-    'notify_post' => 'Yeni duyuru / içerik yayınlandığında (ilgili birimdeki herkese)',
+    'notify_post' => 'Yeni duyuru / içerik yayımlandığında (ilgili birimdeki herkese)',
     'notify_roster' => 'Nöbet listesi güncellendiğinde (herkese)',
-    'notify_pending_post' => 'Onay bekleyen içerik gönderildiğinde (yönetici ve yayıncılara)',
+    'notify_pending_post' => 'Onay bekleyen içerik gönderildiğinde (yönetici ve sorumlulara)',
     'notify_pending_user' => 'Yeni üyelik başvurusu geldiğinde (yöneticilere)',
     'notify_user_approved' => 'Üyelik onaylandığında (başvuran kişiye)',
 ];
@@ -87,7 +87,7 @@ function mail_template(string $title, array $lines, ?string $button = null, ?str
     $btn = $button && $url
         ? '<p style="margin:22px 0 6px"><a href="' . $e($url) . '" style="' . $btnBlock . ';background:' . $acc . ';color:' . $on . ';text-decoration:none;font-weight:700;font-size:15px;padding:13px 24px;border-radius:' . $rad . '">' . $e($button) . '</a></p>'
         : '';
-    $foot = ($d['footer'] !== '' ? nl2br($e($d['footer'])) . '<br>' : '') . 'Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portaldaki Hesabım sayfasından değiştirebilirsiniz.';
+    $foot = ($d['footer'] !== '' ? nl2br($e($d['footer'])) . '<br>' : '') . 'Bu e-posta ' . $e($org) . ' portalından otomatik gönderildi. Bildirim tercihlerinizi portalda Hesabım › Bildirimler’den değiştirebilirsiniz.';
     $h1 = '<h1 style="margin:0 0 14px;font-family:' . $font . ';font-size:' . ($st === 'modern' ? '22px;text-align:center' : ($serif ? '21px' : '19px')) . ';line-height:1.35;font-weight:' . ($serif ? '700' : '800') . ';color:#0f1b21">' . $e($title) . '</h1>';
     $bg = ['kurumsal' => '#f2f5f6', 'sade' => '#ffffff', 'modern' => '#eef1f5', 'resmi' => '#f6f4ee', 'bant' => '#f2f5f6'][$st];
     $card = [
@@ -380,8 +380,8 @@ function notify_post_published(int $postId, int $exceptUserId): int
     $author = one('SELECT name FROM users WHERE id = ?', [$p['author_id']]);
     $excerpt = mb_substr(preg_replace('/\s+/u', ' ', (string)$p['body']), 0, 400);
     $req = (int)$p['required'] === 1;
-    return notify_users($users, 'post', ($req ? 'Okumanız gereken: ' : 'Yeni duyuru: ') . $p['title'], mb_substr($excerpt, 0, 160), '#/p/' . $postId, [
-        'subject' => ($req ? 'Okumanız gereken: ' : 'Yeni duyuru: ') . $p['title'],
+    return notify_users($users, 'post', ($req ? 'Okunacak: ' : 'Yeni duyuru: ') . $p['title'], mb_substr($excerpt, 0, 160), '#/p/' . $postId, [
+        'subject' => ($req ? 'Okunacak: ' : 'Yeni duyuru: ') . $p['title'],
         'heading' => $p['title'],
         'lines' => array_values(array_filter([$req ? 'Bu içerik zorunlu okuma olarak işaretlendi. Okuduktan sonra portalda “Okudum, anladım” ile onaylayın.' : null, $excerpt, ($author['name'] ?? '') !== '' ? 'Paylaşan: ' . $author['name'] : null])),
         'button' => 'Portalda aç',
@@ -408,7 +408,7 @@ function notify_pending_post(int $postId): int
     return notify_users(active_users_sql("AND role IN ('admin', 'editor')"), 'pending_post', 'Onay bekleyen içerik: ' . $p['title'], ($p['name'] ?? 'Bir üye') . ' gönderdi.', '#/yonetim/onaylar', [
         'subject' => 'Onay bekleyen içerik: ' . $p['title'],
         'heading' => 'Onayınızı bekleyen bir içerik var',
-        'lines' => [($p['name'] ?? 'Bir üye') . ' “' . $p['title'] . '” başlıklı bir içerik gönderdi. Onaylandığında ekibe yayınlanacak.'],
+        'lines' => [($p['name'] ?? 'Bir üye') . ' “' . $p['title'] . '” başlıklı bir içerik gönderdi. Onaylandığında ekibe yayımlanacak.'],
         'button' => 'İncele ve onayla',
     ]);
 }

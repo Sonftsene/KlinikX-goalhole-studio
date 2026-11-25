@@ -296,7 +296,7 @@ ACT['ch-attach'] = () => {
   const opts = [['gallery', 'image', 'Fotoğraf ve video', 'teal'], ['cam', 'camera', 'Kamera', 'rose'], ['doc', 'file', 'Belge', 'indigo'], ['once', 'once', 'Tek seferlik fotoğraf/video', 'amber'],
     ['loc', 'mapPin', 'Konum', 'emerald'], ['contact', 'contact', 'Kişi', 'sky'], ['poll', 'chart', 'Anket', 'violet']];
   const md = openModal({ title: 'Ekle', size: 'narrow', body: html`<div class="ch-attgrid">${opts.map(([o, ic, l, tone]) => html`<button type="button" data-o="${o === 'doc' ? 'file' : o}"><span class="tone-${tone}">${icon(ic)}</span><span>${l}</span></button>`)}</div>
-    <p class="tiny faint" style="margin-top:10px">${icon('lock', 'sm')} Hasta adı ve T.C. kimlik numarası paylaşmayın.</p>` });
+    <p class="tiny faint" style="margin-top:10px">${icon('lock', 'sm')} Hasta adı, yüzü ya da T.C. no paylaşmayın.</p>` });
   md.el.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-o]'); if (!b) return;
     md.close();
@@ -415,7 +415,7 @@ function chatPreview(files, opts = {}) {
     ${CH.reply ? html`<div class="ch-replybar" style="margin-top:10px"><div class="grow" style="min-width:0"><b class="small">Yanıt: ${CH.reply.name}</b><div class="tiny ellipsis">${CH.reply.body || ''}</div></div></div>` : ''}
     <div class="ch-pvcap"><textarea class="textarea" id="pvCap" rows="2" maxlength="4000" placeholder="${files.length > 1 ? 'İlk dosyaya açıklama ekle…' : 'Açıklama ekle…'}">${draft}</textarea></div>
     ${allMedia ? html`<label class="switch" style="margin-top:8px"><input type="checkbox" id="pvOnce" ${opts.once ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Tek seferlik görüntülensin</b><span>Alıcı bir kez açar, kaydedemez, iletemez.</span></span></label>` : ''}
-    <p class="tiny faint" style="margin-top:8px">${icon('lock', 'sm')} Fotoğrafta hasta adı, yüzü ya da T.C. kimlik numarası görünmesin.</p>`,
+    <p class="tiny faint" style="margin-top:8px">${icon('lock', 'sm')} Hasta adı, yüzü ya da T.C. no paylaşmayın.</p>`,
     foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>${icon('send', 'sm')}<span>Gönder</span></button>`,
     onClose: () => setTimeout(() => urls.forEach((u) => u && URL.revokeObjectURL(u)), 60000) });
   const cap = $('#pvCap', md.el);
@@ -440,6 +440,6 @@ ACT['ch-reacts'] = async (el) => {
   const m = openModal({ title: 'Tepkiler', size: 'narrow', body: html`<div class="list ch-rx-list">${items.map((x) => html`<div class="list-row" style="gap:10px"><span style="font-size:22px;line-height:1">${x.emoji}</span><span class="grow small"><b>${x.name}</b></span>${x.mine ? html`<button type="button" class="btn sm ghost danger" data-rx-del>Kaldır</button>` : ''}</div>`)}</div>` });
   m.el.addEventListener('click', async (ev) => {
     if (!ev.target.closest('[data-rx-del]')) return;
-    try { const r = await api('chat.react', { id, emoji: '' }); const i = CH.msgs.findIndex((x) => x.id === r.msg.id); if (i >= 0) { CH.msgs[i] = r.msg; chatDraw(); } m.close(); toast('Tepkin kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+    try { const r = await api('chat.react', { id, emoji: '' }); const i = CH.msgs.findIndex((x) => x.id === r.msg.id); if (i >= 0) { CH.msgs[i] = r.msg; chatDraw(); } m.close(); toast('Tepkiniz kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
   });
 };

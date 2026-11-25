@@ -261,7 +261,7 @@ function mlPrefHtml() {
     ${opt('', 'Birimin ayarına uy', `Şu an: ${def}`)}
     ${opt('all', 'Her gün göster', 'Menü sol menüde ve ana sayfada her gün görünür.')}
     ${opt('shift', 'Yalnız nöbetlerimde göster', 'Ana sayfada yalnız nöbetin sürerken ya da 18 saat içinde başlayacakken, o nöbetin öğünleriyle görünür.')}
-    ${opt('off', 'Gizle', 'Yemek menüsü sana hiç gösterilmez (istediğinde yeniden açabilirsin).')}
+    ${opt('off', 'Gizle', 'Yemek menüsü size hiç gösterilmez (istediğinizde yeniden açabilirsiniz).')}
     <label class="row" style="gap:10px;cursor:pointer;margin-top:6px"><span class="switch"><input type="checkbox" data-change="ml-home" ${homeOn ? raw('checked') : ''}><span class="track"></span></span><span class="grow small">Ana sayfamda yemek kartını göster</span></label></div>`;
 }
 CHANGE['ml-pref'] = (el) => {
@@ -314,7 +314,7 @@ ACT['ml-release'] = (el) => busy(el, async () => {
 });
 NM_EXT.settingsCards.push({
   sec: 'genel',
-  html: () => (S.meal ? html`<div class="card card-pad stack" data-sec="genel" id="mlSetCard"><div><h3 style="font-size:15px">${icon('utensils', 'sm')} Yemek menüsü</h3><p class="small muted">Hastane yemek listesini nerede ve ne zaman görmek istediğini seç.</p></div>${mlPrefHtml()}</div>` : ''),
+  html: () => (S.meal ? html`<div class="card card-pad stack" data-sec="genel" id="mlSetCard"><div><h3 style="font-size:15px">${icon('utensils', 'sm')} Yemek menüsü</h3><p class="small muted">Hastane yemek listesini nerede ve ne zaman görmek istediğinizi seçin.</p></div>${mlPrefHtml()}</div>` : ''),
 });
 
 /* =================================================================== */

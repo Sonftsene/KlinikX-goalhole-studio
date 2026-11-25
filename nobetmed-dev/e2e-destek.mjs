@@ -166,7 +166,7 @@ try {
   await login(B.p, 'burak@test.com', 'Sifre1234');
   const bc = await apiCall(B.p, 'sp.cfg');
   if (bc.track !== 'lead' || !bc.topics.some((x) => x.key === 'liste') || bc.topics.some((x) => x.route !== 'sa')) fail('yayıncıya sorumlu konuları gelmedi: ' + JSON.stringify(bc.topics.map((x) => x.key + ':' + x.route)));
-  const t3 = await apiCall(B.p, 'sp.create', { topic: 'liste', subject: 'Excel yüklenince iki kişi eksik', body: 'Aralık listesini yükledim, iki kişinin satırı okunmadı.', ctx: { page: '#/nobet', title: 'Excel liste' } });
+  const t3 = await apiCall(B.p, 'sp.create', { topic: 'liste', subject: 'Excel yüklenince iki kişi eksik', body: 'Aralık listesini yükledim, iki kişinin satırı okunmadı.', ctx: { page: '#/nobet', title: 'Liste' } });
   const t4 = await apiCall(A.p, 'sp.create', { topic: 'kurulum', subject: 'Duyuru bandı rengi', body: 'Duyuru bandının rengini nasıl değiştiririm?' });
   if (t3.route !== 'sa' || t4.route !== 'sa') fail('sorumlu talepleri sistem yöneticisine gitmedi');
   const inbox = await apiCall(A.p, 'sp.inbox');
@@ -240,7 +240,7 @@ try {
   await SA.p.click(`.sp-row[data-id="${t3.ticket.id}"]`);
   await SA.p.locator('.modal .sp-ctx-card').waitFor();
   const sctx = await SA.p.locator('.modal .sp-ctx-card').innerText();
-  for (const need of ['Hastane', 'Birim', 'Burak Demir', 'Yayıncı', 'Yönettiği modüller', 'Excel liste']) if (!sctx.includes(need)) fail('sistem yöneticisi bağlamında eksik: ' + need + ' — ' + sctx.replace(/\n/g, ' | '));
+  for (const need of ['Hastane', 'Birim', 'Burak Demir', 'Sorumlu', 'Yönettiği modüller', 'Liste']) if (!sctx.includes(need)) fail('sistem yöneticisi bağlamında eksik: ' + need + ' — ' + sctx.replace(/\n/g, ' | '));
   await SA.p.waitForTimeout(500);
   await SA.p.screenshot({ path: path.join(OUT, 'sp-sa-talep.png') });
   // iç not + yanıt

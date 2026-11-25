@@ -371,7 +371,7 @@ function need_admin(): array
 function need_publisher(): array
 {
     $u = need_user();
-    if (!is_publisher($u)) fail('Bu işlem için yayın yetkisi gerekir.', 403);
+    if (!is_publisher($u)) fail('Bu işlem için sorumlu yetkisi gerekir. Gerekirse birim yöneticinize başvurun.', 403);
     return $u;
 }
 
@@ -989,7 +989,7 @@ function a_posts_list(): void
         $p[':author'] = $me['id'];
         $where[] = 'p.author_id = :author';
     } elseif ($filter === 'pending') {
-        if (!is_publisher($me)) fail('Yetkiniz yok.', 403);
+        if (!is_publisher($me)) fail('Bu işlem için yetkiniz yok. Gerekirse birim yöneticinize başvurun.', 403);
         $where[] = "p.status = 'pending'";
     } else {
         $where[] = "p.status = 'published'";
@@ -1204,7 +1204,7 @@ function a_posts_ack(): void
     $me = need_user();
     $id = (int)i('id');
     $r = load_post($id, $me);
-    if ($r['status'] !== 'published') fail('Yayınlanmamış içerik onaylanamaz.');
+    if ($r['status'] !== 'published') fail('Yayımlanmamış içerik onaylanamaz.');
     if (!one('SELECT post_id FROM acks WHERE post_id = ? AND user_id = ?', [$id, $me['id']])) {
         q('INSERT INTO acks (post_id, user_id, created_at) VALUES (?, ?, ?)', [$id, $me['id'], now()]);
     }
@@ -1231,7 +1231,7 @@ function a_posts_remind(): void
     $me = need_user();
     $id = (int)i('id');
     $p = one('SELECT * FROM posts WHERE id = ?', [$id]);
-    if (!$p || $p['status'] !== 'published' || !(int)$p['required']) fail('Yalnızca yayınlanmış zorunlu okumalar için hatırlatma gönderilebilir.');
+    if (!$p || $p['status'] !== 'published' || !(int)$p['required']) fail('Yalnızca yayımlanmış zorunlu okumalar için hatırlatma gönderilebilir.');
     if (!is_publisher($me) && (int)$p['author_id'] !== (int)$me['id']) fail('Hatırlatma gönderme yetkiniz yok.', 403);
     $last = (int)setting('remind_' . $id, '0');
     if ($last > time() - 600) fail('Bu içerik için az önce hatırlatma gönderildi. Lütfen birkaç dakika sonra tekrar deneyin.', 429);
@@ -1256,7 +1256,7 @@ function a_posts_share(): void
     if (setting('allow_guest', '0') !== '1') fail('Misafir bağlantıları yönetici tarafından kapatıldı.', 403);
     $id = (int)i('id');
     $post = one('SELECT * FROM posts WHERE id = ?', [$id]);
-    if (!$post || $post['status'] !== 'published') fail('Yalnızca yayınlanmış içerikler paylaşılabilir.');
+    if (!$post || $post['status'] !== 'published') fail('Yalnızca yayımlanmış içerikler paylaşılabilir.');
     if (!is_publisher($me) && (int)$post['author_id'] !== (int)$me['id']) fail('Paylaşım bağlantısı oluşturma yetkiniz yok.', 403);
     $days = (int)i('days');
     if ($days <= 0) {
@@ -1833,7 +1833,7 @@ function a_tax_save(): void
             fail('Geçersiz tür.');
     }
     if ($id) {
-        if (!valid_id($kind, $id)) fail('Kayıt bulunamadı.', 404);
+        if (!valid_id($kind, $id)) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
         $set = implode(', ', array_map(fn($c) => "$c = ?", array_keys($cols)));
         q("UPDATE $kind SET $set WHERE id = ?", array_merge(array_values($cols), [$id]));
     } else {
@@ -1852,7 +1852,7 @@ function a_tax_delete(): void
     $me = need_admin();
     $kind = s('kind', 20);
     $id = (int)i('id');
-    if (!in_array($kind, ['categories', 'units', 'titles'], true) || !valid_id($kind, $id)) fail('Kayıt bulunamadı.', 404);
+    if (!in_array($kind, ['categories', 'units', 'titles'], true) || !valid_id($kind, $id)) fail('Bu kayıt silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
     if ((int)val("SELECT COUNT(*) FROM $kind") <= 1) fail('En az bir kayıt kalmalıdır.');
     switch ($kind) {
         case 'categories':
@@ -1870,7 +1870,7 @@ function a_tax_delete(): void
             q('UPDATE users SET title_id = NULL WHERE title_id = ?', [$id]);
             break;
     }
-    audit($me, 'structure.delete', (string)val("SELECT name FROM $kind WHERE id = ?", [$id]), ['categories' => 'Bölüm', 'units' => 'Birim', 'titles' => 'Ünvan'][$kind] ?? '');
+    audit($me, 'structure.delete', (string)val("SELECT name FROM $kind WHERE id = ?", [$id]), ['categories' => 'Bölüm', 'units' => 'Birim', 'titles' => 'Unvan'][$kind] ?? '');
     q("DELETE FROM $kind WHERE id = ?", [$id]);
     out(lists());
 }

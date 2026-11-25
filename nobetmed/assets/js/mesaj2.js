@@ -42,7 +42,7 @@ async function chatSettingsPage(view) {
       <p class="tiny faint">Engellediğiniz kişi size birebir yazamaz ve sizi gruplara ekleyemez; ortak gruplarda mesajları görünmeye devam eder.</p></div>
     <div class="card card-pad stack"><h3 style="font-size:15px">${icon('chat', 'sm')} Sohbet görünümü <span class="tiny faint">(bu cihaz)</span></h3>
       <div class="field"><label>Yazı boyutu</label><select class="select" data-change="chs-ui" data-k="font">${[['s', 'Küçük'], ['m', 'Orta'], ['l', 'Büyük']].map(([v, l]) => html`<option value="${v}" ${u.font === v ? raw('selected') : ''}>${l}</option>`)}</select></div>
-      <button type="button" class="btn" data-act="ch-look">${icon('palette', 'sm')}Tema, balon biçimi ve duvar kağıdı</button>
+      <button type="button" class="btn" data-act="ch-look">${icon('palette', 'sm')}Tema, balon biçimi ve duvar kâğıdı</button>
       <label class="switch"><input type="checkbox" data-change="chs-ui" data-k="enter" ${u.enter ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Enter ile gönder</b><span>Bilgisayarda Enter mesajı gönderir; Shift+Enter yeni satır.</span></span></label>
       <label class="switch"><input type="checkbox" data-change="chs-ui" data-k="autoimg" ${u.autoimg ? raw('checked') : ''}><span class="track"></span><span class="s-text"><b>Fotoğrafları otomatik göster</b><span>Kapalıysa fotoğraf dokunulunca yüklenir (mobil veri tasarrufu).</span></span></label>
     </div>

@@ -58,7 +58,7 @@ async function chatList(view) {
   chatStop();
   CH.filter = CH.filter || 'all';
   setHTML(view, html`<div class="page-head ch-head-page"><div><h1>Mesajlar</h1></div>
-    <div class="row" style="gap:6px"><button class="btn icon" data-act="ch-look" aria-label="Görünüm" title="Tema ve duvar kağıdı">${icon('palette', 'sm')}</button><a class="btn icon" href="#/mesaj/yildizli" aria-label="Yıldızlı mesajlar" title="Yıldızlı mesajlar">${icon('star', 'sm')}</a><a class="btn icon" href="#/mesaj/ayarlar" aria-label="Mesaj ayarları" title="Gizlilik ve ayarlar">${icon('sliders', 'sm')}</a>
+    <div class="row" style="gap:6px"><button class="btn icon" data-act="ch-look" aria-label="Görünüm" title="Tema ve duvar kâğıdı">${icon('palette', 'sm')}</button><a class="btn icon" href="#/mesaj/yildizli" aria-label="Yıldızlı mesajlar" title="Yıldızlı mesajlar">${icon('star', 'sm')}</a><a class="btn icon" href="#/mesaj/ayarlar" aria-label="Mesaj ayarları" title="Gizlilik ve ayarlar">${icon('sliders', 'sm')}</a>
     <button class="btn primary" data-act="ch-new">${icon('plus', 'sm')}<span>Yeni sohbet</span></button></div></div>
     <div class="${typeof chatHomeClass === 'function' ? chatHomeClass() : 'ch-home'}"><div id="chList"><div class="card card-pad"><div class="skel" style="height:16px;margin:8px 0"></div><div class="skel" style="height:16px;width:60%"></div></div></div></div>`);
   let r;
@@ -94,7 +94,7 @@ function chatListDraw() {
       : !ppl.length ? html`<div class="card empty"><p class="small">${q ? 'Bulunamadı.' : f === 'arch' ? 'Arşivde sohbet yok.' : f === 'unread' ? 'Okunmamış sohbet yok.' : 'Sohbet yok.'}</p></div>` : ''}
     ${ppl.length ? html`<div class="ch-pick-h" style="margin-top:12px">Kişiler · yeni sohbet</div><div class="ch-cards">${ppl.map((p) => html`<button type="button" class="ch-card k-person" data-act="ch-start" data-tk="${p.tk}" data-uid="${p.uid}">
       <span class="ch-ava2">${avatar(p.name)}</span><div class="ch-card-b"><div class="ch-card-t"><b class="ellipsis">${p.name}</b>${p.unit ? html`<span class="tiny faint ellipsis">${p.unit}</span>` : ''}</div><div class="ch-card-s"><span class="ellipsis grow">Yeni sohbet başlat</span>${icon('chat', 'sm')}</div></div></button>`)}</div>` : ''}
-    <p class="tiny faint" style="margin-top:12px">${icon('lock', 'sm')} Mesajlar yalnız hastanenizin sunucusunda tutulur. Hasta adı, T.C. kimlik numarası gibi hasta bilgisi paylaşmayın.</p>`);
+    <p class="tiny faint" style="margin-top:12px">${icon('lock', 'sm')} Mesajlar yalnız bu portalda tutulur. Hasta adı, yüzü ya da T.C. no paylaşmayın.</p>`);
   CH.listAnim = true;
 }
 ACT['ch-filter'] = (el) => { CH.filter = el.dataset.f; chatListDraw(); };
@@ -158,7 +158,7 @@ function chatComposer() {
   setHTML(box, html`<div id="chReply"></div><div id="chAt" class="ch-atlist hidden"></div><div id="chEmo" class="ch-emopick hidden"></div>
     <div class="ch-bar ${rec ? 'can-rec' : ''}" id="chBar"><div class="ch-field">
       <button type="button" class="ch-ib" data-act="ch-emoji" aria-label="Emoji" title="Emoji">${icon('smile')}</button>
-      <textarea class="ch-input" id="chInput" rows="1" maxlength="4000" placeholder="Mesaj" aria-label="Mesaj (hasta bilgisi paylaşmayın)"></textarea>
+      <textarea class="ch-input" id="chInput" rows="1" maxlength="4000" placeholder="Mesaj" aria-label="Mesaj. Hasta adı, yüzü ya da T.C. no paylaşmayın."></textarea>
       <button type="button" class="ch-ib" data-act="ch-attach" aria-label="Ekle" title="Fotoğraf, video, belge, konum, kişi, anket">${icon('paperclip')}</button>
       <button type="button" class="ch-ib ch-camb" data-act="ch-cam" aria-label="Kamera" title="Fotoğraf / video çek">${icon('camera')}</button></div>
       <input type="file" hidden id="chFile" multiple>
@@ -573,7 +573,7 @@ ACT['ch-info'] = () => {
         <p class="hint">Hastanenizdeki biri bu bağlantıyla gruba katılabilir. Yalnız güvendiğiniz kişilerle paylaşın; işiniz bitince kapatın.</p></div>` : ''}
       ${c.kind !== 'direct' ? html`<div class="row" style="justify-content:space-between"><div class="sec-title" style="margin:0">${CH.members.length} kişi</div>${grp && c.can_add ? html`<button class="btn sm" data-act="ch-add">${icon('plus', 'sm')}<span>Üye ekle</span></button>` : ''}</div>
         <div class="card"><div class="list ch-members">${CH.members.map((p) => { const self = p.uid === S.me.id && !p.unit; return html`<div class="list-row">${avatar(p.name, 'sm')}<button type="button" class="grow ch-headbtn" style="min-width:0" ${self ? raw('disabled') : html`data-act="ch-profile" data-tk="${p.tk}" data-uid="${+p.uid}"`}><div class="lr-t ellipsis">${p.name}${self ? ' (siz)' : ''}${p.unit ? html` <span class="tiny faint">· ${p.unit}</span>` : ''}</div></button>
-          ${p.role === 'admin' ? html`<span class="badge brand">yönetici</span>` : ''}
+          ${p.role === 'admin' ? html`<span class="badge brand">grup yöneticisi</span>` : ''}
           ${(c.bans || []).some((b) => b.kind === 'mute' && b.tk === p.tk && b.uid === p.uid) ? html`<span class="badge warn" title="Yazması kısıtlı">${icon('lock', 'sm')}</span>` : ''}
           ${c.admin && !self ? html`<button class="btn sm icon ghost" data-act="ch-mmenu" data-tk="${p.tk}" data-uid="${p.uid}" aria-label="Üye işlemleri">${icon('more', 'sm')}</button>` : ''}
           ${grp && self && p.role === 'admin' ? html`<button class="btn sm ghost" data-act="ch-mmenu-self" data-tk="${p.tk}" data-uid="${p.uid}">Yöneticilikten ayrıl</button>` : ''}</div>`; })}</div></div>` : ''}

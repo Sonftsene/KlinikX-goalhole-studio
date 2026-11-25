@@ -5,7 +5,7 @@
 'use strict';
 
 const RS2 = { tpl: null, cols: null, typeId: '', logo: '', names: { org: '', unit: '' }, shared: [], canShare: false, chg: null, chgSel: new Set(), chgKind: '', chgQ: '' };
-Object.assign(NM_EXT.audit, { 'plan.changes.delete': 'Çizelge değişiklik kayıtlarını sildi', 'plan.signed': 'İmzalı resmi listeyi ekledi' });
+Object.assign(NM_EXT.audit, { 'plan.changes.delete': 'Çizelge değişiklik kayıtlarını sildi', 'plan.signed': 'İmzalı resmî listeyi ekledi' });
 
 /* ---------------- Kodların yazımı ve saat etkisi ---------------- */
 const RS_PRINT = [[/yıllık/i, 'Y.İZİN'], [/doğum/i, 'D.İZNİ'], [/rapor/i, 'RAPOR'], [/mazeret/i, 'M.İZİN'], [/idari/i, 'İ.İZİN'], [/nöbet izni/i, 'N.İZNİ'], [/evlilik/i, 'E.İZNİ'],
@@ -582,7 +582,7 @@ async function rsXlsx() {
   ws.pageSetup.printArea = `A1:${colL(C)}${row - 1}`;
   return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
-function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} ${((rsType() || {}).name || 'resmi liste').toLocaleLowerCase('tr')}`; }
+function rsFileBase() { return `${(PL2.roster || {}).name || 'Liste'} ${TR_MONTHS[+PL2.ym.slice(5) - 1]} ${PL2.ym.slice(0, 4)} ${((rsType() || {}).name || 'resmî liste').toLocaleLowerCase('tr')}`; }
 
 /* ---------------- Resmi liste sekmesi ---------------- */
 async function rsDocTab(box) {
@@ -615,7 +615,7 @@ function rsDocDraw(box) {
       <div class="row wrap" style="gap:8px;align-items:center"><b class="grow">${icon('checkCircle', 'sm')} Islak imzalı belge</b>
         <label class="btn sm">${icon('upload', 'sm')}<span>${sg ? 'Değiştir' : 'Taranmış hâlini ekle'}</span><input type="file" hidden accept="application/pdf,image/jpeg,image/png" data-change="rs-signed"></label>
         ${sg ? html`<button class="btn sm ghost danger" data-act="rs-signed-x">Kaldır</button>` : ''}</div>
-      <div class="small muted">${sg ? html`<a href="${sg.url}" target="_blank" rel="noopener">${sg.name}</a> · ${fmtRel(sg.at)}${sg.by ? ' · ' + sg.by : ''} — ekip listeyi açınca görür.` : 'İmzalandıktan sonra PDF ya da fotoğrafını ekleyin; ekip nöbet listesi sayfasında “İmzalı resmi liste” olarak görür.'}</div>
+      <div class="small muted">${sg ? html`<a href="${sg.url}" target="_blank" rel="noopener">${sg.name}</a> · ${fmtRel(sg.at)}${sg.by ? ' · ' + sg.by : ''} — ekip listeyi açınca görür.` : 'İmzalandıktan sonra PDF ya da fotoğrafını ekleyin; ekip nöbet listesi sayfasında “İmzalı resmî liste” olarak görür.'}</div>
     </div></div>`);
   const cwd = $('#rsCw', box);
   if (cwd) cwd.addEventListener('toggle', () => { RS2.cwOpen = cwd.open; });
@@ -843,7 +843,7 @@ function rsChgDraw(box) {
       <button class="btn sm" data-act="rs-chg-xlsx" ${rows.length ? '' : raw('disabled')}>${icon('table', 'sm')}<span>Excel</span></button>
       <button class="btn sm ghost danger" data-act="rs-chg-del" ${RS2.chgSel.size ? '' : raw('disabled')}>${icon('trash', 'sm')}<span>Seçilenleri sil${RS2.chgSel.size ? ` (${RS2.chgSel.size})` : ''}</span></button>
     </div>
-    <p class="tiny faint" style="margin:0">Yayından sonra olan değişim, devir, eksik çağrısı ve düzeltmeler. Hücrelerde küçük işaretle görünür, resmi çıktıda görünmez. Silmek yalnız bu kaydı kaldırır; liste güncel hâliyle kalır.</p>
+    <p class="tiny faint" style="margin:0">Yayından sonra olan değişim, devir, eksik çağrısı ve düzeltmeler. Hücrelerde küçük işaretle görünür, resmî çıktıda görünmez. Silmek yalnız bu kaydı kaldırır; liste güncel hâliyle kalır.</p>
     <div class="card"><div class="list">${rows.length ? html`<label class="list-row small" style="gap:8px"><input type="checkbox" id="rsChgAll" ${rows.every((x) => RS2.chgSel.has(x.id)) ? raw('checked') : ''}><b>Tümünü seç (${rows.length})</b></label>
       ${rows.map((x) => html`<label class="list-row" style="gap:8px;align-items:flex-start"><input type="checkbox" data-cid="${x.id}" ${RS2.chgSel.has(x.id) ? raw('checked') : ''} style="margin-top:3px">
         <div class="grow" style="min-width:0"><div class="lr-t"><span class="badge ${x.kind === 'swap' || x.kind === 'give' || x.kind === 'part' ? 'brand' : x.kind === 'report' || x.kind === 'leave' ? 'warn' : x.kind === 'remove' ? 'danger' : ''}">${x.kind_txt}</span> ${mkShortDate(x.date)} · ${x.names}</div>
@@ -881,7 +881,7 @@ ACT['rs-chg-xlsx'] = (el) => busy(el, async () => {
 /* Ayarlar › Nöbet: resmi liste şablonuna kısayol (çizelgeyi yönetenler) */
 NM_EXT.settingsCards.push({
   sec: 'nobet',
-  html: () => (typeof canManage === 'function' && canManage('cizelge') && planRosters().length ? html`<div class="card card-pad stack" data-sec="nobet" id="rsSetCard"><div><h3 style="font-size:15px">${icon('file', 'sm')} Resmi liste şablonu</h3>
-    <p class="small muted">Çizelgenin kurum formunda çıktısı: logo, başlık satırları, doküman numarası ve tarihi, saat sütunları, imza alanları. Çizelge › Resmi liste sekmesinden yazdırılır; Word ve Excel olarak indirilir.</p></div>
-    <div><a class="btn" href="#/cizelge/${planRosters()[0].id}/${ymd(new Date()).slice(0, 7)}/resmi">${icon('sliders', 'sm')}<span>Resmi liste ve şablon</span></a></div></div>` : ''),
+  html: () => (typeof canManage === 'function' && canManage('cizelge') && planRosters().length ? html`<div class="card card-pad stack" data-sec="nobet" id="rsSetCard"><div><h3 style="font-size:15px">${icon('file', 'sm')} Resmî liste şablonu</h3>
+    <p class="small muted">Çizelgenin kurum formunda çıktısı: logo, başlık satırları, doküman numarası ve tarihi, saat sütunları, imza alanları. Çizelge › Resmî liste sekmesinden yazdırılır; Word ve Excel olarak indirilir.</p></div>
+    <div><a class="btn" href="#/cizelge/${planRosters()[0].id}/${ymd(new Date()).slice(0, 7)}/resmi">${icon('sliders', 'sm')}<span>Resmî liste ve şablon</span></a></div></div>` : ''),
 });

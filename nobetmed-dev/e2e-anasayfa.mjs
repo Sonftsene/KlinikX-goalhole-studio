@@ -41,7 +41,7 @@ try {
   await A.p.evaluate(() => { const r = document.querySelector('#ulReset'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); });
   await A.p.click('[data-act=ul-save]');
   await A.p.locator('.modal [data-ok]').click(); // "Herkesin düzeni sıfırlansın mı?"
-  await A.p.getByText('Ana ekran herkes için kaydedildi').first().waitFor();
+  await A.p.getByText('Ana sayfa herkes için kaydedildi').first().waitFor();
   await A.p.screenshot({ path: path.join(OUT, 'anasayfa-varsayilan.png'), fullPage: true });
   const def = await A.p.evaluate(() => S.home_default);
   if (!def || !def.hidden.includes('feed') || def.order.indexOf('rosters') > def.order.indexOf('today')) fail('varsayılan kaydı: ' + JSON.stringify(def));

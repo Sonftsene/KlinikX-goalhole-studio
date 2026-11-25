@@ -172,7 +172,7 @@ function spNew(view) {
   const C = SP.cfg;
   if (C.cant) { location.hash = '#/destek'; return; }
   const tp = C.topics.find((x) => x.key === SP.topic);
-  const head = spHead(C.track === 'lead' ? html`<span class="badge tone-violet">Sorumlu desteği</span> Yönetici ve yayıncılar için` : html`<span class="badge tone-sky">Kullanıcı desteği</span>`,
+  const head = spHead(C.track === 'lead' ? html`<span class="badge tone-violet">Sorumlu desteği</span> Yöneticiler ve sorumlular için` : html`<span class="badge tone-sky">Kullanıcı desteği</span>`,
     html`<a class="btn" href="#/destek">${icon('x', 'sm')}<span>Vazgeç</span></a>`);
   if (!tp) {
     setHTML(view, html`${head}<div class="card card-pad stack">
@@ -238,7 +238,7 @@ async function spTicket(view, id) {
   if (S.support) { if (t.mine && t.un_user) S.support.mine = Math.max(0, (S.support.mine || 0) - 1); if (handler && t.un_unit) S.support.inbox = Math.max(0, (S.support.inbox || 0) - 1); spRefreshBadges(); }
   setHTML(view, html`<div class="page-head"><div><h1 class="sp-h1">${t.subject}</h1><p><span class="badge ${SP_ST_CLS[t.status] || ''}">${t.status_name}</span> ${t.topic_name} · ${spRouteText(t)} · ${fmtDate(t.created_at)}</p></div>
       <a class="btn" href="#/destek${handler ? '/birim' : ''}">${icon('chevL', 'sm')}<span>Talepler</span></a></div>
-    ${handler ? html`<details class="card card-pad sp-ctx-card" open><summary><b>${t.user_name}</b> · ${t.role === 'admin' ? 'Yönetici' : t.role === 'editor' ? 'Yayıncı' : 'Üye'}${t.role_name ? ' · ' + t.role_name : ''}</summary>${spCtxGrid({ ...t.ctx, name: t.user_name, email: t.user_email, dev: t.ctx.ua ? spDevice(t.ctx.ua) : '', page: t.ctx.title ? `${t.ctx.title} (${t.ctx.page || ''})` : t.ctx.page })}</details>` : ''}
+    ${handler ? html`<details class="card card-pad sp-ctx-card" open><summary><b>${t.user_name}</b> · ${t.role === 'admin' ? 'Yönetici' : t.role === 'editor' ? 'Sorumlu' : 'Üye'}${t.role_name ? ' · ' + t.role_name : ''}</summary>${spCtxGrid({ ...t.ctx, name: t.user_name, email: t.user_email, dev: t.ctx.ua ? spDevice(t.ctx.ua) : '', page: t.ctx.title ? `${t.ctx.title} (${t.ctx.page || ''})` : t.ctx.page })}</details>` : ''}
     <div class="card card-pad">${spThread(d.msgs, { me: handler ? 'unit' : 'user' })}</div>
     ${can.reply ? html`<form class="card card-pad stack" data-form="sp-reply" style="margin-top:12px">
       <textarea class="input" name="body" rows="3" maxlength="4000" required placeholder="${handler ? 'Yanıtınız…' : 'Ek bilgi ya da yanıt yazın…'}"></textarea>
@@ -349,7 +349,7 @@ async function spSaRender(box) {
     ${d.items.length ? html`<div class="card"><div class="list">${d.items.map((t) => html`<button class="list-row sp-row ${t.un_sa ? 'unread' : ''}" data-act="sps-open" data-id="${t.id}">
         <span class="sp-ic">${icon(SP_TOPIC_IC[t.topic] || 'help', 'sm')}</span>
         <div class="grow" style="min-width:0"><div class="lr-t ellipsis">${t.un_sa ? html`<span class="sp-dot"></span>` : ''}${t.subject}</div>
-          <div class="lr-s"><span class="badge ${SP_TRACK[t.track][1]}">${SP_TRACK[t.track][0]}</span> ${t.hosp_name ? t.hosp_name + ' › ' : ''}${t.unit_name} · <b>${t.user_name}</b>${t.track !== 'public' ? ` (${t.role === 'admin' ? 'Yönetici' : t.role === 'editor' ? 'Yayıncı' : 'Üye'}${t.role_name ? ' · ' + t.role_name : ''})` : ''} · ${t.topic_name} · ${fmtRel(t.updated_at)}</div>
+          <div class="lr-s"><span class="badge ${SP_TRACK[t.track][1]}">${SP_TRACK[t.track][0]}</span> ${t.hosp_name ? t.hosp_name + ' › ' : ''}${t.unit_name} · <b>${t.user_name}</b>${t.track !== 'public' ? ` (${t.role === 'admin' ? 'Yönetici' : t.role === 'editor' ? 'Sorumlu' : 'Üye'}${t.role_name ? ' · ' + t.role_name : ''})` : ''} · ${t.topic_name} · ${fmtRel(t.updated_at)}</div>
           ${t.last ? html`<div class="tiny faint ellipsis">${t.last.who === 'sa' ? 'Siz: ' : ''}${t.last.body}</div>` : ''}</div>
         <span class="badge ${SP_ST_CLS[t.status] || ''}">${t.route === 'unit' && t.status !== 'closed' ? 'Birimde' : t.status_name}</span></button>`)}</div></div>`
       : html`<div class="card empty"><div class="e-ico">${icon('help', 'lg')}</div><p class="small">Bu süzgeçte talep yok.</p></div>`}</div>`);

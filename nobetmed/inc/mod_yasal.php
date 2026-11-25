@@ -223,12 +223,12 @@ function kv_export(array $me): array
     $add('Bildirimler', fn() => all('SELECT title, body, kind, created_at, read_at FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 2000', [$uid]));
     $add('Nöbet listelerinde adınızın geçtiği satırlar', fn() => all('SELECT r.name AS liste, s.date, s.code, s.label, s.hours, s.start_time, s.end_time FROM roster_shifts s JOIN rosters r ON r.id = s.roster_id WHERE s.name = ? ORDER BY s.date', [$me['name']]));
     $add('Nöbet istekleri', fn() => all('SELECT date, kind, note, status, reason, created_at, decided_at FROM shift_requests WHERE user_id = ? ORDER BY date', [$uid]));
-    $add('Değişim ve devir istekleri', fn() => all('SELECT kind, from_name, from_date, from_code, to_name, to_date, to_code, part, status, note, created_at, decided_at FROM swap_requests WHERE from_user = ? OR to_user = ? ORDER BY id', [$uid, $uid]));
-    $add('Nöbet devralma istekleri', fn() => all('SELECT date, code, giver_name, taker_name, part, status, note, created_at, decided_at FROM take_requests WHERE giver_user = ? OR taker_user = ? ORDER BY id', [$uid, $uid]));
+    $add('Değişim ve devir teklifleri', fn() => all('SELECT kind, from_name, from_date, from_code, to_name, to_date, to_code, part, status, note, created_at, decided_at FROM swap_requests WHERE from_user = ? OR to_user = ? ORDER BY id', [$uid, $uid]));
+    $add('Devir teklifleri (Ekstra nöbet)', fn() => all('SELECT date, code, giver_name, taker_name, part, status, note, created_at, decided_at FROM take_requests WHERE giver_user = ? OR taker_user = ? ORDER BY id', [$uid, $uid]));
     $add('Nöbet ilanları', fn() => all('SELECT date, code, kind, note, status, name, taker_name, created_at, closed_at FROM listings WHERE user_id = ? OR taker_user = ? ORDER BY id', [$uid, $uid]));
     $add('İlanlara başvurular', fn() => all('SELECT listing_id, offer_date, offer_code, note, status, created_at FROM listing_apps WHERE user_id = ? ORDER BY id', [$uid]));
     $add('Eksik personel çağrısı yanıtları', fn() => all('SELECT c.date, c.shift, c.code, r.answer, r.chosen, r.created_at, r.answered_at FROM callout_resp r JOIN callouts c ON c.id = r.callout_id WHERE r.user_id = ? ORDER BY r.id', [$uid]));
-    $add('Ekstra nöbet isteği', fn() => all('SELECT ym, from_date, shifts, days, note, created_at, updated_at FROM extra_pool WHERE user_id = ?', [$uid]));
+    $add('Ekstra nöbet gönüllülüğü', fn() => all('SELECT ym, from_date, shifts, days, note, created_at, updated_at FROM extra_pool WHERE user_id = ?', [$uid]));
     $add('Blok yerleşimi', fn() => all('SELECT date, side, unit, code, period, created_at FROM placements WHERE user_id = ? ORDER BY date DESC LIMIT 2000', [$uid]));
     $add('Taraf değişiklikleri', fn() => all('SELECT date, from_side, to_side, unit, code, note, created_at FROM side_moves WHERE user_id = ? ORDER BY date DESC LIMIT 2000', [$uid]));
     $add('Gönderileriniz', fn() => all('SELECT title, body, status, created_at, published_at FROM posts WHERE author_id = ? ORDER BY id', [$uid]));

@@ -132,13 +132,13 @@ await E.p.goto(BASE + '#/ekstra/gonullu/' + ym);
 await E.p.locator('.ex-day').first().waitFor();
 await E.p.locator('.ex-chk input[value="day"]').locator('..').click();
 await E.p.click('[data-act=ex-save]');
-await E.p.getByText('Ekstra nöbet isteğin kaydedildi').first().waitFor();
+await E.p.getByText('Gönüllülüğünüz kaydedildi').first().waitFor();
 await E.p.locator('.ex-reg .mk-box.ok').waitFor();
 await E.p.screenshot({ path: path.join(OUT, 'x-ekstra-mobile.png'), fullPage: true });
 await noOverflow(E.p, 'ekstra nöbet');
 const reg = (await apiCall(E.p, 'extra.me', { ym })).reg;
 if (!reg || reg.shifts.join() !== '24,night' || reg.days !== null || reg.from !== today) fail('kayıt: ' + JSON.stringify(reg));
-if (!(await apiCall(A.p, 'notif.list', { unread: true })).items.some((x) => x.kind === 'extra' && /Elif Yılmaz ekstra nöbet istiyor/.test(x.title))) fail('sorumluya bildirim gitmedi');
+if (!(await apiCall(A.p, 'notif.list', { unread: true })).items.some((x) => x.kind === 'extra' && /Elif Yılmaz ekstra nöbete gönüllü/.test(x.title))) fail('sorumluya bildirim gitmedi');
 step(`ekstra nöbet: liste istek gününden (${today}) ay sonuna (${lastDay}) kadar, her gün 24 saat / gündüz / gece için kurallar ✓/✗ ve nedenleriyle; arayüzden kayıt (gündüz hariç), sorumluya bildirim`);
 
 // ---- 3) Sorumlu: gün gün uygun olanlar; çağrıda “Ekstra istiyor” en üstte ----
@@ -162,7 +162,7 @@ const cBtn = A.p.locator(`[data-act=ex-callout][data-d="${bd.date}"]`);
 if ((await cBtn.count()) && (await cBtn.first().getAttribute('data-s')) !== 'day') await cBtn.first().click();
 else await A.p.evaluate((d) => openCalloutModal({ date: d, shift: 'night', other: true }), bd.date);
 await A.p.locator('.modal').first().waitFor();
-if (ce) { await A.p.locator('.modal .badge', { hasText: 'Ekstra istiyor' }).first().waitFor({ timeout: 15000 }).catch(() => fail('çağrı penceresinde “Ekstra istiyor” rozeti yok')); }
+if (ce) { await A.p.locator('.modal .badge', { hasText: 'Gönüllü' }).first().waitFor({ timeout: 15000 }).catch(() => fail('çağrı penceresinde “Ekstra istiyor” rozeti yok')); }
 await A.p.keyboard.press('Escape');
 // Seçtiğim günler: yalnız o gün
 const pickDay = okN.date;
@@ -188,7 +188,7 @@ const myShiftDay = me0.days.find((d) => /nöbeti var/.test(d.types.night.why || 
 if (myShiftDay) {
   const td = await apiCall(E.p, 'extra.take', { ym, date: myShiftDay.date });
   if (td.days.some((d) => d.items.some((x) => x.ok))) fail('kendi nöbetim olan gün başkasının nöbeti alınabilir göründü');
-  if (td.days.length && !td.days[0].items.every((x) => /senin de/.test(x.my_why || ''))) fail('seçili günde neden (o gün senin de nöbetin var) yok');
+  if (td.days.length && !td.days[0].items.every((x) => /sizin de/.test(x.my_why || ''))) fail('seçili günde neden (o gün sizin de nöbetiniz var) yok');
 }
 // Seçili gün: o günün tüm nöbetleri (uygun olmayanlar da) nedenleriyle
 const pickT = okItems[0];
@@ -230,13 +230,13 @@ else {
   await E.p.locator(`.tk-it [data-act=tk-ask][data-n="${askable.name}"]`).first().click(); // 24 saatte “Tümü” önce, sonra gündüz / gece parçaları
   await E.p.fill('.modal #tkNote', 'Uygunsa ben alırım');
   await E.p.locator('.modal [data-go]').click();
-  await E.p.getByText('İstek gönderildi').first().waitFor();
+  await E.p.getByText('Devir teklifi gönderildi').first().waitFor();
   await E.p.locator('.tk-req .badge', { hasText: 'Yanıt bekliyor' }).first().waitFor();
   if (!/zaten/.test(await apiErr(E.p, 'extra.take.ask', { date: askable.date, name: askable.name }))) fail('aynı istek iki kez gönderildi');
   if (owner) {
     const inc = (await apiCall(owner.p, 'extra.take', { ym })).requests.find((r) => r.dir === 'in' && r.status === 'pending' && r.date === askable.date);
     if (!inc) fail('nöbet sahibine istek düşmedi');
-    if (!(await apiCall(owner.p, 'notif.list', { unread: true })).items.some((x) => /Nöbet devralma isteği/.test(x.title))) fail('sahibine bildirim gitmedi');
+    if (!(await apiCall(owner.p, 'notif.list', { unread: true })).items.some((x) => /Devir teklifi/.test(x.title))) fail('sahibine bildirim gitmedi');
     if ((await apiErr(E.p, 'extra.take.respond', { id: inc.id, accept: true })) === 'kabul') fail('isteyen kendi isteğini kabul etti');
     await owner.p.goto(BASE + '#/ekstra');
     await owner.p.locator(`[data-act=tk-resp][data-id="${inc.id}"][data-a="1"]`).click();

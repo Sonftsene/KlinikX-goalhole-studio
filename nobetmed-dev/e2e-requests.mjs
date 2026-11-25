@@ -67,7 +67,7 @@ const r3 = sides.find((s) => s.key === 's3').roster_id;
 await go(m, '#/istekler');
 await expectText(m, 'Açık istek dönemi yok');
 if (await m.locator('[data-act=rq-new]').count()) fail('üyede "Dönem aç" düğmesi var');
-if (!/Bu işlem için yayın yetkisi/.test(await apiErr(m, 'req.period.save', { ym: YM, deadline: dayOff(3) }))) fail('üye dönem açabildi');
+if (!/Bu işlem için sorumlu yetkisi/.test(await apiErr(m, 'req.period.save', { ym: YM, deadline: dayOff(3) }))) fail('üye dönem açabildi');
 await go(a, '#/istekler');
 await a.click('.page-head [data-act=rq-new]');
 await a.locator('#rqPerForm').waitFor();
@@ -142,7 +142,7 @@ await m.screenshot({ path: path.join(OUT, 'req-m-mine.png'), fullPage: true });
 if (!/içinde olmalı/.test(await apiErr(m, 'req.save', { period_id: PID, items: [{ date: ymdOf(new Date(+YM.slice(0, 4), +YM.slice(5, 7) - 1, -19)), kind: 'bosluk' }] }))) fail('ay dışı (7 günden uzak) tarih kabul edildi');
 if (!/yalnızca Boşluk/.test(await apiErr(m, 'req.save', { period_id: PID, items: [{ date: d1(5), kind: 'rapor' }] }))) fail('geçersiz tür kabul edildi');
 if (!/sorumlular/.test(await apiErr(m, 'req.save', { period_id: PID, name: 'Burak Demir', items: [{ date: d1(5), kind: 'bosluk' }] }))) fail('üye başkası adına istek girdi');
-if (!/yayın yetkisi/.test(await apiErr(m, 'req.panel', { period_id: PID }))) fail('üye paneli açabildi');
+if (!/sorumlu yetkisi/.test(await apiErr(m, 'req.panel', { period_id: PID }))) fail('üye paneli açabildi');
 step(`üye (telefon): yazarak 8 gün + dokunarak 2 gün (döngü B → Yİ → yok), not, liste adından bulundu, kayıt: ${mineS}`);
 
 // 4) Hatırlatma: son günden ≤2 gün önce, isteği olmayanlara bir kez
@@ -232,7 +232,7 @@ const REASON = 'Servis o gün yoğun';
 const mine2 = await apiCall(m, 'req.mine', { period_id: PID });
 const rj = mine2.items.find((x) => x.date === d1(2));
 if (rj.status !== 'rejected' || rj.reason !== REASON) fail('Elif ret gerekçesini görmüyor: ' + JSON.stringify(rj));
-const elN = (await notifs(m)).find((n) => /isteğin reddedildi/.test(n.title));
+const elN = (await notifs(m)).find((n) => /isteğiniz reddedildi/.test(n.title));
 if (!elN || !elN.body.includes(REASON)) fail('ret bildirimi: ' + JSON.stringify(elN));
 const boardB = await apiCall(b, 'req.board', { period_id: PID });
 const bj = JSON.stringify(boardB);
@@ -266,7 +266,7 @@ const id10 = mine2.items.find((x) => x.date === d1(10)).id;
 const dec = await apiCall(a, 'req.decide', { ids: [id10], status: 'approved' });
 if (!dec.conflicts.some((c) => c.id === id10)) fail('panel uyum uyarısı yok: ' + JSON.stringify(dec.conflicts));
 cron(); cron();
-const cfE = (await notifs(m)).filter((n) => /Onaylı isteğine nöbet yazılmış/.test(n.title));
+const cfE = (await notifs(m)).filter((n) => /Onaylı isteğinize nöbet yazılmış/.test(n.title));
 const cfA = (await notifs(a)).filter((n) => /onaylı isteklerle çakışma/.test(n.title));
 if (cfE.length !== 1 || cfA.length !== 1 || !/Elif/i.test(cfA[0].body)) fail(`uyum bildirimi: kişi ${cfE.length}, yayıncı ${cfA.length} ${cfA[0] && cfA[0].body}`);
 await go(a, '#/istekler/yonetim');
@@ -327,7 +327,7 @@ if ((await overflow(m)) > 390) fail('İsteklerim (sonra) telefonda yatay taşma'
 step('telefon (390 px): İsteklerim, Pano, Yönetim yatay taşma yok; koyu tema ekran görüntüsü');
 
 // 14) Dönem silme yetkisi ve işlem günlüğü
-if (!/yayın yetkisi/.test(await apiErr(m, 'req.period.delete', { id: PID }))) fail('üye dönem sildi');
+if (!/sorumlu yetkisi/.test(await apiErr(m, 'req.period.delete', { id: PID }))) fail('üye dönem sildi');
 const aud = await apiCall(a, 'audit.list', {}).catch(() => null);
 if (aud && aud.items && !aud.items.some((x) => /^req\./.test(x.action))) fail('işlem günlüğünde istek kaydı yok');
 step('yetki ve işlem günlüğü');

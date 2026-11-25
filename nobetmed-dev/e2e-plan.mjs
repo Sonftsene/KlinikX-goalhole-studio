@@ -115,7 +115,7 @@ await A.p.locator('.modal button[data-c=""]').click();
 const vBefore = (await apiCall(A.p, 'rosters.versions', { id: ro.id })).versions.length;
 await A.p.click('[data-act=pl2-publish]');
 await confirmOk(A.p);
-await expectText(A.p, 'Yayınlandı', 30000);
+await expectText(A.p, 'Yayımlandı', 30000);
 const rr = (await apiCall(A.p, 'rosters.list')).rosters.find((r) => r.id === ro.id);
 if (rr.period !== ym || rr.parsed_file_id !== rr.file.id) fail('liste yayınlanan aya geçmedi: ' + JSON.stringify({ p: rr.period, pf: rr.parsed_file_id, f: rr.file && rr.file.id }));
 if ((await apiCall(A.p, 'rosters.versions', { id: ro.id })).versions.length !== vBefore + 1) fail('yeni liste sürümü oluşmadı');

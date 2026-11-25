@@ -18,7 +18,7 @@ function ex_ym(?string $ym = null): string
 {
     $ym = $ym ?? s('ym', 7);
     if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string)$ym)) $ym = date('Y-m');
-    if ($ym < date('Y-m')) fail('Geçmiş ay için ekstra nöbet isteği olmaz.');
+    if ($ym < date('Y-m')) fail('Geçmiş ay için gönüllü olunamaz.');
     return $ym;
 }
 function ex_month_end(string $ym): string { return date('Y-m-t', strtotime($ym . '-01')); }
@@ -140,7 +140,7 @@ function a_extra_save(): void
         if (!$days) fail('Gün seçin ya da “tüm uygun günler”i işaretleyin.');
     }
     $note = s('note', 200);
-    if (!ex_locate((string)$me['name'], $ym)) fail(rq_month_label_safe($ym) . ' listesinde adınız yok. Liste yayımlanınca ekstra nöbet isteği verebilirsiniz.');
+    if (!ex_locate((string)$me['name'], $ym)) fail(rq_month_label_safe($ym) . ' listesinde adınız yok. Liste yayımlanınca gönüllü olabilirsiniz.');
     $old = one('SELECT id FROM extra_pool WHERE user_id = ? AND ym = ?', [$me['id'], $ym]);
     if ($old) q('UPDATE extra_pool SET shifts = ?, days = ?, note = ?, updated_at = ? WHERE id = ?', [implode(',', $shifts), $days === null ? null : json_encode($days), $note, now(), $old['id']]);
     else {
@@ -148,7 +148,7 @@ function a_extra_save(): void
             [$me['id'], $me['name'], $ym, max(date('Y-m-d'), $ym . '-01'), implode(',', $shifts), $days === null ? null : json_encode($days), $note, now(), now()]);
         // Sorumlulara haber
         $pubs = array_values(array_filter(module_managers('eksik'), fn($u) => (int)$u['id'] !== (int)$me['id']));
-        if ($pubs) notify_users($pubs, 'extra', $me['name'] . ' ekstra nöbet istiyor', rq_month_label_safe($ym) . ' · ' . implode(', ', array_map(fn($s) => EX_SHIFTS[$s], $shifts)) . ($days ? ' · ' . count($days) . ' gün' : ' · uygun tüm günler'), '#/ekstra/liste/' . $ym);
+        if ($pubs) notify_users($pubs, 'extra', $me['name'] . ' ekstra nöbete gönüllü', rq_month_label_safe($ym) . ' · ' . implode(', ', array_map(fn($s) => EX_SHIFTS[$s], $shifts)) . ($days ? ' · ' . count($days) . ' gün' : ' · uygun tüm günler'), '#/ekstra/liste/' . $ym);
     }
     audit($me, 'extra.save', rq_month_label_safe($ym), implode(', ', $shifts) . ($days ? ' · ' . count($days) . ' gün' : ''));
     a_extra_me();
@@ -258,10 +258,10 @@ function tk_eval(array $tl, string $myK, string $myName, string $pk, string $dat
     }
     $why = null;
     $merged = $part !== '' && isset($mine[$date]) ? swap_merge($mine[$date], $row, (int)($row['roster_id'] ?? 0)) : null;
-    if (isset($mine[$date]) && !$merged) { $x = $mine[$date]; $why = 'O gün senin de ' . ($x['kind'] === 'shift' ? 'nöbetin' : ($x['kind'] === 'leave' ? 'iznin' : 'kaydın')) . ' var (' . $x['code'] . ')'; }
-    elseif ($q = rules_req_on($myName, $date, ['izin', 'bosluk'], true)) $why = 'O gün için ' . ($q['kind'] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteğin var';
-    elseif ($merged) { $m2 = $mine; unset($m2[$date]); $why = rules_check_add($m2, $date, $merged, 'Senin'); }
-    else $why = rules_check_add($mine, $date, $row, 'Senin');
+    if (isset($mine[$date]) && !$merged) { $x = $mine[$date]; $why = 'O gün sizin de ' . ($x['kind'] === 'shift' ? 'nöbetiniz' : ($x['kind'] === 'leave' ? 'izniniz' : 'kaydınız')) . ' var (' . $x['code'] . ')'; }
+    elseif ($q = rules_req_on($myName, $date, ['izin', 'bosluk'], true)) $why = 'O gün için ' . ($q['kind'] === 'izin' ? 'yıllık izin' : 'boşluk') . ' isteğiniz var';
+    elseif ($merged) { $m2 = $mine; unset($m2[$date]); $why = rules_check_add($m2, $date, $merged, 'Sizin'); }
+    else $why = rules_check_add($mine, $date, $row, 'Sizin');
     // Veren: tamamını verirse o gün boşalır (uzun boşluk denetimi); parçasını verirse o gün nöbeti kalır
     $theirs = null;
     if (!$kept) {
@@ -361,29 +361,29 @@ function a_extra_take_ask(): void
         if (!$ok) fail(($myWhy ?? $theirWhy) . '.');
         $u = mk_user_for((string)$tl[$pk]['name']);
         if (!$u) fail($tl[$pk]['name'] . ' uygulamada kayıtlı değil; telefonla sorabilirsiniz.');
-        if (one("SELECT id FROM take_requests WHERE taker_user = ? AND giver_user = ? AND date = ? AND COALESCE(part, '') = ? AND status = 'pending'", [$me['id'], $u['id'], $date, $part])) fail('Bu nöbeti zaten istedin; yanıt bekleniyor.');
+        if (one("SELECT id FROM take_requests WHERE taker_user = ? AND giver_user = ? AND date = ? AND COALESCE(part, '') = ? AND status = 'pending'", [$me['id'], $u['id'], $date, $part])) fail('Bu nöbet için zaten devir teklifi gönderdiniz; yanıt bekleniyor.');
         $note = s('note', 200);
         q('INSERT INTO take_requests (roster_id, date, code, giver_user, giver_name, taker_user, taker_name, status, note, created_at, part) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$rid, $date, $row['code'], $u['id'], $tl[$pk]['name'], $me['id'], $myName, 'pending', $note ?: null, now(), $part ?: null]);
         $pt = $part !== '' ? ', ' . swap_part_text($part) : '';
-        notify_users(mk_full_users([(int)$u['id']]), 'swap', 'Nöbet devralma isteği: ' . $me['name'], $me['name'] . ', ' . swap_fmt_date($date) . ' (' . $row['code'] . $pt . ') nöbetini senden almak istiyor' . ($note ? ' · “' . $note . '”' : '') . '. Kabul ya da ret için dokun.', '#/ekstra');
+        notify_users(mk_full_users([(int)$u['id']]), 'swap', 'Devir teklifi: ' . $me['name'], $me['name'] . ', ' . swap_fmt_date($date) . ' (' . $row['code'] . $pt . ') nöbetinizi devralmak istiyor' . ($note ? ' · “' . $note . '”' : '') . '. Kabul ya da ret için dokunun.', '#/ekstra');
         audit($me, 'take.ask', swap_fmt_date($date) . ' ' . $row['code'] . $pt, $tl[$pk]['name']);
         out(['requests' => tk_requests_out($me)]);
     }
-    fail('Bu nöbet listede artık görünmüyor.');
+    fail('Bu nöbet listede artık görünmüyor. Sayfayı yenileyin.');
 }
 
 /** Nöbet sahibi yanıtlar: kabul → devir (sorumluya “Excel’e işlenecek”) */
 function a_extra_take_respond(): void
 {
     $me = need_user();
-    $t = one('SELECT * FROM take_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
-    if ((int)$t['giver_user'] !== (int)$me['id']) fail('Bu istek size gönderilmemiş.', 403);
-    if ($t['status'] !== 'pending') fail('Bu istek artık beklemede değil.');
+    $t = one('SELECT * FROM take_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu devir teklifi silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
+    if ((int)$t['giver_user'] !== (int)$me['id']) fail('Bu devir teklifi size gönderilmemiş.', 403);
+    if ($t['status'] !== 'pending') fail('Bu devir teklifi artık beklemede değil.');
     $taker = one('SELECT * FROM users WHERE id = ?', [(int)$t['taker_user']]);
     if (!b('accept')) {
         q("UPDATE take_requests SET status = 'declined', decided_at = ?, reason = ? WHERE id = ?", [now(), s('reason', 200) ?: null, $t['id']]);
-        if ($taker) notify_users([$taker], 'swap', 'Devralma isteğin reddedildi', $me['name'] . ', ' . swap_fmt_date($t['date']) . ' nöbetini vermedi.', '#/ekstra');
+        if ($taker) notify_users([$taker], 'swap', 'Devir teklifiniz reddedildi', $me['name'] . ', ' . swap_fmt_date($t['date']) . ' nöbetini vermedi.', '#/ekstra');
         audit($me, 'take.decline', swap_fmt_date($t['date']) . ' ' . $t['code'], (string)$t['taker_name']);
         out(['requests' => tk_requests_out($me)]);
     }
@@ -411,11 +411,11 @@ function a_extra_take_respond(): void
         notify_users(mk_full_users([(int)$o['taker_user']]), 'swap', 'Nöbet başkasına verildi', swap_fmt_date($t['date']) . ' nöbeti ' . $t['taker_name'] . ' adına devredildi.', '#/ekstra');
     }
     $r = one('SELECT * FROM swap_requests WHERE id = ?', [$sid]);
-    if ($taker) notify_users([$taker], 'swap', 'Nöbet devri kabul edildi', swap_req_text($r) . ' · Sorumlu Excel’de güncelleyince listene işlenir.', '#/nobetim');
+    if ($taker) notify_users([$taker], 'swap', 'Nöbet devri kabul edildi', swap_req_text($r) . ' · Sorumlu listeyi güncelleyince takviminize işlenir.', '#/nobetim');
     $pubs = array_filter(module_managers('ilan'), fn($u) => (int)$u['id'] !== (int)$me['id'] && (int)$u['id'] !== (int)$t['taker_user']);
-    if ($pubs) notify_users($pubs, 'swap', 'Excel’e işlenecek nöbet devri', swap_req_text($r), '#/nobetim', [
-        'subject' => 'Excel’e işlenecek nöbet devri', 'heading' => 'İki kişi nöbet devrinde anlaştı',
-        'lines' => [swap_req_text($r), 'Excel listesinde güncellediğinizde uygulama devri kendiliğinden işler.'], 'button' => 'Uygulamada gör'], 'notoff');
+    if ($pubs) notify_users($pubs, 'swap', 'Listeye işlenmeyi bekleyen nöbet devri', swap_req_text($r), '#/nobetim', [
+        'subject' => 'Listeye işlenmeyi bekleyen nöbet devri', 'heading' => 'İki kişi nöbet devrinde anlaştı',
+        'lines' => [swap_req_text($r), 'Nöbet listesini güncellediğinizde uygulama devri kendiliğinden işler.'], 'button' => 'Uygulamada gör'], 'notoff');
     audit($me, 'take.accept', swap_req_text($r));
     out(['requests' => tk_requests_out($me)]);
 }
@@ -423,9 +423,9 @@ function a_extra_take_respond(): void
 function a_extra_take_cancel(): void
 {
     $me = need_user();
-    $t = one('SELECT * FROM take_requests WHERE id = ?', [(int)i('id')]) ?? fail('İstek bulunamadı.', 404);
-    if ((int)$t['taker_user'] !== (int)$me['id']) fail('Bu isteği geri çekemezsiniz.', 403);
-    if ($t['status'] !== 'pending') fail('Bu istek artık beklemede değil.');
+    $t = one('SELECT * FROM take_requests WHERE id = ?', [(int)i('id')]) ?? fail('Bu devir teklifi silinmiş ya da değişmiş olabilir. Sayfayı yenileyin.', 404);
+    if ((int)$t['taker_user'] !== (int)$me['id']) fail('Bu devir teklifini geri çekemezsiniz.', 403);
+    if ($t['status'] !== 'pending') fail('Bu devir teklifi artık beklemede değil.');
     q("UPDATE take_requests SET status = 'cancelled', decided_at = ? WHERE id = ?", [now(), $t['id']]);
     out(['requests' => tk_requests_out($me)]);
 }
