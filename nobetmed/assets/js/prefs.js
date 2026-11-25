@@ -154,12 +154,13 @@ function homeNorm(h) {
   return { hidden: Array.isArray(h.hidden) ? h.hidden : [], shown: Array.isArray(h.shown) ? h.shown : [], order: Array.isArray(h.order) ? h.order : [], side_first: !!h.side_first };
 }
 /** Yöneticinin herkes için belirlediği düzen (kişi kendi düzenini yapmadıysa bu kullanılır) */
-function homeDefault() { return homeNorm(S.home_default); }
-function homeMine() { const u = S.my_prefs && S.my_prefs.ui; return u && u.home ? homeNorm(u.home) : null; }
+function homeDefault() { const L = S.ui_layout; return homeNorm((L && L.home) || S.home_default); }
+/** Yönetici ana sayfayı kilitlediyse kişinin kendi düzeni kullanılmaz */
+function homeMine() { if (S.ui_layout && S.ui_layout.lock) return null; const u = S.my_prefs && S.my_prefs.ui; return u && u.home ? homeNorm(u.home) : null; }
 function homePrefs() { return homeMine() || homeDefault(); }
 /** Yöneticinin düzenlediği (henüz kaydedilmemiş) varsayılan */
 let HLD = null;
-const hlP = (scope) => (scope === 'def' ? HLD || (HLD = homeDefault()) : homePrefs());
+const hlP = (scope) => (scope === 'lay' ? homeNorm(ulCur().home) : scope === 'def' ? HLD || (HLD = homeDefault()) : homePrefs());
 /** Kart gizli mi (isteğe bağlı kartlar açılmadıkça gizli) */
 function homeOff(id, P = homePrefs()) { return HOME_OPTIN.includes(id) ? !P.shown.includes(id) : P.hidden.includes(id); }
 function homeItems(P = homePrefs()) {
@@ -187,6 +188,7 @@ function homeListHtml(scope) {
       <span class="grow small">Telefonda kartları duyurulardan önce göster</span></label>`;
 }
 function homeLayoutHtml() {
+  if (S.ui_layout && S.ui_layout.lock) return html`<div><h3 class="ph">${icon('grid', 'sm')} Ana sayfam</h3><p class="tiny faint">${icon('lock', 'sm')} Ana sayfa düzenini yöneticiniz herkes için belirledi. Aradığınız her şeyi alttaki <b>Menü</b>’de bulabilirsiniz.</p></div>`;
   const own = !!homeMine();
   return html`<div><h3 class="ph">${icon('grid', 'sm')} Ana sayfam</h3><p class="tiny faint">Ana sayfada görmek istediğiniz kartları seçin ve sıralayın. Yalnız sizin ana sayfanızı etkiler.
       ${own ? 'Kendi düzeninizi kullanıyorsunuz.' : 'Şu an biriminizin varsayılan düzeni kullanılıyor; değiştirdiğiniz anda sizin düzeniniz olur.'}</p></div>
@@ -203,6 +205,7 @@ function homeDefHtml() {
       <button type="button" class="btn ghost sm" data-act="hl-reset" data-scope="def">${icon('history', 'sm')}Hepsini göster (ilk hâli)</button></div>`;
 }
 function saveHome(h, scope = 'me') {
+  if (scope === 'lay') { ulSet({ home: h === null ? homeNorm({}) : Object.assign({}, homeNorm(ulCur().home), h) }); return; }
   if (scope === 'def') {
     HLD = h === null ? homeNorm({}) : Object.assign({}, hlP('def'), h);
     const c = $('#homeDefCard'); if (c) setHTML(c, homeDefHtml());
@@ -251,10 +254,7 @@ ACT['hld-save'] = (el) => busy(el, async () => {
     toast(all ? `Varsayılan düzen kaydedildi${r.reset ? ` · ${r.reset} kişinin düzeni sıfırlandı` : ''}` : 'Varsayılan düzen kaydedildi');
   } catch (e) { toast(e.message, 'err'); }
 });
-NM_EXT.settingsCards.push({
-  sec: 'genel', admin: true,
-  html: () => { HLD = null; return html`<div class="card card-pad stack" data-sec="genel" id="homeDefCard">${homeDefHtml()}</div>`; },
-});
+// Eski “Herkesin ana sayfası” kartı yerine: Herkes için ana ekran (aşağıda)
 
 /** Ana sayfa çizildikten sonra: gizle / sırala (posts.js renderHome çağırır) */
 function applyHomeLayout() {
@@ -658,3 +658,157 @@ ACT['nl-link'] = (el) => busy(el, async () => {
   if (!x || !sel || !sel.value) { toast('Önce hesabı seçin', 'err'); return; }
   try { const r = await api('names.link', { user_id: +sel.value, name: x.name, sync: true }); toast(`Bağlandı · hesap adı: ${r.name}`); await nlLoad(); if (typeof refreshPeople === 'function') refreshPeople(); } catch (e) { toast(e.message, 'err'); }
 });
+
+
+/* =================================================================== */
+/* Herkes için ana ekran (yönetici; 4.50.0) — inc/mod_duzen.php          */
+/* =================================================================== */
+const UL_TOP = [['phone', 'phone', 'Telefon rehberi'], ['search', 'search', 'Arama'], ['chat', 'chat', 'Mesajlar'], ['compose', 'plus', 'Yeni içerik (bilgisayarda)'], ['theme', 'moon', 'Tema düğmesi (bilgisayarda)']];
+const UL_BOTTOM = [['nobet', 'calendar', 'Nöbet'], ['compose', 'plus', '“+” yeni içerik'], ['todo', 'checkCircle', 'Okunacak']];
+const UL = { d: null, scope: 'base', reset: false };
+/** Üst çubuk ve alt menü: yöneticinin gizlediği simgeler */
+function applyShellLayout() {
+  const L = S.ui_layout, sh = $('#shell');
+  if (!sh) return;
+  UL_TOP.forEach(([k]) => sh.classList.toggle('th-' + k, !!(L && (L.top_hide || []).includes(k))));
+  UL_BOTTOM.forEach(([k]) => sh.classList.toggle('bh-' + k, !!(L && (L.bottom_hide || []).includes(k))));
+  sh.classList.toggle('bh-any', !!(L && (L.bottom_hide || []).length));
+}
+/** Hazır düzenler */
+function ulPreset(k) {
+  const std = { preset: 'standart', home: { hidden: [], shown: [], order: [], side_first: false }, lock: false, top_hide: [], bottom_hide: [], chips: null, chips_big: false, chips_own: true };
+  if (k === 'tam') return Object.assign({}, std, { preset: 'tam', home: { hidden: [], shown: ['countdown'], order: [], side_first: false } });
+  if (k === 'sade') {
+    const cat = chipCatalog().map((x) => x.id);
+    const want = ['todo', 'p:#/nobetim', 'rehber', 'p:#/istekler', 'telefon'].filter((x) => cat.includes(x)).slice(0, 4);
+    return { preset: 'sade', home: { hidden: ['feed', 'rosters', 'tips', ...NM_EXT.homeCards.map((c) => c.id)], shown: [], order: [], side_first: true },
+      lock: true, top_hide: ['phone', 'search', 'compose', 'theme'], bottom_hide: ['compose'], chips: want, chips_big: true, chips_own: false };
+  }
+  return std;
+}
+const ulCur = () => { const d = UL.d || {}; return (UL.scope === 'publisher' ? d.publisher : d.base) || ulPreset('standart'); };
+function ulSet(patch, keepPreset) {
+  const cur = Object.assign({}, ulCur(), patch);
+  if (!keepPreset) cur.preset = 'ozel';
+  UL.d = UL.d || {};
+  if (UL.scope === 'publisher') UL.d.publisher = cur; else UL.d.base = cur;
+  UL.dirty = true;
+  ulDraw();
+}
+NM_EXT.settingsCards.push({
+  sec: 'genel', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="genel" id="ulCard"><h3 style="font-size:15px">${icon('grid', 'sm')} Herkes için ana ekran</h3><div class="skel" style="height:14px;width:55%"></div></div>`,
+  mount: () => ulLoad(),
+});
+async function ulLoad() {
+  try {
+    const r = await api('ui.layout.get');
+    UL.d = { base: r.base || Object.assign(ulPreset('standart'), { home: S.home_default ? homeNorm(S.home_default) : homeNorm({}) }), publisher: r.publisher || null, saved: !!r.base };
+    UL.dirty = false; UL.scope = 'base';
+  } catch (e) { const c = $('#ulCard'); if (c) setHTML(c, html`<p class="small muted">${e.message}</p>`); return; }
+  ulDraw();
+}
+function ulPreviewHtml(L) {
+  const P = homeNorm(L.home);
+  const cat = chipCatalog();
+  const chips = (Array.isArray(L.chips) ? L.chips : CHIP_DEF).map((id) => cat.find((k) => k.id === id)).filter(Boolean);
+  const ic = (k) => ({ todo: 'checkCircle', unread: 'bell', pend: 'inbox', rehber: 'users', telefon: 'phone' }[k.id] || k.ic || 'star');
+  const secs = homeItems(P).filter((x) => x.place !== 'hero' && !homeOff(x.id, P));
+  const top = UL_TOP.filter(([k]) => ['phone', 'search', 'chat'].includes(k) && !(L.top_hide || []).includes(k));
+  const bot = [['home', 'home', 'Ana sayfa'], ...UL_BOTTOM.filter(([k]) => !(L.bottom_hide || []).includes(k)).map(([k, i, l]) => [k, i, k === 'compose' ? '' : l]), ['menu', 'grid', 'Menü']];
+  return html`<div class="ul-phone" aria-label="Önizleme">
+    <div class="ul-top">${icon('menu', 'sm')}<b class="grow">dupcii</b>${top.map(([, i]) => icon(i, 'sm'))}${icon('bell', 'sm')}<span class="ul-av"></span></div>
+    <div class="ul-body">
+      <div class="ul-hero"><b>Günaydın</b><div class="ul-shift">${icon('calendar', 'sm')} Sıradaki nöbetin</div>
+        ${homeOff('chips', P) ? '' : html`<div class="ul-chips ${L.chips_big ? 'big' : ''}">${chips.map((k) => html`<span class="ul-chip">${k.svg ? raw(k.svg) : icon(ic(k), 'sm')}<span>${k.label}</span></span>`)}</div>`}</div>
+      ${secs.map((x) => html`<div class="ul-sec">${x.title}</div>`)}
+    </div>
+    <div class="ul-bot">${bot.map(([k, i, l]) => html`<span class="${k === 'compose' ? 'pl' : ''}">${icon(i, 'sm')}${l ? html`<i>${l}</i>` : ''}</span>`)}</div></div>`;
+}
+function ulDraw() {
+  const c = $('#ulCard'); if (!c || !UL.d) return;
+  const L = ulCur();
+  const pubOn = !!UL.d.publisher;
+  const cat = chipCatalog();
+  const sw = (on, ch, label, sub) => html`<label class="row" style="gap:10px;cursor:pointer;align-items:flex-start"><span class="switch"><input type="checkbox" data-change="${ch}" ${on ? raw('checked') : ''}><span class="track"></span></span><span class="grow small"><b>${label}</b>${sub ? html`<br><span class="tiny muted">${sub}</span>` : ''}</span></label>`;
+  const presets = [['sade', 'Sade', 'Bugünkü nöbet, okunacaklar, 4 büyük kısayol; kişiler değiştiremez. Hiç anlamayanlar için.'], ['standart', 'Standart', 'Bugünkü düzen; kişiler kendine göre değiştirebilir.'], ['tam', 'Tam', 'Her şey açık, geri sayım dahil.']];
+  const chipsOn = Array.isArray(L.chips);
+  const groups = [];
+  cat.filter((k) => !chipsOn || !L.chips.includes(k.id)).forEach((k) => { let g = groups.find((x) => x.g === k.g); if (!g) groups.push(g = { g: k.g, items: [] }); g.items.push(k); });
+  setHTML(c, html`<div class="row between wrap" style="gap:8px"><div><h3 style="font-size:15px;margin:0">${icon('grid', 'sm')} Herkes için ana ekran</h3>
+      <p class="small muted" style="margin:4px 0 0">Ana sayfayı, kısayolları, üst simgeleri ve alt menüyü herkes için bir kez kurun. Kişiler ayar yapmadan hazır ve sade bir ekran görür.</p></div>
+      ${UL.d.saved ? html`<span class="badge success">Uygulanıyor · ${({ sade: 'Sade', standart: 'Standart', tam: 'Tam', ozel: 'Özel' })[UL.d.base.preset] || 'Özel'}</span>` : html`<span class="badge">Henüz uygulanmadı</span>`}</div>
+    <div class="seg ul-scope"><button type="button" class="${UL.scope === 'base' ? 'on' : ''}" data-act="ul-scope" data-s="base">${icon('users', 'sm')}Herkes</button><button type="button" class="${UL.scope === 'publisher' ? 'on' : ''}" data-act="ul-scope" data-s="publisher">${icon('shield', 'sm')}Sorumlular${pubOn ? '' : ' (aynı)'}</button></div>
+    ${UL.scope === 'publisher' ? html`<div class="mk-box">${sw(pubOn, 'ul-pub', 'Sorumlular ve yöneticiler için ayrı düzen', 'Kapalıyken sorumlular da herkesin düzenini görür. Açınca örneğin yönetim kısayollarını yalnız onlara verebilirsiniz.')}</div>` : ''}
+    ${UL.scope === 'publisher' && !pubOn ? '' : html`<div class="ul-wrap"><div class="stack" style="gap:14px;min-width:0">
+      <div><div class="ph-sec">Hazır düzen</div><div class="ul-presets">${presets.map(([k, l, d]) => html`<button type="button" class="ul-pre ${L.preset === k ? 'on' : ''}" data-act="ul-preset" data-k="${k}"><b>${l}</b><span class="tiny muted">${d}</span></button>`)}</div>
+        ${L.preset === 'ozel' ? html`<p class="tiny muted" style="margin:6px 0 0">${icon('edit', 'sm')} Özel düzen: hazır düzeni seçip aşağıdan değiştirdiniz.</p>` : ''}</div>
+      <div><div class="ph-sec">Ana sayfa bölümleri</div>${homeListHtml('lay')}
+        <div style="margin-top:8px">${sw(!L.lock, 'ul-lock', 'Kişiler kendi ana sayfasını değiştirebilsin', 'Kapalıyken herkes tam olarak bu düzeni görür (önerilen: karışıklık olmaz).')}</div></div>
+      <div><div class="ph-sec">Kısayollar</div>
+        ${sw(chipsOn, 'ul-chips', 'Kısayolları herkes için ben belirleyeyim', 'Kapalıyken herkes varsayılan kısayolları görür ve kendine göre düzenler.')}
+        ${chipsOn ? html`<div class="list ch-sel" style="margin-top:8px">${L.chips.length ? L.chips.map((id, i) => { const k = cat.find((x) => x.id === id); return html`<div class="list-row" style="gap:6px"><span class="grow small"><b>${k ? k.label : id}</b></span>
+            <button type="button" class="btn sm ghost icon" data-act="ul-chip" data-op="up" data-i="${i}" aria-label="Öne al" ${i ? '' : raw('disabled')}>${icon('up', 'sm')}</button>
+            <button type="button" class="btn sm ghost icon" data-act="ul-chip" data-op="down" data-i="${i}" aria-label="Geri al" ${i < L.chips.length - 1 ? '' : raw('disabled')}>${icon('down', 'sm')}</button>
+            <button type="button" class="btn sm ghost icon" data-act="ul-chip" data-op="del" data-i="${i}" aria-label="Çıkar">${icon('x', 'sm')}</button></div>`; }) : html`<div class="list-row small muted">Kısayol seçilmedi.</div>`}</div>
+          <details class="ul-add"><summary class="small">${icon('plus', 'sm')} Kısayol ekle</summary>${groups.map((g) => html`<div class="tiny faint" style="margin:8px 0 4px">${g.g}</div><div class="row wrap" style="gap:6px">${g.items.map((k) => html`<button type="button" class="chip-btn" data-act="ul-chip" data-op="add" data-id="${k.id}" ${L.chips.length >= 12 ? raw('disabled') : ''}>${icon('plus', 'sm')} ${k.label}</button>`)}</div>`)}</details>
+          <div class="stack" style="gap:8px;margin-top:8px">${sw(L.chips_big, 'ul-big', 'Büyük düğmeler', 'Simgeli büyük kutucuklar; okuması ve dokunması kolay.')}
+          ${sw(L.chips_own, 'ul-own', 'Kişi yanına kendi kısayolunu ekleyebilsin', 'Sizin kısayollarınız sabit kalır; kişinin eklediği yanına gelir.')}</div>` : ''}</div>
+      <div><div class="ph-sec">Üst çubuk simgeleri</div><div class="ul-tog">${UL_TOP.map(([k, i, l]) => html`<button type="button" class="chip-btn ${(L.top_hide || []).includes(k) ? '' : 'on'}" data-act="ul-top" data-k="${k}" aria-pressed="${(L.top_hide || []).includes(k) ? 'false' : 'true'}">${icon(i, 'sm')} ${l}</button>`)}</div>
+        <p class="tiny muted" style="margin:6px 0 0">Bildirim zili ve profil her zaman görünür. Seçili olanlar görünür.</p></div>
+      <div><div class="ph-sec">Alt menü (telefon)</div><div class="ul-tog">${UL_BOTTOM.map(([k, i, l]) => html`<button type="button" class="chip-btn ${(L.bottom_hide || []).includes(k) ? '' : 'on'}" data-act="ul-bot" data-k="${k}" aria-pressed="${(L.bottom_hide || []).includes(k) ? 'false' : 'true'}">${icon(i, 'sm')} ${l}</button>`)}</div>
+        <p class="tiny muted" style="margin:6px 0 0">Ana sayfa ve Menü her zaman görünür.</p></div>
+    </div>
+    <div class="ul-prev"><div class="small muted" style="margin-bottom:6px">${UL.scope === 'publisher' ? 'Sorumlu' : 'Üye'} böyle görecek</div>${ulPreviewHtml(L)}</div></div>`}
+    <label class="row" style="gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" id="ulReset" ${UL.reset ? raw('checked') : ''}><span class="track"></span></span><span class="grow small">Kişilerin kendi ana sayfa ve kısayol değişikliklerini de sıfırla</span></label>
+    <div class="row wrap" style="gap:8px"><button type="button" class="btn primary" data-act="ul-save">${icon('check', 'sm')}Herkese uygula</button>
+      ${UL.d.saved ? html`<button type="button" class="btn ghost sm" data-act="ul-off">Herkes için düzeni kaldır</button>` : ''}</div>`);
+  const rs = $('#ulReset', c); if (rs) rs.addEventListener('change', () => { UL.reset = rs.checked; });
+}
+ACT['ul-scope'] = (el) => { UL.scope = el.dataset.s; ulDraw(); };
+CHANGE['ul-pub'] = (el) => { UL.d.publisher = el.checked ? JSON.parse(JSON.stringify(UL.d.base)) : null; UL.dirty = true; ulDraw(); };
+ACT['ul-preset'] = (el) => ulSet(ulPreset(el.dataset.k), true);
+CHANGE['ul-lock'] = (el) => ulSet({ lock: !el.checked });
+CHANGE['ul-chips'] = (el) => ulSet({ chips: el.checked ? chipList().filter((id) => chipCatalog().some((k) => k.id === id)).slice(0, 12) : null });
+CHANGE['ul-big'] = (el) => ulSet({ chips_big: el.checked });
+CHANGE['ul-own'] = (el) => ulSet({ chips_own: el.checked });
+ACT['ul-chip'] = (el) => {
+  const a = (ulCur().chips || []).slice(); const i = +el.dataset.i;
+  if (el.dataset.op === 'add' && a.length < 12 && !a.includes(el.dataset.id)) a.push(el.dataset.id);
+  if (el.dataset.op === 'del') a.splice(i, 1);
+  if (el.dataset.op === 'up' && i > 0) [a[i - 1], a[i]] = [a[i], a[i - 1]];
+  if (el.dataset.op === 'down' && i < a.length - 1) [a[i + 1], a[i]] = [a[i], a[i + 1]];
+  ulSet({ chips: a });
+};
+const ulToggle = (key, k) => { const a = (ulCur()[key] || []).slice(); const j = a.indexOf(k); if (j >= 0) a.splice(j, 1); else a.push(k); ulSet({ [key]: a }); };
+ACT['ul-top'] = (el) => ulToggle('top_hide', el.dataset.k);
+ACT['ul-bot'] = (el) => ulToggle('bottom_hide', el.dataset.k);
+async function ulSaveNow(body, msg) {
+  const r = await api('ui.layout.save', body);
+  S.ui_layout = r.mine || null;
+  S.home_default = r.base && r.base.home ? r.base.home : null;
+  if (body.reset_users && S.my_prefs && S.my_prefs.ui) { S.my_prefs.ui = Object.assign({}, S.my_prefs.ui); delete S.my_prefs.ui.home; delete S.my_prefs.ui.chips; }
+  applyShellLayout();
+  UL.d = { base: r.base || ulPreset('standart'), publisher: r.publisher || null, saved: !!r.base }; UL.dirty = false; UL.reset = false;
+  ulDraw();
+  toast(msg + (r.reset ? ` · ${r.reset} kişinin kendi düzeni sıfırlandı` : ''));
+}
+ACT['ul-save'] = (el) => busy(el, async () => {
+  if (UL.reset && !(await confirmDialog({ title: 'Herkesin düzeni sıfırlansın mı?', text: 'Kendi ana sayfa ve kısayol düzenini yapmış kişilerin değişiklikleri silinir; herkes bu düzeni görür.', ok: 'Herkese uygula', danger: true }))) return;
+  try { await ulSaveNow({ base: UL.d.base, publisher: UL.d.publisher, reset_users: UL.reset }, 'Ana ekran herkes için kaydedildi'); } catch (e) { toast(e.message, 'err'); }
+});
+ACT['ul-off'] = async (el) => {
+  if (!(await confirmDialog({ title: 'Herkes için düzen kaldırılsın mı?', text: 'Kişiler yeniden kendi ana sayfa ve kısayollarını düzenleyebilir; üst simgeler ve alt menü eski hâline döner.', ok: 'Kaldır', danger: true }))) return;
+  try { await ulSaveNow({ base: null }, 'Herkes için düzen kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+};
+/** Yönetici düzeni değiştirince kişiye bir kez kısa not (ana sayfada) */
+function ulNoticeMount() {
+  const L = S.ui_layout;
+  const old = $('#ulNote'); if (old) old.remove();
+  if (!L || !L.ver || isAdmin()) return;
+  let seen = ''; try { seen = localStorage.getItem('nm-ul-seen') || ''; } catch (e) { /* */ }
+  if (seen === L.ver) return;
+  const hero = $('#view .hero'); if (!hero) return;
+  hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box info ul-note" id="ulNote">${icon('info', 'sm')}<div class="grow small"><b>Ana ekranınız sadeleştirildi.</b> Aradığınız her şey alttaki <b>Menü</b>’de; oradaki arama kutusuna “izin”, “takvim”, “telefon” gibi yazabilirsiniz.</div><button type="button" class="btn sm" data-act="ul-note-ok">Tamam</button></div>`));
+}
+ACT['ul-note-ok'] = () => { try { localStorage.setItem('nm-ul-seen', (S.ui_layout && S.ui_layout.ver) || ''); } catch (e) { /* */ } const n = $('#ulNote'); if (n) n.remove(); };

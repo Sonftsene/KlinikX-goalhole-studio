@@ -158,12 +158,21 @@ function heroHtml() {
   return html`<section class="hero" data-home="hero">
     <div class="hero-head"><div><h1>${greeting()}, ${first}</h1><p>${now.getDate()} ${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}, ${TR_DAYS[now.getDay()]}</p></div></div>
     <a class="hero-shift" id="heroShift" href="#/nobetim"><span class="hs-ico tone-slate">${icon('calendar')}</span><span class="grow"><span class="skel" style="display:block;height:18px;width:62%"></span><span class="skel" style="display:block;height:13px;width:40%;margin-top:8px"></span></span></a>
-    <div class="hero-chips" data-home="chips">${heroChipsHtml()}</div>
+    <div class="hero-chips ${S.ui_layout && S.ui_layout.chips_big ? 'big' : ''}" data-home="chips">${heroChipsHtml()}</div>
   </section>`;
 }
 /* ---------------- Ana sayfa kısayolları (kişiye özel; hesabına kaydedilir) ---------------- */
 const CHIP_DEF = ['todo', 'unread', 'pend', 'rehber', 'telefon'];
-function chipList() { const u = (S.my_prefs && S.my_prefs.ui) || {}; return Array.isArray(u.chips) && u.chips.length ? u.chips : CHIP_DEF; }
+/** Kişinin kendi seçtiği kısayollar (yönetici herkes için belirlediyse yalnız kişinin eklediği fazlalar) */
+function chipOwn() { const u = (S.my_prefs && S.my_prefs.ui) || {}; return Array.isArray(u.chips) && u.chips.length ? u.chips : null; }
+/** Yönetici kısayolları herkes için belirlediyse (Ayarlar › Genel › Herkes için ana ekran) onlar önde, kişinin eklediği yanında */
+function chipList() {
+  const L = S.ui_layout, own = chipOwn();
+  if (L && Array.isArray(L.chips)) return L.chips_own && own ? [...L.chips, ...own.filter((x) => !L.chips.includes(x))].slice(0, 16) : L.chips;
+  return own || CHIP_DEF;
+}
+/** Kişi kısayolları düzenleyebilir mi */
+function chipCanEdit() { const L = S.ui_layout; if (!L) return true; return Array.isArray(L.chips) ? !!L.chips_own : !L.lock; }
 /** Seçilebilecek kısayollar: durum kısayolları + yan menüdeki her sayfa (yetkisi olanlar) */
 function chipCatalog() {
   const o = [
@@ -197,20 +206,25 @@ function heroChipsHtml() {
     if (!x || !x.href) return '';
     return html`<a class="hchip" href="${x.href}">${x.svg ? raw(x.svg) : icon(x.ic || 'star', 'sm')}<span>${x.label}</span></a>`;
   };
-  return html`${chipList().map(one)}<button type="button" class="hchip ghost" data-act="chips-edit" aria-label="Kısayolları düzenle" title="Kısayolları düzenle">${icon('edit', 'sm')}</button>`;
+  return html`${chipList().map(one)}${chipCanEdit() ? html`<button type="button" class="hchip ghost" data-act="chips-edit" aria-label="Kısayolları düzenle" title="Kısayolları düzenle">${icon('edit', 'sm')}</button>` : ''}`;
 }
-function heroChipsRefresh() { const el = $('[data-home="chips"]'); if (el) setHTML(el, heroChipsHtml()); }
+function heroChipsRefresh() { const el = $('[data-home="chips"]'); if (el) { el.classList.toggle('big', !!(S.ui_layout && S.ui_layout.chips_big)); setHTML(el, heroChipsHtml()); } }
 ACT['chips-edit'] = () => {
-  const cat = chipCatalog();
-  let sel = chipList().filter((id) => cat.some((k) => k.id === id));
+  if (!chipCanEdit()) return;
+  const L = S.ui_layout;
+  const fixed = L && Array.isArray(L.chips) ? L.chips : null; // yöneticinin herkes için belirledikleri (değişmez)
+  const cat = chipCatalog().filter((k) => !fixed || !fixed.includes(k.id));
+  let sel = (fixed ? chipOwn() || [] : chipList()).filter((id) => cat.some((k) => k.id === id));
   const m = openModal({ title: 'Kısayollar', body: html`<div class="stack" id="chE"></div>`,
     foot: html`<button class="btn ghost" id="chDef">Varsayılan</button><span class="grow"></span><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="chSave">Kaydet</button>` });
   const box = $('#chE', m.el);
   const draw = () => {
     const groups = [];
     cat.filter((k) => !sel.includes(k.id)).forEach((k) => { let g = groups.find((x) => x.g === k.g); if (!g) groups.push(g = { g: k.g, items: [] }); g.items.push(k); });
-    setHTML(box, html`<p class="small muted" style="margin:0">Ana sayfada üstte görünen düğmeler. Sırasını değiştirin, istemediğinizi çıkarın, menüdeki herhangi bir sayfayı ekleyin (en çok 12).</p>
-      <div class="ph-sec">Görünenler</div>
+    const fx = fixed ? chipCatalog().filter((k) => fixed.includes(k.id)) : [];
+    setHTML(box, html`<p class="small muted" style="margin:0">${fixed ? 'Biriminizin kısayolları herkes için sabittir. Yanına kendi kısayollarınızı ekleyebilirsiniz.' : 'Ana sayfada üstte görünen düğmeler. Sırasını değiştirin, istemediğinizi çıkarın, menüdeki herhangi bir sayfayı ekleyin (en çok 12).'}</p>
+      ${fixed ? html`<div class="ph-sec">Biriminizin kısayolları</div><div class="row wrap" style="gap:6px">${fx.map((k) => html`<span class="chip-btn" style="opacity:.75">${icon('lock', 'sm')} ${k.label}</span>`)}</div>` : ''}
+      <div class="ph-sec">${fixed ? 'Sizin eklediğiniz' : 'Görünenler'}</div>
       <div class="list ch-sel">${sel.length ? sel.map((id, i) => { const k = cat.find((x) => x.id === id); return html`<div class="list-row" style="gap:6px"><span class="grow small"><b>${k ? k.label : id}</b></span>
         <button type="button" class="btn sm ghost icon" data-ch="up" data-i="${i}" aria-label="Yukarı" ${i ? '' : raw('disabled')}>${icon('chevL', 'sm')}</button>
         <button type="button" class="btn sm ghost icon" data-ch="down" data-i="${i}" aria-label="Aşağı" ${i < sel.length - 1 ? '' : raw('disabled')}>${icon('chevR', 'sm')}</button>
@@ -228,7 +242,7 @@ ACT['chips-edit'] = () => {
   });
   draw();
   const save = (v) => { prefsRemember({ chips: v }); m.close(); heroChipsRefresh(); toast('Kısayollar kaydedildi'); };
-  $('#chSave', m.el).addEventListener('click', () => save(sel.slice(0, 12)));
+  $('#chSave', m.el).addEventListener('click', () => save(fixed && !sel.length ? null : sel.slice(0, 12)));
   $('#chDef', m.el).addEventListener('click', () => save(null));
 };
 function heroShiftHtml(my) {

@@ -32,6 +32,7 @@ function renderShell() {
   </div>`);
   renderNav();
   renderBanner();
+  if (typeof applyShellLayout === 'function') applyShellLayout();
   if (typeof vwBar === 'function') vwBar();
   if (typeof blBanner === 'function') blBanner();
   updateNotifBadge();
@@ -105,12 +106,12 @@ function renderNav() {
     <div class="sidebar-foot">
       <button class="me-card" data-act="me-menu">${avatar(me.name)}<div class="grow"><div class="n ellipsis">${me.name}</div><div class="t ellipsis">${titleName(me.title_id) || ROLE_LABEL[me.role]}${unitName(me.unit_id) ? ' · ' + unitName(me.unit_id) : ''}</div></div>${icon('more', 'sm')}</button>
     </div>`);
-  const tab = (href, ic, label, on, count, cls = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
+  const tab = (href, ic, label, on, count, cls = '', bn = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}" data-bn="${bn}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
     ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${modOn('nobet') ? tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0) : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0)}
+    ${modOn('nobet') ? tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0, '', 'nobet') : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0, '', 'nobet')}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
-    ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo)}
+    ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo, '', 'todo')}
     ${tab('#/menu', icon('grid'), 'Menü', ['menu', 'profil', 'yonetim'].includes(r[0]), isPublisherBase() ? pendingAdmin : 0, 'bn-menu')}`);
 }
 
@@ -133,12 +134,32 @@ NM_EXT.routes.menu = (view) => {
   const me = S.me;
   setHTML(view, html`<div class="mn-page">
     <h1 class="mn-h">Menü</h1>
+    <label class="mn-q">${icon('search', 'sm')}<input class="input" type="search" id="mnQ" placeholder="Ne arıyorsunuz? (takvim, izin, liste, telefon…)" autocomplete="off" aria-label="Menüde ara"></label>
+    <p class="small muted hidden" id="mnNone">Menüde bulunamadı. <a href="#" data-act="search-open">İçeriklerde arayın</a></p>
     <a class="mn-me" href="#/profil">${avatar(me.name, 'lg')}<span class="grow" style="min-width:0"><b class="ellipsis" style="display:block">${me.name}</b><span class="small muted">Hesabım, bildirimler, ayarlar</span></span><span class="badge danger hidden" id="mnPush">Bildirim kapalı</span>${icon('chevR', 'sm')}</a>
     ${groups.filter((g) => g.items.length).map((g) => html`<div class="mn-sec">${g.t}</div>
-      <div class="mn-grid">${g.items.map((it, i) => html`<a class="mn-tile" href="${it.href}"><span class="mn-ic t-${MN_TONES[i % MN_TONES.length]}">${raw(it.ic)}</span><span class="mn-l">${it.label}</span>${it.count ? html`<span class="mn-c">${it.count}</span>` : ''}</a>`)}</div>`)}
+      <div class="mn-grid">${g.items.map((it, i) => html`<a class="mn-tile" href="${it.href}" data-k="${mnKeys(it.label, it.href)}"><span class="mn-ic t-${MN_TONES[i % MN_TONES.length]}">${raw(it.ic)}</span><span class="mn-l">${it.label}</span>${it.count ? html`<span class="mn-c">${it.count}</span>` : ''}</a>`)}</div>`)}
   </div>`);
   if (S.settings.push_ready && typeof pushState === 'function') pushState().then((st) => { const b = $('#mnPush'); if (b && st !== 'on') b.classList.remove('hidden'); }).catch(() => {});
+  const q = $('#mnQ');
+  if (q) q.addEventListener('input', () => mnFilter(q.value));
 };
+/** Menü araması: sayfa adı + gündelik sözcükler (ör. “izin” → İstekler, “numara” → Telefon rehberi) */
+const MN_SYN = [
+  [/takvim|nobetim|nöbetim/, 'takvim nöbetlerim ay görünümü'], [/istek/, 'izin boşluk yıllık izin istek dilek'], [/excel|liste/, 'liste excel nöbet listesi çizelge'],
+  [/telefon/, 'telefon numara dahili rehber'], [/kim-nobette|rehber/, 'kim nöbette bugün nöbetçi ekip'], [/mesaj/, 'mesaj sohbet yazış whatsapp'],
+  [/ilan/, 'ilan değişim takas devir nöbet ver al'], [/ekstra/, 'ekstra fazla mesai ücret para'], [/cizelge|plan/, 'çizelge plan hazırla otomatik doldur'],
+  [/yemek/, 'yemek menü öğle akşam'], [/kura/, 'kura çekiliş'], [/okunacak/, 'okunacak zorunlu duyuru protokol'], [/kaydedilen/, 'kaydedilen yer imi'],
+  [/destek/, 'destek yardım sorun'], [/taraf/, 'taraf blok yerleşim'], [/ayarlar/, 'ayarlar yönetim'], [/kullanici/, 'kullanıcı üye onay hesap'],
+];
+function mnKeys(label, href) { const h = String(href || '').toLocaleLowerCase('tr'); return (label + ' ' + MN_SYN.filter(([re]) => re.test(h) || re.test(label.toLocaleLowerCase('tr'))).map(([, w]) => w).join(' ')).toLocaleLowerCase('tr'); }
+function mnFilter(v) {
+  const q = String(v || '').trim().toLocaleLowerCase('tr');
+  let any = false;
+  $$('.mn-page .mn-tile').forEach((t) => { const ok = !q || (t.dataset.k || '').includes(q); t.classList.toggle('hidden', !ok); if (ok) any = true; });
+  $$('.mn-page .mn-sec').forEach((s) => { const g = s.nextElementSibling; const show = !g || [...g.children].some((c) => !c.classList.contains('hidden')); s.classList.toggle('hidden', !show); if (g) g.classList.toggle('hidden', !show); });
+  const n = $('#mnNone'); if (n) n.classList.toggle('hidden', any || !q);
+}
 
 ACT.go = (el) => { location.hash = el.dataset.href; };
 ACT['nav-open'] = () => { const sh = $('#shell'); if (!sh || sh.classList.contains('nav-open')) return; sh.classList.add('nav-open'); ovOpen(() => sh.classList.remove('nav-open'), () => sh.classList.contains('nav-open') && document.body.contains(sh)); };
@@ -283,6 +304,7 @@ function renderHome(view) {
   loadHomeExtras();
   mountHomeExt();
   if (typeof applyHomeLayout === 'function') applyHomeLayout();
+  if (typeof ulNoticeMount === 'function') ulNoticeMount();
   maybeShowTour();
   refreshRosters().then(() => {
     const c = $('#rosterCard'); if (c) setHTML(c, rosterCard());

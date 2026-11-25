@@ -31,17 +31,17 @@ try {
   const A = await ctx('admin', false); await login(A.p, 'ayse@test.com', 'Sifre1234');
   const M = await ctx('elif', true); await login(M.p, 'elif@test.com', 'YeniSifre99');
 
-  // 1) Yönetici: Ayarlar › Genel › Herkesin ana sayfası — akışı gizle, nöbet listelerini yukarı al, herkese uygula
+  // 1) Yönetici: Ayarlar › Genel › Herkes için ana ekran (Standart: kişiler değiştirebilir) — akışı gizle, nöbet listelerini yukarı al, herkese uygula
   await A.p.goto(BASE + '#/yonetim/ayarlar/genel');
-  await A.p.locator('#homeDefCard .hl-item').first().waitFor();
-  await A.p.click('#homeDefCard [data-act=hl-toggle][data-id=feed]');
-  await A.p.click('#homeDefCard [data-act=hl-move][data-id=rosters][data-d="-1"]');
-  await A.p.locator('#homeDefCard .hl-item.off', { hasText: 'Duyuru ve belge akışı' }).waitFor();
-  await A.p.locator('#homeDefCard label', { has: A.p.locator('#hldAll') }).click();
-  if (!(await A.p.locator('#hldAll').isChecked())) await A.p.evaluate(() => { document.querySelector('#hldAll').checked = true; });
-  await A.p.click('[data-act=hld-save]');
-  await A.p.locator('.modal [data-ok]').click(); // "Herkesin düzeni bu düzene dönsün mü?"
-  await A.p.getByText('Varsayılan düzen kaydedildi').first().waitFor();
+  await A.p.locator('#ulCard .hl-item').first().waitFor();
+  await A.p.click('#ulCard [data-act=hl-toggle][data-id=feed]');
+  await A.p.click('#ulCard [data-act=hl-move][data-id=rosters][data-d="-1"]');
+  await A.p.locator('#ulCard .hl-item.off', { hasText: 'Duyuru ve belge akışı' }).waitFor();
+  if (!(await A.p.locator('#ulCard [data-change=ul-lock]').isChecked())) fail('standart düzende kişiler değiştiremez görünüyor');
+  await A.p.evaluate(() => { const r = document.querySelector('#ulReset'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); });
+  await A.p.click('[data-act=ul-save]');
+  await A.p.locator('.modal [data-ok]').click(); // "Herkesin düzeni sıfırlansın mı?"
+  await A.p.getByText('Ana ekran herkes için kaydedildi').first().waitFor();
   await A.p.screenshot({ path: path.join(OUT, 'anasayfa-varsayilan.png'), fullPage: true });
   const def = await A.p.evaluate(() => S.home_default);
   if (!def || !def.hidden.includes('feed') || def.order.indexOf('rosters') > def.order.indexOf('today')) fail('varsayılan kaydı: ' + JSON.stringify(def));
@@ -117,7 +117,7 @@ try {
   step(`bildirim durumu: Elif’in cihazı “${st1.state}” bildirdi; yönetici listede gördü, “Hatırlat” → Elif’e uygulama içi bildirim; 12 saat içinde ikinci hatırlatma engellendi; üye listeyi göremiyor`);
 
   // Temizlik: varsayılanı kaldır
-  await A.p.evaluate(() => api('home.default.save', { home: null }));
+  await A.p.evaluate(() => api('ui.layout.save', { base: null }));
   if ((await A.p.evaluate(() => api('boot'))).home_default !== null) fail('varsayılan kaldırılamadı');
   // Üye varsayılan düzeni değiştiremez
   const mErr = await M.p.evaluate(() => api('home.default.save', { home: { hidden: ['feed'] } }).then(() => 'kabul', (e) => e.status));
