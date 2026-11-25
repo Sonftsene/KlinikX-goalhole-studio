@@ -812,3 +812,43 @@ function ulNoticeMount() {
   hero.insertAdjacentHTML('afterend', fmtVal(html`<div class="mk-box info ul-note" id="ulNote">${icon('info', 'sm')}<div class="grow small"><b>Ana ekranınız sadeleştirildi.</b> Aradığınız her şey alttaki <b>Menü</b>’de; oradaki arama kutusuna “izin”, “takvim”, “telefon” gibi yazabilirsiniz.</div><button type="button" class="btn sm" data-act="ul-note-ok">Tamam</button></div>`));
 }
 ACT['ul-note-ok'] = () => { try { localStorage.setItem('nm-ul-seen', (S.ui_layout && S.ui_layout.ver) || ''); } catch (e) { /* */ } const n = $('#ulNote'); if (n) n.remove(); };
+
+
+/* ---------------- Sayfa ve menü adları (yönetici; 4.50.0) ---------------- */
+const LB = { draft: null };
+NM_EXT.settingsCards.push({
+  sec: 'genel', admin: true,
+  html: () => html`<div class="card card-pad stack" data-sec="genel" id="lbCard"></div>`,
+  mount: () => { LB.draft = Object.assign({}, S.ui_labels || {}); renderNav(); lbDraw(); },
+});
+function lbDraw() {
+  const c = $('#lbCard'); if (!c) return;
+  // Düzenlenebilir adlar: yan menü (bölüm ve liste adları hariç), menü başlıkları, nöbet sekmeleri, alt menü
+  ['#/nobetim', '#/rehber', '#/nobet'].forEach((k) => uiL(k, { '#/nobetim': 'Takvimim', '#/rehber': 'Kim nöbette', '#/nobet': 'Excel liste' }[k], 'Nöbet sekmeleri'));
+  ['bn:home', 'bn:todo', 'bn:menu'].forEach((k) => uiL(k, { 'bn:home': 'Ana sayfa', 'bn:todo': 'Okunacak', 'bn:menu': 'Menü' }[k], 'Alt menü (telefon)'));
+  const groups = [];
+  Object.entries(UI_DEF).filter(([k]) => !/^#\/(b|nobet)\/\d+$/.test(k)).forEach(([k, d]) => { let g = groups.find((x) => x.g === d.g); if (!g) groups.push(g = { g: d.g, items: [] }); g.items.push([k, d.l]); });
+  const n = Object.keys(LB.draft).length;
+  setHTML(c, html`<div class="row between wrap" style="gap:8px"><div><h3 style="font-size:15px;margin:0">${icon('edit', 'sm')} Sayfa ve menü adları</h3>
+      <p class="small muted" style="margin:4px 0 0">Menüdeki ve sayfalardaki adları biriminize göre değiştirin (ör. “Takvimim” → “Nöbetlerim”). Boş bırakılan varsayılan adla kalır. Adlar veritabanında saklanır; <b>güncellemeler bu adları değiştirmez</b>. Bölüm (kategori) ve nöbet listesi adları kendi sayfalarından değiştirilir.</p></div>
+      ${n ? html`<span class="badge brand">${n} özel ad</span>` : ''}</div>
+    <input class="input" type="search" id="lbQ" placeholder="Ad ara…" aria-label="Ad ara">
+    <div class="lb-list">${groups.map((g) => html`<div class="lb-g"><div class="ph-sec">${g.g}</div>${g.items.map(([k, def]) => html`<label class="lb-row" data-k="${(def + ' ' + (LB.draft[k] || '')).toLocaleLowerCase('tr')}"><span class="small lb-def">${def}</span>${icon('chevR', 'sm')}<input class="input" maxlength="40" data-lb="${k}" value="${LB.draft[k] || ''}" placeholder="${def}"></label>`)}</div>`)}</div>
+    <div class="row wrap" style="gap:8px"><button type="button" class="btn primary" data-act="lb-save">${icon('check', 'sm')}Adları kaydet</button>
+      ${n ? html`<button type="button" class="btn ghost sm" data-act="lb-reset">Tümünü varsayılana döndür</button>` : ''}</div>`);
+  c.querySelectorAll('[data-lb]').forEach((i) => i.addEventListener('input', () => { const v = i.value.trim(); if (v) LB.draft[i.dataset.lb] = v; else delete LB.draft[i.dataset.lb]; }));
+  const q = $('#lbQ', c);
+  q.addEventListener('input', () => { const v = q.value.trim().toLocaleLowerCase('tr'); c.querySelectorAll('.lb-row').forEach((r) => r.classList.toggle('hidden', !!v && !r.dataset.k.includes(v))); c.querySelectorAll('.lb-g').forEach((g) => g.classList.toggle('hidden', ![...g.querySelectorAll('.lb-row')].some((r) => !r.classList.contains('hidden')))); });
+}
+async function lbSave(labels, msg) {
+  const r = await api('ui.labels.save', { labels });
+  S.ui_labels = r.labels || {};
+  LB.draft = Object.assign({}, S.ui_labels);
+  renderNav(); lbDraw(); uiTitleFix();
+  toast(msg);
+}
+ACT['lb-save'] = (el) => busy(el, async () => { try { await lbSave(LB.draft, 'Adlar kaydedildi · herkeste görünür'); } catch (e) { toast(e.message, 'err'); } });
+ACT['lb-reset'] = async () => {
+  if (!(await confirmDialog({ title: 'Tüm adlar varsayılana dönsün mü?', text: 'Verdiğiniz bütün özel adlar silinir.', ok: 'Varsayılana döndür', danger: true }))) return;
+  try { await lbSave({}, 'Adlar varsayılana döndü'); } catch (e) { toast(e.message, 'err'); }
+};

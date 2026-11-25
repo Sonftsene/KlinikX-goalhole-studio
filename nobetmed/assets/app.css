@@ -2156,3 +2156,12 @@ html.kr-open, html.kr-open body { overflow: hidden; }
 .ul-bot span svg.i { width: 15px; height: 15px; }
 .ul-bot span.pl svg.i { background: var(--brand); color: #fff; border-radius: 7px; padding: 3px; width: 22px; height: 18px; }
 .ul-note { margin: 10px 0; display: flex; gap: 10px; align-items: center; }
+
+/* Sayfa ve menü adları (4.50.0) */
+.lb-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 18px; max-height: 60vh; overflow: auto; }
+.lb-g { display: contents; }
+.lb-g .ph-sec { grid-column: 1 / -1; margin-top: 6px; }
+.lb-row { display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1.2fr); gap: 8px; align-items: center; }
+.lb-row .lb-def { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.lb-row .input { height: 36px; }
+.lb-row.hidden, .lb-g.hidden { display: none; }

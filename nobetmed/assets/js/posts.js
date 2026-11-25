@@ -66,6 +66,8 @@ function currentRoute() {
 }
 
 function navItem(href, ic, label, count, active, countCls = '') {
+  // Liste ve bölüm adları kendi yerlerinden değiştirilir; diğer sayfalar yöneticinin verdiği adla
+  if (!/^#\/(b|nobet)\/\d+$/.test(href)) label = uiL(href, label);
   return html`<a class="nav-item ${active ? 'active' : ''}" href="${href}">${ic}<span class="grow">${label}</span>${count ? html`<span class="count ${countCls}">${count > 99 ? '99+' : count}</span>` : ''}</a>`;
 }
 
@@ -74,6 +76,7 @@ function renderNav() {
   const c = S.counts;
   const me = S.me;
   const pendingAdmin = (c.pending_posts || 0) + (c.pending_users || 0);
+  UI_GRP = 'Genel';
   setHTML($('#sidebar'), html`
     <a class="brand ${(S.settings.brand || {}).logo ? 'custom' : ''}" href="#/" aria-label="Ana sayfa">${brandLogo()}<div class="brand-org ellipsis">${S.settings.org_name}</div></a>
     ${navItem('#/', icon('home'), 'Ana sayfa', c.unread, !r[0])}
@@ -81,7 +84,7 @@ function renderNav() {
     ${navItem('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', 0, r[0] === 'kaydedilenler')}
     ${modOn('rehber') ? navItem('#/telefon', icon('phone'), 'Telefon rehberi', 0, r[0] === 'telefon') : ''}
     ${NM_EXT.nav.filter((n) => n.sec === 'genel' && modOn(n.mod) && (!n.visible || n.visible())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
-    ${modOn('nobet') ? html`<div class="nav-sec">Nöbet</div>
+    ${modOn('nobet') ? html`<div class="nav-sec">${uiSec('@nobet', 'Nöbet')}</div>
     ${navItem('#/nobetim', icon('calendar'), 'Takvimim', 0, r[0] === 'nobetim')}
     ${navItem('#/rehber', icon('users'), 'Kim nöbette', 0, r[0] === 'rehber')}
     ${modOn('taraf') ? navItem('#/taraf', icon('layers'), 'Taraf listesi', 0, r[0] === 'taraf') : ''}
@@ -89,11 +92,11 @@ function renderNav() {
     ${NM_EXT.nav.filter((n) => (n.sec || 'nobet') === 'nobet' && modOn(n.mod) && (!n.pub || canManage(n.mod)) && (!n.admin || isAdmin())).map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r)))}
     ${S.rosters.some((ro) => ro.kind !== 'tablo') ? S.rosters.filter((ro) => ro.kind !== 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('table'), ro.name, 0, r[0] === 'nobet' && (+r[1] === ro.id || (!r[1] && RS.active === ro.id))))
       : navItem('#/nobet', icon('table'), 'Nöbet listeleri', 0, r[0] === 'nobet')}
-    ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">Tablolar</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}` : ''}
-    <div class="nav-sec">Bölümler</div>
+    ${S.rosters.some((ro) => ro.kind === 'tablo') ? html`<div class="nav-sec">${uiSec('@tablolar', 'Tablolar')}</div>${S.rosters.filter((ro) => ro.kind === 'tablo').map((ro) => navItem('#/nobet/' + ro.id, icon('clipboard'), ro.name, 0, r[0] === 'nobet' && +r[1] === ro.id))}` : ''}` : ''}
+    <div class="nav-sec">${uiSec('@bolumler', 'Bölümler')}</div>
     ${S.categories.map((cat) => navItem('#/b/' + cat.id, html`<span class="cat-ico sm tone-${cat.color}">${icon(cat.icon)}</span>`, cat.name, (c.unread_by_cat || {})[cat.id] || 0, r[0] === 'b' && +r[1] === cat.id, 'muted'))}
     ${isPublisherBase() || mgmtNav().length ? html`
-      <div class="nav-sec">Yönetim</div>
+      <div class="nav-sec">${uiSec('@yonetim', 'Yönetim')}</div>
       ${isPublisherBase() ? navItem('#/yonetim/onaylar', icon('inbox'), 'Onay bekleyenler', c.pending_posts, r[0] === 'yonetim' && (r[1] || 'onaylar') === 'onaylar', 'warn') : ''}
       ${mgmtNav().map((n) => navItem(n.href, icon(n.icon), n.label, n.count ? n.count() : 0, n.match(r), 'warn'))}
       ${isAdmin() ? html`
@@ -108,11 +111,11 @@ function renderNav() {
     </div>`);
   const tab = (href, ic, label, on, count, cls = '', bn = '') => html`<button class="${on ? 'on' : ''} ${cls}" data-act="go" data-href="${href}" data-bn="${bn}">${ic}<span>${label}</span>${count ? html`<span class="count">${count > 99 ? '99+' : count}</span>` : ''}</button>`;
   setHTML($('#bottomNav'), html`
-    ${tab('#/', icon('home'), 'Ana sayfa', !r[0], c.unread)}
-    ${modOn('nobet') ? tab(hubHref(), icon('calendar'), 'Nöbet', (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0, '', 'nobet') : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0, '', 'nobet')}
+    ${tab('#/', icon('home'), uiL('bn:home', 'Ana sayfa', 'Alt menü (telefon)'), !r[0], c.unread)}
+    ${modOn('nobet') ? tab(hubHref(), icon('calendar'), uiL('@nobet', 'Nöbet'), (['nobet', 'nobetim', 'rehber', 'taraf'].includes(r[0]) || NM_EXT.hubTabs.some((t) => t.href === '#/' + r[0])), 0, '', 'nobet') : tab('#/kaydedilenler', icon('bookmark'), 'Kaydedilenler', r[0] === 'kaydedilenler', 0, '', 'nobet')}
     <button class="plus" data-act="compose" aria-label="Yeni içerik"><span class="pl">${icon('plus')}</span></button>
-    ${tab('#/okunacak', icon('checkCircle'), 'Okunacak', r[0] === 'okunacak', c.todo, '', 'todo')}
-    ${tab('#/menu', icon('grid'), 'Menü', ['menu', 'profil', 'yonetim'].includes(r[0]), isPublisherBase() ? pendingAdmin : 0, 'bn-menu')}`);
+    ${tab('#/okunacak', icon('checkCircle'), uiL('bn:todo', 'Okunacak', 'Alt menü (telefon)'), r[0] === 'okunacak', c.todo, '', 'todo')}
+    ${tab('#/menu', icon('grid'), uiL('bn:menu', 'Menü', 'Alt menü (telefon)'), ['menu', 'profil', 'yonetim'].includes(r[0]), isPublisherBase() ? pendingAdmin : 0, 'bn-menu')}`);
 }
 
 /* ---------------- Menü sekmesi: tüm bölümler kutucuklarla (yan menüyle aynı yetkiler; içeriği ondan üretilir) ---------------- */
@@ -133,7 +136,7 @@ NM_EXT.routes.menu = (view) => {
   });
   const me = S.me;
   setHTML(view, html`<div class="mn-page">
-    <h1 class="mn-h">Menü</h1>
+    <h1 class="mn-h">${uiL('bn:menu', 'Menü', 'Alt menü (telefon)')}</h1>
     <label class="mn-q">${icon('search', 'sm')}<input class="input" type="search" id="mnQ" placeholder="Ne arıyorsunuz? (takvim, izin, liste, telefon…)" autocomplete="off" aria-label="Menüde ara"></label>
     <p class="small muted hidden" id="mnNone">Menüde bulunamadı. <a href="#" data-act="search-open">İçeriklerde arayın</a></p>
     <a class="mn-me" href="#/profil">${avatar(me.name, 'lg')}<span class="grow" style="min-width:0"><b class="ellipsis" style="display:block">${me.name}</b><span class="small muted">Hesabım, bildirimler, ayarlar</span></span><span class="badge danger hidden" id="mnPush">Bildirim kapalı</span>${icon('chevR', 'sm')}</a>
@@ -880,3 +883,20 @@ FORMS.composer = (f) => submitForm(f, async (d) => {
   }
   reloadCurrent();
 });
+
+
+/* ---------------- Sayfa başlıkları: yöneticinin verdiği adla (sayfalar başlığı kendi yazar; burada eşlenir) ---------------- */
+function uiTitleFix() {
+  const m = S && S.ui_labels; if (!m || !Object.keys(m).length) return;
+  const map = {};
+  Object.entries(UI_DEF).forEach(([k, d]) => { if (m[k] && d.l !== m[k]) map[d.l] = m[k]; });
+  $$('#view .page-head h1, #view h1.mn-h').forEach((h) => {
+    const tn = [...h.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+    if (tn && map[tn.textContent.trim()]) tn.textContent = tn.textContent.replace(tn.textContent.trim(), map[tn.textContent.trim()]);
+  });
+}
+(function uiTitleWatch() {
+  let t = 0;
+  const go = () => { const v = $('#view'); if (!v) { setTimeout(go, 500); return; } new MutationObserver(() => { clearTimeout(t); t = setTimeout(uiTitleFix, 30); }).observe(v, { childList: true, subtree: true }); };
+  go();
+})();

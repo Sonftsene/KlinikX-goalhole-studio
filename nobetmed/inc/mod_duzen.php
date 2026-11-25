@@ -89,9 +89,35 @@ function a_ui_layout_save(): void
     out(['base' => $j['base'] ?? null, 'publisher' => $j['publisher'] ?? null, 'ver' => $j['ver'] ?? null, 'reset' => $n, 'mine' => ul_for($me)]);
 }
 
-$GLOBALS['NM_BOOT'][] = fn(array $me): array => ['ui_layout' => ul_for($me)];
+/* ---------------- Sayfa ve menü adları (yönetici; veritabanında durur, güncellemede değişmez) ---------------- */
+function ul_labels(): array
+{
+    $j = json_decode((string)setting('ui_labels', ''), true);
+    return is_array($j) ? $j : [];
+}
+/** {labels: {anahtar: ad}} — anahtar: sayfa adresi (#/…) ya da menü başlığı (@nobet, bn:menu…); boş ad varsayılana döner */
+function a_ui_labels_save(): void
+{
+    $me = need_admin();
+    global $IN;
+    $in = is_array($IN['labels'] ?? null) ? $IN['labels'] : [];
+    $o = [];
+    foreach (array_slice($in, 0, 200, true) as $k => $v) {
+        $k = (string)$k;
+        if (!preg_match('~^(#/[A-Za-z0-9/_-]{0,60}|@[a-z]{2,20}|bn:[a-z]{2,10})$~', $k)) continue;
+        $v = trim(preg_replace('/\s+/u', ' ', strip_tags((string)$v)));
+        if ($v === '') continue;
+        $o[$k] = mb_substr($v, 0, 40);
+    }
+    set_setting('ui_labels', $o ? json_encode($o, JSON_UNESCAPED_UNICODE) : '');
+    audit($me, 'settings.save', 'Sayfa ve menü adları', count($o) . ' özel ad');
+    out(['labels' => (object)$o]);
+}
+
+$GLOBALS['NM_BOOT'][] = fn(array $me): array => ['ui_layout' => ul_for($me), 'ui_labels' => (object)ul_labels()];
 
 return [
+    'ui.labels.save' => 'a_ui_labels_save',
     'ui.layout.get' => 'a_ui_layout_get',
     'ui.layout.save' => 'a_ui_layout_save',
 ];

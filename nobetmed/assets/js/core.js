@@ -621,6 +621,17 @@ const ROLE_HINT = {
   member: 'Görüntüleme; eklediği içerikler onaya gider',
 };
 const isAdmin = () => S.me && S.me.role === 'admin';
+/* ---- Yöneticinin verdiği sayfa / menü adları (Ayarlar › Genel › Sayfa ve menü adları; veritabanında, güncellemede korunur) ---- */
+const UI_DEF = {}; // anahtar → {l: varsayılan ad, g: grup}
+let UI_GRP = 'Genel';
+/** Özel ad varsa onu, yoksa varsayılanı döndürür; varsayılanı düzenleme listesi için kaydeder */
+function uiL(key, def, grp) {
+  if (key && def && !UI_DEF[key]) UI_DEF[key] = { l: def, g: grp || UI_GRP };
+  const m = S && S.ui_labels;
+  return (m && key && m[key]) || def;
+}
+/** Menü bölüm başlığı (sonraki sayfalar bu gruba yazılır) */
+function uiSec(key, def) { const t = uiL(key, def, 'Menü başlıkları'); UI_GRP = def; return t; }
 const isPublisherBase = () => S.me && (S.me.role === 'admin' || S.me.role === 'editor');
 /* Modüller ve yetkiler (4.1): S.mods = birimde açık modüller, S.perm = kişinin modül başına yetkisi (off | use | manage) */
 const ROUTE_MOD = { nobetim: 'nobet', rehber: 'nobet', nobet: 'nobet', taraf: 'taraf', istekler: 'istekler', ilanlar: 'ilan', eksik: 'eksik', gecmis: 'gecmis', telefon: 'rehber', hastane: 'hbelge', mesaj: 'mesaj', cizelge: 'cizelge' };

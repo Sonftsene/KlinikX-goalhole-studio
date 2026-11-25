@@ -99,7 +99,40 @@ try {
   if (await A.p.locator('.hero-chips.big').count()) fail('yönetici ekranında büyük kısayol (sorumlu düzeni standart)');
   step('sorumlulara ayrı düzen (Standart): yönetici standart ekranı görüyor, üye Sade’de kalıyor');
 
-  // 5) Kaldır: her şey eski hâline
+  // 5) Sayfa ve menü adları: yönetici değiştirir, herkeste (menü, alt menü, nöbet sekmesi, sayfa başlığı) görünür
+  await A.p.goto(BASE + '#/yonetim/ayarlar/genel');
+  await A.p.locator('#lbCard [data-lb="#/nobetim"]').waitFor({ timeout: 10000 });
+  await A.p.fill('#lbCard [data-lb="#/nobetim"]', 'Nöbetlerim');
+  await A.p.fill('#lbCard [data-lb="#/telefon"]', 'Dahili numaralar');
+  await A.p.fill('#lbCard [data-lb="bn:menu"]', 'Diğer');
+  await A.p.fill('#lbCard [data-lb="@nobet"]', 'Nöbet işleri');
+  await A.p.locator('#lbCard').screenshot({ path: path.join(OUT, 'duzen-adlar.png') });
+  await A.p.click('#lbCard [data-act=lb-save]');
+  await A.p.getByText('Adlar kaydedildi').first().waitFor();
+  if (!(await A.p.locator('#sidebar', { hasText: 'Nöbetlerim' }).count())) fail('yöneticinin menüsünde yeni ad yok');
+  await M.p.reload(); await M.p.waitForFunction(() => typeof S !== 'undefined' && S.me);
+  await homeReady(M.p);
+  const sb = await M.p.evaluate(() => document.querySelector('#sidebar').textContent);
+  if (!sb.includes('Nöbetlerim') || sb.includes('Takvimim') || !sb.includes('Nöbet işleri')) fail('üyenin menüsünde yeni adlar yok');
+  if (!(await M.p.locator('#bottomNav', { hasText: 'Diğer' }).count())) fail('alt menüde “Diğer” yok');
+  await M.p.goto(BASE + '#/nobetim');
+  await M.p.locator('.hub-tabs a.on', { hasText: 'Nöbetlerim' }).waitFor({ timeout: 8000 }).catch(() => fail('nöbet sekmesinde yeni ad yok'));
+  await M.p.locator('.page-head h1', { hasText: 'Nöbet işleri' }).waitFor({ timeout: 5000 }).catch(() => fail('nöbet sayfa başlığı değişmedi'));
+  await M.p.goto(BASE + '#/telefon');
+  await M.p.locator('.page-head h1', { hasText: 'Dahili numaralar' }).waitFor({ timeout: 8000 }).catch(() => fail('telefon rehberi sayfa başlığı değişmedi'));
+  await M.p.goto(BASE + '#/menu');
+  await M.p.locator('.mn-tile', { hasText: 'Dahili numaralar' }).waitFor({ timeout: 5000 }).catch(() => fail('Menü kutucuğunda yeni ad yok'));
+  await M.p.locator('#mnQ').fill('dahili');
+  await M.p.waitForTimeout(200);
+  if (!(await M.p.locator('.mn-tile:not(.hidden)', { hasText: 'Dahili numaralar' }).count())) fail('menü aramasında yeni ad bulunamadı');
+  await M.p.screenshot({ path: path.join(OUT, 'duzen-adlar-uye.png') });
+  const lb = (await call(M.p, 'boot')).ui_labels;
+  if (lb['#/nobetim'] !== 'Nöbetlerim') fail('adlar sunucuda saklanmadı: ' + JSON.stringify(lb));
+  if ((await M.p.evaluate(() => api('ui.labels.save', { labels: {} }).then(() => 'kabul', (e) => e.status))) === 'kabul') fail('üye adları değiştirebildi');
+  await call(A.p, 'ui.labels.save', { labels: {} });
+  step('yönetici “Takvimim → Nöbetlerim”, “Telefon rehberi → Dahili numaralar”, “Menü → Diğer”, “Nöbet → Nöbet işleri” yaptı; üyede yan menü, alt menü, nöbet sekmesi, sayfa başlıkları, Menü kutucuğu ve menü aramasında yeni adlar; üye değiştiremiyor');
+
+  // 6) Kaldır: her şey eski hâline
   await call(A.p, 'ui.layout.save', { base: null });
   await M.p.reload(); await M.p.waitForFunction(() => typeof S !== 'undefined' && S.me);
   await homeReady(M.p);
@@ -109,7 +142,7 @@ try {
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }
-try { if (A) await call(A.p, 'ui.layout.save', { base: null }); } catch (e) { /* */ }
+try { if (A) { await call(A.p, 'ui.layout.save', { base: null }); await call(A.p, 'ui.labels.save', { labels: {} }); } } catch (e) { /* */ }
 await browser.close();
 if (errors.length) { console.log('\nHATALAR:\n' + errors.join('\n')); process.exit(1); }
 console.log('\nTAMAM: herkes için ana ekran testleri geçti');
