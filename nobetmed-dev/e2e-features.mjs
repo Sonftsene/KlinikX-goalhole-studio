@@ -468,7 +468,7 @@ if (impTxt !== '5 numarayı ekle') fail('yapıştırma önizlemesi: ' + impTxt);
 await a.click('#pbImpBtn');
 await expectText(a, '5 numara eklendi');
 const grp = await a.locator('#pbList .sec-title').allInnerTexts();
-if (grp.map((x) => x.trim()).join('|') !== 'LABORATUVAR|RADYOLOJİ|Ekip') fail('rehber grupları: ' + grp.join('|'));
+if (grp.map((x) => x.trim()).join('|') !== 'Laboratuvar|Radyoloji|Ekip') fail('rehber grupları: ' + grp.join('|'));
 if ((await a.locator('#pbList .pb-row', { hasText: 'Kan merkezi' }).locator('.pb-num').count()) !== 2) fail('iki numaralı satır');
 await a.click('.page-head [data-act=pb-add]');
 await a.fill('.modal [name=name]', 'Beyaz kod');
