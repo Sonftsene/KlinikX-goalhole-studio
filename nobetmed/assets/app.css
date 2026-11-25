@@ -2165,3 +2165,12 @@ html.kr-open, html.kr-open body { overflow: hidden; }
 .lb-row .lb-def { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 .lb-row .input { height: 36px; }
 .lb-row.hidden, .lb-g.hidden { display: none; }
+
+/* Yönetici sohbetleri: kimde duruyor (4.53.0) */
+.adc-sides { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.adc-side { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); }
+.adc-side i { font-style: normal; color: var(--text-3); }
+.adc-side b { font-weight: 700; margin-left: 2px; }
+.adc-side.on { background: var(--success-soft, #e6f6ee); color: var(--success); }
+.adc-side.off { background: var(--danger-soft); color: var(--danger); }
+.adc-side svg.i { width: 12px; height: 12px; }

@@ -73,7 +73,7 @@ function chatBodyHtml(m) {
     }
     if (m.body) parts.push(html`<div class="ch-text ${/^\p{Extended_Pictographic}{1,3}$/u.test(m.body.replace(/️|‍/g, '')) ? 'big' : ''}">${chatRich(m.body)}</div>`);
   }
-  if ((m.reacts || []).length) parts.push(html`<div class="ch-reacts">${m.reacts.map((x) => html`<button type="button" class="ch-react ${x.mine ? 'on' : ''}" data-act="ch-react" data-id="${m.id}" data-e="${x.e}">${x.e} ${x.n}</button>`)}</div>`);
+  if ((m.reacts || []).length) parts.push(html`<div class="ch-reacts">${m.reacts.map((x) => html`<button type="button" class="ch-react ${x.mine ? 'on' : ''}" data-act="ch-reacts" data-id="${m.id}" data-e="${x.e}" aria-label="Tepkiler: ${x.e} ${x.n}">${x.e} ${x.n}</button>`)}</div>`);
   return html`${parts}`;
 }
 ACT['ch-speed'] = (el) => {
@@ -438,3 +438,16 @@ function chatPreview(files, opts = {}) {
   cap.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); go(); } });
   if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => cap.focus(), 50);
 }
+
+
+/* ---------------- Tepkiler: rozete dokununca kim hangi tepkiyi verdi (kendi tepkini buradan kaldırırsın; dokunmak artık kaldırmaz) ---------------- */
+ACT['ch-reacts'] = async (el) => {
+  const id = +el.dataset.id;
+  let items;
+  try { items = (await api('chat.reacts', { id })).items; } catch (e) { toast(e.message, 'err'); return; }
+  const m = openModal({ title: 'Tepkiler', size: 'narrow', body: html`<div class="list ch-rx-list">${items.map((x) => html`<div class="list-row" style="gap:10px"><span style="font-size:22px;line-height:1">${x.emoji}</span><span class="grow small"><b>${x.name}</b></span>${x.mine ? html`<button type="button" class="btn sm ghost danger" data-rx-del>Kaldır</button>` : ''}</div>`)}</div>` });
+  m.el.addEventListener('click', async (ev) => {
+    if (!ev.target.closest('[data-rx-del]')) return;
+    try { const r = await api('chat.react', { id, emoji: '' }); const i = CH.msgs.findIndex((x) => x.id === r.msg.id); if (i >= 0) { CH.msgs[i] = r.msg; chatDraw(); } m.close(); toast('Tepkin kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+  });
+};

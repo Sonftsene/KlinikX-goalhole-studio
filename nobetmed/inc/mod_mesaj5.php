@@ -1,40 +1,74 @@
 <?php
 /**
- * dupcii — Yönetici: kişinin sohbetlerini silme (4.51.0)
+ * dupcii — Yönetici: sohbetleri silme, çöp kutusu (4.51.0 / 4.53.0) ve tepki verenler
  *
- * Yönetici (Kullanıcılar › kişi › Sohbetleri) kişinin sohbetlerini görür ve siler; MESAJ İÇERİĞİNİ GÖRMEZ
- * (yalnız sohbet adı, türü, üye ve mesaj sayısı, son mesaj zamanı — KVKK).
- *  - Birebir sohbet (karşı taraf başka birimde olsa da) ve bu birimde kurulmuş grup: herkesten tamamen silinir
- *    (mesajlar, dosyalar, tepkiler, aramalar).
- *  - Başka birimin kurduğu grup: yalnız bu birimdeki kişinin listesinden kaldırılır.
- *  - Ayrıca birimin TÜM sohbetleri tek listede (kim kiminle), kişi seçmeden silinebilir (chat.admin.all).
- *  - Birim grubu silinmez.
- * Her silme işlem günlüğüne yazılır; sohbetteki (bu birimdeki) kişilere içeriksiz bildirim gider.
+ * Yönetici MESAJ İÇERİĞİNİ GÖRMEZ (KVKK): yalnız sohbet adı, kim kiminle, hangi tarafta duruyor, mesaj sayısı, son mesaj zamanı.
+ *  - Listede yalnız EN AZ BİR KİŞİDE duran sohbetler görünür (herkesin kendisi sildiği sohbet görünmez); her kişinin yanında
+ *    “var / sildi” yazar.
+ *  - “Sil”: sohbet herkesin listesinden ve geçmişinden kalkar ama KALICI SİLİNMEZ — yöneticinin çöp kutusuna gider (c_trash:
+ *    kişilerin önceki durumu saklanır). Çöp kutusundan geri yüklenir (herkeste eski hâline döner) ya da kalıcı silinir.
+ *    Birebir sohbet kim kime yazdıysa iki taraftan; birimde kurulan grup herkesten; başka birimin grubunda yalnız birimdeki kişilerden.
+ *  - Kişilere bildirim isteğe bağlıdır (varsayılan: gitmez). Her işlem işlem günlüğüne yazılır. Birim grubu silinmez.
+ *  - Tepki verenler (chat.reacts): mesajdaki tepkiye dokununca kim hangi tepkiyi verdi; kişi kendi tepkisini oradan kaldırır.
  */
 
-/** Kişinin sohbetleri ve silme kapsamı */
-function cx_chats_of(int $uid): array
+function cx_ensure(): void
+{
+    static $ok = false;
+    if ($ok || !cdb()) return;
+    $ok = true;
+    cdb()->exec('CREATE TABLE IF NOT EXISTS c_trash (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, tkey TEXT NOT NULL, kind TEXT NOT NULL DEFAULT \'\',
+        label TEXT NOT NULL DEFAULT \'\', people TEXT NOT NULL DEFAULT \'\', msgs INTEGER NOT NULL DEFAULT 0, saved TEXT NOT NULL, by_name TEXT NOT NULL DEFAULT \'\', at TEXT NOT NULL)');
+    cdb()->exec('CREATE INDEX IF NOT EXISTS c_trash_tk ON c_trash (tkey, id)');
+}
+
+/** Üye sohbeti görüyor mu (listesinde ve geçmişinde mesaj var) */
+function cx_has(array $c, array $m): bool { return (int)$c['last_id'] > (int)$m['cleared_id']; }
+
+/** Bir sohbetin yönetici satırı (içerik yok) */
+function cx_row(array $c, ?int $forUid = null): ?array
 {
     $tk = c_tk();
+    $mem = h_all('SELECT tkey, user_id, name, unit_name, cleared_id, deleted FROM c_members WHERE chat_id = ? ORDER BY name', [(int)$c['id']]);
+    $sides = array_map(fn($m) => ['name' => (string)$m['name'], 'unit' => $m['tkey'] !== $tk ? (string)$m['unit_name'] : null, 'has' => cx_has($c, $m)], $mem);
+    $hasN = count(array_filter($sides, fn($x) => $x['has']));
+    if (!$hasN) return null; // herkes kendisi silmiş: görünmez
+    $label = fn($x) => $x['name'] . ($x['unit'] ? ' (' . $x['unit'] . ')' : '');
+    if ($c['kind'] === 'direct') {
+        $name = implode(' ↔ ', array_map($label, array_slice($sides, 0, 2)));
+        if ($forUid !== null) {
+            foreach ($mem as $i => $m) if (!($m['tkey'] === $tk && (int)$m['user_id'] === $forUid)) { $name = $label($sides[$i]); break; }
+        }
+    } else $name = (string)$c['name'] ?: 'Grup';
+    return [
+        'id' => (int)$c['id'], 'kind' => $c['kind'], 'name' => $name, 'members' => count($mem), 'has_n' => $hasN,
+        'sides' => array_slice($sides, 0, 12),
+        'msgs' => (int)h_val("SELECT COUNT(*) FROM c_msgs WHERE chat_id = ? AND kind <> 'system'", [(int)$c['id']]),
+        'last_at' => $c['last_at'], 'scope' => $c['kind'] === 'direct' || $c['tkey'] === $tk ? 'all' : 'own',
+    ];
+}
+
+/** Kişinin sohbetleri */
+function cx_chats_of(int $uid): array
+{
     $o = [];
-    foreach (h_all('SELECT c.* FROM c_chats c JOIN c_members m ON m.chat_id = c.id WHERE m.tkey = ? AND m.user_id = ? AND c.kind <> ? ORDER BY COALESCE(c.last_at, c.created_at) DESC', [$tk, $uid, 'unit']) as $c) {
-        $mem = h_all('SELECT tkey, user_id, name FROM c_members WHERE chat_id = ?', [(int)$c['id']]);
-        $foreign = array_filter($mem, fn($m) => $m['tkey'] !== $tk);
-        $name = $c['kind'] === 'direct'
-            ? ((array_values(array_filter($mem, fn($m) => !($m['tkey'] === $tk && (int)$m['user_id'] === $uid)))[0]['name'] ?? 'Birebir sohbet'))
-            : ((string)$c['name'] ?: 'Grup');
-        $full = $c['kind'] === 'direct' || $c['tkey'] === $tk; // birebir: kim kime yazdıysa iki taraftan da silinir
-        $o[] = [
-            'id' => (int)$c['id'], 'kind' => $c['kind'], 'name' => $name, 'members' => count($mem),
-            'msgs' => (int)h_val("SELECT COUNT(*) FROM c_msgs WHERE chat_id = ? AND kind <> 'system'", [(int)$c['id']]),
-            'last_at' => $c['last_at'], 'scope' => $full ? 'all' : 'own',
-            'other_unit' => $foreign ? (string)(array_values($foreign)[0]['name'] ?? '') : null,
-        ];
+    foreach (h_all('SELECT c.* FROM c_chats c JOIN c_members m ON m.chat_id = c.id WHERE m.tkey = ? AND m.user_id = ? AND c.kind <> ? ORDER BY COALESCE(c.last_at, c.created_at) DESC', [c_tk(), $uid, 'unit']) as $c) {
+        if ($r = cx_row($c, $uid)) $o[] = $r;
     }
     return $o;
 }
 
-/** Sohbeti tamamen sil (mesajlar, dosyalar, tepkiler, oylar, yıldızlar, aramalar, üyeler) */
+/** Birimden en az bir kişinin bulunduğu tüm sohbetler (birim grubu hariç) */
+function cx_all_chats(): array
+{
+    $o = [];
+    foreach (h_all('SELECT DISTINCT c.* FROM c_chats c JOIN c_members m ON m.chat_id = c.id WHERE m.tkey = ? AND c.kind <> ? ORDER BY COALESCE(c.last_at, c.created_at) DESC LIMIT 1000', [c_tk(), 'unit']) as $c) {
+        if ($r = cx_row($c)) $o[] = $r;
+    }
+    return $o;
+}
+
+/** Sohbeti tamamen sil (çöp kutusundan kalıcı silme) */
 function cx_purge(int $chatId): void
 {
     $ids = array_map('intval', array_column(h_all('SELECT id FROM c_msgs WHERE chat_id = ?', [$chatId]), 'id'));
@@ -50,88 +84,126 @@ function cx_purge(int $chatId): void
     h_q('DELETE FROM c_chats WHERE id = ?', [$chatId]);
 }
 
-/** Birimden en az bir kişinin bulunduğu tüm sohbetler (birim grubu hariç): kim kiminle, mesaj sayısı, son zaman */
-function cx_all_chats(): array
-{
-    $tk = c_tk();
-    $o = [];
-    foreach (h_all('SELECT DISTINCT c.* FROM c_chats c JOIN c_members m ON m.chat_id = c.id WHERE m.tkey = ? AND c.kind <> ? ORDER BY COALESCE(c.last_at, c.created_at) DESC LIMIT 1000', [$tk, 'unit']) as $c) {
-        $mem = h_all('SELECT tkey, user_id, name, unit_name FROM c_members WHERE chat_id = ? ORDER BY name', [(int)$c['id']]);
-        $who = array_map(fn($m) => (string)$m['name'] . ($m['tkey'] !== $tk && $m['unit_name'] !== '' ? ' (' . $m['unit_name'] . ')' : ''), $mem);
-        $o[] = [
-            'id' => (int)$c['id'], 'kind' => $c['kind'],
-            'name' => $c['kind'] === 'direct' ? implode(' ↔ ', array_slice($who, 0, 2)) : ((string)$c['name'] ?: 'Grup'),
-            'people' => $c['kind'] === 'direct' ? null : implode(', ', array_slice($who, 0, 8)) . (count($who) > 8 ? ' …' : ''),
-            'members' => count($mem),
-            'msgs' => (int)h_val("SELECT COUNT(*) FROM c_msgs WHERE chat_id = ? AND kind <> 'system'", [(int)$c['id']]),
-            'last_at' => $c['last_at'], 'scope' => $c['kind'] === 'direct' || $c['tkey'] === $tk ? 'all' : 'own',
-        ];
-    }
-    return $o;
-}
-
-function a_chat_admin_all(): void
-{
-    need_admin();
-    c_need();
-    out(['items' => cx_all_chats()]);
-}
-
 function cx_target(): array
 {
     $me = need_admin();
     c_need();
-    $u = one("SELECT id, name FROM users WHERE id = ? AND status <> 'deleted'", [(int)i('user_id')]) ?? fail('Kişi bulunamadı.', 404);
+    cx_ensure();
+    $u = one("SELECT id, name FROM users WHERE id = ?", [(int)i('user_id')]) ?? fail('Kişi bulunamadı.', 404);
     return [$me, $u];
+}
+
+function a_chat_admin_all(): void
+{
+    need_admin(); c_need(); cx_ensure();
+    out(['items' => cx_all_chats(), 'trash' => (int)h_val('SELECT COUNT(*) FROM c_trash WHERE tkey = ?', [c_tk()])]);
 }
 
 function a_chat_admin_list(): void
 {
     [, $u] = cx_target();
-    out(['user' => ['id' => (int)$u['id'], 'name' => $u['name']], 'items' => cx_chats_of((int)$u['id'])]);
+    out(['user' => ['id' => (int)$u['id'], 'name' => $u['name']], 'items' => cx_chats_of((int)$u['id']), 'trash' => (int)h_val('SELECT COUNT(*) FROM c_trash WHERE tkey = ?', [c_tk()])]);
 }
 
-/** {user_id, id, mode: all|own} */
+/** {user_id?, id, notify?} — sohbeti çöp kutusuna taşır (herkesin / birimdeki kişilerin listesinden ve geçmişinden kalkar) */
 function a_chat_admin_delete(): void
 {
     $id = (int)i('id');
-    $row = null;
+    $row = null; $u = null;
     if ((int)i('user_id')) {
         [$me, $u] = cx_target();
         foreach (cx_chats_of((int)$u['id']) as $x) if ($x['id'] === $id) $row = $x;
     } else {
-        // Birim geneli liste: kişi seçmeden (başka birimin grubunda birimdeki herkes listeden çıkar)
-        $me = need_admin(); c_need();
+        $me = need_admin(); c_need(); cx_ensure();
         foreach (cx_all_chats() as $x) if ($x['id'] === $id) $row = $x;
-        $u = null;
     }
     if (!$row) fail('Sohbet bulunamadı ya da biriminize ait değil.', 404);
-    $mode = s('mode', 4) === 'all' && $row['scope'] === 'all' ? 'all' : 'own';
     $tk = c_tk();
-    $notify = [];
-    if ($mode === 'all') {
-        foreach (h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ?', [$id, $tk]) as $m) if ((int)$m['user_id'] !== (int)$me['id']) $notify[] = (int)$m['user_id'];
-        cx_purge($id);
-    } else {
-        $c = h_one('SELECT last_id FROM c_chats WHERE id = ?', [$id]);
-        $targets = $u ? [(int)$u['id']] : array_map('intval', array_column(h_all('SELECT user_id FROM c_members WHERE chat_id = ? AND tkey = ?', [$id, $tk]), 'user_id'));
-        foreach ($targets as $t) {
-            h_q('UPDATE c_members SET cleared_id = ?, deleted = 1, pinned_at = NULL, archived = 0 WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)($c['last_id'] ?? 0), $id, $tk, $t]);
-            if ($t !== (int)$me['id']) $notify[] = $t;
+    $c = h_one('SELECT * FROM c_chats WHERE id = ?', [$id]);
+    // Birebir ve birimin grubu: herkesten; başka birimin grubu: birimdeki kişilerden
+    $mem = $row['scope'] === 'all' ? h_all('SELECT * FROM c_members WHERE chat_id = ?', [$id]) : h_all('SELECT * FROM c_members WHERE chat_id = ? AND tkey = ?', [$id, $tk]);
+    $saved = array_map(fn($m) => ['tk' => $m['tkey'], 'uid' => (int)$m['user_id'], 'cleared_id' => (int)$m['cleared_id'], 'deleted' => (int)$m['deleted'], 'archived' => (int)($m['archived'] ?? 0), 'pinned_at' => $m['pinned_at'] ?? null], $mem);
+    $people = implode(', ', array_map(fn($x) => $x['name'] . ($x['unit'] ? ' (' . $x['unit'] . ')' : ''), $row['sides']));
+    h_q('INSERT INTO c_trash (chat_id, tkey, kind, label, people, msgs, saved, by_name, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [$id, $tk, (string)$c['kind'], $row['name'], mb_substr($people, 0, 500), $row['msgs'], json_encode($saved), (string)$me['name'], now()]);
+    foreach ($mem as $m) h_q('UPDATE c_members SET cleared_id = ?, deleted = 1, pinned_at = NULL, archived = 0 WHERE chat_id = ? AND tkey = ? AND user_id = ?', [(int)$c['last_id'], $id, $m['tkey'], (int)$m['user_id']]);
+    audit($me, 'chat.admin.delete', $u ? $u['name'] : 'birim sohbetleri', ($row['kind'] === 'direct' ? 'birebir sohbet: ' : 'grup: ') . $row['name'] . ' · çöp kutusuna taşındı · ' . $row['msgs'] . ' mesaj');
+    $n = 0;
+    if (b('notify') && function_exists('notify_users')) {
+        $ids = array_values(array_filter(array_map(fn($m) => $m['tkey'] === $tk ? (int)$m['user_id'] : 0, $mem), fn($x) => $x && $x !== (int)$me['id']));
+        if ($ids) {
+            notify_users(all('SELECT * FROM users WHERE status = \'active\' AND id IN (' . implode(',', $ids) . ')'), 'chat_admin',
+                'Bir sohbetiniz yönetici tarafından kaldırıldı', ($row['kind'] === 'direct' ? 'Birebir sohbet' : '“' . $row['name'] . '” grubu') . ' birim yöneticisi tarafından listenizden kaldırıldı.', '#/mesaj');
+            $n = count($ids);
         }
     }
-    $label = ($row['kind'] === 'direct' ? 'birebir sohbet: ' : 'grup: ') . $row['name'];
-    audit($me, 'chat.admin.delete', $u ? $u['name'] : 'birim sohbetleri', $label . ' · ' . ($mode === 'all' ? 'herkesten silindi' : 'kişinin listesinden kaldırıldı') . ' · ' . $row['msgs'] . ' mesaj');
-    if ($notify && function_exists('notify_users')) {
-        $users = all('SELECT * FROM users WHERE status = \'active\' AND id IN (' . implode(',', array_map('intval', $notify)) . ')');
-        notify_users($users, 'chat_admin', 'Bir sohbetiniz yönetici tarafından silindi',
-            ($row['kind'] === 'direct' ? 'Birebir sohbet' : '“' . $row['name'] . '” grubu') . ($mode === 'all' ? ' birim yöneticisi tarafından silindi.' : ' listenizden kaldırıldı.'), '#/mesaj');
+    out(['items' => $u ? cx_chats_of((int)$u['id']) : cx_all_chats(), 'notified' => $n, 'trash' => (int)h_val('SELECT COUNT(*) FROM c_trash WHERE tkey = ?', [$tk])]);
+}
+
+/** Çöp kutusu (bu birimin yöneticisinin taşıdıkları) */
+function a_chat_admin_trash(): void
+{
+    need_admin(); c_need(); cx_ensure();
+    $o = [];
+    foreach (h_all('SELECT * FROM c_trash WHERE tkey = ? ORDER BY id DESC LIMIT 300', [c_tk()]) as $t) {
+        $c = h_one('SELECT id, last_id FROM c_chats WHERE id = ?', [(int)$t['chat_id']]);
+        $o[] = ['id' => (int)$t['id'], 'kind' => $t['kind'], 'name' => $t['label'], 'people' => $t['people'], 'msgs' => (int)$t['msgs'], 'by' => $t['by_name'], 'at' => $t['at'], 'gone' => !$c];
     }
-    out(['mode' => $mode, 'items' => $u ? cx_chats_of((int)$u['id']) : cx_all_chats()]);
+    out(['items' => $o]);
+}
+
+function cx_trash_row(): array
+{
+    $me = need_admin(); c_need(); cx_ensure();
+    $t = h_one('SELECT * FROM c_trash WHERE id = ? AND tkey = ?', [(int)i('id'), c_tk()]) ?? fail('Çöp kutusunda bulunamadı.', 404);
+    return [$me, $t];
+}
+
+/** Geri yükle: kişilerin önceki durumu (geçmiş, arşiv, sabitleme) geri gelir */
+function a_chat_admin_restore(): void
+{
+    [$me, $t] = cx_trash_row();
+    if (!h_one('SELECT id FROM c_chats WHERE id = ?', [(int)$t['chat_id']])) { h_q('DELETE FROM c_trash WHERE id = ?', [(int)$t['id']]); fail('Sohbet artık yok.', 404); }
+    foreach ((array)json_decode((string)$t['saved'], true) as $s) {
+        h_q('UPDATE c_members SET cleared_id = ?, deleted = ?, archived = ?, pinned_at = ? WHERE chat_id = ? AND tkey = ? AND user_id = ?',
+            [(int)$s['cleared_id'], (int)$s['deleted'], (int)$s['archived'], $s['pinned_at'] ?? null, (int)$t['chat_id'], (string)$s['tk'], (int)$s['uid']]);
+    }
+    h_q('DELETE FROM c_trash WHERE id = ?', [(int)$t['id']]);
+    audit($me, 'chat.admin.restore', (string)$t['label'], 'çöp kutusundan geri yüklendi');
+    out(['ok' => true]);
+}
+
+/** Kalıcı sil: mesajlar, dosyalar, tepkiler geri gelmez */
+function a_chat_admin_purge(): void
+{
+    [$me, $t] = cx_trash_row();
+    if (h_one('SELECT id FROM c_chats WHERE id = ?', [(int)$t['chat_id']])) cx_purge((int)$t['chat_id']);
+    h_q('DELETE FROM c_trash WHERE chat_id = ?', [(int)$t['chat_id']]);
+    audit($me, 'chat.admin.purge', (string)$t['label'], 'kalıcı silindi · ' . (int)$t['msgs'] . ' mesaj');
+    out(['ok' => true]);
+}
+
+/** Mesaja kim hangi tepkiyi verdi (sohbetteki herkes görür) */
+function a_chat_reacts(): void
+{
+    $me = c_need();
+    $x = h_one('SELECT * FROM c_msgs WHERE id = ? AND deleted_at IS NULL', [(int)i('id')]) ?? fail('Mesaj bulunamadı.', 404);
+    c_access($me, (int)$x['chat_id']);
+    $o = [];
+    foreach (h_all('SELECT r.tkey, r.user_id, r.emoji, m.name FROM c_reacts r LEFT JOIN c_members m ON m.chat_id = ? AND m.tkey = r.tkey AND m.user_id = r.user_id WHERE r.msg_id = ?', [(int)$x['chat_id'], (int)$x['id']]) as $r) {
+        $mine = $r['tkey'] === c_tk() && (int)$r['user_id'] === (int)$me['id'];
+        $o[] = ['name' => $mine ? 'Siz' : ((string)$r['name'] ?: 'Bir kişi'), 'emoji' => $r['emoji'], 'mine' => $mine];
+    }
+    usort($o, fn($a, $b) => [!$a['mine'], $a['emoji'], $a['name']] <=> [!$b['mine'], $b['emoji'], $b['name']]);
+    out(['items' => $o]);
 }
 
 return [
     'chat.admin.all' => 'a_chat_admin_all',
     'chat.admin.list' => 'a_chat_admin_list',
     'chat.admin.delete' => 'a_chat_admin_delete',
+    'chat.admin.trash' => 'a_chat_admin_trash',
+    'chat.admin.restore' => 'a_chat_admin_restore',
+    'chat.admin.purge' => 'a_chat_admin_purge',
+    'chat.reacts' => 'a_chat_reacts',
 ];

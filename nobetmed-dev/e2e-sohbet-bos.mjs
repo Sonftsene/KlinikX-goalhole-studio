@@ -62,41 +62,68 @@ try {
   if (!(await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('mesaj yazılınca sohbet listede görünmedi');
   step(`kişi kartından açılıp yazılmayan sohbet (${who.name}) listede görünmüyor (karşı tarafta da); aynı kişiye tekrar dokununca aynı sohbet açılıyor; mesaj yazılınca listede`);
 
-  // Yönetici: Tüm sohbetler (kim kiminle) — birebir sohbetler iki taraftan da silinebilir
-  const ALL = (await call(A, 'chat.admin.all')).items;
-  const mineAll = ALL.find((c) => c.id === id);
-  if (!mineAll || !/ ↔ /.test(mineAll.name) || mineAll.scope !== 'all') fail('tüm sohbetler listesinde kim kiminle görünmüyor: ' + JSON.stringify(mineAll));
-  if (ALL.some((c) => c.kind === 'direct' && c.scope !== 'all')) fail('birebir sohbet herkesten silinemiyor');
+  // Tepkiler: rozete dokununca liste açılır (dokunmak tepkiyi kaldırmaz); kendi tepkisini oradan kaldırır (4.53.0)
+  const msgId = (await call(A, 'chat.open', { id })).msgs.find((x) => /Merhaba, deneme/.test(x.body)).id;
+  await call(A, 'chat.react', { id: msgId, emoji: '❤️' });
+  if (LOGIN[who.name]) { const O = await login(...LOGIN[who.name]); await call(O, 'chat.react', { id: msgId, emoji: '👍' }); await O.context().close(); }
+  await A.goto(BASE + '#/mesaj/' + id);
+  const chip = A.locator(`.ch-msg[data-id="${msgId}"] .ch-react.on`);
+  await chip.waitFor({ timeout: 10000 });
+  await chip.click();
+  await A.locator('.modal .ch-rx-list .list-row', { hasText: 'Siz' }).waitFor({ timeout: 5000 });
+  if (LOGIN[who.name] && !(await A.locator('.modal .ch-rx-list', { hasText: who.name }).count())) fail('tepki listesinde karşı taraf yok');
+  const still = (await call(A, 'chat.open', { id })).msgs.find((x) => x.id === msgId).reacts || [];
+  if (!still.some((r) => r.mine)) fail('rozete dokununca tepki kaldırıldı');
+  await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-tepkiler.png') }).catch(() => {});
+  await A.click('.modal [data-rx-del]');
+  await A.getByText('Tepkin kaldırıldı').first().waitFor({ timeout: 5000 });
+  const after = (await call(A, 'chat.open', { id })).msgs.find((x) => x.id === msgId).reacts || [];
+  if (after.some((r) => r.mine)) fail('“Kaldır” tepkiyi kaldırmadı');
+  step('tepki rozetine dokununca “Tepkiler” listesi açıldı (tepki kalktı değil); kendi tepkisi “Kaldır” ile kaldırıldı');
+
+  // Yönetici: Tüm sohbetler — kimde duruyor; karşı taraf kendisi silince “sildi” görünür
+  if (LOGIN[who.name]) { const O = await login(...LOGIN[who.name]); await call(O, 'chat.state', { id, op: 'delete' }); await O.context().close(); }
+  const row1 = (await call(A, 'chat.admin.all')).items.find((c) => c.id === id);
+  if (!row1 || !/ ↔ /.test(row1.name)) throw new Error('tüm sohbetlerde yok: ' + JSON.stringify(row1));
+  const sideOf = (r, nm) => (r.sides.find((x) => x.name === nm) || {}).has;
+  if (sideOf(row1, 'Ayşe Kaya') !== true) fail('Ayşe’de duruyor görünmüyor');
+  if (LOGIN[who.name] && sideOf(row1, who.name) !== false) fail('karşı taraf sildiği hâlde “var” görünüyor');
   await A.goto(BASE + '#/yonetim/kullanicilar');
   await A.click('[data-act=adc-all]');
-  await A.locator('.adc-list .list-row', { hasText: mineAll.name }).first().waitFor({ timeout: 8000 });
+  await A.locator('.adc-list .list-row', { hasText: row1.name }).first().waitFor({ timeout: 8000 });
   await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-tumu.png') }).catch(() => {});
-  await A.keyboard.press('Escape');
-  // Yönetici: Kullanıcılar › kişi › Sohbetleri → içeriği görmeden sohbeti herkesten siler (4.51.0)
-  const L = (await call(A, 'chat.admin.list', { user_id: who.uid })).items;
-  const row = L.find((c) => c.id === id);
-  if (!row) throw new Error('yönetici listesinde sohbet yok: ' + JSON.stringify(L.map((c) => c.name)));
-  if (JSON.stringify(L).includes('Merhaba, deneme')) fail('yönetici listesinde mesaj içeriği görünüyor');
-  await A.goto(BASE + '#/yonetim/kullanicilar');
-  await A.locator(`[data-act=u-menu][data-id="${who.uid}"]`).click();
-  await A.click('.menu >> text=Sohbetleri');
-  const r2 = A.locator('.adc-list .list-row', { hasText: row.name }).first();
-  await r2.waitFor({ timeout: 8000 });
-  await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-yonetici.png') }).catch(() => {});
-  await r2.locator(`[data-mode=${row.scope}]`).click();
+  // Sil (bildirim işaretsiz) → çöp kutusu
+  await A.locator('.adc-list .list-row', { hasText: row1.name }).first().locator('[data-adc]').click();
+  if (await A.isChecked('#adcNotify')) fail('bildirim varsayılan işaretli');
   await A.locator('[data-ok]').last().click();
-  await A.getByText(row.scope === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet listeden kaldırıldı').first().waitFor({ timeout: 8000 });
-  if (row.scope === 'all' && (await call(A, 'chat.list', { open: id })).items.some((c) => c.id === id)) fail('silinen sohbet yöneticinin listesinde duruyor');
+  await A.getByText('Sohbet çöp kutusuna taşındı').first().waitFor({ timeout: 8000 });
+  if ((await call(A, 'chat.list', { open: 0 })).items.some((c) => c.id === id)) fail('silinen sohbet Ayşe’nin listesinde duruyor');
+  if ((await call(A, 'chat.admin.all')).items.some((c) => c.id === id)) fail('silinen sohbet yönetici listesinde duruyor');
   if (LOGIN[who.name]) {
     const O = await login(...LOGIN[who.name]);
-    if ((await call(O, 'chat.list')).items.some((c) => c.id === id)) fail('silinen sohbet kişinin listesinde duruyor');
     const nl = (await call(O, 'notif.list', { limit: 20 })).items.map((x) => x.title);
-    if (!nl.some((t) => /yönetici tarafından silindi/.test(t))) fail('kişiye silme bildirimi gitmedi: ' + nl.join(' | '));
-    const e1 = await O.evaluate(() => api('chat.admin.list', { user_id: 1 }).then(() => 'kabul', (e) => e.status));
-    if (e1 === 'kabul') fail('üye başkasının sohbet listesini görebildi');
+    if (nl.some((t) => /yönetici tarafından kaldırıldı/.test(t))) fail('bildirim işaretsizken kişiye bildirim gitti');
+    if ((await O.evaluate(() => api('chat.admin.trash').then(() => 'kabul', (e) => e.status))) === 'kabul') fail('üye çöp kutusunu görebildi');
     await O.context().close();
   }
-  step(`yönetici ${who.name} kişisinin “${row.name}” sohbetini içeriğini görmeden ${row.scope === 'all' ? 'herkesten sildi' : 'listesinden kaldırdı'}; kişiye bildirim gitti; üye bu listeyi göremiyor`);
+  // Çöp kutusu → geri yükle: Ayşe’de geçmişiyle geri gelir
+  await A.click('[data-adc-trash]');
+  const trow = A.locator('.adt-list .list-row', { hasText: row1.name }).first();
+  await trow.waitFor({ timeout: 8000 });
+  await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-cop.png') }).catch(() => {});
+  await trow.locator('[data-op=restore]').click();
+  await A.getByText('Sohbet geri yüklendi').first().waitFor({ timeout: 8000 });
+  if (!(await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('geri yüklenen sohbet Ayşe’de yok');
+  if (!(await call(A, 'chat.open', { id })).msgs.some((x) => /Merhaba, deneme/.test(x.body))) fail('geri yüklenen sohbetin geçmişi yok');
+  // Yeniden sil (bildirimli) → kalıcı sil
+  const r2 = await call(A, 'chat.admin.delete', { id, notify: true });
+  if (LOGIN[who.name] && !r2.notified) fail('bildirim işaretliyken kimseye bildirilmedi');
+  const tr = (await call(A, 'chat.admin.trash')).items.find((t) => /Ayşe Kaya/.test(t.people) && !t.gone);
+  await call(A, 'chat.admin.purge', { id: tr.id });
+  if ((await call(A, 'chat.admin.trash')).items.some((t) => t.id === tr.id)) fail('kalıcı silinen çöp kutusunda duruyor');
+  if ((await A.evaluate((cid) => api('chat.open', { id: cid }).then(() => 'kabul', (e) => e.status), id)) === 'kabul') fail('kalıcı silinen sohbet açılabiliyor');
+  step(`yönetici listesi kimde duruyor gösteriyor (Ayşe: var, ${who.name}: sildi); sil → bildirimsiz çöp kutusu; geri yükle → geçmişiyle döndü; bildirimli sil → kalıcı sil`);
+
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }
