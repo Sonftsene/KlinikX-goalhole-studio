@@ -151,7 +151,7 @@ function tkDraw() {
   const flt = (x) => TK.f === 'all' || tkShiftOf(x) === TK.f || (x.parts && x.parts[TK.f] && x.parts[TK.f].ok);
   const days = d.days.map((x) => ({ ...x, items: x.items.filter(flt) })).filter((x) => x.items.length);
   const total = days.reduce((a, x) => a + x.items.filter(tkAny).length, 0);
-  const askBtn = (x, date, part, label, primary) => html`<button class="btn sm ${primary ? 'primary' : ''}" data-act="tk-ask" data-d="${date}" data-n="${x.name}" data-l="${x.display}" data-c="${x.code}" data-p="${part}">${icon('send', 'sm')}${label}</button>`;
+  const askBtn = (x, date, part, label, primary) => html`<button class="btn sm ${primary ? 'primary' : ''}" data-act="tk-ask" data-d="${date}" data-n="${x.name}" data-l="${x.display}" data-c="${x.code}" data-p="${part}" data-r="${x.roster_id || ''}">${icon('send', 'sm')}${label}</button>`;
   const acts = (x, date) => {
     if (!tkAny(x)) return '';
     if (x.asked) return html`<span class="badge warn">İstendi</span>`;
@@ -183,7 +183,7 @@ ACT['tk-ask'] = (el) => {
     <div class="field"><label>Not (isteğe bağlı)</label><input class="input" id="tkNote" maxlength="200" placeholder="ör. Uygunsa ben alabilirim"></div></div>`,
     foot: html`<button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>${icon('send', 'sm')}İste</button>` });
   md.el.querySelector('[data-go]').addEventListener('click', (ev) => busy(ev.currentTarget, async () => {
-    try { await api('extra.take.ask', { date: el.dataset.d, name: el.dataset.n, part, note: $('#tkNote', md.el).value.trim() }); md.close(); toast('İstek gönderildi'); route(); } catch (e) { toast(e.message, 'err'); }
+    try { await api('extra.take.ask', { date: el.dataset.d, name: el.dataset.n, part, roster_id: +el.dataset.r || 0, note: $('#tkNote', md.el).value.trim() }); md.close(); toast('İstek gönderildi'); route(); } catch (e) { toast(e.message, 'err'); }
   }));
 };
 ACT['tk-resp'] = async (el) => {

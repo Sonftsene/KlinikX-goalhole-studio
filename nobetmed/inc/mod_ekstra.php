@@ -351,7 +351,9 @@ function a_extra_take_ask(): void
     $part = swap_part(s('part', 5));
     if (!valid_ymd($date) || $date < date('Y-m-d')) fail('Geçersiz gün.');
     $ym = substr($date, 0, 7);
+    $want = (int)i('roster_id'); // nöbetin listesi (kişiler birden çok listede olabilir: seçilen nöbetin listesine bakılır)
     foreach (tk_my_lists($me, $ym) as [$rid, $tl, $myK, $myName]) {
+        if ($want && $rid !== $want) continue;
         $pk = swap_key($name);
         $row = $tl[$pk]['days'][$date] ?? null;
         if (!$row || ($row['kind'] ?? '') !== 'shift') continue;
