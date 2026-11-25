@@ -1300,3 +1300,10 @@ Ayarlar › Genel › **Sayfa ve menü adları** (yönetici): her adın karşıs
 - İlan kartında nöbetin hangi listeden olduğu yazar. İlan sahibi başvuranlarda “Başka listeden · Excel’de bu listeye eklenir” görür; seçince sorumluya “Excel’e işlenecek” bildirimi gider.
 - **Değiş** (takas) ilanı yalnız aynı listedeki kişilere açıktır (iki listenin Excel’i birlikte değişmesin).
 
+## 75. Sohbet çöp kutusu, kimde duruyor, tepkiler (4.53.0)
+- **Tüm sohbetler / kişinin sohbetleri** listesinde yalnız **en az bir kişide duran** sohbetler görünür. Birebirde iki kişinin yanında **var / sildi** yazar; gruplarda “4/5 kişide duruyor · silenler: …”.
+- **Sil**: sohbet herkesin listesinden ve geçmişinden kalkar ama **kalıcı silinmez**; **Çöp kutusu**na gider. Çöp kutusunda **Geri yükle** (herkeste geçmişiyle eski hâline döner; kendisi silmiş kişide silinmiş kalır) ya da **Kalıcı sil**.
+- Silerken **“Kişilere bildir”** isteğe bağlıdır (varsayılan: bildirim gitmez).
+- İşlem günlüğü: “Sohbeti çöp kutusuna taşıdı / geri yükledi / kalıcı sildi”.
+- **Tepkiler**: mesajdaki tepki rozetine dokununca kim hangi tepkiyi verdi listesi açılır; kendi tepkinizi oradan **Kaldır** ile kaldırırsınız (dokunmak artık tepkiyi kaldırmaz ya da değiştirmez).
+
