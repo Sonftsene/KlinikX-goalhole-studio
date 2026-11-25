@@ -192,8 +192,11 @@ function shareLink(url, title) {
 /** Sohbet seç ve gönder: metin ve/veya dosya (görsel) */
 async function shareToChat({ text = '', file = null, title = 'Sohbette paylaş' } = {}) {
   // 4.28: ortak alıcı seçici (sohbetler + aranabilir tüm kişiler, çoklu seçim)
+  // Önizleme adresi bir süre sonra bırakılır (bellek sızmasın — 4.55.0)
+  const pv = file && /^image\//.test(file.type) ? URL.createObjectURL(file) : '';
+  if (pv) setTimeout(() => URL.revokeObjectURL(pv), 120000);
   if (typeof chatPickTargets === 'function') {
-    const top = html`${file && /^image\//.test(file.type) ? html`<img class="sh-prev" src="${URL.createObjectURL(file)}" alt="">` : ''}
+    const top = html`${pv ? html`<img class="sh-prev" src="${pv}" alt="">` : ''}
       <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="shNote" maxlength="500" value="${file ? text : ''}" placeholder="Mesaja eklenecek yazı"></div>`;
     const r = await chatPickTargets({ title, top, ok: 'Gönder' });
     if (!r) return;
@@ -215,7 +218,7 @@ async function shareToChat({ text = '', file = null, title = 'Sohbette paylaş' 
   const items = (r.items || []).filter((c) => !c.archived || true);
   if (!items.length) { toast('Henüz sohbetiniz yok', 'err'); return; }
   const m = openModal({ title, size: 'narrow', body: html`<div class="stack">
-      ${file && /^image\//.test(file.type) ? html`<img class="sh-prev" src="${URL.createObjectURL(file)}" alt="">` : ''}
+      ${pv ? html`<img class="sh-prev" src="${pv}" alt="">` : ''}
       <div class="field"><label>Not <span class="faint">(isteğe bağlı)</span></label><input class="input" id="shNote" maxlength="500" value="${file ? text : ''}" placeholder="Mesaja eklenecek yazı"></div>
       <div class="search">${icon('search')}<input class="input" id="shQ" placeholder="Sohbet ara" autocomplete="off"></div>
       <div class="card"><div class="list sh-list">${items.map((c) => html`<button type="button" class="list-row" data-c="${c.id}" data-n="${c.name}" style="width:100%;border:0;background:none;text-align:left">${icon(c.kind === 'unit' ? 'users' : c.kind === 'direct' ? 'user' : 'chat', 'sm')}<span class="grow ellipsis">${c.name}</span>${icon('send', 'sm')}</button>`)}</div></div></div>` });

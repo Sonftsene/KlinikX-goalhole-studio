@@ -42,6 +42,7 @@ const NM_ACTION_MODULE = [
     'plan.' => 'cizelge',
     'names.' => 'nobet',
     'meal.' => 'yemek',
+    'kura.' => 'taraf', // kura taraf / blok modülünün parçası (4.55.0)
 ];
 
 function nm_action_module(string $action): ?string

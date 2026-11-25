@@ -160,11 +160,18 @@ function a_rosters_shifts_save(): void
     $entries = array_slice(arr('entries'), 0, 6000);
     // Yalnızca yeni listenin kapsadığı günler değişir: aynı listeye gelecek ayı yüklemek bu ayın kalan nöbetlerini silmez
     // (Takvimim, Kim nöbette, hatırlatmalar, değişimler ay sonuna kadar çalışır). Aralık = dönemin ayı ∪ kayıtların tarihleri.
+    // Kayıtlar dönemin ±7 günüyle sınırlı (dosyadan yanlış okunan tek bir tarih aradaki ayları silmesin — 4.55.0)
     $lo = $period . '-01';
     $hi = date('Y-m-t', strtotime($lo));
+    $minD = date('Y-m-d', strtotime($lo . ' -7 days'));
+    $maxD = date('Y-m-d', strtotime($hi . ' +7 days'));
+    $entries = array_values(array_filter($entries, function ($e) use ($minD, $maxD) {
+        if (!is_array($e)) return false;
+        $d = (string)($e['date'] ?? '');
+        return valid_ymd($d) && $d >= $minD && $d <= $maxD && trim((string)($e['name'] ?? '')) !== '' && trim((string)($e['code'] ?? '')) !== '';
+    }));
     foreach ($entries as $e) {
-        $d = is_array($e) ? (string)($e['date'] ?? '') : '';
-        if (!valid_ymd($d)) continue;
+        $d = (string)$e['date'];
         if ($d < $lo) $lo = $d;
         if ($d > $hi) $hi = $d;
     }
@@ -211,21 +218,31 @@ function a_rosters_period(): void
     // Yalnızca listenin gösterdiği ayın kayıtları taşınır; listede tutulan diğer aylara dokunulmaz
     $old = (string)($r['period'] ?? '');
     if ($old === $period) out(['period' => $period]);
+    $hasOld = (bool)preg_match('/^\d{4}-\d{2}$/', $old);
+    $rows = $hasOld ? all('SELECT id, date FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $old . '-%']) : all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]);
+    // Dönemi bilinmeyen listede kayıtlar birden çok aya yayılmışsa taşınmaz (aylar tek aya karışıp aynı gün iki kez yazılmasın — 4.55.0)
+    if (!$hasOld && count(array_unique(array_map(fn($x) => substr((string)$x['date'], 0, 7), $rows))) > 1) fail('Bu listede birden çok ayın kaydı var; ay düzeltilemez. Dosyayı doğru aya yeniden yükleyin.', 409);
     if (function_exists('rm_on') && rm_on()) {
         if ($old !== '' && val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ? AND ym = ?', [$rid, $period])) fail('Bu ay listede zaten var. Önce o ayı kaldırın ya da dosyayı o aya yükleyin.', 409);
         if ($old !== '') q('UPDATE roster_files SET ym = ? WHERE roster_id = ? AND ym = ?', [$period, $rid, $old]);
         else q('UPDATE roster_files SET ym = ? WHERE roster_id = ? AND attachment_id = ?', [$period, $rid, (int)($r['parsed_file_id'] ?? 0)]);
     }
-    if (preg_match('/^\d{4}-\d{2}$/', $old)) q('DELETE FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $period . '-%']);
-    $rows = preg_match('/^\d{4}-\d{2}$/', $old) ? all('SELECT id, date FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $old . '-%']) : all('SELECT id, date FROM roster_shifts WHERE roster_id = ?', [$rid]);
-    foreach ($rows as $x) {
-        $d = (int)substr($x['date'], 8, 2);
-        if ($d > $days) q('DELETE FROM roster_shifts WHERE id = ?', [$x['id']]);
-        else q('UPDATE roster_shifts SET date = ? WHERE id = ?', [$period . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT), $x['id']]);
-    }
-    q('UPDATE rosters SET period = ? WHERE id = ?', [$period, $rid]);
-    audit($me, 'roster.period', $r['name'], 'Dönem: ' . $period);
-    out(['period' => $period]);
+    $dropped = 0;
+    db()->beginTransaction();
+    try {
+        if ($hasOld) q('DELETE FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $period . '-%']);
+        $del = db()->prepare('DELETE FROM roster_shifts WHERE id = ?');
+        $upd = db()->prepare('UPDATE roster_shifts SET date = ? WHERE id = ?');
+        foreach ($rows as $x) {
+            $d = (int)substr($x['date'], 8, 2);
+            if ($d > $days) { $del->execute([$x['id']]); $dropped++; }
+            else $upd->execute([$period . '-' . str_pad((string)$d, 2, '0', STR_PAD_LEFT), $x['id']]);
+        }
+        q('UPDATE rosters SET period = ? WHERE id = ?', [$period, $rid]);
+        db()->commit();
+    } catch (Throwable $e) { if (db()->inTransaction()) db()->rollBack(); throw $e; }
+    audit($me, 'roster.period', $r['name'], 'Dönem: ' . $period . ($dropped ? " · yeni ayda olmayan $dropped günlük kayıt kaldırıldı" : ''));
+    out(['period' => $period, 'dropped' => $dropped]);
 }
 
 /* ---------------- Okuma raporu ---------------- */

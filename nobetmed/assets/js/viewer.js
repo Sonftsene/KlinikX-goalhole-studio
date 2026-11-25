@@ -230,11 +230,6 @@ function formatValue(v, fmt) {
 }
 
 function colName(c) { let s = ''; c++; while (c > 0) { const m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); } return s; }
-function decodeAddr(a) {
-  const m = /^\$?([A-Z]+)\$?(\d+)$/.exec(a);
-  let c = 0; for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64);
-  return { r: +m[2] - 1, c: c - 1 };
-}
 
 const MAX_CELLS = 250000;
 

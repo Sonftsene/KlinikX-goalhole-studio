@@ -170,11 +170,6 @@ document.addEventListener('click', (e) => {
   const sh = $('#shell');
   if (sh && sh.classList.contains('nav-open') && !e.target.closest('.sidebar') && !e.target.closest('[data-act="nav-open"]')) sh.classList.remove('nav-open');
 });
-ACT.theme = () => {
-  setTheme(isDark() ? 'light' : 'dark');
-  const b = $('#themeBtn');
-  if (b) setHTML(b, icon(isDark() ? 'sun' : 'moon'));
-};
 ACT['me-menu'] = (el) => openMenu(el, [
   { head: html`<div class="small"><b>${S.me.name}</b><div class="faint">${S.me.email}</div><div class="tiny faint">dupcii ${BOOT.v || ''}</div></div>` },
   { id: 'p', icon: 'user', label: 'Profil ayarlarım', run: () => { location.hash = '#/profil'; } },
@@ -331,9 +326,6 @@ function mountHomeExt() {
   });
 }
 
-function latestRoster() {
-  return S.rosters.filter((r) => r.file).sort((a, b) => b.file.updated_at.localeCompare(a.file.updated_at))[0] || null;
-}
 function rosterCard() {
   return html`<div class="card-head"><h3>Nöbet listeleri</h3>${isPublisher() ? html`<a class="small" href="#/nobet">Yönet</a>` : ''}</div>
     <div class="list">${S.rosters.length ? S.rosters.map((r) => html`<a class="list-row" href="#/nobet/${r.id}" style="color:inherit;text-decoration:none">
@@ -897,6 +889,7 @@ function uiTitleFix() {
 }
 (function uiTitleWatch() {
   let t = 0;
-  const go = () => { const v = $('#view'); if (!v) { setTimeout(go, 500); return; } new MutationObserver(() => { clearTimeout(t); t = setTimeout(uiTitleFix, 30); }).observe(v, { childList: true, subtree: true }); };
+  // Uygulama kökü izlenir: kabuk yeniden kurulup yeni #view oluşunca (birime girip çıkma) da başlıklar eşlenir (4.55.0)
+  const go = () => { const v = APP(); if (!v) { setTimeout(go, 500); return; } new MutationObserver(() => { clearTimeout(t); t = setTimeout(uiTitleFix, 30); }).observe(v, { childList: true, subtree: true }); };
   go();
 })();

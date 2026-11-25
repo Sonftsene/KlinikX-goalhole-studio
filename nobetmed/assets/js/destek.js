@@ -84,7 +84,7 @@ ACT['sp-file-x'] = (el) => { SP.file = null; const box = document.getElementById
 async function spRoute(view, r) {
   if (r[1] === 'izle' && r[2]) return spPublic(view, r[2]);
   if (!S.support) return setHTML(view, html`<div class="card empty"><h3>Destek</h3><p class="small">Destek bu hesapta kullanılamıyor.</p></div>`);
-  if (!SP.cfg) { try { SP.cfg = await api('sp.cfg'); } catch (e) { return setHTML(view, html`<div class="card card-pad small">${e.message}</div>`); } }
+  if (!SP.cfg) { const gone = routeGone(); try { SP.cfg = await api('sp.cfg'); } catch (e) { return gone() ? null : setHTML(view, html`<div class="card card-pad small">${e.message}</div>`); } if (gone()) return; }
   if (r[1] === 'yeni') {
     // Sihirbazın her adımı adreste: #/destek/yeni → /<konu> → /<konu>/yaz (geri tuşu bir önceki adıma döner)
     const tp = r[2] || null;
@@ -154,10 +154,10 @@ function spFaqHtml() {
       <input class="input" type="search" id="spFaqQ" data-input="sp-faq-q" placeholder="Ara: şifre, bildirim, devret, liste…" value="${SP.faqQ || ''}" style="max-width:320px"></div>
     <div id="spFaqBody">${spFaqBody()}</div></div>`;
 }
-function spFold(s) { return String(s || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i'); }
+function spFaqFold(s) { return String(s || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i'); }
 function spFaqBody() {
-  const q = spFold(SP.faqQ).trim();
-  const F = (SP.cfg.faq || []).filter((x) => !q || q.split(/\s+/).every((w) => spFold(x.q + ' ' + x.a + ' ' + x.cat).includes(w)));
+  const q = spFaqFold(SP.faqQ).trim();
+  const F = (SP.cfg.faq || []).filter((x) => !q || q.split(/\s+/).every((w) => spFaqFold(x.q + ' ' + x.a + ' ' + x.cat).includes(w)));
   if (!F.length) return html`<p class="small muted">Bulunamadı. “Yeni talep” ile yazın.</p>`;
   const cats = [];
   F.forEach((x) => { if (!cats.includes(x.cat)) cats.push(x.cat); });
@@ -229,7 +229,9 @@ function spThread(msgs, opts = {}) {
 async function spTicket(view, id) {
   setHTML(view, html`${spHead('Talep')}<div class="card card-pad"><div class="skel" style="height:16px"></div></div>`);
   let d;
-  try { d = await api('sp.get', { id }); } catch (e) { return setHTML(view, html`${spHead('Talep')}<div class="card card-pad small">${e.message}</div><a class="btn" href="#/destek" style="margin-top:10px">Taleplere dön</a>`); }
+  const gone = routeGone();
+  try { d = await api('sp.get', { id }); } catch (e) { if (gone()) return; return setHTML(view, html`${spHead('Talep')}<div class="card card-pad small">${e.message}</div><a class="btn" href="#/destek" style="margin-top:10px">Taleplere dön</a>`); }
+  if (gone()) return;
   const t = d.ticket; const can = d.can;
   const handler = !t.mine;
   // rozetler güncellensin

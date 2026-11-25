@@ -72,7 +72,6 @@ async function hdDetail(view, id) {
       : html`<div class="mk-box warn">${icon('alert', 'sm')}<span class="grow">Bu belge için okuduğunuzu onaylamanız isteniyor.</span><button class="btn sm primary" data-act="hd-ack">${icon('check', 'sm')}Okudum, anladım</button></div>`) : ''}
   </div>`);
 }
-function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
 ACT['hd-view'] = (el) => {
   const a = HD.cur.attachments[+el.dataset.i];
   const m = openModal({ title: a.name, size: 'wide', body: html`<div class="hd-prev" style="height:min(75vh,760px);display:flex;flex-direction:column"></div>` });

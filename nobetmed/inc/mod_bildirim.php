@@ -17,7 +17,7 @@ const NB_CATS = [
     'nobet' => ['Nöbet', 'Liste güncellemesi, nöbet hatırlatması, blok yerleşimi'],
     'degisim' => ['Değişim ve ilanlar', 'Nöbet değişimi, ilan ve takaslar'],
     'istek' => ['Nöbet istekleri', 'İstek dönemi, onay ve ret'],
-    'yonetim' => ['Onay bekleyenler', 'Onay bekleyen içerik ve üyeler, gözden geçirme tarihleri'],
+    'yonetim' => ['Onay bekleyenler', 'Onay bekleyen içerik ve üyeler, ekstra nöbet gönüllüleri, gözden geçirme tarihleri'],
     'sistem' => ['Sistem', 'Deneme bildirimleri ve diğerleri'],
 ];
 const NB_KIND_CAT = ['chat' => 'mesaj', 'post' => 'duyuru', 'remind' => 'duyuru', 'digest' => 'duyuru', 'hdoc' => 'belge', 'roster' => 'nobet', 'shift' => 'nobet',
@@ -606,6 +606,8 @@ function nb_gone_ids(int $uid, ?string $since = null, int $lim = 60): array
 }
 
 const NB_NO_RETRACT = ['chat', 'call', 'test'];
+/** Kişiye özel bildirimler (değişim, ilan seçimi, istek yanıtı, gizlilik, ödeme…): yönetici “Gönderilenler”de içeriğini görmez, geri alamaz (4.55.0) */
+const NB_PERSONAL = ['swap', 'privacy', 'billing', 'support', 'remind', 'notif_remind', 'pending_user', 'apply', 'review', 'chat_admin', 'request', 'digest'];
 
 /** Son 30 günde giden bildirimler, gönderim gönderim (yönetici hepsini, sorumlu kendi gönderdiklerini görür) */
 function a_notif_sent(): void
@@ -614,13 +616,16 @@ function a_notif_sent(): void
     nb_batch_ensure();
     $adm = is_admin($me);
     $p = [date('Y-m-d H:i:s', time() - 30 * 86400)];
-    $w = 'n.created_at >= ? AND n.kind NOT IN (' . implode(',', array_fill(0, count(NB_NO_RETRACT), '?')) . ')';
-    $p = array_merge($p, NB_NO_RETRACT);
+    $skip = array_merge(NB_NO_RETRACT, NB_PERSONAL);
+    // Yalnız gönderim kimliği olanlar (aynı dakikada giden ilgisiz bildirimler tek gönderim sayılmasın)
+    $w = 'n.created_at >= ? AND n.batch IS NOT NULL AND n.kind NOT IN (' . implode(',', array_fill(0, count($skip), '?')) . ')';
+    $p = array_merge($p, $skip);
     if (!$adm) { $w .= ' AND n.by_id = ?'; $p[] = (int)$me['id']; }
-    $g = 'COALESCE(n.batch, SUBSTR(n.created_at, 1, 16))';
+    $g = 'n.batch';
+    // Tek kişiye giden ilan bildirimi (ör. “seçildin”) kişiseldir: listelenmez
     $rows = all("SELECT $g AS g, n.kind, n.title, MIN(n.body) AS body, MIN(n.url) AS url, MIN(n.created_at) AS at, MAX(n.by_id) AS by_id,
             COUNT(*) AS n, SUM(CASE WHEN n.read_at IS NULL THEN 0 ELSE 1 END) AS rd
-        FROM notifications n WHERE $w GROUP BY $g, n.kind, n.title ORDER BY MIN(n.created_at) DESC LIMIT 150", $p);
+        FROM notifications n WHERE $w GROUP BY $g, n.kind, n.title HAVING n.kind <> 'listing' OR COUNT(*) > 1 ORDER BY MIN(n.created_at) DESC LIMIT 150", $p);
     $names = [];
     foreach (all('SELECT id, name FROM users') as $u) $names[(int)$u['id']] = (string)$u['name'];
     out(['items' => array_map(fn($r) => [
@@ -637,8 +642,8 @@ function a_notif_retract(): void
     nb_batch_ensure();
     $g = s('g', 19); $kind = s('kind', 30); $title = s('title', 200);
     if ($g === '' || $title === '') fail('Gönderim seçilmedi.');
-    if (in_array($kind, NB_NO_RETRACT, true)) fail('Kişisel mesaj ve arama bildirimleri geri alınamaz.', 403);
-    $w = 'COALESCE(batch, SUBSTR(created_at, 1, 16)) = ? AND kind = ? AND title = ? AND created_at >= ?';
+    if (in_array($kind, NB_NO_RETRACT, true) || in_array($kind, NB_PERSONAL, true)) fail('Kişiye özel bildirimler (mesaj, arama, değişim, istek yanıtı…) geri alınamaz.', 403);
+    $w = 'batch = ? AND kind = ? AND title = ? AND created_at >= ?';
     $p = [$g, $kind, $title, date('Y-m-d H:i:s', time() - 31 * 86400)];
     if (!is_admin($me)) { $w .= ' AND by_id = ?'; $p[] = (int)$me['id']; }
     $rows = all("SELECT id, user_id FROM notifications WHERE $w", $p);

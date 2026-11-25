@@ -521,6 +521,13 @@ function a_swap_respond(): void
     if ($r['status'] !== 'pending') fail('Bu istek artık beklemede değil.');
     $from = one('SELECT * FROM users WHERE id = ?', [(int)$r['from_user']]);
     if (b('accept')) {
+        // Başlamış ya da geçmiş nöbet devredilemez / değişilemez (4.55.0)
+        foreach ([[$from, $r['from_date']], [$me, $r['to_date']]] as [$who, $dd]) {
+            if (!$who || !$dd) continue;
+            $sr = swap_my_shift($who, (string)$dd);
+            $iv = $sr ? swap_interval((string)$dd, $sr) : null;
+            if ($iv && $iv[0] <= time()) fail('Bu nöbet başladı ya da geçti; istek artık kabul edilemez.');
+        }
         // Liste değişmiş olabilir: kuralları yeniden denetle
         try { $o = $from ? swap_options($from, $r['from_date'], swap_part($r['part'] ?? null)) : null; } catch (RuntimeException $e) { $o = null; }
         $ok = false;
