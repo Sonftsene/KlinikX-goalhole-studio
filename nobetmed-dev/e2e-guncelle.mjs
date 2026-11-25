@@ -212,6 +212,8 @@ try {
 
   // ---- 8) Yetki ----
   if (!/^40[13]/.test(await apiErr(E.p, multi ? 'sa.update.info' : 'update.info'))) fail('üye güncelleme ucunu açabildi');
+  // Sayfa yeni sürüme geçerken yeniden yüklenmiş olabilir: uygulama hazır olana kadar bekle (zamanlama yarışı)
+  await A.p.waitForFunction(() => typeof api === 'function' && typeof S !== 'undefined' && S.me, null, { timeout: 20000 }).catch(() => {});
   if (multi) { const ua = await apiErr(A.p, 'update.info'); if (!/^40[13]/.test(ua)) fail('çok birimlide birim yöneticisi güncelleme yapabiliyor: ' + ua); }
   step('yetki: üye güncelleme yapamaz' + (multi ? '; çok birimlide yalnız sistem yöneticisi' : ''));
 } catch (e) {
