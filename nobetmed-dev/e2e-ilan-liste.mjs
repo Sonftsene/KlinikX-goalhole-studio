@@ -36,10 +36,14 @@ try {
   const B = await login('burak@test.com', 'Sifre1234', true);
   // Gelecek ayda ikisinin de (tüm listelerde) ±3 gün boş olduğu bir gün
   const busy = new Set([...(await call(E, 'shifts.my')).entries, ...(await call(B, 'shifts.my')).entries].map((x) => x.date));
-  const now = new Date(); const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const ym = `${nm.getFullYear()}-${pad(nm.getMonth() + 1)}`;
-  let D = null;
-  for (let d = 12; d <= 24 && !D; d++) { const ds = `${ym}-${pad(d)}`; if (![-3, -2, -1, 0, 1, 2, 3].some((k) => busy.has(addDays(ds, k)))) D = ds; }
+  const now = new Date();
+  let D = null, ym = null;
+  // Gelecek ay, olmazsa ondan sonraki ay (tam zincirde listeler kalabalık olabilir)
+  for (let k = 1; k <= 3 && !D; k++) {
+    const nm = new Date(now.getFullYear(), now.getMonth() + k, 1);
+    const y2 = `${nm.getFullYear()}-${pad(nm.getMonth() + 1)}`;
+    for (let d = 12; d <= 24 && !D; d++) { const ds = `${y2}-${pad(d)}`; if (![-3, -2, -1, 0, 1, 2, 3].some((j) => busy.has(addDays(ds, j)))) { D = ds; ym = y2; } }
+  }
   if (!D) throw new Error('uygun gün bulunamadı (test verisi)');
   const N = { code: 'N', label: 'Gece', kind: 'shift', start: '16:00', end: '08:00', hours: 16 };
   const mk = async (name, entries) => {
