@@ -71,7 +71,9 @@ try {
     return { fz: cell.classList.contains('fz'), b, a: a2, moved };
   }, sel);
   const s1 = await stick('#xvHost');
-  if (!s1.fz || s1.moved < 100 || Math.abs(s1.a - s1.b) > 1) fail('dondurulmamış dosyada ad sütunu sabit değil: ' + JSON.stringify(s1));
+  // Sabit: 500 px kaydırınca ad hücresi kaymaz ya da (telefonda dar sıra no. sütunu sabitlenmediyse) yalnız onun genişliği kadar sola oturur (4.56.0: telefonda %90)
+const pinned = (x) => x.fz && x.moved >= 100 && x.a <= x.b + 1 && x.b - x.a < 100;
+if (!pinned(s1)) fail('dondurulmamış dosyada ad sütunu sabit değil: ' + JSON.stringify(s1));
   step('Dondurulmamış Excel: “Ad Soyad” sütunu kendiliğinden sabit (sağa kaydırınca yerinde)');
 
   // Sadece ben: yalnız Elif Yılmaz satırı
@@ -102,7 +104,7 @@ try {
   const tab = await p.locator('.modal.full .xv-tabs button.on').innerText();
   if (tab.trim() !== 'Kasım') fail('tam ekran başka sekmeyle açıldı: ' + tab);
   const s2 = await stick('.modal.full .xv');
-  if (!s2.fz || s2.moved < 100 || Math.abs(s2.a - s2.b) > 1) fail('tam ekranda ad sütunu sabit değil: ' + JSON.stringify(s2));
+  if (!pinned(s2)) fail('tam ekranda ad sütunu sabit değil: ' + JSON.stringify(s2));
   await p.screenshot({ path: path.join(OUT, 'excel-tam.png') });
   step('Tam ekran: sayfada açık olan sekme (Kasım) açıldı, ad sütunu sabit kaldı');
 } catch (e) {
