@@ -31,7 +31,8 @@ try {
   const list0 = (await call(A, 'chat.list')).items;
   const had = new Set(list0.filter((c) => c.kind === 'direct' && c.other).map((c) => c.other.tk + ':' + c.other.uid));
   const ppl = (await call(A, 'chat.people')).people || [];
-  const who = ppl.find((x) => !had.has(x.tk + ':' + x.uid));
+  const free = ppl.filter((x) => !had.has(x.tk + ':' + x.uid));
+  const who = free.find((x) => ['Burak Demir', 'Elif Yılmaz'].includes(x.name)) || free[0];
   if (!who) throw new Error('sohbeti olmayan kişi yok (test verisi)');
   // Kişi kartındaki “Mesaj” gibi: sohbet açılır, hiçbir şey yazılmaz, geri dönülür
   const id = (await call(A, 'chat.direct', { tk: who.tk, uid: who.uid })).id;
@@ -44,13 +45,22 @@ try {
   await A.screenshot({ path: path.join(OUT, 'sohbet-bos-liste.png') });
   if ((await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('sunucu listesinde boş sohbet var');
   if (!(await call(A, 'chat.list', { open: id })).items.some((c) => c.id === id)) fail('açık sohbet listeden düştü');
+  // Karşı taraf: giriş bilgisi bilinen bir kişiyse onun listesinde de yok
+  const LOGIN = { 'Burak Demir': ['burak@test.com', 'Sifre1234'], 'Elif Yılmaz': ['elif@test.com', 'YeniSifre99'] };
+  if (LOGIN[who.name]) {
+    const O = await login(...LOGIN[who.name]);
+    if ((await call(O, 'chat.list')).items.some((c) => c.id === id)) fail('yazılmayan sohbet karşı tarafın listesinde görünüyor');
+    await O.goto(BASE + '#/mesaj'); await O.locator('#chList .ch-filters').waitFor({ timeout: 10000 });
+    if (await O.locator(`#chList a[href="#/mesaj/${id}"]`).count()) fail('karşı tarafın ekranında boş sohbet var');
+    await O.context().close();
+  }
   // Arama: kişi “yeni sohbet” olarak bulunur; dokununca aynı sohbet açılır (yeni boş sohbet çoğalmaz)
   const again = (await call(A, 'chat.direct', { tk: who.tk, uid: who.uid })).id;
   if (again !== id) fail('aynı kişiyle ikinci boş sohbet oluştu');
   // Mesaj yazılınca listede görünür
   await call(A, 'chat.send', { id, body: 'Merhaba, deneme' });
   if (!(await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('mesaj yazılınca sohbet listede görünmedi');
-  step(`kişi kartından açılıp yazılmayan sohbet (${who.name}) listede görünmüyor; aynı kişiye tekrar dokununca aynı sohbet açılıyor; mesaj yazılınca listede`);
+  step(`kişi kartından açılıp yazılmayan sohbet (${who.name}) listede görünmüyor (karşı tarafta da); aynı kişiye tekrar dokununca aynı sohbet açılıyor; mesaj yazılınca listede`);
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }
