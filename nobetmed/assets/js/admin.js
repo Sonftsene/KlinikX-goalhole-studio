@@ -194,6 +194,7 @@ ACT['u-menu'] = (el) => {
     if (!(await confirmDialog({ title: 'Fotoğraf kaldırılsın mı?', text: `${u.name} kullanıcısının profil fotoğrafı kaldırılacak.`, ok: 'Kaldır', danger: true }))) return;
     try { await api('me.avatar', { user_id: u.id, remove: true }); toast('Profil fotoğrafı kaldırıldı'); await refreshPeople(); afterUserChange(); } catch (e) { toast(e.message, 'err'); }
   } });
+  if (modOn('mesaj') && S.hosp && isAdmin()) items.push({ id: 'c', icon: 'chat', label: 'Sohbetleri', run: () => adChats(u) });
   if (u.id !== S.me.id) {
     items.push(u.status === 'disabled'
       ? { id: 's', icon: 'checkCircle', label: 'Etkinleştir', run: () => setStatus(u, 'active') }
@@ -506,3 +507,30 @@ NM_EXT.settingsCards.push({
 CHANGE['pr-pages'] = async (el) => {
   try { const r = await api('presence.cfg', { pages: el.checked }); AD.presPages = r.pages; AD.pres = null; toast(r.pages ? 'Açık bölüm gösteriliyor' : 'Açık bölüm gizlendi'); } catch (e) { el.checked = !el.checked; toast(e.message, 'err'); }
 };
+
+
+/* ---------------- Yönetici: kişinin sohbetleri (içerik görünmez; silme günlüğe yazılır, kişilere bildirim gider) ---------------- */
+async function adChats(u) {
+  const m = openModal({ title: `${u.name} · sohbetleri`, body: html`<div style="display:grid;place-items:center;padding:30px"><div class="spinner"></div></div>` });
+  let items;
+  try { items = (await api('chat.admin.list', { user_id: u.id })).items; } catch (e) { m.setBody(html`<p class="muted">${e.message}</p>`); return; }
+  const draw = () => m.setBody(html`<p class="small muted" style="margin:0 0 10px">${icon('lock', 'sm')} Mesaj içerikleri gösterilmez. Silme işlem günlüğüne yazılır; sohbetteki kişilere “yönetici tarafından silindi” bildirimi gider. Birim grubu burada görünmez.</p>
+    ${items.length ? html`<div class="card"><div class="list adc-list">${items.map((c, i) => html`<div class="list-row" style="gap:10px;flex-wrap:wrap">
+      <span class="cat-ico sm tone-${c.kind === 'direct' ? 'indigo' : 'teal'}">${icon(c.kind === 'direct' ? 'chat' : 'users', 'sm')}</span>
+      <div class="grow" style="min-width:150px"><b class="small">${c.name}</b><div class="tiny faint">${c.kind === 'direct' ? 'Birebir' : 'Grup · ' + c.members + ' kişi'} · ${c.msgs} mesaj${c.last_at ? ' · son ' + fmtRel(c.last_at) : ''}${c.other_unit ? ' · başka birimden kişi var' : ''}</div></div>
+      ${c.scope === 'all' ? html`<button type="button" class="btn sm ghost danger" data-adc="${i}" data-mode="all">${icon('trash', 'sm')}Herkesten sil</button>`
+        : html`<button type="button" class="btn sm ghost" data-adc="${i}" data-mode="own" title="Başka birimle ortak sohbet: yalnız bu kişinin listesinden kaldırılır">${icon('x', 'sm')}Listesinden kaldır</button>`}</div>`)}</div></div>`
+      : html`<div class="card empty"><div class="e-ico">${icon('chat', 'lg')}</div><p class="small">Bu kişinin sohbeti yok.</p></div>`}`);
+  draw();
+  m.el.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-adc]'); if (!b) return;
+    const c = items[+b.dataset.adc]; if (!c) return;
+    const all = b.dataset.mode === 'all';
+    if (!(await confirmDialog({ title: all ? `“${c.name}” sohbeti herkesten silinsin mi?` : `“${c.name}” ${u.name} kişisinin listesinden kaldırılsın mı?`,
+      text: all ? `${c.msgs} mesaj, dosyalar ve tepkiler sohbetteki herkes için kalıcı olarak silinir; geri alınamaz.` : 'Sohbet başka birimle ortak olduğu için yalnız bu kişinin listesinden ve geçmişinden kaldırılır; karşı tarafta kalır.',
+      ok: all ? 'Herkesten sil' : 'Kaldır', danger: true }))) return;
+    await busy(b, async () => {
+      try { const r = await api('chat.admin.delete', { user_id: u.id, id: c.id, mode: b.dataset.mode }); items = r.items; draw(); toast(r.mode === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet kişinin listesinden kaldırıldı'); } catch (e) { toast(e.message, 'err'); }
+    });
+  });
+}

@@ -61,6 +61,32 @@ try {
   await call(A, 'chat.send', { id, body: 'Merhaba, deneme' });
   if (!(await call(A, 'chat.list')).items.some((c) => c.id === id)) fail('mesaj yazılınca sohbet listede görünmedi');
   step(`kişi kartından açılıp yazılmayan sohbet (${who.name}) listede görünmüyor (karşı tarafta da); aynı kişiye tekrar dokununca aynı sohbet açılıyor; mesaj yazılınca listede`);
+
+  // Yönetici: Kullanıcılar › kişi › Sohbetleri → içeriği görmeden sohbeti herkesten siler (4.51.0)
+  const L = (await call(A, 'chat.admin.list', { user_id: who.uid })).items;
+  const row = L.find((c) => c.id === id);
+  if (!row) throw new Error('yönetici listesinde sohbet yok: ' + JSON.stringify(L.map((c) => c.name)));
+  if (JSON.stringify(L).includes('Merhaba, deneme')) fail('yönetici listesinde mesaj içeriği görünüyor');
+  await A.goto(BASE + '#/yonetim/kullanicilar');
+  await A.locator(`[data-act=u-menu][data-id="${who.uid}"]`).click();
+  await A.click('.menu >> text=Sohbetleri');
+  const r2 = A.locator('.adc-list .list-row', { hasText: row.name }).first();
+  await r2.waitFor({ timeout: 8000 });
+  await A.locator('.modal').last().screenshot({ path: path.join(OUT, 'sohbet-yonetici.png') }).catch(() => {});
+  await r2.locator(`[data-mode=${row.scope}]`).click();
+  await A.locator('[data-ok]').last().click();
+  await A.getByText(row.scope === 'all' ? 'Sohbet herkesten silindi' : 'Sohbet kişinin listesinden kaldırıldı').first().waitFor({ timeout: 8000 });
+  if (row.scope === 'all' && (await call(A, 'chat.list', { open: id })).items.some((c) => c.id === id)) fail('silinen sohbet yöneticinin listesinde duruyor');
+  if (LOGIN[who.name]) {
+    const O = await login(...LOGIN[who.name]);
+    if ((await call(O, 'chat.list')).items.some((c) => c.id === id)) fail('silinen sohbet kişinin listesinde duruyor');
+    const nl = (await call(O, 'notif.list', { limit: 20 })).items.map((x) => x.title);
+    if (!nl.some((t) => /yönetici tarafından silindi/.test(t))) fail('kişiye silme bildirimi gitmedi: ' + nl.join(' | '));
+    const e1 = await O.evaluate(() => api('chat.admin.list', { user_id: 1 }).then(() => 'kabul', (e) => e.status));
+    if (e1 === 'kabul') fail('üye başkasının sohbet listesini görebildi');
+    await O.context().close();
+  }
+  step(`yönetici ${who.name} kişisinin “${row.name}” sohbetini içeriğini görmeden ${row.scope === 'all' ? 'herkesten sildi' : 'listesinden kaldırdı'}; kişiye bildirim gitti; üye bu listeyi göremiyor`);
 } catch (e) {
   fail('beklenmeyen hata: ' + e.message);
 }
