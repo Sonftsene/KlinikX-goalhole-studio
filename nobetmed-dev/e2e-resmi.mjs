@@ -40,7 +40,7 @@ const confirmOk = async (p) => { await p.locator('.modal [data-ok]').last().clic
 async function pubDone(p) {
   const t0 = Date.now();
   while (Date.now() - t0 < 40000) {
-    if (await p.getByText('yayınlandı', { exact: false }).count()) return;
+    if (await p.getByText('yayımlandı', { exact: false }).count()) return;
     const k = p.locator('.modal', { hasText: 'Kural uyarıları' }).locator('[data-ok]');
     if (await k.count()) await k.first().click().catch(() => {});
     await p.waitForTimeout(150);
