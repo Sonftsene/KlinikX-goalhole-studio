@@ -1312,6 +1312,7 @@ Kişi birden çok listede olabilir (ör. Hemşire ve Basamak listesi) ve önceki
 - **Nöbet al** (alanın ve verenin günleri; ör. 30 Kasım 24 saat çalışana 1 Aralık 24 saat alınabilir görünmez),
 - **Değişim / devir seçenekleri**, **eksik personel çağrısı adayları**, **ekstra nöbet** günleri, **ilanlar**,
 - **Çizelge** (otomatik doldurma ve kural denetiminde önceki ayın son günleri başka listedeyse onlar da).
+- Aynı gün iki listede nöbet varsa (ör. birinde 08-16, ötekinde 24 saat) uzun olanı sayılır.
 - Başka listedeki nöbet yalnız kuralda sayılır: bu listenin “alınabilir nöbeti” olmaz, gereken kişi sayısına eklenmez; bu listedeki izin / nöbet kaydı başka listedekiyle ezilmez.
 - “Nöbet al” isteği ve kabulü seçilen nöbetin listesine göre denetlenir (kişi iki listedeyse yanlış listeye bakılmaz).
 - Not: 4.47’den önce yeni ayı aynı listeye yüklediyseniz önceki ayın kalan günleri silinmiş olabilir; o ayın dosyasını “Ay ekle” ile yeniden yükleyin.

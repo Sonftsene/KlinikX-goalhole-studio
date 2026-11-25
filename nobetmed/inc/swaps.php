@@ -94,8 +94,7 @@ function swap_all_days(string $from, string $to): array
     foreach (all("SELECT id FROM rosters WHERE kind <> 'tablo'") as $r) {
         $tl = swap_pending_overlay(swap_timeline((int)$r['id'], $from, $to), $from, $to, (int)$r['id']);
         foreach ($tl as $k => $p) foreach ($p['days'] as $d => $x) {
-            $cur = $o[$k][$d] ?? null;
-            if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $o[$k][$d] = $x;
+            if (swap_row_wins($x, $o[$k][$d] ?? null)) $o[$k][$d] = $x;
         }
     }
     return $c[$ck] = $o;
@@ -107,10 +106,21 @@ function swap_all_days(string $from, string $to): array
 function swap_days_full(string $key, array $days, string $from, string $to): array
 {
     foreach (swap_all_days($from, $to)[$key] ?? [] as $d => $x) {
-        if (!isset($days[$d])) $days[$d] = $x + ['_ext' => 1];
+        $cur = $days[$d] ?? null;
+        // Boş gün doldurulur; o gün iki listede de nöbet varsa uzun olan sayılır (ör. birinde 08-16, ötekinde 24 saat → ertesi sabaha kadar çalışıyor)
+        if (!$cur || (($cur['kind'] ?? '') === 'shift' && ($x['kind'] ?? '') === 'shift' && (int)($x['hours'] ?? 0) > (int)($cur['hours'] ?? 0))) $days[$d] = $x + ['_ext' => 1];
     }
     ksort($days);
     return $days;
+}
+
+/** Aynı gün için hangi kayıt geçerli: nöbet izinden üstün; iki nöbetten uzun olanı (kurallar en kısıtlayıcıya göre) */
+function swap_row_wins(array $x, ?array $cur): bool
+{
+    if (!$cur) return true;
+    $xs = in_array($x['kind'] ?? '', ['shift', 'role'], true); $cs = in_array($cur['kind'] ?? '', ['shift', 'role'], true);
+    if ($xs !== $cs) return $xs;
+    return $xs && ($x['kind'] ?? '') === 'shift' && (int)($x['hours'] ?? 0) > (int)($cur['hours'] ?? 0);
 }
 
 /** Bir listedeki kişilerin gün gün kayıtları: key => ['name','title','days' => [date => row]] */
@@ -288,7 +298,8 @@ function swap_options(array $me, string $date, string $part = ''): array
     $rules = swap_rules();
     $today = date('Y-m-d');
     $myDays = swap_days_full($mk, $tl[$mk]['days'], $from, $to); // diğer listelerdeki ve önceki aydaki nöbetlerim de
-    $myRow = $myDays[$date];
+    $myRow = $tl[$mk]['days'][$date]; // verilen nöbet bu listedeki kayıt
+    $myDays[$date] = $myRow;
     $fullRow = $myRow;
     if ($part !== '' && !swap_splittable($myRow)) throw new RuntimeException('Yalnız 24 saatlik (08-08) nöbetin gündüzü ya da gecesi ayrı devredilebilir.');
     $kept = null;
