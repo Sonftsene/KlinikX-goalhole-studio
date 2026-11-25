@@ -1307,3 +1307,12 @@ Ayarlar › Genel › **Sayfa ve menü adları** (yönetici): her adın karşıs
 - İşlem günlüğü: “Sohbeti çöp kutusuna taşıdı / geri yükledi / kalıcı sildi”.
 - **Tepkiler**: mesajdaki tepki rozetine dokununca kim hangi tepkiyi verdi listesi açılır; kendi tepkinizi oradan **Kaldır** ile kaldırırsınız (dokunmak artık tepkiyi kaldırmaz ya da değiştirmez).
 
+## 76. Kurallar önceki ay ve tüm listelerle bağlantılı (4.54.0)
+Kişi birden çok listede olabilir (ör. Hemşire ve Basamak listesi) ve önceki ay başka listede olabilir (Kasım bir listede, Aralık başka listede). Dinlenme, üst üste çalışma, boşluk ve izin bitişiği hafta sonu kuralları artık **her zaman kişinin tüm listelerindeki ve önceki / sonraki aydaki** nöbetleriyle denetlenir:
+- **Nöbet al** (alanın ve verenin günleri; ör. 30 Kasım 24 saat çalışana 1 Aralık 24 saat alınabilir görünmez),
+- **Değişim / devir seçenekleri**, **eksik personel çağrısı adayları**, **ekstra nöbet** günleri, **ilanlar**,
+- **Çizelge** (otomatik doldurma ve kural denetiminde önceki ayın son günleri başka listedeyse onlar da).
+- Başka listedeki nöbet yalnız kuralda sayılır: bu listenin “alınabilir nöbeti” olmaz, gereken kişi sayısına eklenmez; bu listedeki izin / nöbet kaydı başka listedekiyle ezilmez.
+- “Nöbet al” isteği ve kabulü seçilen nöbetin listesine göre denetlenir (kişi iki listedeyse yanlış listeye bakılmaz).
+- Not: 4.47’den önce yeni ayı aynı listeye yüklediyseniz önceki ayın kalan günleri silinmiş olabilir; o ayın dosyasını “Ay ekle” ile yeniden yükleyin.
+
