@@ -100,12 +100,14 @@ function swap_all_days(string $from, string $to): array
     }
     return $c[$ck] = $o;
 }
-/** Kişinin bu listedeki günlerine diğer listelerdeki günlerini ekler (eklenenlerde _ext = 1: bu listenin nöbeti değil; seçenek / sayım olmaz) */
+/**
+ * Kişinin bu listedeki günlerine diğer listelerdeki günlerini ekler — yalnız bu listede BOŞ olan günler
+ * (bu listedeki izin / nöbet kaydı ezilmez). Eklenenlerde _ext = 1: bu listenin nöbeti değil; seçenek / sayım olmaz.
+ */
 function swap_days_full(string $key, array $days, string $from, string $to): array
 {
     foreach (swap_all_days($from, $to)[$key] ?? [] as $d => $x) {
-        $cur = $days[$d] ?? null;
-        if (!$cur || (in_array($x['kind'] ?? '', ['shift', 'role'], true) && !in_array($cur['kind'] ?? '', ['shift', 'role'], true))) $days[$d] = $x + ['_ext' => 1];
+        if (!isset($days[$d])) $days[$d] = $x + ['_ext' => 1];
     }
     ksort($days);
     return $days;

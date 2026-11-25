@@ -202,10 +202,12 @@ const chk = JSON.parse(php(`require '${path.join(SITE, 'inc/rules.php')}'; requi
     $tl = swap_pending_overlay(swap_timeline($rid, date('Y-m-d', strtotime($date . ' -40 days')), date('Y-m-d', strtotime($date . ' +40 days'))), date('Y-m-d', strtotime($date . ' -40 days')), date('Y-m-d', strtotime($date . ' +40 days')), $rid);
     $me = null; foreach ($tl as $k => $p) if (names_match((string)$p['name'], 'Elif Yılmaz')) $me = $k;
     $pk = swap_key($name); $row = $tl[$pk]['days'][$date];
-    $mine = $tl[$me]['days']; if (isset($mine[$date])) { $bad[] = "$date $name: benim kaydım var"; continue; }
+    // 4.54.0: kurallar kişilerin tüm listelerindeki ve önceki aydaki nöbetleriyle denetlenir
+    $wf = date('Y-m-d', strtotime($date . ' -40 days')); $wt = date('Y-m-d', strtotime($date . ' +40 days'));
+    $mine = swap_days_full($me, $tl[$me]['days'], $wf, $wt); if (isset($mine[$date])) { $bad[] = "$date $name: benim kaydım var"; continue; }
     $mine[$date] = $row;
     if ($e = swap_check($mine, [$date], [], swap_rules(), 'Sen')) $bad[] = "$date $name: $e";
-    $th = $tl[$pk]['days']; unset($th[$date]);
+    $th = swap_days_full($pk, $tl[$pk]['days'], $wf, $wt); unset($th[$date]);
     if ($e = swap_check($th, [], [$date], swap_rules(), 'O')) $bad[] = "$date $name: $e";
   }
   echo json_encode($bad, JSON_UNESCAPED_UNICODE);`));
@@ -225,7 +227,7 @@ if (!askable) console.log('  (alınabilir nöbetlerin sahiplerinin hesabı yok; 
 else {
   const owner = { 'Ayşe Kaya': A, 'Burak Demir': B }[askable.display];
   await E.p.goto(BASE + '#/ekstra/' + ym + '/' + askable.date);
-  await E.p.locator(`.tk-it [data-act=tk-ask][data-n="${askable.name}"]`).click();
+  await E.p.locator(`.tk-it [data-act=tk-ask][data-n="${askable.name}"]`).first().click(); // 24 saatte “Tümü” önce, sonra gündüz / gece parçaları
   await E.p.fill('.modal #tkNote', 'Uygunsa ben alırım');
   await E.p.locator('.modal [data-go]').click();
   await E.p.getByText('İstek gönderildi').first().waitFor();
