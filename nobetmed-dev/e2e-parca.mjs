@@ -138,9 +138,10 @@ if (found) {
   const { n, it, ym } = found;
   const part = it.parts.night.ok ? 'night' : 'day';
   await P[n].p.goto(BASE + '#/ekstra/' + ym + '/' + it.date);
-  await P[n].p.locator(`[data-act=tk-ask][data-p=${part}]`).first().waitFor({ timeout: 10000 }).catch(() => fail('devral sayfasında parça düğmesi yok'));
+  const pbtn = P[n].p.locator(`[data-act=tk-ask][data-p=${part}][data-n="${it.name}"]`).first(); // o gün birden çok kişinin parçası olabilir: istenen kişininki
+  await pbtn.waitFor({ timeout: 10000 }).catch(() => fail('devral sayfasında parça düğmesi yok'));
   await P[n].p.screenshot({ path: path.join(OUT, 'p-devral-parca.png') });
-  await P[n].p.locator(`[data-act=tk-ask][data-p=${part}]`).first().click();
+  await pbtn.click();
   await P[n].p.locator('.modal [data-go]').click();
   await P[n].p.getByText('İstek gönderildi').first().waitFor();
   const GV = P[accOf(it.display)];
