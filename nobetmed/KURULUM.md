@@ -1268,3 +1268,22 @@ Bir nöbet listesi (ör. “Hemşire Nöbet Listesi”) artık birden çok ayı 
 - Daha uzun aralık başlangıç → bitiş ve gün sayısıyla yazılır: **“7 → 18 (12 gün) Yİ”**; ay aşan: “28 Ara → 2 Oca (6 gün)”.
 - Pano, İsteklerim, Yönetim, önizleme ve bildirim metinlerinde aynı yazım kullanılır.
 
+## 71. Herkes için ana ekran (4.50.0)
+Ayarlar › Genel › **Herkes için ana ekran** (yönetici). Ana ekranı bir kez herkes için kurun; kişiler ayar yapmadan hazır ve sade bir ekran görür.
+- **Hazır düzen**: **Sade** (bugünkü nöbet, okunacaklar, 4 büyük kısayol, akış ve diğer kartlar gizli, kişiler değiştiremez — hiç anlamayanlar için), **Standart** (bugünkü düzen), **Tam** (her şey açık, geri sayım dahil). Sonra tek tek değiştirilebilir (Özel).
+- **Ana sayfa bölümleri**: gizle / göster / sırala. **“Kişiler kendi ana sayfasını değiştirebilsin”** kapalıyken herkes tam olarak bu düzeni görür.
+- **Kısayollar**: herkes için siz seçip sıralarsınız; **Büyük düğmeler** (simgeli kutucuklar); **“Kişi yanına kendi kısayolunu ekleyebilsin”** kapalıyken düzenleme kalemi görünmez.
+- **Üst çubuk simgeleri**: telefon rehberi, arama, mesajlar, yeni içerik, tema ayrı ayrı gizlenir (zil ve profil her zaman görünür).
+- **Alt menü (telefon)**: Nöbet, “+”, Okunacak gizlenebilir (Ana sayfa ve Menü her zaman).
+- **Sorumlular** sekmesi: sorumlular ve yöneticiler için ayrı düzen (kapalıyken herkesinkini görürler).
+- Yanda **canlı önizleme** (“Üye böyle görecek”); **Herkese uygula**; isteğe bağlı kişilerin kendi değişikliklerini sıfırla; **Herkes için düzeni kaldır** ile eski hâline döner.
+- Düzen değişince kişiye ana sayfada bir kez “Ana ekranınız sadeleştirildi; aradığınız her şey Menü’de” notu çıkar.
+- **Menü** sayfasının üstünde **“Ne arıyorsunuz?”** arama kutusu: “izin” → İstekler, “numara” → Telefon rehberi gibi gündelik sözcüklerle de bulur.
+- Eski “Herkesin ana sayfası” kartı bu kartın içine taşındı (aynı düzen).
+
+## 72. Sayfa ve menü adları (4.50.0)
+Ayarlar › Genel › **Sayfa ve menü adları** (yönetici): her adın karşısına yenisini yazın (ör. “Takvimim” → “Nöbetlerim”); boş bırakılan varsayılan kalır.
+- Yeni ad yan menüde, Menü kutucuklarında ve menü aramasında, ana sayfa kısayollarında, nöbet sekmelerinde, menü başlıklarında (Nöbet, Bölümler, Yönetim, Tablolar), telefondaki alt menüde ve sayfa başlıklarında görünür.
+- Adlar **veritabanında** saklanır (setting ui_labels); güncelleme paketi veritabanına dokunmadığı için **güncellemelerde değişmez**.
+- Bölüm (kategori) ve nöbet listesi adları kendi sayfalarından değiştirilir.
+

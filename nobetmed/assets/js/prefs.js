@@ -824,7 +824,7 @@ NM_EXT.settingsCards.push({
 function lbDraw() {
   const c = $('#lbCard'); if (!c) return;
   // Düzenlenebilir adlar: yan menü (bölüm ve liste adları hariç), menü başlıkları, nöbet sekmeleri, alt menü
-  ['#/nobetim', '#/rehber', '#/nobet'].forEach((k) => uiL(k, { '#/nobetim': 'Takvimim', '#/rehber': 'Kim nöbette', '#/nobet': 'Excel liste' }[k], 'Nöbet sekmeleri'));
+  ['#/nobetim', '#/rehber', '#/nobet'].forEach((k) => { uiL(k, { '#/nobetim': 'Takvimim', '#/rehber': 'Kim nöbette', '#/nobet': 'Excel liste' }[k], 'Nöbet'); UI_DEF[k].g = 'Nöbet'; });
   ['bn:home', 'bn:todo', 'bn:menu'].forEach((k) => uiL(k, { 'bn:home': 'Ana sayfa', 'bn:todo': 'Okunacak', 'bn:menu': 'Menü' }[k], 'Alt menü (telefon)'));
   const groups = [];
   Object.entries(UI_DEF).filter(([k]) => !/^#\/(b|nobet)\/\d+$/.test(k)).forEach(([k, d]) => { let g = groups.find((x) => x.g === d.g); if (!g) groups.push(g = { g: d.g, items: [] }); g.items.push([k, d.l]); });

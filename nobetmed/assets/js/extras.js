@@ -327,7 +327,7 @@ const HUB_HREF = { cal: '#/nobetim', who: '#/rehber', list: '#/nobet', taraf: '#
 function hubHref() { try { const k = localStorage.getItem('nm-hub'); const x = NM_EXT.hubTabs.find((t) => t.key === k && modOn(t.mod) && (!t.pub || canManage(t.mod))); return (x && x.href) || (k === 'taraf' && !modOn('taraf') ? '' : HUB_HREF[k]) || '#/nobetim'; } catch (e) { return '#/nobetim'; } }
 function hubTabs(active) {
   try { localStorage.setItem('nm-hub', active); } catch (e) { /* */ }
-  const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${uiL(HUB_HREF[k], l, 'Nöbet sekmeleri')}</span></a>`;
+  const t = (k, ic, l) => html`<a class="${active === k ? 'on' : ''}" href="${HUB_HREF[k]}" role="tab" aria-selected="${active === k ? 'true' : 'false'}">${icon(ic, 'sm')}<span>${uiL(HUB_HREF[k], l, 'Nöbet')}</span></a>`;
   NM_EXT.hubTabs.forEach((x) => { HUB_HREF[x.key] = x.href; });
   return html`<nav class="hub-tabs" role="tablist" aria-label="Nöbet">${t('cal', 'calendar', 'Takvimim')}${t('who', 'users', 'Kim nöbette')}${modOn('taraf') ? t('taraf', 'layers', 'Taraf') : ''}${NM_EXT.hubTabs.filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).map((x) => t(x.key, x.icon, x.label))}${t('list', 'table', 'Excel liste')}</nav>`;
 }

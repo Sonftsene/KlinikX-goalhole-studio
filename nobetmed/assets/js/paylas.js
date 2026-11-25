@@ -35,11 +35,11 @@ function sitePages() {
   });
   if (typeof modOn === 'function' && modOn('nobet')) {
     const g = 'Nöbet';
-    add('#/nobetim', uiL('#/nobetim', 'Takvimim'), g);
-    add('#/rehber', uiL('#/rehber', 'Kim nöbette'), g);
-    if (modOn('taraf')) add('#/taraf', uiL('#/taraf', 'Taraf listesi'), g);
-    (NM_EXT.hubTabs || []).filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).forEach((x) => add(x.href, uiL(x.href, x.label), g));
-    add('#/nobet', uiL('#/nobet', 'Excel liste'), g);
+    add('#/nobetim', uiL('#/nobetim', 'Takvimim', g), g);
+    add('#/rehber', uiL('#/rehber', 'Kim nöbette', g), g);
+    if (modOn('taraf')) add('#/taraf', uiL('#/taraf', 'Taraf listesi', g), g);
+    (NM_EXT.hubTabs || []).filter((x) => modOn(x.mod) && (!x.pub || canManage(x.mod))).forEach((x) => add(x.href, uiL(x.href, x.label, g), g));
+    add('#/nobet', uiL('#/nobet', 'Excel liste', g), g);
   }
   if (typeof profTabs === 'function') profTabs().forEach(([k, l]) => add('#/profil/' + k, l, 'Hesabım'));
   // Grupları menüdeki ilk görünüş sırasıyla bir arada tut
