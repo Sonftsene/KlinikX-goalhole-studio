@@ -143,7 +143,7 @@ if (found) {
   await P[n].p.screenshot({ path: path.join(OUT, 'p-devral-parca.png') });
   await pbtn.click();
   await P[n].p.locator('.modal [data-go]').click();
-  await P[n].p.getByText('Teklif gönderildi').first().waitFor();
+  await P[n].p.getByText('Devir teklifi gönderildi').first().waitFor();
   const GV = P[accOf(it.display)];
   // Önceki adımdan kalan bildirim beklemeyi erken bitirebilir: istek kaydını birkaç saniye yokla
   let tr = null;
