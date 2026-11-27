@@ -169,7 +169,7 @@ function showRoster(id) {
     v = { el, fileId };
     RS.views.set(id, v);
     if (file) {
-      mountPreview(el, file, r.linked ? { sheetName: r.tab || undefined, sheets: r.tabs || undefined } : {}).then(() => {
+      mountPreview(el, file, Object.assign(r.linked ? { sheetName: r.tab || undefined, sheets: r.tabs || undefined } : {}, { ym: mo ? mo.ym : (r.period || '') })).then(() => {
         prefetchRosters();
         // Yayıncı listeyi (ayı) ilk kez görünce kişi başı nöbetler okunur (Nöbetlerim, hatırlatmalar, kim nöbette)
         const need = mo ? !mo.parsed : r.parsed_file_id !== file.id;
@@ -205,6 +205,7 @@ ACT['rs-full'] = () => {
   const opts = r.linked ? { sheetName: r.tab || undefined, sheets: r.tabs || undefined } : {};
   if (v && v.el.dataset.sheet) opts.sheetName = v.el.dataset.sheet;
   const mo = rmView(r);
+  opts.ym = mo ? mo.ym : (r.period || '');
   openFullViewer(f0, r.name + (mo ? ' · ' + periodLabel(mo.ym) : ''), opts);
 };
 

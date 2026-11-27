@@ -551,7 +551,7 @@ function sheetLayout(sh) {
 
 /** Dosyadan gelen yatay hizalama yalnız bu değerlerden biri olabilir (sayfaya HTML sokulamasın) */
 const XV_HA = { left: 1, center: 1, right: 1, justify: 1 };
-function sheetHTML(sh, z, lay, maxRows, fz) {
+function sheetHTML(sh, z, lay, maxRows, fz, tone) {
   const { vc, master, covered } = lay;
   const vr = maxRows && lay.vr.length > maxRows ? lay.vr.slice(0, maxRows) : lay.vr;
   // Sabit (dondurulmuş) satır/sütunlar: ekrana göre daraltılmış küme gelebilir
@@ -637,6 +637,8 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
       if (bb) css += `border-bottom:${bb};`;
       let cls = 'xc';
       if (fr || fc) cls += ' fz' + (fr && fc ? ' fz2' : fr ? ' fzr' : '');
+      // Hafta sonu / resmî tatil sütunu (gün başlığından aşağı; birleştirilmiş başlıklar hariç — 4.58.0)
+      if (tone && !mg && r >= tone.fromRow && tone.cols.has(c)) cls += ' ' + tone.cols.get(c);
       // Boş komşuya taşan metin (Excel davranışı)
       if (cell && cell.text && !wrap && !mg && !cell.isNum && (!ha || ha === 'left' || ha === 'general')) {
         const nc = vc[ci + 1];
@@ -659,7 +661,7 @@ function sheetHTML(sh, z, lay, maxRows, fz) {
         picHtml = pics.map((p) => `<img class="xv-img" alt="" src="${esc(p.src)}" style="left:${p.x * z}px;top:${p.y * z}px;width:${p.w * z}px;height:${p.h * z}px">`).join('');
       }
       const span = mg ? `${mg.rs > 1 ? ` rowspan="${mg.rs}"` : ''}${mg.cs > 1 ? ` colspan="${mg.cs}"` : ''}` : '';
-      h += `<td class="${cls}"${span}${css ? ` style="${esc(css)}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}${picHtml}</td>`;
+      h += `<td class="${cls}" data-c="${c}"${span}${css ? ` style="${esc(css)}"` : ''}>${cls.includes(' ov') ? `<span class="ovt">${content}</span>` : content}${picHtml}</td>`;
     });
     h += '</tr>';
   });
@@ -759,7 +761,8 @@ async function mountSheet(el, att, opts = {}) {
     <div class="xv-bar">
       <div class="search xv-search">${icon('search')}<input class="input" type="search" placeholder="Listede ara (isim, tarih…)" aria-label="Listede ara"></div>
       <span class="xv-count tiny faint"></span>
-      ${S.me ? html`<button class="btn sm xv-me" type="button" title="Adımın geçtiği hücreler">${icon('user', 'sm')}<span>Beni bul</span></button><button class="btn sm xv-only hidden" type="button" title="Yalnızca adımın geçtiği satırları göster" aria-pressed="false">${icon('eye', 'sm')}<span>Sadece ben</span></button>` : ''}
+      ${S.me ? html`<button class="btn sm xv-me xv-t-amber" type="button" title="Adımın geçtiği hücreler">${icon('user', 'sm')}<span>Beni bul</span></button><button class="btn sm xv-only xv-t-brand hidden" type="button" title="Yalnızca adımın geçtiği satırları göster" aria-pressed="false">${icon('eye', 'sm')}<span>Sadece ben</span></button>` : ''}
+      <button class="btn sm xv-pick xv-t-violet hidden" type="button" title="Karşılaştırmak için kişi seçin: yalnız siz ve seçtikleriniz görünür">${icon('users', 'sm')}<span>Kişi seç</span></button>
       <div class="grow"></div>
       <div class="row" style="gap:4px">
         <button class="btn sm icon xv-zo" type="button" aria-label="Uzaklaştır">−</button>
@@ -770,6 +773,7 @@ async function mountSheet(el, att, opts = {}) {
       </div>
     </div>
     <div class="xv-scroll"></div>
+    <div class="xv-legend hidden"></div>
     <div class="xv-tabs"></div>
   </div>`);
   const scroll = el.querySelector('.xv-scroll');
@@ -804,6 +808,69 @@ async function mountSheet(el, att, opts = {}) {
     }
     return { rows: new Set(rows), cols: new Set(cols) };
   };
+  /* ---- 4.58.0: hafta sonu sütunları, ad sütunu, kişi seçme ---- */
+  const tones = new Map();
+  /** Gün başlığından gün sütunları; hafta sonu ve resmî tatil sütunlarına sınıf: { fromRow, cols: Map(sütun → 'we' | 'hol'), dataCols } */
+  const toneOf = (sh) => {
+    if (tones.has(sh)) return tones.get(sh);
+    let t = null;
+    try {
+      if (typeof spSheetView === 'function' && typeof spFindDayHeader === 'function') {
+        const V = spSheetView(sh);
+        const hdr = spFindDayHeader(V);
+        if (hdr) {
+          let w0 = -1, ym = '';
+          const wd = typeof spWeekdayRow === 'function' ? spWeekdayRow(V, hdr) : null;
+          if (/^\d{4}-\d{2}$/.test(opts.ym || '')) ym = opts.ym;
+          else if (hdr.y && hdr.mo) ym = `${hdr.y}-${pad(hdr.mo)}`;
+          if (wd) w0 = wd.w0;
+          else if (ym) w0 = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).getDay();
+          const hol = ym && typeof holidayMapOrNull === 'function' ? (holidayMapOrNull() || {}) : {};
+          if (w0 >= 0) {
+            const cols = new Map();
+            hdr.colDay.forEach((day, c) => {
+              const dow = (w0 + day - 1) % 7;
+              const iso = ym ? `${ym}-${pad(day)}` : '';
+              if (iso && hol[iso] && !hol[iso].half) cols.set(c, 'hol');
+              else if (dow === 0 || dow === 6) cols.set(c, 'we');
+            });
+            t = { fromRow: Math.max(0, (wd ? Math.min(wd.r, hdr.r) : hdr.r)), cols, dataCols: new Set(hdr.colDay.keys()) };
+          } else t = { fromRow: hdr.r, cols: new Map(), dataCols: new Set(hdr.colDay.keys()) };
+        }
+      }
+    } catch (e) { t = null; }
+    tones.set(sh, t);
+    return t;
+  };
+  const cellTxt = (sh, r, c) => { const x = sh.cells.get(r * 100000 + c); return x && x.text != null ? String(x.text).trim() : ''; };
+  /** Ad sütunu: kişi adına benzeyen en çok hücrenin olduğu sütun */
+  const nameCols = new Map();
+  const nameColOf = (sh) => {
+    if (nameCols.has(sh)) return nameCols.get(sh);
+    const cnt = new Map();
+    const isName = typeof spIsName === 'function' ? spIsName : (t) => /^\p{L}+(\s+\p{L}+){1,3}$/u.test(t);
+    sh.cells.forEach((x, k) => { if (x && x.text && isName(String(x.text))) { const c = k % 100000; cnt.set(c, (cnt.get(c) || 0) + 1); } });
+    let best = -1, bn = 2;
+    cnt.forEach((n, c) => { if (n > bn) { bn = n; best = c; } });
+    nameCols.set(sh, best);
+    return best;
+  };
+  /** Listedeki kişiler (ad sütunundan): [{ name, key }] */
+  const peopleOf = (sh) => {
+    const nc = nameColOf(sh); if (nc < 0) return [];
+    const isName = typeof spIsName === 'function' ? spIsName : () => true;
+    const seen = new Map();
+    for (let r = 0; r < sh.nRows; r++) { const t = cellTxt(sh, r, nc); if (t && isName(t) && !meExact(t)) { const k = foldName(t); if (!seen.has(k)) seen.set(k, t); } }
+    return [...seen].map(([key, name]) => ({ key, name }));
+  };
+  try { state.pick = new Set(JSON.parse(localStorage.getItem('nm-xv-pick') || '[]')); } catch (e) { state.pick = new Set(); }
+  const pickRowsOf = (sh) => {
+    if (!state.pick.size) return [];
+    const nc = nameColOf(sh); if (nc < 0) return [];
+    const out = [];
+    for (let r = 0; r < sh.nRows; r++) { if (sh.hiddenR.has(r)) continue; const t = cellTxt(sh, r, nc); if (t && state.pick.has(foldName(t))) out.push(r); }
+    return out;
+  };
   /** "Sadece ben": başlık satırları + adımın geçtiği satırlar dışındakileri gizle */
   const meRowsOf = (sh) => {
     // Önce hücresi yalnız benim adım olan satırlar (ad sütunu); yoksa adımın geçtiği satırlar
@@ -817,7 +884,7 @@ async function mountSheet(el, att, opts = {}) {
     return exact.length ? exact : loose;
   };
   const onlyMeSheet = (sh) => {
-    const mine = meRowsOf(sh);
+    const mine = [...new Set([...meRowsOf(sh), ...pickRowsOf(sh)])].sort((a, b) => a - b);
     if (!mine.length) return null;
     const keep = new Set(mine);
     const first = mine[0];
@@ -827,6 +894,7 @@ async function mountSheet(el, att, opts = {}) {
     const txt = (r, c) => { const x = sh.cells.get(r * 100000 + c); return x && x.text != null ? String(x.text).trim() : ''; };
     let nameCol = -1;
     for (let c = 0; c < sh.nCols && nameCol < 0; c++) if (meExact(txt(first, c)) || meMatch(txt(first, c))) nameCol = c;
+    if (nameCol < 0) nameCol = nameColOf(sh); // yalnız seçilen kişiler (kendi adım listede yok)
     const idxCols = [], titleCols = [], dataCols = [];
     for (let c = 0; c < sh.nCols; c++) {
       const t = txt(first, c);
@@ -871,21 +939,28 @@ async function mountSheet(el, att, opts = {}) {
     return { ...sh, hiddenR };
   };
   const onlyBtn = el.querySelector('.xv-only');
+  const pickBtn = el.querySelector('.xv-pick');
   try { state.onlyMe = localStorage.getItem('nm-onlyme') === '1'; } catch (e) { state.onlyMe = false; }
   const draw = () => {
     let sh = model.sheets[state.sheet];
-    const lk = state.sheet + (state.onlyMe ? ':me' : '');
+    const tone = toneOf(sh);
+    const lk = state.sheet + (state.onlyMe ? ':me:' + [...state.pick].sort().join('|') : '');
     if (state.onlyMe && !layouts.has(lk)) { const v = onlyMeSheet(sh); if (v) { layouts.set(lk, sheetLayout(v)); layouts.set(lk + ':sh', v); } }
     const useMe = state.onlyMe && layouts.has(lk);
     if (useMe) sh = layouts.get(lk + ':sh');
-    if (onlyBtn) { onlyBtn.classList.toggle('hidden', !meRowsOf(model.sheets[state.sheet]).length); onlyBtn.classList.toggle('active', useMe); onlyBtn.setAttribute('aria-pressed', useMe ? 'true' : 'false'); }
+    const pickN = pickRowsOf(model.sheets[state.sheet]).length ? state.pick.size : 0;
+    if (onlyBtn) {
+      onlyBtn.classList.toggle('hidden', !meRowsOf(model.sheets[state.sheet]).length && !pickN); onlyBtn.classList.toggle('active', useMe); onlyBtn.setAttribute('aria-pressed', useMe ? 'true' : 'false');
+      const sp = onlyBtn.querySelector('span'); if (sp) sp.textContent = pickN ? (meRowsOf(model.sheets[state.sheet]).length ? `Ben + ${pickN} kişi` : `${pickN} kişi`) : 'Sadece ben';
+    }
+    if (pickBtn) { pickBtn.classList.toggle('hidden', nameColOf(model.sheets[state.sheet]) < 0); pickBtn.classList.toggle('active', !!pickN); const sp = pickBtn.querySelector('span'); if (sp) sp.textContent = pickN ? `Kişi seç (${pickN})` : 'Kişi seç'; }
     const key = useMe ? lk : state.sheet;
     if (!layouts.has(key)) layouts.set(key, sheetLayout(sh));
     const keepL = scroll.scrollLeft / Math.max(1, scroll.scrollWidth), keepT = scroll.scrollTop / Math.max(1, scroll.scrollHeight);
     const lay = layouts.get(key);
     if (!state.limit[state.sheet]) state.limit[state.sheet] = Math.max(200, Math.floor(30000 / Math.max(1, lay.vc.length)));
     const limit = state.limit[state.sheet];
-    const out = sheetHTML(sh, state.z, lay, limit, frozenFor(sh, lay));
+    const out = sheetHTML(sh, state.z, lay, limit, frozenFor(sh, lay), tone);
     width = out.width;
     const left = lay.vr.length - limit;
     scroll.dataset.uc = '1';
@@ -909,6 +984,20 @@ async function mountSheet(el, att, opts = {}) {
     const tds = scroll.querySelectorAll('td.xc');
     state.mine = [];
     tds.forEach((td) => { if (td.textContent && meMatch(td.textContent)) { td.classList.add('me'); state.mine.push(td); const tr = td.closest('tr'); if (tr) tr.classList.add('me-row'); } });
+    // Kendi nöbet hücreleri (gün sütunlarında dolu hücre) belirgin; seçilen kişilerin satırları ayrı renk (4.58.0)
+    const dataCols = tone ? tone.dataCols : null;
+    scroll.querySelectorAll('tr.me-row td.xc').forEach((td) => { if (td.textContent.trim() && (!dataCols || dataCols.has(+td.dataset.c)) && !td.classList.contains('me')) td.classList.add('mine-c'); });
+    if (state.pick.size) {
+      const nc = nameColOf(model.sheets[state.sheet]);
+      scroll.querySelectorAll(`td.xc[data-c="${nc}"]`).forEach((td) => { if (state.pick.has(foldName(td.textContent.trim()))) { const tr = td.closest('tr'); if (tr && !tr.classList.contains('me-row')) tr.classList.add('pick-row'); } });
+    }
+    const lg = el.querySelector('.xv-legend');
+    if (lg) {
+      const hasMe = !!scroll.querySelector('tr.me-row'), hasPick = !!scroll.querySelector('tr.pick-row');
+      const hasWe = !!(tone && [...tone.cols.values()].includes('we')), hasHol = !!(tone && [...tone.cols.values()].includes('hol'));
+      lg.innerHTML = [hasWe ? '<span><i class="lg-we"></i>Hafta sonu</span>' : '', hasHol ? '<span><i class="lg-hol"></i>Resmî tatil</span>' : '', hasMe ? '<span><i class="lg-me"></i>Sizin nöbetleriniz</span>' : '', hasPick ? '<span><i class="lg-pick"></i>Seçtiğiniz kişiler</span>' : ''].join('');
+      lg.classList.toggle('hidden', !lg.innerHTML);
+    }
     const meBtn = el.querySelector('.xv-me');
     if (meBtn) meBtn.classList.toggle('hidden', !state.mine.length);
     applySearch(false);
@@ -954,6 +1043,27 @@ async function mountSheet(el, att, opts = {}) {
     scroll.scrollTo(0, 0);
     draw();
     countEl.textContent = state.onlyMe ? 'Yalnızca sizin satırlarınız gösteriliyor' : '';
+  });
+  // Kişi seç: yalnız siz ve seçtiğiniz kişilerin satırları görünür (karşılaştırma için — 4.58.0)
+  if (pickBtn) pickBtn.addEventListener('click', () => {
+    const ppl = peopleOf(model.sheets[state.sheet]);
+    const sel = new Set(state.pick);
+    const md = openModal({ title: 'Karşılaştırmak için kişi seçin', size: 'narrow', body: html`<div class="stack">
+        <p class="small muted" style="margin:0">Tabloda yalnız ${S.me ? 'siz ve ' : ''}seçtiğiniz kişilerin satırları kalır; başlık ve gün satırları durur.</p>
+        <input class="input" type="search" id="xvPickQ" placeholder="İsim ara" autocomplete="off">
+        <div class="list xv-pick-list">${ppl.map((p) => html`<label class="list-row" data-k="${p.key}"><input type="checkbox" value="${p.key}" ${sel.has(p.key) ? raw('checked') : ''}><span class="grow">${p.name}</span></label>`)}</div></div>`,
+      foot: html`<button class="btn ghost" data-clear>Seçimi temizle</button><span class="grow"></span><button class="btn" data-close>Vazgeç</button><button class="btn primary" data-go>Göster</button>` });
+    const q = md.el.querySelector('#xvPickQ');
+    q.addEventListener('input', () => { const v = foldName(q.value.trim()); md.el.querySelectorAll('.xv-pick-list .list-row').forEach((r) => r.classList.toggle('hidden', !!v && !r.dataset.k.includes(v))); });
+    const apply = (keys) => {
+      state.pick = new Set(keys);
+      try { localStorage.setItem('nm-xv-pick', JSON.stringify([...state.pick])); } catch (e) { /* */ }
+      state.onlyMe = state.pick.size > 0 || state.onlyMe;
+      md.close(); scroll.scrollTo(0, 0); draw();
+      countEl.textContent = state.pick.size ? `${S.me ? 'Siz ve ' : ''}${state.pick.size} kişi gösteriliyor` : '';
+    };
+    md.el.querySelector('[data-go]').addEventListener('click', () => apply([...md.el.querySelectorAll('.xv-pick-list input:checked')].map((i) => i.value)));
+    md.el.querySelector('[data-clear]').addEventListener('click', () => { state.onlyMe = false; apply([]); });
   });
   // Koyu temada tablo isteğe bağlı koyulaşır (gece nöbetinde göz almasın); tercih bu cihazda saklanır (4.56.0)
   const darkBtn = el.querySelector('.xv-dark');

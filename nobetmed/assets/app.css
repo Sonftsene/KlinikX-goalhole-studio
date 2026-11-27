@@ -2189,7 +2189,32 @@ body:has(.settings-save.show, .rq-save) .toasts { bottom: 96px; }
   .pav[data-act=person]::after, .bm[data-act=bookmark]::after { content: ''; position: absolute; inset: -9px; }
 }
 /* Excel liste: “Beni bul” satırın tamamını vurgular; sabit sütundaki uzun yazı yandaki hücrelerin üstüne taşmaz; koyu tablo seçeneği */
-.xv-grid tr.me-row td.xc { box-shadow: inset 0 0 0 9999px rgba(255, 196, 0, .16); }
+/* Excel liste renkleri (4.58.0): hafta sonu / resmî tatil sütunu, kendi satırım, kendi nöbet hücrelerim, seçilen kişiler.
+   Renkler hücrenin kendi Excel rengini silmeden üstüne yarı saydam katman olarak biner. */
+.xv-grid td.xc.we { box-shadow: inset 0 0 0 9999px rgba(99, 102, 241, .16); }
+.xv-grid td.xc.hol { box-shadow: inset 0 0 0 9999px rgba(239, 68, 68, .13); }
+.xv-grid tr.me-row td.xc { box-shadow: inset 0 0 0 9999px rgba(255, 196, 0, .20); }
+.xv-grid tr.me-row td.xc.we, .xv-grid tr.me-row td.xc.hol { box-shadow: inset 0 0 0 9999px rgba(255, 170, 0, .30); }
+.xv-grid tr.me-row td.xc.mine-c { box-shadow: inset 0 0 0 9999px rgba(245, 158, 11, .45); outline: 2px solid #d97706; outline-offset: -2px; font-weight: 700; }
+.xv-grid tr.pick-row td.xc { box-shadow: inset 0 0 0 9999px rgba(14, 165, 233, .14); }
+.xv-grid tr.pick-row td.xc.we, .xv-grid tr.pick-row td.xc.hol { box-shadow: inset 0 0 0 9999px rgba(14, 165, 233, .24); }
+.xv-grid tr.pick-row td.xc:not(:empty) { font-weight: 600; }
+/* Excel liste araç çubuğu: renkli, kolay görülen düğmeler */
+.xv-bar .btn.xv-t-amber { background: #fff4d6; border-color: #f5c451; color: #8a5200; }
+.xv-bar .btn.xv-t-brand { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 45%, transparent); color: var(--brand-text); }
+.xv-bar .btn.xv-t-violet { background: #efe9ff; border-color: #b9a4f5; color: #5b3fc4; }
+.xv-bar .btn.xv-t-brand.active, .xv-bar .btn.xv-only.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.xv-bar .btn.xv-t-violet.active { background: #6d4ae0; border-color: #6d4ae0; color: #fff; }
+.xv-bar .btn.xv-zi, .xv-bar .btn.xv-zo, .xv-bar .btn.xv-zr, .xv-bar .btn.xv-fit { background: var(--sky, var(--surface-2)); }
+[data-theme="dark"] .xv-bar .btn.xv-t-amber { background: rgba(245, 158, 11, .16); border-color: rgba(245, 158, 11, .45); color: #f8c66b; }
+[data-theme="dark"] .xv-bar .btn.xv-t-violet { background: rgba(139, 108, 240, .18); border-color: rgba(139, 108, 240, .5); color: #c7b6ff; }
+[data-theme="dark"] .xv-bar .btn.xv-t-brand.active, [data-theme="dark"] .xv-bar .btn.xv-only.active, [data-theme="dark"] .xv-bar .btn.xv-t-violet.active { color: #04201e; }
+.xv-legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 11.5px; color: var(--text-2); padding: 4px 2px; }
+.xv-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.08); }
+.xv-legend .lg-we { background: rgba(99, 102, 241, .3); } .xv-legend .lg-hol { background: rgba(239, 68, 68, .26); }
+.xv-legend .lg-me { background: rgba(245, 158, 11, .55); outline: 2px solid #d97706; outline-offset: -2px; } .xv-legend .lg-pick { background: rgba(14, 165, 233, .3); }
+.xv-pick-list { max-height: 50vh; overflow: auto; }
+.xv-pick-list .list-row { cursor: pointer; gap: 10px; }
 .xv-grid td.fz.ov { overflow: hidden; text-overflow: ellipsis; }
 .xv-grid td.fz.ov .ovt { position: static; }
 .xv-dark { display: none; }
@@ -2302,3 +2327,10 @@ html { scroll-padding-top: calc(var(--topbar) + env(safe-area-inset-top) + 12px)
 .btn.primary:disabled, .btn.primary[disabled] { background: var(--surface-3); background-image: none; color: var(--text-3); border-color: var(--border); box-shadow: none; opacity: 1; }
 /* İstekler: “Değiştir” bir bağlantı gibi, satırın sağında */
 [data-act=rq-roster-pick] { height: auto; padding: 4px 6px; color: var(--brand-text); text-decoration: underline; text-underline-offset: 3px; margin-left: auto; }
+/* Çizelge: hafta sonu / tatil sütunları gövdede de renkli, kendi satırınız belirgin (4.58.0) */
+.pl2-grid tbody td.we { background-color: color-mix(in srgb, #6366f1 9%, var(--surface)); }
+.pl2-grid tbody td.hol { background-color: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.pl2-grid tbody tr.pl2-me th.pl2-name { background: #fff4d6; box-shadow: inset 4px 0 0 #f59e0b; }
+[data-theme="dark"] .pl2-grid tbody tr.pl2-me th.pl2-name { background: rgba(245, 158, 11, .18); }
+.pl2-grid tbody tr.pl2-me td { box-shadow: inset 0 0 0 9999px rgba(245, 158, 11, .10); }
+

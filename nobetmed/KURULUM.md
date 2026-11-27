@@ -1346,3 +1346,10 @@ Ay gece yarısında kapanan birimlerde ayın son günü tutulan 24 saatlik nöbe
 - (4.57.1) **Saati bilinmeyen kodlar:** sözlükte olmayan saat aralıkları (“7 19”, “8 18”, “19-07”…) artık başlangıç / bitişten hesaplanır; önceden 0 saat sayılıp fazla mesaiden düşüyordu. Kayıtta saat yoksa hesap sırasında koddan bulunur (yeniden yükleme gerekmez).
 - (4.57.1) **Takvimim › Saat dökümü:** ayın özetinin altındaki düğme; gün gün hangi kodun kaç saat sayıldığını, ay sınırındaki bölmeyi ve çalışılması gereken saatin hesabını (hafta içi gün × 8 − izin − resmî tatil) gösterir. Excel’deki toplamla fark varsa bu tabloyla karşılaştırın. Saati bilinmeyen kod varsa uyarı çıkar; sorumlu Ayarlar › Nöbet › Nöbet kodları’nda tanımlar.
 
+## 80. Excel liste renkleri ve kişi seçerek karşılaştırma (4.58.0)
+- **Hafta sonu ve resmî tatil sütunları renkli:** liste görünümünde (Nöbet › Liste) gün başlığı bulunan listelerde Cumartesi / Pazar sütunları mor, resmî tatil / bayram sütunları kırmızı tonla gösterilir (Excel’deki kendi renkleri silinmez, üstüne hafif katman biner). Hangi ay olduğu listenin ayından (ya da gün adı satırından) anlaşılır.
+- **Kendi nöbetleriniz belirgin:** kendi satırınız sarı, nöbet yazan hücreleriniz turuncu çerçeveli ve kalın; tablonun altında renk açıklaması var.
+- **Kişi seç:** “Kişi seç” düğmesiyle listeden kişileri işaretleyin; tabloda yalnız siz ve seçtikleriniz kalır (başlık ve gün satırları durur), seçilenlerin satırı mavi. Düğmeler “Ben + 2 kişi” / “Kişi seç (2)” olur; “Seçimi temizle” ile herkes geri gelir. Seçim bu cihazda hatırlanır.
+- **Renkli düğmeler:** Beni bul (sarı), Sadece ben (yeşil), Kişi seç (mor); seçili olan dolu renkte.
+- **Çizelge:** hafta sonu ve tatil sütunları gövdede de renkli; kendi satırınız vurgulu.
+
