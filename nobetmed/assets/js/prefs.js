@@ -465,7 +465,7 @@ async function renderPayPreview() {
   setHTML(box, html`${months.map(([y, m]) => {
     const list = my.entries.filter((e) => e.date.startsWith(`${y}-${pad(m)}`));
     if (!list.length) return '';
-    const sm = summarizeMonth(list, y, m, holidayMapOrNull());
+    const sm = summarizeMonth(my.entries, y, m, holidayMapOrNull());
     return payBoxHtml(y, m, list, sm);
   })}`);
 }

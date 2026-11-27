@@ -151,6 +151,21 @@ function plan_clean(array $in, string $ym): array
  * dinlenme süresi, uzun boşluk). Kaynak: listenin yayınlanmış hâli (değişim / devirler dahil); yoksa önceki ayın taslağı.
  * Dönen: [swap_key(ad) => ['name' => ad, 'days' => [tarih => satır]]]
  */
+/**
+ * Önceki ayın son günündeki kayıtlar (resmî listede ay sınırında bölme için — 4.57.0). Resmî liste liste bazında olduğundan
+ * bu listenin kayıtları alınır; liste o güne hiç kayıt içermiyorsa (her ay ayrı liste açan birim) kişinin diğer listelerindeki.
+ */
+function plan_prev_last(int $rid, string $ym): array
+{
+    $rows = [];
+    foreach (plan_prev_rows($rid, $ym, 1) as $p) {
+        $row = array_values($p['days'])[0] ?? null;
+        if ($row) $rows[] = (array)$row + ['name' => $p['name']];
+    }
+    $own = array_values(array_filter($rows, fn($x) => (int)($x['roster_id'] ?? $rid) === $rid));
+    return $own ?: $rows;
+}
+
 function plan_prev_rows(int $rid, string $ym, int $n = 10): array
 {
     static $cache = [];
@@ -307,6 +322,9 @@ function a_plan_get(): void
         'titles' => ['known' => plan_titles_known($data['people'] ?? []), 'def' => $pt['def'], 'map' => (object)$pt['m']],
         'outside_default' => plan_outside_names($data['people'] ?? []),
         'rq_opts' => plan_rq_opts(),
+        // Önceki ayın son günü (ay sınırında 24 saati bölen birimlerde taşan saat bu aya yazılır — 4.57.0)
+        'prev_last' => plan_prev_last((int)$r['id'], $ym),
+        'month_split' => setting('month_split', '0') === '1',
         'updated_at' => $dr['updated_at'] ?? null, 'updated_by' => $dr ? (string)val('SELECT name FROM users WHERE id = ?', [(int)$dr['updated_by']]) : null,
         'requests' => plan_requests($ym, (int)$r['id']), 'holidays' => (object)$hol, 'codes' => array_values(array_map(fn($c) => [
             'code' => (string)($c['code'] ?? ''), 'label' => (string)($c['label'] ?? ''), 'kind' => (string)($c['kind'] ?? 'shift'), 'start' => $c['start'] ?? null, 'end' => $c['end'] ?? null, 'hours' => $c['hours'] ?? null,

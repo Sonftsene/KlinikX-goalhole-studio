@@ -254,6 +254,25 @@ function rules_is_exempt(string $name, string $scope, ?string $date = null): boo
 /* ------------------------------------------------------------------ */
 
 /**
+ * Nöbetin $ym ayına düşen saati (4.57.0). Birim “ay sınırında böl” ayarını açtıysa ay sonu / başındaki gece yarısını aşan
+ * nöbet (ör. 30 Kasım 08-08) gece yarısında bölünür: 16 saati Kasım’a, 8 saati Aralık’a yazılır. Kapalıysa nöbetin tamamı
+ * başladığı günün ayına sayılır (önceki davranış).
+ */
+function month_hours_of(string $d, array $row, string $ym): float
+{
+    $h = (float)($row['hours'] ?? 0);
+    if (($row['kind'] ?? 'shift') !== 'shift' || $h <= 0) return 0.0;
+    $inMonth = substr($d, 0, 7) === $ym;
+    if (!function_exists('setting') || setting('month_split', '0') !== '1') return $inMonth ? $h : 0.0;
+    $iv = function_exists('swap_interval') ? swap_interval($d, $row) : null;
+    if (!$iv || $iv[1] <= $iv[0]) return $inMonth ? $h : 0.0;
+    $m0 = strtotime($ym . '-01 00:00');
+    $m1 = strtotime(date('Y-m-01', strtotime($ym . '-01 +1 month')) . ' 00:00');
+    $part = max(0, min($iv[1], $m1) - max($iv[0], $m0));
+    return round($h * $part / ($iv[1] - $iv[0]), 2);
+}
+
+/**
  * Listedeki herkes için: ay içi nöbet saati/sayısı, son 7 gün nöbet sayısı, önceki/sonraki nöbet,
  * boşluk (gün) ve karşı tarafa geçiş sayısı (blok yerleşimi modülü 'placement_cross_counts' sağlarsa).
  * Dönen: [ad anahtarı (swap_key) => [...]]
@@ -270,13 +289,14 @@ function rules_fair_stats(int $rid, string $date): array
         foreach ($p['days'] as $d => $row) {
             if (($row['kind'] ?? '') !== 'shift') continue;
             $iv = swap_interval($d, $row);
-            if (substr($d, 0, 7) === $ym) { $shifts++; $hours += (int)($row['hours'] ?? 0); }
+            if (substr($d, 0, 7) === $ym) $shifts++;
+            $hours += month_hours_of((string)$d, $row, $ym);
             if ($d < $date && $d >= date('Y-m-d', strtotime($date . ' -7 days'))) $last7++;
             if ($iv && $iv[1] <= $t0 && ($prevEnd === null || $iv[1] > $prevEnd)) $prevEnd = $iv[1];
             if ($iv && $iv[0] >= $t0 + 86400 && ($nextStart === null || $iv[0] < $nextStart)) $nextStart = $iv[0];
         }
         $out[$k] = [
-            'name' => $p['name'], 'title' => $p['title'], 'month_hours' => $hours, 'month_shifts' => $shifts, 'last7' => $last7,
+            'name' => $p['name'], 'title' => $p['title'], 'month_hours' => (int)round($hours), 'month_shifts' => $shifts, 'last7' => $last7,
             'prev_end' => $prevEnd ? date('Y-m-d H:i', $prevEnd) : null, 'next_start' => $nextStart ? date('Y-m-d H:i', $nextStart) : null,
             'rest_before' => $prevEnd !== null ? (int)floor(($t0 - $prevEnd) / 3600) : null,
             'free_days' => ($prevEnd !== null ? (int)floor(($t0 - $prevEnd) / 86400) : 7) + ($nextStart !== null ? (int)floor(($nextStart - $t0 - 86400) / 86400) : 7),

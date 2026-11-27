@@ -598,6 +598,8 @@ function a_boot(): void
             'org_name' => setting('org_name', 'Klinik Portalı'),
             'registration' => setting('registration', 'approval'),
             'brand' => brand_out(),
+            // Ay sınırındaki 24 saatlik nöbet gece yarısında bölünür (birim ayarı; saat / fazla mesai hesabı) — 4.57.0
+            'month_split' => setting('month_split', '0') === '1',
         ],
         'tenant' => nm_boot_tenant($me),
         'apply' => !$me && function_exists('ap_open') && ap_open(),
@@ -1913,7 +1915,7 @@ function a_settings_save(): void
         if ($u !== '' && !banner_url_ok($u)) fail('Düğme bağlantısı site içi bir sayfa (#/…) ya da https:// ile başlayan bir adres olmalı.');
         set_setting('banner_btn_url', $u);
     }
-    foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on', 'push_enabled', 'digest_on', 'shift_remind_on', 'backup_weekly'] as $k) {
+    foreach (['allow_guest', 'auto_post_roster', 'auto_post_required', 'mail_on', 'push_enabled', 'digest_on', 'shift_remind_on', 'backup_weekly', 'month_split'] as $k) {
         if ($has($k)) set_setting($k, b($k) ? '1' : '0');
     }
     foreach (['digest_hour' => [0, 23], 'shift_remind_hour' => [0, 23], 'auto_remind_days' => [0, 60], 'review_warn_days' => [1, 120]] as $k => [$lo, $hi]) {
@@ -1950,6 +1952,7 @@ function admin_settings(): array
         'allow_guest' => setting('allow_guest', '0') === '1',
         'auto_post_roster' => setting('auto_post_roster', '1') === '1',
         'auto_post_required' => setting('auto_post_required', '0') === '1',
+        'month_split' => setting('month_split', '0') === '1',
         'push_enabled' => setting('push_enabled', '1') === '1',
         'push_ready' => push_ready(),
         'digest_on' => setting('digest_on', '0') === '1',

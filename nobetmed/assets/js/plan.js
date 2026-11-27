@@ -62,6 +62,7 @@ async function planLoad() {
   if (!box) return;
   let r;
   try { r = await api('plan.get', { roster_id: PL2.rid, ym: PL2.ym }); } catch (e) { setHTML(box, html`<div class="card empty"><p class="small">${e.message}</p></div>`); return; }
+  PL2.prevLast = Array.isArray(r.prev_last) ? r.prev_last : Object.values(r.prev_last || {}); PL2.split = !!r.month_split;
   PL2.d = r.draft; PL2.codes = r.codes; PL2.req = r.requests || {}; PL2.hol = r.holidays || {}; PL2.roster = r.roster; PL2.dirty = false; PL2.chk = null; PL2.joint = !!r.joint;
   PL2.rules = r.rules || null;
   PL2.undo = [];

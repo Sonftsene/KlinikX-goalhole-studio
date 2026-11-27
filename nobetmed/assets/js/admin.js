@@ -379,6 +379,10 @@ async function drawSettings(body) {
       ${SW('auto_post_roster', A.auto_post_roster, 'Nöbet listesi güncellenince duyuru yayımla', 'Duyurular bölümüne “… nöbet listesi güncellendi” başlıklı, listeye bağlantı veren bir duyuru eklenir.')}
       ${SW('auto_post_required', A.auto_post_required, 'Bu duyuruyu zorunlu okuma yap', 'Ekip “Okudum, anladım” ile onaylar; kimin listeye baktığını takip edersiniz.')}
     </div>
+    <div class="card card-pad stack" data-sec="nobet">
+      <div><h3 style="font-size:15px">${icon('clock', 'sm')} Ay sonu ve başındaki 24 saatlik nöbet</h3><p class="small muted">Ay gece yarısında kapanıyorsa nöbetin saatleri iki aya bölünür. Çalışılması gereken saat değişmez; yalnız çalışılan saat ve fazla mesai etkilenir.</p></div>
+      ${SW('month_split', A.month_split, 'Ay sınırında 24 saati gece yarısında böl', 'Açıkken ör. 30 Kasım 08-08 nöbetinin 16 saati (08-24) Kasım’a, 8 saati (00-08) Aralık’a yazılır. Kapalıyken nöbetin tamamı başladığı günün ayına sayılır (Excel’de 30 Kasım’a “8 24”, 1 Aralık’a “0 8” ya da “24 8” yazan birimler için de saatler doğru toplanır).')}
+    </div>
 
     <div class="card card-pad stack" data-sec="bildirim">
       <div class="row between wrap"><div><h3 style="font-size:15px">${icon('send', 'sm')} E-posta bildirimleri</h3><p class="small muted">Bildirimlerin gönderileceği e-posta hesabı.</p></div>
@@ -459,6 +463,7 @@ FORMS.settings = (f) => submitForm(f, async (d) => {
   const A = r.admin;
   Object.assign(S.settings, { org_name: d.org_name, registration: d.registration, banner: r.banner, banner_cfg: r.banner_cfg, allow_guest: A.allow_guest, mail_ready: A.mail_ready, notify_post: A.mail_ready && A.events.some((e) => e.key === 'notify_post' && e.on) });
   S.mail_ready = A.mail_ready;
+  S.settings.month_split = !!A.month_split; // Takvimim / ücret özetleri hemen yeni kurala göre
   S.settings.push_ready = !!(A.push_enabled && A.push_ready);
   S.bannerHidden = false;
   renderBanner();

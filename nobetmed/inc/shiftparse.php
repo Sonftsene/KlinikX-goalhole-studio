@@ -44,6 +44,7 @@ function sp_default_codes(): array
         ['code' => '8 24', 'label' => 'Gündüz + akşam (08-24)', 'start' => '08:00', 'end' => '24:00', 'hours' => 16, 'kind' => 'shift', 'nextDay' => true],
         ['code' => '16 24', 'label' => 'Akşam (16-24)', 'start' => '16:00', 'end' => '24:00', 'hours' => 8, 'kind' => 'shift', 'nextDay' => true],
         ['code' => '24 8', 'label' => 'Gece yarısı (24-08)', 'start' => '24:00', 'end' => '08:00', 'hours' => 8, 'kind' => 'shift', 'nextDay' => true],
+        ['code' => '0 8', 'label' => 'Gece yarısından sabaha (00-08)', 'start' => '00:00', 'end' => '08:00', 'hours' => 8, 'kind' => 'shift', 'aliases' => ['00 08', '0 08', '00 8']],
         ['code' => '24', 'label' => '24 saat', 'start' => '08:00', 'end' => '08:00', 'hours' => 24, 'kind' => 'shift', 'nextDay' => true, 'aliases' => ['24 saat', '24s']],
         ['code' => 'G', 'label' => 'Gündüz', 'start' => '08:00', 'end' => '16:00', 'hours' => 8, 'kind' => 'shift', 'aliases' => ['Gündüz']],
         ['code' => 'N', 'label' => 'Gece', 'start' => '16:00', 'end' => '08:00', 'hours' => 16, 'kind' => 'shift', 'nextDay' => true, 'aliases' => ['Gece']],

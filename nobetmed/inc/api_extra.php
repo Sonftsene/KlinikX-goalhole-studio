@@ -170,12 +170,26 @@ function a_rosters_shifts_save(): void
         $d = (string)($e['date'] ?? '');
         return valid_ymd($d) && $d >= $minD && $d <= $maxD && trim((string)($e['name'] ?? '')) !== '' && trim((string)($e['code'] ?? '')) !== '';
     }));
+    // Dosyada komşu ayın günleri de olabilir (ör. Aralık listesinde dinlenme için 30 Kasım sütunu). O ayın kendi dosyası bu
+    // listede okunmuşsa o günler o dosyanındır: ezilmez, yalnız kişinin o gün kaydı yoksa doldurulur (4.57.0 — önce Aralık
+    // yüklenince 30 Kasım’daki “8 24” kayboluyor, Kasım fazla mesaisinden 16 saat düşüyordu).
+    $own = [];
+    $rmOn = function_exists('rm_on') && rm_on();
+    $ownOf = function (string $ym) use (&$own, $rmOn, $rid, $period): bool {
+        if ($ym === $period || !$rmOn) return false;
+        return $own[$ym] ??= (bool)val('SELECT COUNT(*) FROM roster_files WHERE roster_id = ? AND ym = ? AND parsed = 1', [$rid, $ym]);
+    };
     foreach ($entries as $e) {
         $d = (string)$e['date'];
+        if ($ownOf(substr($d, 0, 7))) continue;
         if ($d < $lo) $lo = $d;
         if ($d > $hi) $hi = $d;
     }
     $keepFrom = date('Y-m-01', strtotime($period . '-01 -12 months')); // bir yıldan eski aylar tutulmaz
+    $have = [];
+    foreach (array_keys(array_filter($own)) as $ym) {
+        foreach (all('SELECT date, name FROM roster_shifts WHERE roster_id = ? AND date LIKE ?', [$rid, $ym . '-%']) as $x) $have[$x['date'] . '|' . swap_key((string)$x['name'])] = true;
+    }
     db()->beginTransaction();
     q('DELETE FROM roster_shifts WHERE roster_id = ? AND ((date >= ? AND date <= ?) OR date < ?)', [$rid, $lo, $hi, $keepFrom]);
     // Kalan aylar yeni dosyaya bağlanır (bütün sorgular listenin son okunan dosyasındaki kayıtlara bakar)
@@ -188,6 +202,7 @@ function a_rosters_shifts_save(): void
         $date = (string)($e['date'] ?? '');
         $code = mb_substr(trim((string)($e['code'] ?? '')), 0, 20);
         if ($name === '' || $code === '' || !valid_ymd($date)) continue;
+        if (!empty($own[substr($date, 0, 7)]) && isset($have[$date . '|' . swap_key($name)])) continue; // komşu ayın kendi kaydı duruyor
         $kind = in_array($e['kind'] ?? '', ['shift', 'leave', 'off', 'role'], true) ? $e['kind'] : 'shift';
         $hm = fn($v) => is_string($v) && preg_match('/^\d{2}:\d{2}$/', $v) ? $v : null;
         $st->execute([$rid, $fid, $name, mb_substr((string)($e['title'] ?? ''), 0, 80) ?: null, $date, $code, mb_substr((string)($e['label'] ?? ''), 0, 60) ?: null, $kind,

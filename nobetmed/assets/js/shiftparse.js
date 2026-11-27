@@ -20,6 +20,7 @@ const SHIFT_CODES_DEFAULT = [
   { code: '8 24', label: 'Gündüz + akşam (08-24)', start: '08:00', end: '24:00', hours: 16, kind: 'shift', nextDay: true },
   { code: '16 24', label: 'Akşam (16-24)', start: '16:00', end: '24:00', hours: 8, kind: 'shift', nextDay: true },
   { code: '24 8', label: 'Gece yarısı (24-08)', start: '24:00', end: '08:00', hours: 8, kind: 'shift', nextDay: true },
+  { code: '0 8', label: 'Gece yarısından sabaha (00-08)', start: '00:00', end: '08:00', hours: 8, kind: 'shift', aliases: ['00 08', '0 08', '00 8'] },
   { code: '24', label: '24 saat', start: '08:00', end: '08:00', hours: 24, kind: 'shift', nextDay: true, aliases: ['24 saat', '24s'] },
   { code: 'G', label: 'Gündüz', start: '08:00', end: '16:00', hours: 8, kind: 'shift', aliases: ['Gündüz'] },
   { code: 'N', label: 'Gece', start: '16:00', end: '08:00', hours: 16, kind: 'shift', nextDay: true, aliases: ['Gece'] },
@@ -621,8 +622,25 @@ function matchPersonName(rosterName, userName) {
 /** Bir kişinin aylık özeti. entries: o kişiye ait kayıtlar.
  *  holidays (isteğe bağlı): { 'YYYY-MM-DD': { half: bool } } — hafta içine denk gelen resmî tatil
  *  zorunlu çalışma saatinden düşer (tam gün 8, arife/yarım gün 4 saat). */
-function summarizeMonth(entries, year, month, holidays) {
-  const list = (entries || []).filter((e) => {
+/** Nöbetin gece yarısından sonra (ertesi güne) taşan saati. Saatleri bilinmeyen kod 08:00’de başlar sayılır (sunucuyla aynı). (4.57.0) */
+function shiftSpillHours(e) {
+  const h = Number(e && e.hours) || 0;
+  if (!h || (e.kind && e.kind !== 'shift')) return 0;
+  const tm = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  let s = tm(e.start !== undefined ? e.start : e.start_time), en = tm(e.end !== undefined ? e.end : e.end_time);
+  if (s === null || en === null) { s = 480; en = s + h * 60; } else if (en <= s) en += 1440;
+  const total = en - s;
+  if (total <= 0) return 0;
+  const after = Math.max(0, en - Math.max(s, 1440));
+  return Math.round((h * after / total) * 100) / 100;
+}
+/** Birim “ay sınırındaki 24 saati gece yarısında böl” ayarını açtı mı */
+const monthSplitOn = () => !!(typeof S !== 'undefined' && S && S.settings && S.settings.month_split);
+
+function summarizeMonth(entries, year, month, holidays, opts) {
+  const split = opts && 'split' in opts ? !!opts.split : monthSplitOn();
+  const all = entries || [];
+  const list = all.filter((e) => {
     if (!e || !e.date) return true;
     const [y, m] = e.date.split('-').map(Number);
     return y === +year && m === +month;
@@ -646,6 +664,24 @@ function summarizeMonth(entries, year, month, holidays) {
       if (day && w !== 0 && w !== 6) leave.add(day);
     }
   });
+  // Ay sınırında bölme (birim ayarı): ayın son günü başlayıp gece yarısını aşan nöbetin taşan saati sonraki aya; önceki ayın son
+  // gününden bu aya taşan saat bu aya yazılır. Gereken (zorunlu) saat değişmez.
+  if (split) {
+    const mm = String(month).padStart(2, '0');
+    const last = `${year}-${mm}-${String(days).padStart(2, '0')}`;
+    const pd = new Date(+year, +month - 1, 0);
+    const prevLast = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
+    const seen = new Set();
+    all.forEach((e) => {
+      if (!e || e.kind !== 'shift' || (e.date !== last && e.date !== prevLast)) return;
+      const k = e.date + '|' + e.code;
+      if (seen.has(k)) return;
+      seen.add(k);
+      const sp = shiftSpillHours(e);
+      if (sp) hours += e.date === last ? -sp : sp;
+    });
+    hours = Math.round(hours * 10) / 10;
+  }
   let requiredHours = weekdays * 8 - leave.size * 8;
   if (holidays) {
     let off = 0;

@@ -254,7 +254,7 @@ function heroShiftHtml(my) {
   if (!ent.length) return box('slate', 'search', 'Listede adınız bulunamadı', `Portaldaki adınız (“${S.me.name}”) listedekiyle aynı olmalı.`);
   const y = new Date().getFullYear(), mo = new Date().getMonth() + 1;
   const monthList = ent.filter((e) => e.date.startsWith(`${y}-${pad(mo)}`));
-  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, mo, holidayMapOrNull()) : null;
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(ent, y, mo, holidayMapOrNull()) : null;
   const monthTxt = sm ? ` · Bu ay ${sm.shifts} nöbet, ${sm.hours} saat` : '';
   const cur = currentShift(ent);
   if (cur) return box(shiftTone(cur), 'clock', 'Şu an nöbettesiniz', html`${codeChip(cur)} ${shiftDesc(cur)} · bitiş ${cur.end}`);
@@ -378,7 +378,7 @@ function drawCalendar() {
   const pre = `${y}-${pad(m)}`;
   const monthList = (MY.entries || []).filter((e) => e.date.startsWith(pre));
   const hol = holidayMapOrNull() || {};
-  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(monthList, y, m, holidayMapOrNull()) : null;
+  const sm = monthList.length && typeof summarizeMonth === 'function' ? summarizeMonth(MY.entries || [], y, m, holidayMapOrNull()) : null;
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push(html`<span class="cal-d empty" aria-hidden="true"></span>`);
   for (let d = 1; d <= days; d++) {

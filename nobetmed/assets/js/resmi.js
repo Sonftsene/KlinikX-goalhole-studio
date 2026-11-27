@@ -61,6 +61,12 @@ function rsNightH(c, tpl) {
  *  work    = vardiya saatleri (+ "çalışılmış sayılır" günler);  day / night = gece aralığı dışı / içi
  *  over    = work − req;  night10 = fazla çalışmanın gece saatlerine düşen kısmı = min(gece, fazla) (%10 zamlı)
  */
+/** Ertesi güne taşan kısmın bitiş saati (saati bilinmeyen kod 08:00’de başlar sayılır) */
+function rsSpillEnd(end, hours) {
+  if (end && /^\d{1,2}:\d{2}$/.test(end) && end !== '24:00') return end;
+  const m = Math.max(0, 480 + (+hours || 0) * 60 - 1440);
+  return `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
+}
 function rsHours(D, ym, tpl, hol, half) {
   tpl = tpl || RS2.tpl || { day_hours: 8, half_hours: 4 };
   const days = planDays(ym);
@@ -82,6 +88,21 @@ function rsHours(D, ym, tpl, hol, half) {
       } else if (ef === 'deduct') izin += dayH(d);
       else if (ef === 'work') work += dayH(d);
     });
+    // Ay sınırında bölme (birim ayarı): ayın son günündeki nöbetin gece yarısından sonrası sonraki aya kalır; önceki ayın son
+    // gününden taşan saat bu aya eklenir. Taşan kısım gece aralığına düşer (gece saati de birlikte taşınır). Gereken saat değişmez. (4.57.0)
+    if (typeof PL2 !== 'undefined' && PL2.split && typeof shiftSpillHours === 'function') {
+      const lastD = days[days.length - 1];
+      const lc = ((D.cells || {})[p.name] || {})[lastD];
+      if (lc && rsEffect(lc, tpl) === 'shift') {
+        const c = planCode(lc) || {}; const sp = shiftSpillHours({ hours: c.hours, start: c.start, end: c.end, kind: 'shift' });
+        if (sp) { work -= sp; night -= rsNightH({ hours: sp, start: '00:00', end: rsSpillEnd(c.end, c.hours) }, tpl); }
+      }
+      const pr = (PL2.prevLast || []).find((x) => avKey(x.name) === avKey(p.name));
+      if (pr && pr.kind === 'shift') {
+        const sp = shiftSpillHours(pr);
+        if (sp) { work += sp; night += rsNightH({ hours: sp, start: '00:00', end: rsSpillEnd(pr.end_time, pr.hours) }, tpl); }
+      }
+    }
     let req = base - izin;
     const fix = ((D.hfix || {})[p.name] || {}).req;
     const fixed = fix !== undefined && fix !== null && fix !== '';

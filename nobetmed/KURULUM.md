@@ -1337,3 +1337,10 @@ Uygulamanın baştan sona incelenmesinde bulunan hatalar düzeltildi:
 - **Sohbet:** masaüstünde iki panel (solda sohbet listesi); telefonda açık sohbet kenardan kenara, alt menü gizli.
 - **Diğer:** Excel liste telefonda %90 açılır, “Beni bul” satırın tamamını vurgular, koyu temada isteğe bağlı koyu tablo; telefon rehberinde aynı adlı gruplar birleşir; açık temada soluk yazılar daha okunur; okunmamış sayaçları her yerde aynı renk; Kullanıcılar sayfasında birincil “Kullanıcı ekle” önde.
 
+## 79. Ay sonu / başındaki 24 saatlik nöbet: gece yarısında bölme (4.57.0)
+Ay gece yarısında kapanan birimlerde ayın son günü tutulan 24 saatlik nöbetin (08-08) 16 saati (08-24) o aya, 8 saati (00-08) sonraki aya yazılır. Her birim kendisi seçer: **Ayarlar › Nöbet › Ay sonu ve başındaki 24 saatlik nöbet › “Ay sınırında 24 saati gece yarısında böl”** (varsayılan kapalı; kapalıyken nöbetin tamamı başladığı günün ayına sayılır, önceki davranış).
+- Bölme **çalışılan saat ve fazla mesaiyi** etkiler; **çalışılması gereken saat değişmez**. Takvimim’deki aylık özet, Hesabım › Ücretim tahmini, çizelgenin saat sütunları ve resmî liste (gece saati ve %10 zamlı dahil) aynı kurala uyar. Eksik personel çağrısında adalet sırası (bu ay az çalışan önce) da aynı saati kullanır.
+- Excel’de ay sonunu kendisi bölen birimler (“8 24” ve ertesi ayın 1’ine “0 8” / “24 8”) için kodlar doğru saatle tanınır: “8 24” = 16 saat, “0 8” = 8 saat (00-08, yeni kod), “24 8” = 8 saat.
+- Bir ayın listesinde komşu ayın günleri de varsa (ör. Aralık dosyasında dinlenme için 30 Kasım sütunu), o ayın kendi dosyası bu listede okunmuşsa o günler **ezilmez**; yalnız kişinin o gün kaydı yoksa doldurulur. (Önceden Aralık yüklenince 30 Kasım’daki “8 24” kaybolup Kasım fazla mesaisinden 16 saat düşebiliyordu.)
+- Resmî liste liste bazındadır: önceki aydan taşan saat aynı listeden alınır; liste o güne hiç kayıt içermiyorsa (her ay ayrı liste açan birim) kişinin diğer listelerindeki son gün kaydı kullanılır.
+
