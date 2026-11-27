@@ -392,11 +392,13 @@ function drawCalendar() {
   monthList.forEach((e) => used.set(e.kind + '|' + e.code, e));
   setHTML(box, html`<div class="cal-head"><button type="button" class="btn sm icon" data-act="cal-mv" data-d="-1" aria-label="Önceki ay">${icon('chevL', 'sm')}</button><b>${TR_MONTHS[m - 1]} ${y}</b><button type="button" class="btn sm icon" data-act="cal-mv" data-d="1" aria-label="Sonraki ay">${icon('chevR', 'sm')}</button></div>
     ${sm ? html`<div class="stat-row cal-stats"><div><b>${sm.shifts}</b><span>nöbet</span></div><div><b>${sm.hours}</b><span>saat</span></div>
-      <div><b class="${sm.overtime > 0 ? 'pos' : ''}">${sm.overtime > 0 ? '+' : ''}${Math.abs(sm.overtime)}</b><span>${sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div><div><b>${sm.leaveDays}</b><span>izin günü</span></div></div>`
+      <div><b class="${sm.overtime > 0 ? 'pos' : ''}">${sm.overtime > 0 ? '+' : ''}${Math.abs(sm.overtime)}</b><span>${sm.overtime < 0 ? 'eksik saat' : 'fazla mesai'}</span></div><div><b>${sm.leaveDays}</b><span>izin günü</span></div></div>
+      <div class="row wrap cal-sumrow" style="gap:6px">${(sm.unknown || []).length ? html`<span class="badge warn" title="Bu kodların saati bilinmiyor; 0 sayıldı">${icon('alert', 'sm')}${sm.unknown.join(', ')}: saati bilinmiyor</span>` : ''}<button type="button" class="btn sm ghost" data-act="cal-sum">${icon('list', 'sm')}Saat dökümü</button></div>`
       : html`<p class="tiny faint cal-none">Bu ay için listede nöbetiniz yok.</p>`}
     <div class="cal-grid" role="grid">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((w) => html`<span class="cal-w">${w}</span>`)}${cells}</div>
     ${used.size ? html`<div class="cal-legend">${[...used.values()].map((e) => html`<span>${codeChip(e)}<span>${shiftDesc(e) || (e.kind === 'role' ? 'Görev' : e.kind === 'leave' ? 'İzin' : 'Nöbet')}</span></span>`)}</div>` : ''}
     ${Object.keys(hol).some((d) => d.startsWith(pre)) ? html`<div class="cal-legend">${Object.keys(hol).filter((d) => d.startsWith(pre)).map((d) => html`<span><span class="hol-mark"></span><span>${+d.slice(8)} ${TR_MONTHS_S[m - 1]} · ${hol[d].name}</span></span>`)}</div>` : ''}`);
+  CAL.sum = sm ? { sm, y, m, hol } : null;
   if (typeof mountPayBox === 'function') mountPayBox(y, m, monthList, sm);
 }
 /** Resmî tatil haritası (açılış verisinden) — yoksa null */
@@ -408,6 +410,26 @@ function holidayMapOrNull() {
   S._holMap = { src: S.holidays, map };
   return map;
 }
+/** Saat dökümü: hangi gün kaç saat sayıldı, gereken saat nasıl bulundu (Excel ile karşılaştırmak için — 4.57.1) */
+ACT['cal-sum'] = () => {
+  const c = CAL.sum; if (!c) return;
+  const { sm, y, m, hol } = c;
+  const pre = `${y}-${pad(m)}`;
+  const holOff = sm.holidayOff || 0;
+  const n1 = (x) => (Math.round(x * 10) / 10).toString().replace('.', ',');
+  openModal({ title: `Saat dökümü · ${TR_MONTHS[m - 1]} ${y}`, body: html`<div class="stack">
+    ${(sm.unknown || []).length ? html`<div class="mk-box warn">${icon('alert', 'sm')}<span>Saati bilinmeyen kod: <b>${sm.unknown.join(', ')}</b> — 0 saat sayıldı. Sorumlunuz <b>Ayarlar › Nöbet › Nöbet kodları</b>’nda saatini tanımlayabilir.</span></div>` : ''}
+    <div class="card"><div class="table-wrap"><table class="t cal-sum-t"><thead><tr><th>Gün</th><th>Kod</th><th style="text-align:right">Saat</th></tr></thead>
+      <tbody>${sm.items.slice().sort((a, b) => a.date.localeCompare(b.date)).map((x) => html`<tr><td class="nowrap">${x.date ? dateLabel(x.date) : '—'}${x.note ? html`<div class="tiny faint">${x.note}</div>` : ''}</td><td>${x.code}</td><td style="text-align:right"><b>${n1(x.hours)}</b></td></tr>`)}</tbody>
+      <tfoot><tr><th colspan="2">Çalışılan</th><th style="text-align:right">${n1(sm.hours)}</th></tr></tfoot></table></div></div>
+    <div class="card card-pad small stack" style="gap:4px">
+      <div class="row between"><span>Hafta içi gün × 8 saat</span><b>${sm.weekdays} × 8 = ${sm.weekdays * 8}</b></div>
+      ${sm.leaveDays ? html`<div class="row between"><span>Hafta içi izin günleri</span><b>− ${sm.leaveDays * 8}</b></div>` : ''}
+      ${holOff ? html`<div class="row between"><span>Resmî tatil / arife (${Object.keys(hol || {}).filter((d) => d.startsWith(pre)).length} gün)</span><b>− ${holOff}</b></div>` : ''}
+      <div class="row between"><span>Çalışılması gereken</span><b>${n1(sm.requiredHours)}</b></div>
+      <div class="row between"><span>${sm.overtime < 0 ? 'Eksik saat' : 'Fazla mesai'}</span><b>${n1(Math.abs(sm.overtime))}</b></div>
+      <p class="tiny faint" style="margin:6px 0 0">${sm.split ? 'Biriminizde ay sınırındaki nöbet gece yarısında bölünüyor (Ayarlar › Nöbet).' : 'Ay sınırındaki nöbetin tamamı başladığı günün ayına sayılıyor; biriminiz gece yarısında bölüyorsa yönetici Ayarlar › Nöbet’ten açabilir.'} Excel’deki toplamla fark varsa bu tablodaki günleri karşılaştırın.</p></div></div>` });
+};
 ACT['cal-day'] = (el) => { CAL.sel = el.dataset.d; drawCalendar(); loadDayPanel(); if (window.innerWidth < 900) { const p = $('#dayPanel'); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } };
 ACT['cal-mv'] = (el) => {
   const d = new Date(CAL.y, CAL.m - 1 + +el.dataset.d, 1);

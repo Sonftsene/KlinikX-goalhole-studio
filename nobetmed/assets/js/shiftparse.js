@@ -94,6 +94,18 @@ function classifyCode(text, dict = SHIFT_CODES_DEFAULT) {
     if (e.nextDay) out.nextDay = true;
     return out;
   }
+  // Sözlükte olmayan saat aralığı (“7 19”, “8 18”, “19-07”): başlangıç / bitişten süre hesaplanır (önceden 0 saat sayılıyordu — 4.57.1)
+  const m = /^(\d{1,2}) (\d{1,2})$/.exec(codeKey(raw));
+  if (m && +m[1] <= 24 && +m[2] <= 24) {
+    const a = +m[1], b = +m[2];
+    const h = b > a ? b - a : 24 - a + b;
+    if (h > 0 && h <= 24) {
+      const f = (x) => String(x).padStart(2, '0') + ':00';
+      const out = { code: `${a} ${b}`, label: `${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`, start: f(a), end: f(b), hours: h, kind: 'shift', raw };
+      if (b <= a || b === 24) out.nextDay = true;
+      return out;
+    }
+  }
   return { code: raw, label: raw, start: null, end: null, hours: null, kind: 'shift', raw };
 }
 
@@ -634,6 +646,13 @@ function shiftSpillHours(e) {
   const after = Math.max(0, en - Math.max(s, 1440));
   return Math.round((h * after / total) * 100) / 100;
 }
+/** Kaydın saati; kayıtta yoksa koddan (sözlük ya da “7 19” gibi saat aralığı) bulunur (4.57.1) */
+function entryHours(e) {
+  const h = Number(e && e.hours);
+  if (h) return h;
+  const c = e && e.code && typeof classifyCode === 'function' ? classifyCode(e.code) : null;
+  return c && c.kind === 'shift' ? Number(c.hours) || 0 : 0;
+}
 /** Birim “ay sınırındaki 24 saati gece yarısında böl” ayarını açtı mı */
 const monthSplitOn = () => !!(typeof S !== 'undefined' && S && S.settings && S.settings.month_split);
 
@@ -650,13 +669,18 @@ function summarizeMonth(entries, year, month, holidays, opts) {
   for (let d = 1; d <= days; d++) { const w = spDow(year, month, d); if (w !== 0 && w !== 6) weekdays++; }
   let shifts = 0, hours = 0;
   const leave = new Set();
+  const items = []; // saat dökümü: { date, code, hours, note }
+  const unknown = new Set(); // saati bilinmeyen kodlar (0 sayıldı)
   const seenShift = new Set(); // aynı kişi iki listede aynı nöbetle görünürse bir kez say
   list.forEach((e) => {
     if (e.kind === 'shift') {
       const k = (e.date || e.day) + '|' + e.code;
       if (e.date && seenShift.has(k)) return;
       seenShift.add(k);
-      shifts++; hours += Number(e.hours) || 0;
+      const h = entryHours(e);
+      if (!h) unknown.add(e.code);
+      shifts++; hours += h;
+      items.push({ date: e.date || '', code: e.code, hours: h, note: h ? '' : 'saati bilinmeyen kod' });
     }
     else if (e.kind === 'leave') {
       const day = e.day || +String(e.date || '').slice(8, 10);
@@ -677,8 +701,11 @@ function summarizeMonth(entries, year, month, holidays, opts) {
       const k = e.date + '|' + e.code;
       if (seen.has(k)) return;
       seen.add(k);
-      const sp = shiftSpillHours(e);
-      if (sp) hours += e.date === last ? -sp : sp;
+      const sp = shiftSpillHours(Object.assign({}, e, { hours: entryHours(e) }));
+      if (!sp) return;
+      hours += e.date === last ? -sp : sp;
+      if (e.date === last) { const it = items.find((x) => x.date === last && x.code === e.code); if (it) { it.hours -= sp; it.note = `gece yarısından sonraki ${sp} saat sonraki aya`; } }
+      else items.unshift({ date: e.date, code: e.code, hours: sp, note: `önceki ayın son gününden taşan ${sp} saat` });
     });
     hours = Math.round(hours * 10) / 10;
   }
@@ -692,7 +719,7 @@ function summarizeMonth(entries, year, month, holidays, opts) {
       off += h.half ? 4 : 8;
     }
     requiredHours -= off;
-    return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours, holidayOff: off };
+    return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours, holidayOff: off, items, unknown: [...unknown], weekdays, split };
   }
-  return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours };
+  return { shifts, hours, leaveDays: leave.size, requiredHours, overtime: hours - requiredHours, items, unknown: [...unknown], weekdays, split };
 }

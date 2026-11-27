@@ -261,6 +261,12 @@ function rules_is_exempt(string $name, string $scope, ?string $date = null): boo
 function month_hours_of(string $d, array $row, string $ym): float
 {
     $h = (float)($row['hours'] ?? 0);
+    if ($h <= 0 && ($row['kind'] ?? 'shift') === 'shift' && !function_exists('sp_classify_code') && is_file(__DIR__ . '/shiftparse.php')) require_once __DIR__ . '/shiftparse.php';
+    if ($h <= 0 && ($row['kind'] ?? 'shift') === 'shift' && function_exists('sp_classify_code') && !empty($row['code'])) {
+        $c = sp_classify_code((string)$row['code']); // kayıtta saat yoksa koddan (“7 19” gibi aralıklar dahil — 4.57.1)
+        $h = (float)($c['hours'] ?? 0);
+        if ($h > 0 && empty($row['start_time']) && !empty($c['start'])) { $row['hours'] = $h; $row['start_time'] = $c['start']; $row['end_time'] = $c['end']; }
+    }
     if (($row['kind'] ?? 'shift') !== 'shift' || $h <= 0) return 0.0;
     $inMonth = substr($d, 0, 7) === $ym;
     if (!function_exists('setting') || setting('month_split', '0') !== '1') return $inMonth ? $h : 0.0;

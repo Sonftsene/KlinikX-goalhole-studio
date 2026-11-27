@@ -27,6 +27,7 @@ async function login(email, pw) {
 }
 const call = (p, a, d = {}) => p.evaluate(([x, y]) => api(x, y), [a, d]);
 const pad = (n) => String(n).padStart(2, '0');
+const TR_M = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
 let A = null;
 let rid = 0;
@@ -51,7 +52,8 @@ try {
     await call(A, 'rosters.upload', { id: rid, attachment_id: fid, ym, primary: true });
     await call(A, 'rosters.shifts', { roster_id: rid, file_id: fid, period: ym, entries, primary: true });
   };
-  await up(ym1, [{ name: 'Elif Yılmaz', date: `${ym1}-10`, ...G }, { name: 'Elif Yılmaz', date: L, ...H24 }]);
+  // “7 19” sözlükte yok ve kayıtta saat yok: 12 saat sayılmalı (önceden 0 sayılıp fazla mesaiden düşüyordu — 4.57.1)
+  await up(ym1, [{ name: 'Elif Yılmaz', date: `${ym1}-10`, ...G }, { name: 'Elif Yılmaz', date: `${ym1}-12`, code: '7 19', kind: 'shift' }, { name: 'Elif Yılmaz', date: L, ...H24 }]);
   // Ocak dosyası dinlenme için 31 Aralık sütununu da içeriyor (Elif boş/başka kod gibi): Aralık’ın kendi kaydı ezilmemeli
   await up(ym2, [{ name: 'Elif Yılmaz', date: L, ...G }, { name: 'Burak Demir', date: L, ...G }, { name: 'Elif Yılmaz', date: `${ym2}-10`, ...G }]);
   {
@@ -74,7 +76,7 @@ try {
   await E.reload(); await E.waitForFunction(() => typeof S !== 'undefined' && S.me);
   const off = await sums();
   if (off.split) fail('ayar kapalıyken bölme açık görünüyor');
-  if (off.h1 !== 32 || off.h2 !== 8) throw new Error(`ayar kapalı: ${ym1} 32 / ${ym2} 8 saat beklenirdi: ` + JSON.stringify(off));
+  if (off.h1 !== 44 || off.h2 !== 8) throw new Error(`ayar kapalı: ${ym1} 44 (8+12+24) / ${ym2} 8 saat beklenirdi: ` + JSON.stringify(off));
   step(`ayar kapalı: ${L} 08-08 nöbeti tamamen ${ym1}’e (${off.h1} saat), ${ym2}: ${off.h2} saat`);
 
   // 2) Yönetici ayarı arayüzden açar
@@ -93,9 +95,23 @@ try {
   await E.reload(); await E.waitForFunction(() => typeof S !== 'undefined' && S.me);
   const on = await sums();
   if (!on.split) fail('ayar açıldı ama kişide bölme kapalı');
-  if (on.h1 !== 24 || on.h2 !== 16) throw new Error(`ayar açık: ${ym1} 24 (8+16) / ${ym2} 16 (8+8) saat beklenirdi: ` + JSON.stringify(on));
+  if (on.h1 !== 36 || on.h2 !== 16) throw new Error(`ayar açık: ${ym1} 36 (8+12+16) / ${ym2} 16 (8+8) saat beklenirdi: ` + JSON.stringify(on));
   if (on.r1 !== off.r1 || on.r2 !== off.r2) fail('çalışılması gereken saat değişti: ' + JSON.stringify({ off, on }));
   step(`ayar açık: ${L} 08-08 → ${ym1}’e 16 saat (toplam ${on.h1}), ${ym2}’e 8 saat (toplam ${on.h2}); gereken saat değişmedi (${on.r1} / ${on.r2})`);
+
+  // 3b) Takvimim › Saat dökümü: gün gün sayılan saat ve gereken saatin hesabı
+  await E.goto(BASE + '#/nobetim');
+  await E.locator('.cal-head').waitFor({ timeout: 10000 });
+  for (let k = 0; k < 3 && !(await E.locator('.cal-head b', { hasText: TR_M[mo1 - 1] + ' ' + y1 }).count()); k++) { await E.click('[data-act=cal-mv][data-d="1"]'); await E.waitForTimeout(300); }
+  await E.click('[data-act=cal-sum]');
+  const md = E.locator('.modal').last();
+  await md.locator('.cal-sum-t').waitFor({ timeout: 5000 });
+  const mt = await md.innerText();
+  if (!/7 19/.test(mt) || !/\b12\b/.test(mt)) fail('saat dökümünde “7 19” 12 saat görünmüyor');
+  if (!/sonraki aya/.test(mt)) fail('saat dökümünde ay sınırı notu yok');
+  if (!/Çalışılması gereken/.test(mt)) fail('saat dökümünde gereken saat hesabı yok');
+  await md.screenshot({ path: path.join(OUT, 'ay-bol-dokum.png') }).catch(() => {});
+  step('Takvimim › Saat dökümü: “7 19” 12 saat, son gün “gece yarısından sonraki 8 saat sonraki aya”, gereken saat hesabı');
 
   // 4) “0 8” ve “8 24” kodları doğru saatle tanınır; tek tek toplandığında bölme olmaz (8 24 gece yarısında biter)
   const cls = await E.evaluate(() => [classifyCode('0 8'), classifyCode('8 24'), shiftSpillHours({ kind: 'shift', hours: 16, start: '08:00', end: '24:00' }), shiftSpillHours({ kind: 'shift', hours: 24, start: '08:00', end: '08:00' }), shiftSpillHours({ kind: 'shift', hours: 16, start: '16:00', end: '08:00' })]);
@@ -123,7 +139,7 @@ try {
   if (!w2 || w2.work !== 16) fail('resmî liste ' + ym2 + ' çalışılan 16 olmalı: ' + JSON.stringify(w2));
   // Bu listenin önceki ay kaydı yoksa kişinin diğer listelerindeki önceki ay son günü sayılır (her ay ayrı liste açan birim)
   const carry1 = await A.evaluate(() => { const x = (PL2.prevLast || []).find((r) => avKey(r.name) === avKey('Elif Yılmaz')); return x ? shiftSpillHours(x) : 0; });
-  if (!w1 || w1.work !== 24 + carry1) fail('resmî liste ' + ym1 + ' çalışılan ' + (24 + carry1) + ' olmalı: ' + JSON.stringify(w1));
+  if (!w1 || w1.work !== 36 + carry1) fail('resmî liste ' + ym1 + ' çalışılan ' + (36 + carry1) + ' olmalı: ' + JSON.stringify(w1));
   if (w2 && w2.night < 8) fail('taşan gece saati bu aya yazılmadı: ' + JSON.stringify(w2));
   step(`resmî liste: ${ym1} çalışılan ${w1 && w1.work} (gece ${w1 && w1.night}), ${ym2} çalışılan ${w2 && w2.work} (gece ${w2 && w2.night})`);
   step(`çizelge (${ym2}): önceki ayın son günü (${L} ${pe && pe.code}) ve ayar geldi; resmî listede taşan 8 saat bu aya yazılır`);

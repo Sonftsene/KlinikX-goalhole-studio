@@ -166,6 +166,18 @@ function sp_classify_idx($text, array $idx): ?array
         if (!empty($e['nextDay'])) $out['nextDay'] = true;
         return $out;
     }
+    // Sözlükte olmayan saat aralığı (“7 19”, “8 18”, “19-07”): başlangıç / bitiş saatinden süre hesaplanır; önceden 0 saat
+    // sayılıp fazla mesaiden düşüyordu (4.57.1)
+    if (preg_match('/^(\d{1,2}) (\d{1,2})$/', sp_code_key($raw), $m) && (int)$m[1] <= 24 && (int)$m[2] <= 24) {
+        $a = (int)$m[1]; $b = (int)$m[2];
+        $h = $b > $a ? $b - $a : 24 - $a + $b;
+        if ($h > 0 && $h <= 24) {
+            $fmt = fn($x) => sprintf('%02d:00', $x);
+            $out = ['code' => $a . ' ' . $b, 'label' => sprintf('%02d-%02d', $a, $b), 'start' => $fmt($a), 'end' => $fmt($b), 'hours' => $h, 'kind' => 'shift', 'raw' => $raw];
+            if ($b <= $a || $b === 24) $out['nextDay'] = true;
+            return $out;
+        }
+    }
     return ['code' => $raw, 'label' => $raw, 'start' => null, 'end' => null, 'hours' => null, 'kind' => 'shift', 'raw' => $raw];
 }
 

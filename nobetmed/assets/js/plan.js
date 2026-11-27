@@ -13,7 +13,12 @@ const PL2_TAB_URL = { grid: '', chg: 'degisiklik', resmi: 'resmi' };
 
 function planRosters() { return (S.rosters || []).filter((r) => r.kind !== 'tablo' && !r.linked); }
 function planDays(ym) { const [y, m] = ym.split('-').map(Number); const n = new Date(y, m, 0).getDate(); return Array.from({ length: n }, (_, i) => `${ym}-${pad(i + 1)}`); }
-function planCode(code) { return PL2.codes.find((c) => c.code === code) || null; }
+function planCode(code) {
+  const c = PL2.codes.find((x) => x.code === code);
+  if (c || !code || typeof classifyCode !== 'function') return c || null;
+  const g = classifyCode(code); // sözlükte yoksa “7 19” gibi saat aralığı (4.57.1)
+  return g && g.kind === 'shift' && g.hours ? g : null;
+}
 function planTone(code) {
   const c = planCode(code);
   if (!c) return 'slate';
